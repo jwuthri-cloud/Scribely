@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .chat-message {
+    @apply p-4 rounded-lg mb-4 max-w-[80%] break-words;
+  }
+
+  .chat-message.user {
+    @apply bg-blue-500 text-white ml-auto;
+  }
+
+  .chat-message.assistant {
+    @apply bg-gray-100 text-gray-900 mr-auto dark:bg-gray-800 dark:text-gray-100;
+  }
+
+  .typing-dots {
+    @apply flex space-x-1;
+  }
+
+  .typing-dot {
+    @apply w-2 h-2 bg-gray-500 rounded-full animate-pulse;
+  }
+}

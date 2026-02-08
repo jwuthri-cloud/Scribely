@@ -1,0 +1,139 @@
+---
+globs: *.py
+---
+
+# FastAPI Backend Development Rules
+
+Follow these conventions for FastAPI backend development:
+
+## Code Style & Standards
+- **Python Version**: Use Python 3.11+ features
+- **Type Hints**: Always use type hints for function parameters and return types
+- **Line Length**: 88 characters (Black formatter standard)
+- **Import Organization**: Use isort with Black profile
+- **Docstrings**: Use descriptive docstrings for all public functions and classes
+
+## Pydantic Models
+- Use Pydantic v2 syntax and features
+- Define models in [app/models/](mdc:assistme/backend/app/models/) for API contracts
+- Include `Config` class with examples for API documentation
+- Use validators for custom validation logic
+- Separate API models from database models
+
+Example:
+```python
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="The user's message", min_length=1)
+    session_id: Optional[str] = Field(default=None, description="Session identifier")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Hello, how are you?",
+                "session_id": "123e4567-e89b-12d3-a456-426614174000"
+            }
+        }
+```
+
+## API Endpoints
+- Group endpoints by version in [app/api/v1/](mdc:assistme/backend/app/api/v1/)
+- Use FastAPI's dependency injection system extensively
+- Include comprehensive docstrings and response models
+- Handle exceptions with proper HTTP status codes
+- Use dependency injection for services: `service = Depends(get_service_dep)`
+
+Example endpoint structure:
+```python
+@router.post("/", response_model=ChatResponse)
+async def send_message(
+    request: ChatRequest,
+    chat_service = Depends(get_chat_service_dep),
+    current_user: Optional[ClerkUser] = Depends(get_current_user),
+    _rate_limit_check = Depends(check_rate_limit)
+) -> ChatResponse:
+    """Send a message and get AI response."""
+    try:
+        response = await chat_service.process_message(...)
+        return response
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.message)
+```
+
+## Services & Business Logic
+- Implement business logic in service classes in [app/services/](mdc:assistme/backend/app/services/)
+- Use dependency injection for service dependencies
+- Follow single responsibility principle
+- Use async/await for I/O operations
+- Implement proper error handling and logging
+
+## Database Integration
+- Use SQLAlchemy with async support
+- Define database models in [app/database/models/](mdc:assistme/backend/app/database/models/)
+- Implement repository pattern in [app/database/repositories/](mdc:assistme/backend/app/database/repositories/)
+- Use Alembic for database migrations
+- Follow the Unit of Work pattern for transactions
+
+## CQRS Pattern
+When using CQRS (Command Query Responsibility Segregation):
+- Commands for state changes go in [app/core/cqrs/](mdc:assistme/backend/app/core/cqrs/)
+- Queries for data retrieval use separate handlers
+- Register handlers with the CQRS bus
+- Use proper result types (CommandResult/QueryResult)
+
+Example CQRS usage:
+```python
+from app.core.cqrs.bus import get_cqrs_bus
+
+# Execute command
+result = await get_cqrs_bus().execute_command(CreateChatSessionCommand(...))
+
+# Execute query
+result = await get_cqrs_bus().execute_query(GetChatHistoryQuery(...))
+```
+
+## Configuration Management
+- Use [app/core/config/settings.py](mdc:assistme/backend/app/core/config/settings.py) for all configuration
+- Environment-specific settings with Pydantic validation
+- Use secrets management for sensitive data
+- Validate configuration on startup
+
+## Error Handling
+- Define custom exceptions in [app/exceptions.py](mdc:assistme/backend/app/exceptions.py)
+- Use FastAPI exception handlers for consistent error responses
+- Log errors with proper context and correlation IDs
+- Return user-friendly error messages
+
+## Logging & Monitoring
+- Use structured logging with the utility in [app/utils/logging.py](mdc:assistme/backend/app/utils/logging.py)
+- Include correlation IDs for tracing
+- Log at appropriate levels (DEBUG, INFO, WARNING, ERROR)
+- Use OpenTelemetry for distributed tracing
+
+## LLM Integration
+- Use the LLM service abstraction in [app/core/llm/](mdc:assistme/backend/app/core/llm/)
+- Support multiple LLM providers through factory pattern
+- Implement proper error handling for external API calls
+
+
+## Security
+- Validate all inputs using Pydantic models
+- Implement rate limiting on API endpoints
+- Use Clerk authentication for user management
+- Sanitize inputs to prevent injection attacks
+- Follow principle of least privilege
+
+## Testing
+- Write unit tests for all services and handlers
+- Use pytest with async support
+- Mock external dependencies (LLM APIs, databases)
+- Aim for high test coverage
+- Include integration tests for critical paths
+
+## Background Tasks
+- Use Celery for background processing
+- Define tasks in [app/tasks/](mdc:assistme/backend/app/tasks/)
+- Use proper task routing and queues
+- Implement retry logic with exponential backoff

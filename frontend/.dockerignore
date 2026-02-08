@@ -1,0 +1,186 @@
+# AssistMe Frontend - Docker Ignore
+# Exclude files and directories that shouldn't be copied to Docker build context
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Next.js build outputs
+.next/
+out/
+build/
+dist/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Testing
+tests/
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+**/*.test.jsx
+**/*.spec.ts
+**/*.spec.tsx
+**/*.spec.js
+**/*.spec.jsx
+.jest/
+jest.config.*
+cypress/
+cypress.json
+.cypress/
+e2e/
+playwright-report/
+test-results/
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Environment files (sensitive data)
+.env*
+!.env.local.template
+!.env.example
+
+# Development tools
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+!README.md
+docs/
+guides/
+CHANGELOG*
+LICENSE*
+
+# Development scripts
+scripts/
+*.sh
+Makefile
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Storybook
+.storybook/
+storybook-static/
+
+# Sentry
+.sentryclirc
+
+# Local configuration
+local_*
+dev_*
+
+# Vercel
+.vercel
+
+# Turbo
+.turbo
+
+# Analytics
+.analytics/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

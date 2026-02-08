@@ -1,0 +1,137 @@
+name: 📚 Documentation Issue
+description: Report missing, incorrect, or unclear documentation
+title: "[DOCS] "
+labels: ["documentation", "good first issue"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📚 Documentation Issue
+
+        Help us improve our documentation! Whether it's missing info, outdated content, or unclear explanations - we want to know about it.
+
+        ---
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: 📝 Issue Type
+      description: What type of documentation issue is this?
+      options:
+        - 📝 Missing Documentation
+        - ❌ Incorrect Information
+        - 🔍 Unclear/Confusing Content
+        - 🔗 Broken Links
+        - 📖 Outdated Information
+        - 🌍 Translation Issue
+        - 🎨 Formatting/Style Issue
+        - 💡 Improvement Suggestion
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: 📍 Documentation Location
+      description: Where is the documentation issue located?
+      placeholder: e.g., README.md, docs/api.md, inline comments in app/main.py, website section
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 📄 Current Content
+      description: What does the current documentation say? (Copy and paste the relevant section)
+      placeholder: Paste the current documentation content here...
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: ❗ What's Wrong/Missing
+      description: Describe what's incorrect, missing, or unclear
+      placeholder: Explain what's wrong with the current documentation or what's missing...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: ✅ Suggested Improvement
+      description: How should the documentation be improved?
+      placeholder: |
+        Provide your suggested changes, corrections, or additions.
+        You can include:
+        - Corrected text
+        - Missing sections that should be added
+        - Better explanations
+        - Code examples
+        - Links to relevant resources
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: 👥 Target Audience
+      description: Who is this documentation primarily for?
+      options:
+        - 🆕 New Users/Beginners
+        - 👩‍💻 Developers
+        - 🔧 System Administrators
+        - 🚀 Contributors
+        - 📈 Project Managers
+        - 🎯 End Users
+        - 🌐 All Users
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🚨 Priority
+      description: How important is fixing this documentation issue?
+      options:
+        - 🔴 Critical (Prevents users from using the software)
+        - 🟠 High (Causes significant confusion)
+        - 🟡 Medium (Minor confusion or inconvenience)
+        - 🟢 Low (Nice to have improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 🔍 Additional Context
+      description: Provide any additional context that might be helpful
+      placeholder: |
+        - What were you trying to do when you found this issue?
+        - What's your experience level with this technology?
+        - Did you find the information elsewhere?
+        - Are there related documentation issues?
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: 💡 Examples/References
+      description: Provide examples of good documentation or references
+      placeholder: |
+        Links to:
+        - Similar projects with good documentation
+        - Relevant tutorials or guides
+        - Code examples that work
+        - External resources
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Please confirm the following
+      options:
+        - label: 🔍 I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: 📖 I have checked if this documentation exists elsewhere
+          required: true
+        - label: 🎯 I have clearly described the issue and suggested improvement
+          required: true
+        - label: ✍️ I am willing to help improve this documentation
+          required: false

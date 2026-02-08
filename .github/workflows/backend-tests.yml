@@ -1,0 +1,430 @@
+name: Backend Tests & Quality
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-tests.yml'
+
+env:
+  PYTHON_VERSION: "3.13"
+  DATABASE_URL: "postgresql://test_user:test_pass@localhost:5432/test_db"
+  REDIS_URL: "redis://localhost:6379/15"
+  SECRET_KEY: "test-secret-key-very-long-and-secure-for-testing-purposes"
+  ENVIRONMENT: "testing"
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run Black (code formatting)
+        run: |
+          cd backend
+          poetry run black --check --diff .
+
+      - name: Run isort (import sorting)
+        run: |
+          cd backend
+          poetry run isort --check-only --diff .
+
+      - name: Run flake8 (linting)
+        run: |
+          cd backend
+          poetry run flake8 . --max-line-length=88 --extend-ignore=E203,W503
+
+      - name: Run mypy (type checking)
+        run: |
+          cd backend
+          poetry run mypy app --ignore-missing-imports
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry safety bandit
+          poetry install --with dev
+
+      - name: Run Safety (security vulnerabilities)
+        run: |
+          cd backend
+          poetry export -f requirements.txt --without-hashes | safety check --stdin
+
+      - name: Run Bandit (security linting)
+        run: |
+          cd backend
+          bandit -r app -f json -o bandit-report.json
+          bandit -r app  # Also show in console
+
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: bandit-security-report
+          path: backend/bandit-report.json
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run unit tests
+        run: |
+          cd backend
+          poetry run pytest tests/unit/ \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --junitxml=pytest-unit.xml \
+            -v
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: unit-test-results
+          path: |
+            backend/pytest-unit.xml
+            backend/htmlcov/
+            backend/coverage.xml
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run database migrations
+        run: |
+          cd backend
+          poetry run alembic upgrade head
+
+      - name: Run integration tests
+        run: |
+          cd backend
+          poetry run pytest tests/integration/ \
+            --cov=app \
+            --cov-append \
+            --cov-report=xml \
+            --junitxml=pytest-integration.xml \
+            -v --tb=short
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            backend/pytest-integration.xml
+            backend/coverage.xml
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Run performance tests
+        run: |
+          cd backend
+          poetry run pytest tests/performance/ \
+            --junitxml=pytest-performance.xml \
+            -v --tb=short \
+            --durations=10
+
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-test-results
+          path: backend/pytest-performance.xml
+
+  code-quality:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: $3.13
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --with dev
+
+      - name: Download test coverage
+        uses: actions/download-artifact@v3
+        with:
+          name: unit-test-results
+          path: backend/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.xml
+          directory: ./backend
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: true
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: TBD
+          SONAR_TOKEN: TBD
+        with:
+          projectBaseDir: backend
+          args: >
+            -Dsonar.projectKey=assistme-backend
+            -Dsonar.organization=Jwuthri
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.python.xunit.reportPath=pytest-unit.xml
+
+  build-and-test-docker:
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, security-scan]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          cd backend
+          docker build -t assistme-backend:test .
+
+      - name: Test Docker image
+        run: |
+          docker run --rm \
+            -e DATABASE_URL=sqlite:///test.db \
+            -e REDIS_URL=redis://localhost:6379 \
+            assistme-backend:test \
+            python -c "import app; print('Import successful')"
+
+      - name: Run container health check
+        run: |
+          # Start container in background
+          docker run -d --name test-container \
+            -p 8000:8000 \
+            -e DATABASE_URL=sqlite:///test.db \
+            assistme-backend:test
+
+          # Wait for container to start
+          sleep 10
+
+          # Check health endpoint
+          curl -f http://localhost:8000/api/v1/health/live || exit 1
+
+          # Stop container
+          docker stop test-container
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, build-and-test-docker]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+
+    environment:
+      name: staging
+      url: https://staging-api.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your deployment commands here
+          # Examples:
+          # - Deploy to AWS ECS, GCP Cloud Run, or Azure Container Instances
+          # - Update Kubernetes deployments
+          # - Deploy via Docker Swarm or similar
+
+      - name: Run smoke tests against staging
+        run: |
+          echo "Running smoke tests against staging..."
+          # Add smoke tests here
+          curl -f https://staging-api.example.com/api/v1/health/ || exit 1
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, build-and-test-docker, performance-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    environment:
+      name: production
+      url: https://api.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment commands here
+
+      - name: Run production health checks
+        run: |
+          echo "Running production health checks..."
+          curl -f https://api.example.com/api/v1/health/ || exit 1
+
+      - name: Notify deployment success
+        run: |
+          echo "Production deployment successful!"
+          # Add notifications (Slack, Discord, email, etc.)
+
+  # Cleanup job to remove old artifacts
+  cleanup:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [unit-tests, integration-tests, performance-tests, code-quality, build-and-test-docker]
+
+    steps:
+      - name: Clean up artifacts
+        run: |
+          echo "Cleaning up temporary artifacts..."
+          # GitHub automatically cleans up artifacts after retention period

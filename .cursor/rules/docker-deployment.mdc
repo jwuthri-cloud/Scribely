@@ -1,0 +1,393 @@
+---
+globs: Dockerfile,docker-compose*.yml,*.sh
+---
+
+# Docker & Deployment Rules
+
+Follow these patterns for Docker containerization and deployment:
+
+## Docker Structure
+
+### Multi-Stage Builds
+Both backend and frontend use multi-stage builds for optimization:
+
+```dockerfile
+# Backend Dockerfile pattern
+FROM python:3.11-slim as base
+# Install system dependencies
+
+FROM base as dependencies
+# Install Python dependencies
+
+FROM dependencies as development
+# Development-specific setup
+
+FROM dependencies as production
+# Production optimizations
+```
+
+### Container Organization
+- **Backend**: [assistme/backend/Dockerfile](mdc:assistme/backend/Dockerfile)
+- **Frontend**: [assistme/frontend/Dockerfile](mdc:assistme/frontend/Dockerfile)
+- **Docker Compose**: [docker-compose.yml](mdc:assistme/docker-compose.yml) for orchestration
+
+## Docker Compose Services
+
+### Core Services
+```yaml
+# docker-compose.yml
+services:
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/myapp
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build: ./frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=myapp
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  redis:
+    image: redis:7-alpine
+```
+
+### Development vs Production
+- **Development**: Use [docker/docker-compose.dev.yml](mdc:assistme/backend/docker/docker-compose.dev.yml)
+- **Tracing**: Use [docker/docker-compose.tracing.yml](mdc:assistme/backend/docker/docker-compose.tracing.yml) for observability
+- **Production**: Base compose file with production overrides
+
+## Environment Configuration
+
+### Environment Files
+- **Template**: [config_template.env](mdc:assistme/backend/config_template.env) as reference
+- **Development**: `.env` files for local development
+- **Production**: Use secrets management (Docker Secrets, Kubernetes Secrets)
+
+### Environment Variables Pattern
+```bash
+# Core Application
+APP_NAME=AssistMe
+APP_VERSION=0.1.0
+ENVIRONMENT=production
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/db
+DATABASE_POOL_SIZE=20
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+REDIS_PASSWORD=
+
+# LLM Configuration
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your-api-key
+DEFAULT_MODEL=anthropic/claude-4.5-sonnet
+
+# Security
+SECRET_KEY=your-secret-key-min-32-chars
+CLERK_PUBLISHABLE_KEY=pk_live_...
+CLERK_SECRET_KEY=sk_live_...
+```
+
+## Deployment Scripts
+
+### Management Scripts
+Use scripts in [scripts/](mdc:assistme/backend/scripts/) for deployment management:
+
+```bash
+# Start services
+./scripts/start.sh
+
+# Start with background workers
+./scripts/start-with-workers.sh
+
+# Check service status
+./scripts/status.sh
+
+# Stop all services
+./scripts/stop.sh
+
+# Deploy to production
+./scripts/deploy.sh
+```
+
+### Script Patterns
+```bash
+#!/bin/bash
+# scripts/start.sh
+
+set -e  # Exit on error
+
+echo "🚀 Starting AssistMe services..."
+
+# Pull latest images
+docker-compose pull
+
+# Build and start services
+docker-compose up -d --build
+
+# Wait for services to be healthy
+./scripts/status.sh
+
+echo "✅ Services started successfully"
+```
+
+## Health Checks & Monitoring
+
+### Container Health Checks
+```dockerfile
+# In Dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+```
+
+### Service Dependencies
+```yaml
+# docker-compose.yml
+services:
+  backend:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    depends_on:
+      backend:
+        condition: service_healthy
+```
+
+## Production Deployment
+
+### Container Optimizations
+- **Multi-stage builds**: Separate build and runtime stages
+- **Minimal base images**: Use Alpine Linux for smaller images
+- **Layer caching**: Optimize Dockerfile layer order
+- **Security scanning**: Regular vulnerability scans
+
+### Resource Management
+```yaml
+# Production resource limits
+services:
+  backend:
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+```
+
+### Volume Management
+```yaml
+# Persistent volumes
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads:
+    driver: local
+
+services:
+  db:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    volumes:
+      - uploads:/app/data/uploads
+```
+
+## Kubernetes Deployment
+
+### Namespace Organization
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: assistme
+```
+
+### Deployment Manifests
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: assistme
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: assistme-backend:latest
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+```
+
+## Observability & Monitoring
+
+### Distributed Tracing
+Use OpenTelemetry configuration in [docker/otel-collector-config.yml](mdc:assistme/backend/docker/otel-collector-config.yml):
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger]
+```
+
+### Logging Configuration
+```yaml
+# docker-compose.yml logging
+services:
+  backend:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+```
+
+## Security Best Practices
+
+### Image Security
+- **Non-root users**: Run containers as non-root
+- **Minimal privileges**: Principle of least privilege
+- **Security scans**: Regular vulnerability scanning
+- **Base image updates**: Keep base images updated
+
+### Secrets Management
+```yaml
+# Docker Swarm secrets
+secrets:
+  database_password:
+    external: true
+  openrouter_api_key:
+    external: true
+
+services:
+  backend:
+    secrets:
+      - database_password
+      - openrouter_api_key
+```
+
+### Network Security
+```yaml
+# Custom networks for isolation
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # No external access
+
+services:
+  frontend:
+    networks:
+      - frontend
+      - backend
+
+  backend:
+    networks:
+      - backend
+
+  db:
+    networks:
+      - backend  # Database only accessible from backend
+```
+
+## CI/CD Integration
+
+### GitHub Actions Example
+```yaml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build and push images
+      run: |
+        docker build -t  REGISTRY/backend ./backend
+        docker build -t REGISTRY/frontend ./frontend
+        docker push REGISTRY/backend
+        docker push REGISTRY/frontend
+
+    - name: Deploy to production
+      run: |
+        ssh production-server "cd /app && docker-compose pull && docker-compose up -d"
+```
+
+## Performance Optimization
+
+### Build Optimization
+- **Build context**: Minimize Docker build context
+- **Layer caching**: Optimize layer order for caching
+- **Multi-platform**: Build for target architectures
+- **Parallel builds**: Use BuildKit for parallel builds
+
+### Runtime Optimization
+- **Resource limits**: Set appropriate CPU/memory limits
+- **Connection pooling**: Configure database connection pools
+- **Caching**: Use Redis for caching and sessions
+- **CDN**: Use CDN for static assets

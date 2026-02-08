@@ -1,0 +1,218 @@
+---
+globs: test_*.py,*.test.ts,*.test.tsx,*.spec.ts,*.spec.tsx
+---
+
+# Testing & Quality Assurance Rules
+
+Follow these testing patterns and quality standards:
+
+## Backend Testing (Python/pytest)
+
+### Test Structure
+- **Location**: All tests in [tests/](mdc:assistme/backend/tests/)
+- **Organization**:
+  - `tests/unit/` - Unit tests for individual components
+  - `tests/integration/` - Integration tests for API endpoints
+  - `tests/performance/` - Performance and load testing
+- **Configuration**: Use [pytest.ini](mdc:assistme/backend/pytest.ini) for pytest settings
+- **Coverage**: Aim for 80%+ test coverage with `pytest-cov`
+
+### Test Naming & Organization
+```python
+# tests/unit/test_chat_services.py
+class TestChatService:
+    """Test chat service functionality."""
+
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Create mock dependencies for ChatService."""
+        return {
+            "llm_service": MockLLMService(),
+            "settings": MockSettings()
+        }
+
+    @pytest.mark.asyncio
+    async def test_process_message_success(self, mock_dependencies):
+        """Test successful message processing."""
+        service = ChatService(**mock_dependencies)
+
+        response = await service.process_message(
+            message="Hello",
+            session_id="test-session",
+            user_id="test-user"
+        )
+
+        assert response["message"] == "Expected response"
+        assert response["session_id"] == "test-session"
+```
+
+### Testing Patterns
+- **Fixtures**: Use pytest fixtures for common test setup
+- **Mocking**: Mock external dependencies (LLM APIs, databases)
+- **Async Testing**: Use `@pytest.mark.asyncio` for async functions
+- **Parametrized Tests**: Use `@pytest.mark.parametrize` for multiple scenarios
+- **Test Data**: Create realistic test data that mirrors production
+
+### API Testing
+```python
+# tests/integration/test_chat_api.py
+@pytest.mark.asyncio
+async def test_chat_endpoint_success(client, auth_headers):
+    """Test successful chat message sending."""
+    request_data = {
+        "message": "Hello, how are you?",
+        "session_id": None
+    }
+
+    response = await client.post(
+        "/api/v1/chat/",
+        json=request_data,
+        headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "message" in data
+    assert "session_id" in data
+    assert data["session_id"] is not None
+```
+
+### Database Testing
+- **Test Database**: Use separate test database or in-memory SQLite
+- **Transactions**: Wrap tests in transactions and rollback
+- **Fixtures**: Create database fixtures for consistent test data
+- **Repository Testing**: Test repository methods with real database
+
+## Frontend Testing (Jest/React Testing Library)
+
+### Test Structure
+- **Colocation**: Place test files next to components or in `__tests__/` directory
+- **Naming**: Use `.test.ts` or `.spec.ts` suffixes
+- **Setup**: Configure test environment in `jest.config.js`
+
+### Component Testing
+```typescript
+// src/components/chat/__tests__/chat-interface.test.tsx
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { ChatInterface } from '../chat-interface'
+
+describe('ChatInterface', () => {
+  it('renders message input and send button', () => {
+    render(<ChatInterface />)
+
+    expect(screen.getByPlaceholderText('Type your message...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument()
+  })
+
+  it('sends message when form is submitted', async () => {
+    const mockOnMessageSent = jest.fn()
+    render(<ChatInterface onMessageSent={mockOnMessageSent} />)
+
+    const input = screen.getByPlaceholderText('Type your message...')
+    const button = screen.getByRole('button', { name: /send/i })
+
+    fireEvent.change(input, { target: { value: 'Hello' } })
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(mockOnMessageSent).toHaveBeenCalledWith('Hello')
+    })
+  })
+})
+```
+
+### Hook Testing
+```typescript
+// src/hooks/__tests__/use-chat.test.ts
+import { renderHook, act } from '@testing-library/react'
+import { useChat } from '../use-chat'
+
+describe('useChat', () => {
+  it('initializes with empty messages', () => {
+    const { result } = renderHook(() => useChat())
+
+    expect(result.current.messages).toEqual([])
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('adds message when sendMessage is called', async () => {
+    const { result } = renderHook(() => useChat())
+
+    await act(async () => {
+      await result.current.sendMessage('Hello')
+    })
+
+    expect(result.current.messages).toHaveLength(2) // User + assistant
+  })
+})
+```
+
+## Test Quality Standards
+
+### Mock Strategy
+- **External APIs**: Always mock LLM provider APIs
+- **Database**: Use test database or memory storage
+- **Time**: Mock `datetime.now()` for consistent timestamps
+- **File System**: Mock file operations
+- **Network**: Mock HTTP requests
+
+### Test Data Management
+- **Factories**: Use factory functions for creating test data
+- **Fixtures**: Reusable test data setup
+- **Realistic Data**: Use data that reflects real usage patterns
+- **Edge Cases**: Test boundary conditions and error scenarios
+
+### Error Testing
+```python
+@pytest.mark.asyncio
+async def test_llm_service_failure_handling(mock_dependencies):
+    """Test handling of LLM service failures."""
+    mock_dependencies["llm_service"] = MockLLMService(should_fail=True)
+    service = ChatService(**mock_dependencies)
+
+    with pytest.raises(ExternalServiceError):
+        await service.process_message("Hello", "session", "user")
+```
+
+## Performance Testing
+- **Load Testing**: Use tools like `locust` for API load testing
+- **Memory Testing**: Profile memory usage in long-running tests
+- **Response Times**: Measure and assert on response time limits
+- **Concurrent Testing**: Test thread safety and concurrent operations
+
+## Integration Testing
+- **End-to-End**: Test complete user workflows
+- **Service Integration**: Test service-to-service communication
+- **Database Integration**: Test with real database operations
+- **External Services**: Test integration points with mocked external services
+
+## Code Quality Tools
+
+### Python Backend
+- **Linting**: Use `ruff` for fast Python linting
+- **Formatting**: Use `black` for code formatting
+- **Type Checking**: Use `mypy` for static type checking
+- **Security**: Use `bandit` for security issue detection
+
+### TypeScript Frontend
+- **Linting**: Use ESLint with TypeScript rules
+- **Formatting**: Use Prettier for code formatting
+- **Type Checking**: Use TypeScript compiler for type checking
+- **Bundle Analysis**: Regular bundle size analysis
+
+### Pre-commit Hooks
+- **Setup**: Use `pre-commit` for automated quality checks
+- **Fast Feedback**: Run quick checks before commits
+- **Consistency**: Ensure all commits meet quality standards
+
+## Continuous Integration
+- **Automated Testing**: Run all tests on every commit
+- **Coverage Reports**: Generate and track test coverage
+- **Quality Gates**: Block deployments on test failures
+- **Performance Regression**: Track performance metrics
+
+## Test Documentation
+- **Test Cases**: Document complex test scenarios
+- **Setup Instructions**: Clear setup for running tests
+- **Mock Documentation**: Document what each mock simulates
+- **Test Data**: Document test data sources and management

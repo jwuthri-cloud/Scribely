@@ -1,0 +1,196 @@
+name: 🔒 Security Vulnerability
+description: Report a security vulnerability (use private reporting for sensitive issues)
+title: "[SECURITY] "
+labels: ["security", "critical"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔒 Security Vulnerability Report
+
+        **⚠️ IMPORTANT SECURITY NOTICE ⚠️**
+
+        If this is a **critical security vulnerability** that could cause immediate harm, please use GitHub's **Private Vulnerability Reporting** feature instead of creating a public issue.
+
+        Go to: **Security tab → Report vulnerability** for sensitive reports.
+
+        ---
+
+  - type: checkboxes
+    id: severity-check
+    attributes:
+      label: 🚨 Severity Assessment
+      description: Please confirm the severity level
+      options:
+        - label: 🟢 This is NOT a critical vulnerability (safe to report publicly)
+          required: true
+        - label: ⚠️ I understand that critical vulnerabilities should be reported privately
+          required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: 🛡️ Vulnerability Type
+      description: What type of security issue is this?
+      options:
+        - 🔐 Authentication Bypass
+        - 🔑 Authorization Issues
+        - 💉 SQL Injection
+        - 🌐 Cross-Site Scripting (XSS)
+        - 🔄 Cross-Site Request Forgery (CSRF)
+        - 📂 Path Traversal
+        - 💾 Data Exposure
+        - 🔓 Insecure Configuration
+        - 📦 Dependency Vulnerability
+        - 🔍 Information Disclosure
+        - ⬆️ File Upload Vulnerability
+        - 🌊 Denial of Service (DoS)
+        - 🔐 Cryptographic Issue
+        - 🏗️ Infrastructure Security
+        - 🤖 LLM Security Issue
+        - 🔧 Other Security Issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Vulnerability Description
+      description: Provide a clear description of the security vulnerability
+      placeholder: Describe the security issue and its potential impact...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 CVSS Severity
+      description: What's the severity level of this vulnerability?
+      options:
+        - 🔴 Critical (9.0-10.0) - Immediate action required
+        - 🟠 High (7.0-8.9) - Important to fix soon
+        - 🟡 Medium (4.0-6.9) - Should be addressed
+        - 🟢 Low (0.1-3.9) - Minor security concern
+        - 📊 Not Sure - Need help assessing
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: 💥 Security Impact
+      description: What could an attacker accomplish with this vulnerability?
+      placeholder: |
+        Describe the potential impact:
+        - Data that could be accessed/modified
+        - Systems that could be compromised
+        - Users that could be affected
+        - Business impact
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 Proof of Concept
+      description: How can this vulnerability be reproduced? (Remove sensitive data)
+      placeholder: |
+        Provide step-by-step reproduction steps:
+        1. Set up environment...
+        2. Send request to...
+        3. Observe that...
+
+        ⚠️ Please sanitize any sensitive information!
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🎯 Affected Component
+      description: Which component is vulnerable?
+      options:
+        - Frontend (Next.js)
+        - Backend API (FastAPI)
+        - Database Layer
+        - Authentication System
+        - LLM Integration
+        - File Upload/Processing
+        - WebSocket Connections
+        - Docker Configuration
+        - CI/CD Pipeline
+        - Dependencies/Packages
+        - Infrastructure
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-versions
+    attributes:
+      label: 🏷️ Affected Versions
+      description: Which versions are affected by this vulnerability?
+      placeholder: |
+        - Affected versions: e.g., v1.0.0 - v1.2.3
+        - First vulnerable version: e.g., v1.0.0
+        - Last tested version: e.g., v1.2.3
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: 🛠️ Suggested Mitigation
+      description: Do you have suggestions for fixing this vulnerability?
+      placeholder: |
+        Suggested fixes or mitigations:
+        - Code changes needed
+        - Configuration updates
+        - Workarounds for users
+        - References to security best practices
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 📚 References
+      description: Relevant security references, CVEs, or documentation
+      placeholder: |
+        - CVE references
+        - OWASP guidelines
+        - Security advisories
+        - Technical documentation
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🌍 Environment Details
+      description: Testing environment details
+      value: |
+        - Deployment type: [e.g., Docker, local development, cloud]
+        - OS: [e.g., Ubuntu 20.04, macOS 13.0]
+        - Browser: [e.g., Chrome 108, if applicable]
+        - Network: [e.g., public internet, internal network]
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Security Checklist
+      description: Please confirm the following
+      options:
+        - label: 🔍 I have verified this is a legitimate security vulnerability
+          required: true
+        - label: 🤐 I have not disclosed this vulnerability publicly elsewhere
+          required: true
+        - label: 🧪 I have tested this vulnerability in a safe environment
+          required: true
+        - label: 📝 I have removed any sensitive information from this report
+          required: true
+        - label: 🤝 I am willing to work with maintainers to resolve this issue
+          required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        **🙏 Thank you for helping keep AssistMe secure!**
+
+        Your responsible disclosure helps protect all users of this project. We take security seriously and will respond to your report as quickly as possible.

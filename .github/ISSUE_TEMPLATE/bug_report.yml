@@ -1,0 +1,132 @@
+name: 🐛 Bug Report
+description: Create a report to help us fix a bug
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Bug Report
+
+        Thanks for taking the time to report a bug! Please fill out the information below to help us understand and reproduce the issue.
+
+        ---
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug here...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Behavior
+      description: A clear and concise description of what you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual Behavior
+      description: A clear and concise description of what actually happened
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Screenshots/Logs
+      description: If applicable, add screenshots or error logs to help explain your problem
+      placeholder: Paste screenshots or logs here...
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🎯 Component
+      description: Which component is affected?
+      options:
+        - Frontend (Next.js)
+        - Backend (FastAPI)
+        - Database
+        - Authentication
+        - LLM Integration
+        - Docker/Infrastructure
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 Severity
+      description: How severe is this bug?
+      options:
+        - 🔴 Critical (System unusable, data loss)
+        - 🟠 High (Major functionality broken)
+        - 🟡 Medium (Some functionality affected)
+        - 🟢 Low (Minor issue, workaround available)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 🏷️ Version
+      description: What version of the software are you running?
+      placeholder: e.g., v1.2.3, latest, commit hash
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🌍 Environment
+      description: Please provide your environment details
+      value: |
+        - OS: [e.g., macOS 13.0, Ubuntu 20.04, Windows 11]
+        - Browser: [e.g., Chrome 108, Firefox 107, Safari 16]
+        - Node.js: [e.g., 18.12.0]
+        - Python: [e.g., 3.11.0]
+        - Docker: [e.g., 20.10.21]
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 📚 Additional Context
+      description: Add any other context about the problem here
+      placeholder: Any additional information that might be helpful...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Please confirm the following
+      options:
+        - label: 🔍 I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: 📖 I have read the documentation and troubleshooting guides
+          required: true
+        - label: 🧪 I have provided all necessary information to reproduce the issue
+          required: true
+        - label: 🏷️ I have added appropriate labels to this issue
+          required: false

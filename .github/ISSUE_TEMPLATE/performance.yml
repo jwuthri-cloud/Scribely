@@ -1,0 +1,172 @@
+name: ⚡ Performance Issue
+description: Report slow performance, memory issues, or optimization suggestions
+title: "[PERFORMANCE] "
+labels: ["performance", "needs-investigation"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚡ Performance Issue
+
+        Help us optimize AssistMe! Report slow performance, high resource usage, or suggest optimizations.
+
+        ---
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: 🎯 Performance Issue Type
+      description: What type of performance issue are you experiencing?
+      options:
+        - 🐌 Slow Response Times
+        - 🧠 High Memory Usage
+        - 💾 High CPU Usage
+        - 🗄️ Database Performance
+        - 🌐 Network/API Performance
+        - 🖥️ Frontend Rendering
+        - 🔄 Background Job Performance
+        - 📦 Large Bundle Size
+        - 🚀 Startup Time
+        - 💡 Optimization Suggestion
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Performance Issue Description
+      description: Describe the performance problem you're experiencing
+      placeholder: What specific performance issue are you encountering?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 🔄 Steps to Reproduce
+      description: How can we reproduce this performance issue?
+      placeholder: |
+        1. Navigate to '...'
+        2. Perform action '...'
+        3. Wait for/observe '...'
+        4. Notice performance issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: 📊 Performance Metrics
+      description: Provide specific metrics if available
+      placeholder: |
+        - Response time: e.g., 5 seconds instead of expected 500ms
+        - Memory usage: e.g., 2GB RAM consumed
+        - CPU usage: e.g., 90% CPU for simple operation
+        - Database query time: e.g., 3 seconds for simple query
+        - Bundle size: e.g., 10MB JavaScript bundle
+        - Page load time: e.g., 8 seconds to load
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 Performance Impact
+      description: How severe is the performance impact?
+      options:
+        - 🔴 Critical (System unusable/extremely slow)
+        - 🟠 High (Significantly impacts user experience)
+        - 🟡 Medium (Noticeable but manageable)
+        - 🟢 Low (Minor optimization opportunity)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🎯 Affected Component
+      description: Which component is experiencing performance issues?
+      options:
+        - Frontend (Next.js)
+        - Backend API (FastAPI)
+        - Database Queries
+        - LLM Processing
+        - File Operations
+        - Background Jobs
+        - WebSocket Connections
+        - Authentication
+        - Docker/Infrastructure
+        - Network/CDN
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🌍 Environment Details
+      description: Provide details about your environment
+      value: |
+        - OS: [e.g., macOS 13.0, Ubuntu 20.04, Windows 11]
+        - Browser: [e.g., Chrome 108, Firefox 107]
+        - Device: [e.g., MacBook Pro M1, Desktop i7-12700K, Mobile iPhone 14]
+        - Network: [e.g., WiFi, 4G, fiber broadband]
+        - Server specs: [e.g., 4 CPU cores, 8GB RAM]
+        - Deployment: [e.g., local development, staging, production]
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: 🔍 Profiling Data
+      description: Include profiling data, logs, or diagnostic information
+      placeholder: |
+        Attach or paste:
+        - Browser DevTools performance timeline
+        - FastAPI profiler output
+        - Database query execution plans
+        - Memory dumps
+        - CPU profiling data
+        - Network timing data
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Performance
+      description: What performance did you expect?
+      placeholder: |
+        - Expected response time: under 500ms
+        - Expected memory usage: under 100MB
+        - Expected CPU usage: under 20%
+        - Expected load time: under 2 seconds
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: 💡 Optimization Suggestions
+      description: Do you have ideas for improving performance?
+      placeholder: |
+        - Caching strategies
+        - Database optimizations
+        - Code improvements
+        - Infrastructure changes
+        - Third-party alternatives
+
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: 🔧 Current Workarounds
+      description: Any workarounds you're currently using?
+      placeholder: Describe any temporary solutions you've implemented...
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: ✅ Checklist
+      description: Please confirm the following
+      options:
+        - label: 🔍 I have searched existing issues to ensure this is not a duplicate
+          required: true
+        - label: 📊 I have provided specific performance metrics where possible
+          required: true
+        - label: 🧪 I have tested this in different environments (if applicable)
+          required: false
+        - label: 📈 I have profiled the performance issue to identify bottlenecks
+          required: false

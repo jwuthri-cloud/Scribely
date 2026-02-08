@@ -1,0 +1,141 @@
+[project]
+name = "assistme-backend"
+version = "0.1.0"
+description = "A FastAPI + Next.js AI agent application with OpenRouter - Backend API"
+authors = [
+    {name = "Julien wuthrich", email = "julien.wut@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+keywords = ["fastapi", "api", "backend"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+]
+
+dependencies = [
+    # FastAPI and ASGI server
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    
+    # Data validation and settings
+    "pydantic[email]>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    
+    # Database support
+    
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.7",
+    
+    "sqlalchemy[asyncio]>=2.0.23",
+    "alembic>=1.13.0",
+    
+    # CORS and multipart support
+    "python-multipart>=0.0.6",
+    
+    # Environment and configuration
+    "python-dotenv>=1.0.0",
+    
+    # HTTP client
+    "httpx>=0.25.2",
+    "requests>=2.31.0",
+    
+    # Authentication and JWT
+    "pyjwt>=2.8.0",
+    "cryptography>=41.0.0",
+    
+    # LangChain for LLM integration
+    "langchain>=1.2.6",
+    "langchain-openai>=1.1.7",
+    "langchain-core>=1.2.7",
+    "langgraph>=1.0.5",
+    
+    # LLM Observability
+    "langfuse>=3.12.0",
+    
+    # Agent Training (APO, VERL, SFT)
+    "agentlightning>=0.3.0",
+    
+    # Logging
+    "rich>=13.7.0",
+    "python-json-logger>=2.0.7",
+
+    # Rate limiting
+    "slowapi>=0.1.9",
+
+    # Vector database (LangChain integration)
+    
+    "langchain-pinecone>=0.2.0",
+    
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "ruff>=0.1.6",
+    "mypy>=1.7.0",
+    "pre-commit>=3.6.0",
+    "httpx>=0.25.2",
+]
+
+test = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.2",
+]
+
+[project.scripts]
+assistme = "app.cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/Julien wuthrich/assistme"
+Repository = "https://github.com/Julien wuthrich/assistme"
+Issues = "https://github.com/Julien wuthrich/assistme/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.black]
+line-length = 88
+target-version = ['py313']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+select = ["E", "F", "W", "B", "I"]
+ignore = ["E203", "W503"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "--cov=app --cov-report=html --cov-report=term-missing"

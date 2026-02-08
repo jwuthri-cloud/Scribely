@@ -1,0 +1,190 @@
+---
+globs: *.tsx,*.ts,*.jsx,*.js
+---
+
+# Next.js Frontend Development Rules
+
+Follow these conventions for Next.js frontend development:
+
+## Next.js App Router
+- Use Next.js 14+ App Router structure in [src/app/](mdc:assistme/frontend/src/app/)
+- File-based routing with `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`
+- Server and Client Components appropriately
+- Use `"use client"` directive only when necessary
+
+## TypeScript Standards
+- **Strict TypeScript**: Enable strict mode in [tsconfig.json](mdc:assistme/frontend/tsconfig.json)
+- **Type Definitions**: Define interfaces in [src/types/](mdc:assistme/frontend/src/types/)
+- **API Types**: Mirror backend Pydantic models for API contracts
+- **Component Props**: Always type component props with interfaces
+
+Example type definitions:
+```typescript
+// src/types/chat.ts
+export interface ChatMessage {
+  id: string
+  content: string
+  role: 'user' | 'assistant' | 'system'
+  timestamp: string
+  metadata?: Record<string, any>
+}
+
+export interface ChatRequest {
+  message: string
+  session_id?: string
+  context?: Record<string, any>
+}
+```
+
+## Component Structure
+- **Organization**: Group components by feature in [src/components/](mdc:assistme/frontend/src/components/)
+- **Naming**: Use PascalCase for components, kebab-case for files
+- **Props Interface**: Always define props interface above component
+- **Export**: Use default exports for components
+
+Example component structure:
+```typescript
+interface ChatInterfaceProps {
+  initialMessages?: ChatMessage[]
+  onMessageSent?: (message: string) => void
+}
+
+export default function ChatInterface({
+  initialMessages = [],
+  onMessageSent
+}: ChatInterfaceProps) {
+  // Component implementation
+}
+```
+
+## State Management
+- **Local State**: Use `useState` for component-local state
+- **Global State**: Use Context API with providers in [src/components/providers/](mdc:assistme/frontend/src/components/providers/)
+- **Server State**: Use custom hooks for API data fetching
+- **Form State**: Use controlled components with validation
+
+## Custom Hooks
+- **Location**: Place custom hooks in [src/hooks/](mdc:assistme/frontend/src/hooks/)
+- **Naming**: Prefix with `use` (e.g., `useChat`, `useDebounce`)
+- **Reusability**: Extract reusable logic into custom hooks
+- **TypeScript**: Always type hook parameters and return values
+
+Example custom hook:
+```typescript
+// src/hooks/use-chat.ts
+export function useChat(initialSessionId?: string) {
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+
+  const sendMessage = async (content: string) => {
+    // Implementation
+  }
+
+  return { messages, isLoading, sendMessage }
+}
+```
+
+## Styling with Tailwind CSS
+- **Configuration**: Use [tailwind.config.js](mdc:assistme/frontend/tailwind.config.js) for customization
+- **Utility-First**: Prefer Tailwind utility classes
+- **Custom Styles**: Use [src/app/globals.css](mdc:assistme/frontend/src/app/globals.css) for global styles
+- **Component Variants**: Use `clsx` and `tailwind-merge` for conditional classes
+
+Example styling patterns:
+```typescript
+import { clsx } from 'clsx'
+
+interface ButtonProps {
+  variant?: 'primary' | 'secondary'
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
+}
+
+export function Button({ variant = 'primary', size = 'md', className, ...props }: ButtonProps) {
+  return (
+    <button
+      className={clsx(
+        'inline-flex items-center justify-center rounded-md font-medium',
+        {
+          'bg-blue-600 text-white hover:bg-blue-700': variant === 'primary',
+          'bg-gray-200 text-gray-900 hover:bg-gray-300': variant === 'secondary',
+          'px-3 py-2 text-sm': size === 'sm',
+          'px-4 py-2 text-base': size === 'md',
+          'px-6 py-3 text-lg': size === 'lg',
+        },
+        className
+      )}
+      {...props}
+    />
+  )
+}
+```
+
+## API Integration
+- **Client**: Use API client in [src/lib/api.ts](mdc:assistme/frontend/src/lib/api.ts)
+- **Authentication**: Handle Clerk tokens automatically
+- **Error Handling**: Implement consistent error handling patterns
+- **Type Safety**: Type API requests and responses
+
+Example API client usage:
+```typescript
+// src/lib/api.ts
+export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+  const response = await fetch('/api/v1/chat/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Clerk auth headers added by middleware
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  return response.json()
+}
+```
+
+## Authentication with Clerk
+- **Provider**: Wrap app with `ClerkProvider` in [src/app/layout.tsx](mdc:assistme/frontend/src/app/layout.tsx)
+- **Components**: Use Clerk components for auth UI
+- **Hooks**: Use `useUser()`, `useAuth()` for authentication state
+- **Middleware**: Configure [middleware.ts](mdc:assistme/frontend/middleware.ts) for route protection
+
+## Performance Optimization
+- **Code Splitting**: Use dynamic imports for large components
+- **Image Optimization**: Use Next.js `Image` component
+- **Bundle Analysis**: Regular bundle size monitoring
+- **Memoization**: Use `useMemo` and `useCallback` judiciously
+
+## UI/UX Patterns
+- **Loading States**: Show loading indicators for async operations
+- **Error Boundaries**: Implement error boundaries for graceful failures
+- **Responsive Design**: Mobile-first responsive design
+- **Accessibility**: Follow ARIA guidelines and semantic HTML
+
+## WebSocket Integration
+- **Connection**: Manage WebSocket connections in custom hooks
+- **Real-time Updates**: Handle real-time chat updates
+- **Reconnection**: Implement automatic reconnection logic
+- **Message Queuing**: Queue messages during disconnection
+
+## SEO & Meta Tags
+- **Metadata**: Use Next.js 14 metadata API
+- **Dynamic SEO**: Generate meta tags based on content
+- **Open Graph**: Configure social media sharing
+- **Structured Data**: Add JSON-LD where appropriate
+
+## Error Handling
+- **Error Boundaries**: Catch and display React errors gracefully
+- **API Errors**: Handle HTTP errors with user-friendly messages
+- **Form Validation**: Client-side validation with clear error messages
+- **Toast Notifications**: Use toast provider for user feedback
+
+## Testing
+- **Unit Tests**: Test components and hooks in isolation
+- **Integration Tests**: Test component interactions
+- **E2E Tests**: Critical user flows with Playwright/Cypress
+- **Accessibility**: Include accessibility testing
