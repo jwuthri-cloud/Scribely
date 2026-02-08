@@ -2,15 +2,47 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 import { applyInvisibility } from './invisibility'
-import { registerGlobalHotkey, unregisterAllHotkeys } from './hotkey'
+import { registerAllHotkeys, unregisterAllHotkeys, reregisterHotkeys } from './hotkey'
+import { captureScreen } from './screenshot'
 
-const store = new Store({
+interface HotkeyConfig {
+  toggleOverlay: string
+  moveUp: string
+  moveDown: string
+  moveLeft: string
+  moveRight: string
+  takeScreenshot: string
+  toggleAudio: string
+  resetChat: string
+}
+
+interface AppSettings {
+  themeId: string
+  hotkeys: HotkeyConfig
+  moveStepPx: number
+  windowOpacity: number
+}
+
+const store = new Store<AppSettings>({
   defaults: {
     themeId: 'atom-dark',
+    hotkeys: {
+      toggleOverlay: 'Alt+T',
+      moveUp: 'Alt+Up',
+      moveDown: 'Alt+Down',
+      moveLeft: 'Alt+Left',
+      moveRight: 'Alt+Right',
+      takeScreenshot: 'Alt+S',
+      toggleAudio: 'Alt+A',
+      resetChat: 'Alt+R',
+    },
+    moveStepPx: 50,
+    windowOpacity: 0.85,
   },
 })
 
 let mainWindow: BrowserWindow | null = null
+let pendingResponseTimer: ReturnType<typeof setTimeout> | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -47,12 +79,44 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Register toggle hotkey
-  registerGlobalHotkey(mainWindow)
+  // Register all global hotkeys
+  registerAllHotkeys(mainWindow, store)
 }
 
 function registerIpcHandlers(): void {
-  // Theme persistence via electron-store
+  // ── Settings ──────────────────────────────────────
+  ipcMain.handle('get-settings', () => {
+    return store.store
+  })
+
+  ipcMain.on('update-settings', (_event, partial: Partial<AppSettings>) => {
+    const oldHotkeys = JSON.stringify(store.get('hotkeys'))
+
+    // Merge partial settings
+    for (const [key, value] of Object.entries(partial)) {
+      if (key === 'hotkeys' && typeof value === 'object') {
+        // Deep merge hotkeys
+        const current = store.get('hotkeys')
+        store.set('hotkeys', { ...current, ...(value as Partial<HotkeyConfig>) })
+      } else {
+        store.set(key as keyof AppSettings, value as never)
+      }
+    }
+
+    const newHotkeys = JSON.stringify(store.get('hotkeys'))
+
+    // Re-register hotkeys if they changed
+    if (oldHotkeys !== newHotkeys && mainWindow) {
+      reregisterHotkeys(mainWindow, store)
+    }
+
+    // Notify renderer that settings changed
+    if (mainWindow) {
+      mainWindow.webContents.send('settings-changed', store.store)
+    }
+  })
+
+  // ── Legacy theme IPC (kept for backward compat during migration) ──
   ipcMain.handle('get-theme-id', () => {
     return store.get('themeId', 'atom-dark')
   })
@@ -61,21 +125,35 @@ function registerIpcHandlers(): void {
     store.set('themeId', themeId)
   })
 
-  // Handle send-message IPC from renderer (placeholder — will route to backend)
+  // ── Screenshot ────────────────────────────────────
+  ipcMain.handle('take-screenshot', async () => {
+    if (!mainWindow) throw new Error('No window')
+    return captureScreen(mainWindow)
+  })
+
+  // ── Chat ──────────────────────────────────────────
   ipcMain.on('send-message', (_event, message: string) => {
     console.log('[ipc] Received message:', message)
-    // Placeholder echo response — will be replaced with backend call
     if (mainWindow) {
-      setTimeout(() => {
+      pendingResponseTimer = setTimeout(() => {
         mainWindow!.webContents.send(
           'chat-response',
           `You said: "${message}"\n\n(Placeholder — backend integration coming soon.)`,
         )
+        pendingResponseTimer = null
       }, 600)
     }
   })
 
-  // Handle app-quit IPC from renderer
+  ipcMain.on('cancel-response', () => {
+    if (pendingResponseTimer) {
+      clearTimeout(pendingResponseTimer)
+      pendingResponseTimer = null
+      console.log('[ipc] Response cancelled')
+    }
+  })
+
+  // ── App lifecycle ─────────────────────────────────
   ipcMain.on('app-quit', () => {
     app.quit()
   })

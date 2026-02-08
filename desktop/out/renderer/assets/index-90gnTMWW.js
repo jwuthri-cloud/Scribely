@@ -7043,39 +7043,92 @@ const themes = {
 };
 const DEFAULT_THEME_ID = "atom-dark";
 const ThemeContext = reactExports.createContext(null);
-function applyThemeVariables(theme) {
+function toCssVar(key) {
+  return `--${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+}
+function applyThemeVariables(colors) {
   const root = document.documentElement;
-  for (const [key, value] of Object.entries(theme.colors)) {
-    const cssVar = `--${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
-    root.style.setProperty(cssVar, value);
+  for (const [key, value] of Object.entries(colors)) {
+    root.style.setProperty(toCssVar(key), value);
   }
 }
-function getStoredThemeId() {
+function persistThemeId(id2) {
+  if (window.electronAPI?.updateSettings) {
+    window.electronAPI.updateSettings({ themeId: id2 });
+  } else if (window.electronAPI?.setThemeId) {
+    window.electronAPI.setThemeId(id2);
+  }
+  try {
+    localStorage.setItem("theme-id", id2);
+  } catch {
+  }
+}
+function getStoredThemeIdSync() {
   try {
     return localStorage.getItem("theme-id") ?? DEFAULT_THEME_ID;
   } catch {
     return DEFAULT_THEME_ID;
   }
 }
-function storeThemeId(id2) {
-  try {
-    localStorage.setItem("theme-id", id2);
-  } catch {
-  }
-}
 function ThemeProvider({ children }) {
-  const [themeId, setThemeIdState] = reactExports.useState(getStoredThemeId);
+  const [themeId, setThemeIdState] = reactExports.useState(getStoredThemeIdSync);
   const theme = themes[themeId] ?? themes[DEFAULT_THEME_ID];
   reactExports.useEffect(() => {
-    applyThemeVariables(theme);
+    let cancelled = false;
+    const hydrate = async () => {
+      let storedId;
+      if (window.electronAPI?.getSettings) {
+        try {
+          const settings = await window.electronAPI.getSettings();
+          storedId = settings?.themeId;
+        } catch {
+        }
+      }
+      if (!storedId && window.electronAPI?.getThemeId) {
+        storedId = await window.electronAPI.getThemeId();
+      }
+      if (!cancelled && storedId && themes[storedId]) {
+        setThemeIdState(storedId);
+        try {
+          localStorage.setItem("theme-id", storedId);
+        } catch {
+        }
+      }
+    };
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onSettingsChanged?.((settings) => {
+      if (settings?.themeId && themes[settings.themeId]) {
+        setThemeIdState(settings.themeId);
+        try {
+          localStorage.setItem("theme-id", settings.themeId);
+        } catch {
+        }
+      }
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+  reactExports.useEffect(() => {
+    applyThemeVariables(theme.colors);
   }, [theme]);
   const setThemeId = (id2) => {
-    if (themes[id2]) {
-      setThemeIdState(id2);
-      storeThemeId(id2);
-    }
+    if (!themes[id2]) return;
+    setThemeIdState(id2);
+    persistThemeId(id2);
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(ThemeContext.Provider, { value: { theme, setThemeId }, children });
+  const themeIds = Object.keys(themes);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(ThemeContext.Provider, { value: { theme, themeIds, setThemeId }, children });
+}
+function useTheme() {
+  const ctx = reactExports.useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used inside <ThemeProvider>");
+  return ctx;
 }
 const LayoutGroupContext = reactExports.createContext({});
 function useConstant(init) {
@@ -14350,177 +14403,912 @@ const createMotionComponent = /* @__PURE__ */ createMotionComponentFactory({
   ...layout
 }, createDomVisualElement);
 const motion = /* @__PURE__ */ createDOMMotionComponentProxy(createMotionComponent);
-function TitleBar() {
-  const [hovered, setHovered] = reactExports.useState(false);
+function TitleBar({ view, onToggleView, onReset }) {
+  const [closeHovered, setCloseHovered] = reactExports.useState(false);
+  const handleClose = () => {
+    if (window.electronAPI?.quit) {
+      window.electronAPI.quit();
+    } else {
+      window.close();
+    }
+  };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
-      className: "flex items-center justify-between px-4 py-2",
+      className: "flex items-center justify-between px-4 py-2.5 shrink-0 select-none",
       style: { WebkitAppRegion: "drag" },
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            className: "w-3 h-3 rounded-full transition-colors",
-            style: {
-              backgroundColor: hovered ? "var(--error)" : "var(--border)",
-              WebkitAppRegion: "no-drag"
-            },
-            onMouseEnter: () => setHovered(true),
-            onMouseLeave: () => setHovered(false),
-            onClick: () => window.close(),
-            "aria-label": "Close"
-          }
-        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "w-3 h-3 rounded-full transition-all duration-150",
+              style: {
+                backgroundColor: closeHovered ? "var(--error)" : "var(--border)",
+                boxShadow: closeHovered ? "0 0 6px var(--error)" : "none",
+                WebkitAppRegion: "no-drag"
+              },
+              onMouseEnter: () => setCloseHovered(true),
+              onMouseLeave: () => setCloseHovered(false),
+              onClick: handleClose,
+              "aria-label": "Close"
+            }
+          ),
+          view === "settings" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125",
+              style: {
+                color: "var(--text-muted)",
+                WebkitAppRegion: "no-drag"
+              },
+              onClick: onToggleView,
+              "aria-label": "Back to chat",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: "12", height: "12", viewBox: "0 0 12 12", fill: "none", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "path",
+                {
+                  d: "M7.5 2L3.5 6L7.5 10",
+                  stroke: "currentColor",
+                  strokeWidth: "1.5",
+                  strokeLinecap: "round",
+                  strokeLinejoin: "round"
+                }
+              ) })
+            }
+          )
+        ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
-            className: "text-xs select-none",
+            className: "text-[11px] font-medium tracking-wide uppercase select-none",
             style: { color: "var(--text-muted)" },
-            children: "AssistMe"
+            children: view === "settings" ? "Settings" : "AssistMe"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-3" })
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+          view === "chat" && onReset && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125",
+              style: {
+                color: "var(--text-muted)",
+                WebkitAppRegion: "no-drag"
+              },
+              onClick: onReset,
+              "aria-label": "Reset chat",
+              title: "Reset chat",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "12", height: "12", viewBox: "0 0 12 12", fill: "none", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "path",
+                  {
+                    d: "M10 3H4.5C3.12 3 2 4.12 2 5.5S3.12 8 4.5 8H8",
+                    stroke: "currentColor",
+                    strokeWidth: "1.2",
+                    strokeLinecap: "round"
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "path",
+                  {
+                    d: "M8.5 1L10.5 3L8.5 5",
+                    stroke: "currentColor",
+                    strokeWidth: "1.2",
+                    strokeLinecap: "round",
+                    strokeLinejoin: "round"
+                  }
+                )
+              ] })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125",
+              style: {
+                color: view === "settings" ? "var(--accent)" : "var(--text-muted)",
+                WebkitAppRegion: "no-drag"
+              },
+              onClick: onToggleView,
+              "aria-label": view === "settings" ? "Back to chat" : "Settings",
+              title: "Settings",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "13", height: "13", viewBox: "0 0 24 24", fill: "none", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "path",
+                  {
+                    d: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
+                    stroke: "currentColor",
+                    strokeWidth: "1.8"
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "path",
+                  {
+                    d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z",
+                    stroke: "currentColor",
+                    strokeWidth: "1.8"
+                  }
+                )
+              ] })
+            }
+          )
+        ] })
       ]
     }
   );
 }
 function ResponseCard({ messages, isLoading }) {
+  const scrollRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
   if (messages.length === 0 && !isLoading) {
-    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 flex items-center justify-center px-6", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-      "p",
-      {
-        className: "text-sm text-center leading-relaxed",
-        style: { color: "var(--text-muted)" },
-        children: [
-          "Press ",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("kbd", { className: "px-1.5 py-0.5 rounded text-xs", style: { backgroundColor: "var(--chip-bg)", color: "var(--chip-text)" }, children: "⌘⇧Space" }),
-          " to toggle.",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-          "Type a message below to get started."
-        ]
-      }
-    ) });
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 flex items-center justify-center px-6", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "text-center space-y-3", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "text-2xl opacity-40 select-none",
+          style: { color: "var(--text-muted)" },
+          children: "✦"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "p",
+        {
+          className: "text-sm leading-relaxed",
+          style: { color: "var(--text-muted)" },
+          children: [
+            "Press",
+            " ",
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "kbd",
+              {
+                className: "px-1.5 py-0.5 rounded text-[11px] font-mono",
+                style: {
+                  backgroundColor: "var(--chip-bg)",
+                  color: "var(--chip-text)",
+                  border: "1px solid var(--border)"
+                },
+                children: "⌥T"
+              }
+            ),
+            " ",
+            "to toggle"
+          ]
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "p",
+        {
+          className: "text-xs",
+          style: { color: "var(--text-muted)", opacity: 0.7 },
+          children: "Type a message or pick an action below"
+        }
+      )
+    ] }) });
   }
-  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 overflow-y-auto px-4 py-3 space-y-3", children: [
-    messages.map((msg) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: scrollRef, className: "flex-1 overflow-y-auto px-4 py-3 space-y-3", children: [
+    messages.map((msg) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
-        className: `text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "text-right" : ""}`,
+        className: `text-sm leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${msg.role === "user" ? "ml-auto" : ""}`,
         style: {
-          color: msg.role === "assistant" ? "var(--text-bright)" : "var(--text)"
+          color: msg.role === "assistant" ? "var(--text-bright)" : "var(--text)",
+          backgroundColor: msg.role === "user" ? "var(--surface-hover)" : "transparent"
         },
-        children: msg.content
+        children: [
+          msg.attachments?.map((att, idx) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-2", children: [
+            att.type === "image" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "img",
+              {
+                src: att.data,
+                alt: att.label || "Attachment",
+                className: "rounded-lg max-h-40 object-cover border",
+                style: { borderColor: "var(--border)" }
+              }
+            ),
+            att.label && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "span",
+              {
+                className: "text-[10px] mt-0.5 block",
+                style: { color: "var(--text-muted)" },
+                children: att.label
+              }
+            )
+          ] }, idx)),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "whitespace-pre-wrap", children: msg.content })
+        ]
       },
       msg.id
     )),
-    isLoading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-1 items-center", style: { color: "var(--text-muted)" }, children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "animate-pulse", children: "●" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "animate-pulse delay-100", children: "●" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "animate-pulse delay-200", children: "●" })
-    ] })
+    isLoading && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "flex gap-1.5 items-center px-3 py-2",
+        style: { color: "var(--text-muted)" },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: "w-1.5 h-1.5 rounded-full animate-pulse",
+              style: { backgroundColor: "var(--accent)" }
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: "w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:150ms]",
+              style: { backgroundColor: "var(--accent)" }
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: "w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:300ms]",
+              style: { backgroundColor: "var(--accent)" }
+            }
+          )
+        ]
+      }
+    )
   ] });
 }
 const ACTIONS = [
-  { label: "Summarize", value: "summarize" },
-  { label: "Explain", value: "explain" },
-  { label: "Fix code", value: "fix-code" }
+  { label: "✨ Summarize", value: "Summarize this" },
+  { label: "💡 Explain", value: "Explain this" },
+  { label: "🔧 Fix code", value: "Fix this code" },
+  { label: "📝 Rewrite", value: "Rewrite this" }
 ];
 function ActionChips({ onAction }) {
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-2 px-4 py-2 flex-wrap", children: ACTIONS.map((a) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-2 px-4 py-2 flex-wrap shrink-0", children: ACTIONS.map((a) => /* @__PURE__ */ jsxRuntimeExports.jsx(
     "button",
     {
       onClick: () => onAction(a.value),
-      className: "px-3 py-1 rounded-full text-xs transition-colors hover:opacity-80",
+      className: "px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 hover:brightness-125 active:scale-95",
       style: {
         backgroundColor: "var(--chip-bg)",
-        color: "var(--chip-text)"
+        color: "var(--chip-text)",
+        border: "1px solid var(--border)"
       },
       children: a.label
     },
     a.value
   )) });
 }
-function InputBar({ onSend, disabled }) {
+function InputBar({
+  onSend,
+  disabled,
+  isLoading,
+  onStop,
+  onScreenshot,
+  pendingScreenshot,
+  onClearScreenshot,
+  isRecording,
+  onToggleRecording,
+  sttTranscript,
+  onClearTranscript
+}) {
   const [value, setValue] = reactExports.useState("");
+  const inputRef = reactExports.useRef(null);
+  reactExports.useEffect(() => {
+    if (sttTranscript) {
+      setValue((prev) => prev ? `${prev} ${sttTranscript}` : sttTranscript);
+      onClearTranscript?.();
+    }
+  }, [sttTranscript, onClearTranscript]);
   const handleSubmit = (e) => {
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
-    onSend(trimmed);
+    const attachments = [];
+    if (pendingScreenshot) {
+      attachments.push({ type: "image", data: pendingScreenshot, label: "Screenshot" });
+    }
+    onSend(trimmed, attachments.length > 0 ? attachments : void 0);
     setValue("");
+    inputRef.current?.focus();
   };
-  return /* @__PURE__ */ jsxRuntimeExports.jsx("form", { onSubmit: handleSubmit, className: "px-4 pb-4 pt-2", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-    "div",
-    {
-      className: "flex items-center rounded-xl px-3 py-2 border",
-      style: {
-        backgroundColor: "var(--input-bg)",
-        borderColor: "var(--input-border)"
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-4 pb-4 pt-2 shrink-0 space-y-2", children: [
+    pendingScreenshot && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative inline-block", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "img",
+        {
+          src: pendingScreenshot,
+          alt: "Screenshot preview",
+          className: "h-16 rounded-lg border object-cover",
+          style: { borderColor: "var(--border)" }
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          className: "absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]",
+          style: {
+            backgroundColor: "var(--error)",
+            color: "#fff"
+          },
+          onClick: onClearScreenshot,
+          "aria-label": "Remove screenshot",
+          children: "x"
+        }
+      )
+    ] }),
+    isRecording && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "flex items-center gap-2 text-xs px-2 py-1 rounded-lg",
+        style: {
+          backgroundColor: "rgba(224, 108, 117, 0.15)",
+          color: "var(--error)"
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-2 h-2 rounded-full animate-pulse", style: { backgroundColor: "var(--error)" } }),
+          "Recording... press mic or hotkey to stop"
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("form", { onSubmit: handleSubmit, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "div",
+      {
+        className: "flex items-center rounded-xl px-3 py-2.5 border transition-colors focus-within:border-[var(--accent)]",
+        style: {
+          backgroundColor: "var(--input-bg)",
+          borderColor: "var(--input-border)"
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 mr-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                type: "button",
+                className: "flex items-center justify-center w-6 h-6 rounded transition-colors hover:brightness-125",
+                style: { color: "var(--text-muted)" },
+                onClick: onScreenshot,
+                title: "Take screenshot (Alt+S)",
+                "aria-label": "Take screenshot",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2", stroke: "currentColor", strokeWidth: "1.8" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "12", cy: "12", r: "3", stroke: "currentColor", strokeWidth: "1.8" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M3 8h2", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" })
+                ] })
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                type: "button",
+                className: "flex items-center justify-center w-6 h-6 rounded transition-colors hover:brightness-125",
+                style: { color: isRecording ? "var(--error)" : "var(--text-muted)" },
+                onClick: onToggleRecording,
+                title: "Toggle recording (Alt+A)",
+                "aria-label": isRecording ? "Stop recording" : "Start recording",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "9", y: "2", width: "6", height: "12", rx: "3", stroke: "currentColor", strokeWidth: "1.8" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M5 11a7 7 0 0 0 14 0", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M12 19v3", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" })
+                ] })
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "input",
+            {
+              ref: inputRef,
+              type: "text",
+              value,
+              onChange: (e) => setValue(e.target.value),
+              placeholder: "Ask anything...",
+              disabled,
+              className: "flex-1 bg-transparent outline-none text-sm",
+              style: { color: "var(--text)", caretColor: "var(--accent)" },
+              autoFocus: true
+            }
+          ),
+          isLoading ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "button",
+              onClick: onStop,
+              className: "ml-2 text-xs font-medium px-3 py-1 rounded-lg transition-all duration-150 hover:brightness-110 active:scale-95",
+              style: {
+                backgroundColor: "var(--error)",
+                color: "#fff"
+              },
+              title: "Stop generation",
+              children: "■"
+            }
+          ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              type: "submit",
+              disabled: disabled || !value.trim(),
+              className: "ml-2 text-xs font-medium px-3 py-1 rounded-lg transition-all duration-150 disabled:opacity-30 hover:brightness-110 active:scale-95",
+              style: {
+                backgroundColor: "var(--accent)",
+                color: "#fff"
+              },
+              children: "↑"
+            }
+          )
+        ]
+      }
+    ) })
+  ] });
+}
+function eventToAccelerator(e) {
+  const parts = [];
+  if (e.metaKey) parts.push("Command");
+  if (e.ctrlKey) parts.push("Control");
+  if (e.altKey) parts.push("Alt");
+  if (e.shiftKey) parts.push("Shift");
+  const key = codeToKey(e.code, e.key);
+  if (!key) return null;
+  parts.push(key);
+  return parts.join("+");
+}
+function codeToKey(code, key) {
+  if (["MetaLeft", "MetaRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "ShiftLeft", "ShiftRight"].includes(
+    code
+  )) {
+    return null;
+  }
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code.startsWith("F") && /^F\d+$/.test(code)) return code;
+  const arrowMap = {
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right"
+  };
+  if (arrowMap[code]) return arrowMap[code];
+  const specialMap = {
+    Space: "Space",
+    Enter: "Enter",
+    Escape: "Escape",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Tab: "Tab",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    Minus: "-",
+    Equal: "=",
+    BracketLeft: "[",
+    BracketRight: "]",
+    Backslash: "\\",
+    Semicolon: ";",
+    Quote: "'",
+    Comma: ",",
+    Period: ".",
+    Slash: "/",
+    Backquote: "`"
+  };
+  return specialMap[code] || key || null;
+}
+function formatAccelerator(acc) {
+  return acc.replace(/Command/g, "⌘").replace(/Control/g, "⌃").replace(/Alt/g, "⌥").replace(/Shift/g, "⇧").replace(/\+/g, "");
+}
+function HotkeyRecorder({ value, defaultValue, onChange }) {
+  const [recording, setRecording] = reactExports.useState(false);
+  const ref = reactExports.useRef(null);
+  const handleKeyDown = reactExports.useCallback(
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.code === "Escape") {
+        setRecording(false);
+        return;
+      }
+      const acc = eventToAccelerator(e);
+      if (acc) {
+        onChange(acc);
+        setRecording(false);
+      }
+    },
+    [onChange]
+  );
+  reactExports.useEffect(() => {
+    if (recording) {
+      window.addEventListener("keydown", handleKeyDown, true);
+      return () => window.removeEventListener("keydown", handleKeyDown, true);
+    }
+  }, [recording, handleKeyDown]);
+  reactExports.useEffect(() => {
+    if (!recording) return;
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setRecording(false);
+      }
+    };
+    window.addEventListener("mousedown", handleClick);
+    return () => window.removeEventListener("mousedown", handleClick);
+  }, [recording]);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        ref,
+        type: "button",
+        onClick: () => setRecording((r) => !r),
+        className: "px-2.5 py-1 rounded-lg text-xs font-mono transition-all duration-150 border min-w-[80px] text-center",
+        style: {
+          backgroundColor: recording ? "rgba(97, 175, 239, 0.15)" : "var(--input-bg)",
+          borderColor: recording ? "var(--accent)" : "var(--input-border)",
+          color: recording ? "var(--accent)" : "var(--text)",
+          boxShadow: recording ? "0 0 0 1px var(--accent)" : "none"
+        },
+        children: recording ? "Press keys..." : formatAccelerator(value)
+      }
+    ),
+    value !== defaultValue && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        type: "button",
+        onClick: () => onChange(defaultValue),
+        className: "text-[10px] transition-colors hover:brightness-125",
+        style: { color: "var(--text-muted)" },
+        title: "Reset to default",
+        children: "reset"
+      }
+    )
+  ] });
+}
+const DEFAULT_HOTKEYS = {
+  toggleOverlay: "Alt+T",
+  moveUp: "Alt+Up",
+  moveDown: "Alt+Down",
+  moveLeft: "Alt+Left",
+  moveRight: "Alt+Right",
+  takeScreenshot: "Alt+S",
+  toggleAudio: "Alt+A",
+  resetChat: "Alt+R"
+};
+const DEFAULT_SETTINGS = {
+  themeId: "atom-dark",
+  hotkeys: { ...DEFAULT_HOTKEYS },
+  moveStepPx: 50,
+  windowOpacity: 0.85
+};
+const HOTKEY_LABELS = {
+  toggleOverlay: "Toggle Overlay",
+  moveUp: "Move Up",
+  moveDown: "Move Down",
+  moveLeft: "Move Left",
+  moveRight: "Move Right",
+  takeScreenshot: "Take Screenshot",
+  toggleAudio: "Toggle Audio",
+  resetChat: "Reset Chat"
+};
+function SettingsView() {
+  const { theme, themeIds, setThemeId } = useTheme();
+  const [settings, setSettings] = reactExports.useState(null);
+  reactExports.useEffect(() => {
+    window.electronAPI?.getSettings().then((s) => {
+      setSettings(s);
+    });
+  }, []);
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
+      setSettings(s);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+  const updateSetting = reactExports.useCallback(
+    (key, value) => {
+      if (!settings) return;
+      const updated = { ...settings, [key]: value };
+      setSettings(updated);
+      window.electronAPI?.updateSettings({ [key]: value });
+    },
+    [settings]
+  );
+  const updateHotkey = reactExports.useCallback(
+    (key, value) => {
+      if (!settings) return;
+      const newHotkeys = { ...settings.hotkeys, [key]: value };
+      const updated = { ...settings, hotkeys: newHotkeys };
+      setSettings(updated);
+      window.electronAPI?.updateSettings({ hotkeys: newHotkeys });
+    },
+    [settings]
+  );
+  if (!settings) {
+    return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs", style: { color: "var(--text-muted)" }, children: "Loading settings..." }) });
+  }
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 overflow-y-auto px-4 py-3 space-y-5", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Hotkeys", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "space-y-2.5", children: Object.keys(DEFAULT_HOTKEYS).map((key) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs", style: { color: "var(--text)" }, children: HOTKEY_LABELS[key] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        HotkeyRecorder,
+        {
+          value: settings.hotkeys[key],
+          defaultValue: DEFAULT_HOTKEYS[key],
+          onChange: (acc) => updateHotkey(key, acc)
+        }
+      )
+    ] }, key)) }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Theme", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-2", children: themeIds.map((id2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        onClick: () => {
+          setThemeId(id2);
+          updateSetting("themeId", id2);
+        },
+        className: "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 border",
+        style: {
+          backgroundColor: theme.id === id2 ? "var(--accent)" : "var(--surface)",
+          color: theme.id === id2 ? "#fff" : "var(--text)",
+          borderColor: theme.id === id2 ? "var(--accent)" : "var(--border)"
+        },
+        children: id2.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")
       },
-      children: [
+      id2
+    )) }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Window", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs", style: { color: "var(--text)" }, children: "Opacity" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "span",
+            {
+              className: "text-[11px] font-mono",
+              style: { color: "var(--text-muted)" },
+              children: [
+                Math.round(settings.windowOpacity * 100),
+                "%"
+              ]
+            }
+          )
+        ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
           {
-            type: "text",
-            value,
-            onChange: (e) => setValue(e.target.value),
-            placeholder: "Ask anything...",
-            disabled,
-            className: "flex-1 bg-transparent outline-none text-sm",
-            style: { color: "var(--text)", caretColor: "var(--accent)" }
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "submit",
-            disabled: disabled || !value.trim(),
-            className: "ml-2 text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-40",
-            style: {
-              backgroundColor: "var(--accent)",
-              color: "#fff"
-            },
-            children: "Send"
+            type: "range",
+            min: "30",
+            max: "100",
+            value: Math.round(settings.windowOpacity * 100),
+            onChange: (e) => updateSetting("windowOpacity", Number(e.target.value) / 100),
+            className: "w-full accent-[var(--accent)] h-1"
           }
         )
-      ]
-    }
-  ) });
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-xs", style: { color: "var(--text)" }, children: "Move step (px)" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "span",
+            {
+              className: "text-[11px] font-mono",
+              style: { color: "var(--text-muted)" },
+              children: [
+                settings.moveStepPx,
+                "px"
+              ]
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "range",
+            min: "10",
+            max: "200",
+            step: "10",
+            value: settings.moveStepPx,
+            onChange: (e) => updateSetting("moveStepPx", Number(e.target.value)),
+            className: "w-full accent-[var(--accent)] h-1"
+          }
+        )
+      ] })
+    ] }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "pt-2 pb-4", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        onClick: () => {
+          setSettings(DEFAULT_SETTINGS);
+          window.electronAPI?.updateSettings(DEFAULT_SETTINGS);
+          setThemeId(DEFAULT_SETTINGS.themeId);
+        },
+        className: "text-xs transition-colors hover:brightness-125",
+        style: { color: "var(--error)" },
+        children: "Reset all settings to defaults"
+      }
+    ) })
+  ] });
+}
+function Section({ title, children }) {
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "h3",
+      {
+        className: "text-[11px] font-semibold uppercase tracking-wider",
+        style: { color: "var(--text-muted)" },
+        children: title
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "div",
+      {
+        className: "rounded-xl p-3 border",
+        style: {
+          backgroundColor: "var(--surface)",
+          borderColor: "var(--border)"
+        },
+        children
+      }
+    )
+  ] });
 }
 function useChat() {
   const [messages, setMessages] = reactExports.useState([]);
   const [isLoading, setIsLoading] = reactExports.useState(false);
-  const sendMessage = reactExports.useCallback(async (content) => {
-    const userMsg = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content,
-      timestamp: Date.now()
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setIsLoading(true);
-    setTimeout(() => {
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onMessage((response) => {
       const assistantMsg = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `You said: "${content}"
-
-(This is a placeholder — backend integration coming soon.)`,
+        content: response,
         timestamp: Date.now()
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setIsLoading(false);
-    }, 600);
+    });
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
-  const clearMessages = reactExports.useCallback(() => {
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onResetChat(() => {
+      setMessages([]);
+      setIsLoading(false);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+  const sendMessage = reactExports.useCallback(
+    (content, attachments) => {
+      const userMsg = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content,
+        timestamp: Date.now(),
+        attachments
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setIsLoading(true);
+      if (window.electronAPI?.sendMessage) {
+        window.electronAPI.sendMessage(content);
+      } else {
+        setTimeout(() => {
+          const assistantMsg = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: `You said: "${content}"
+
+(Placeholder — backend integration coming soon.)`,
+            timestamp: Date.now()
+          };
+          setMessages((prev) => [...prev, assistantMsg]);
+          setIsLoading(false);
+        }, 600);
+      }
+    },
+    []
+  );
+  const resetChat = reactExports.useCallback(() => {
     setMessages([]);
+    setIsLoading(false);
   }, []);
-  return { messages, isLoading, sendMessage, clearMessages };
+  const stopGeneration = reactExports.useCallback(() => {
+    if (!isLoading) return;
+    setIsLoading(false);
+    window.electronAPI?.cancelResponse();
+  }, [isLoading]);
+  return { messages, isLoading, sendMessage, resetChat, stopGeneration };
+}
+const CHUNK_INTERVAL_MS = 3e3;
+function useWhisperSTT() {
+  const [isRecording, setIsRecording] = reactExports.useState(false);
+  const [transcript, setTranscript] = reactExports.useState("");
+  const [error, setError] = reactExports.useState(null);
+  const mediaRecorderRef = reactExports.useRef(null);
+  const streamRef = reactExports.useRef(null);
+  const chunksRef = reactExports.useRef([]);
+  const intervalRef = reactExports.useRef(null);
+  const transcribeChunk = reactExports.useCallback(async (blob) => {
+    if (blob.size < 1e3) return;
+    {
+      setError("No VITE_OPENAI_API_KEY set — STT disabled");
+      return;
+    }
+  }, []);
+  const flushChunks = reactExports.useCallback(() => {
+    if (chunksRef.current.length === 0) return;
+    const blob = new Blob(chunksRef.current, { type: "audio/webm;codecs=opus" });
+    chunksRef.current = [];
+    transcribeChunk(blob);
+  }, [transcribeChunk]);
+  const startRecording = reactExports.useCallback(async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus"
+      });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+      recorder.start(500);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      intervalRef.current = setInterval(flushChunks, CHUNK_INTERVAL_MS);
+    } catch (err) {
+      setError("Microphone access denied");
+      console.error("[whisper] Mic error:", err);
+    }
+  }, [flushChunks]);
+  const stopRecording = reactExports.useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    flushChunks();
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setIsRecording(false);
+  }, [flushChunks]);
+  const toggleRecording = reactExports.useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+  const clearTranscript = reactExports.useCallback(() => {
+    setTranscript("");
+  }, []);
+  reactExports.useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+  return {
+    isRecording,
+    transcript,
+    error,
+    startRecording,
+    stopRecording,
+    toggleRecording,
+    clearTranscript
+  };
 }
 function Overlay() {
   const [visible, setVisible] = reactExports.useState(true);
-  const { messages, isLoading, sendMessage } = useChat();
+  const [view, setView] = reactExports.useState("chat");
+  const [pendingScreenshot, setPendingScreenshot] = reactExports.useState(null);
+  const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat();
+  const stt = useWhisperSTT();
   reactExports.useEffect(() => {
     const unsubscribe = window.electronAPI?.onToggleVisibility((v) => {
       setVisible(v);
@@ -14529,23 +15317,84 @@ function Overlay() {
       unsubscribe?.();
     };
   }, []);
-  return /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { children: visible && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
+      setPendingScreenshot(dataUrl);
+      setView("chat");
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onToggleAudio(() => {
+      stt.toggleRecording();
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, [stt.toggleRecording]);
+  const handleSend = reactExports.useCallback(
+    (content, attachments) => {
+      sendMessage(content, attachments);
+      setPendingScreenshot(null);
+    },
+    [sendMessage]
+  );
+  const handleScreenshot = reactExports.useCallback(async () => {
+    try {
+      const dataUrl = await window.electronAPI?.takeScreenshot();
+      if (dataUrl) {
+        setPendingScreenshot(dataUrl);
+      }
+    } catch (err) {
+      console.error("Screenshot failed:", err);
+    }
+  }, []);
+  const toggleView = reactExports.useCallback(() => {
+    setView((v) => v === "chat" ? "settings" : "chat");
+  }, []);
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { mode: "wait", children: visible && /* @__PURE__ */ jsxRuntimeExports.jsxs(
     motion.div,
     {
-      initial: { opacity: 0, scale: 0.96 },
-      animate: { opacity: 1, scale: 1 },
-      exit: { opacity: 0, scale: 0.96 },
-      transition: { duration: 0.18, ease: "easeOut" },
-      className: "w-full h-screen flex flex-col rounded-2xl border overflow-hidden backdrop-blur-xl",
+      initial: { opacity: 0, scale: 0.96, y: 8 },
+      animate: { opacity: 1, scale: 1, y: 0 },
+      exit: { opacity: 0, scale: 0.96, y: 8 },
+      transition: { duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] },
+      className: "glass w-full h-screen flex flex-col rounded-2xl border overflow-hidden",
       style: {
         backgroundColor: "var(--overlay)",
         borderColor: "var(--border)"
       },
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TitleBar, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ResponseCard, { messages, isLoading }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ActionChips, { onAction: (action) => sendMessage(action) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(InputBar, { onSend: sendMessage, disabled: isLoading })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(TitleBar, { view, onToggleView: toggleView, onReset: resetChat }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: "mx-4 h-px shrink-0",
+            style: { backgroundColor: "var(--border)", opacity: 0.5 }
+          }
+        ),
+        view === "chat" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ResponseCard, { messages, isLoading }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ActionChips, { onAction: (action) => handleSend(action) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            InputBar,
+            {
+              onSend: handleSend,
+              disabled: isLoading,
+              isLoading,
+              onStop: stopGeneration,
+              onScreenshot: handleScreenshot,
+              pendingScreenshot,
+              onClearScreenshot: () => setPendingScreenshot(null),
+              isRecording: stt.isRecording,
+              onToggleRecording: stt.toggleRecording,
+              sttTranscript: stt.transcript,
+              onClearTranscript: stt.clearTranscript
+            }
+          )
+        ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsView, {})
       ]
     },
     "overlay"

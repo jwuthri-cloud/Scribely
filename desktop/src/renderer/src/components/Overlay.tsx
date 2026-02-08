@@ -1,15 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { TitleBar } from './TitleBar'
 import { ResponseCard } from './ResponseCard'
 import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
+import { SettingsView } from './SettingsView'
 import { useChat } from '../hooks/useChat'
+import { useWhisperSTT } from '../hooks/useWhisperSTT'
+import type { ChatAttachment } from '../types'
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
-  const { messages, isLoading, sendMessage } = useChat()
+  const [view, setView] = useState<'chat' | 'settings'>('chat')
+  const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
+  const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat()
+  const stt = useWhisperSTT()
 
+  // Toggle visibility from main process
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onToggleVisibility((v) => {
       setVisible(v)
@@ -17,6 +24,52 @@ export function Overlay() {
     return () => {
       unsubscribe?.()
     }
+  }, [])
+
+  // Screenshot from hotkey
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
+      setPendingScreenshot(dataUrl)
+      // Switch to chat view if in settings
+      setView('chat')
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [])
+
+  // Audio toggle from hotkey
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onToggleAudio(() => {
+      stt.toggleRecording()
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [stt.toggleRecording])
+
+  const handleSend = useCallback(
+    (content: string, attachments?: ChatAttachment[]) => {
+      sendMessage(content, attachments)
+      // Clear pending screenshot after sending
+      setPendingScreenshot(null)
+    },
+    [sendMessage],
+  )
+
+  const handleScreenshot = useCallback(async () => {
+    try {
+      const dataUrl = await window.electronAPI?.takeScreenshot()
+      if (dataUrl) {
+        setPendingScreenshot(dataUrl)
+      }
+    } catch (err) {
+      console.error('Screenshot failed:', err)
+    }
+  }, [])
+
+  const toggleView = useCallback(() => {
+    setView((v) => (v === 'chat' ? 'settings' : 'chat'))
   }, [])
 
   return (
@@ -34,7 +87,7 @@ export function Overlay() {
             borderColor: 'var(--border)',
           }}
         >
-          <TitleBar />
+          <TitleBar view={view} onToggleView={toggleView} onReset={resetChat} />
 
           {/* Subtle separator */}
           <div
@@ -42,9 +95,27 @@ export function Overlay() {
             style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
           />
 
-          <ResponseCard messages={messages} isLoading={isLoading} />
-          <ActionChips onAction={(action) => sendMessage(action)} />
-          <InputBar onSend={sendMessage} disabled={isLoading} />
+          {view === 'chat' ? (
+            <>
+              <ResponseCard messages={messages} isLoading={isLoading} />
+              <ActionChips onAction={(action) => handleSend(action)} />
+              <InputBar
+                onSend={handleSend}
+                disabled={isLoading}
+                isLoading={isLoading}
+                onStop={stopGeneration}
+                onScreenshot={handleScreenshot}
+                pendingScreenshot={pendingScreenshot}
+                onClearScreenshot={() => setPendingScreenshot(null)}
+                isRecording={stt.isRecording}
+                onToggleRecording={stt.toggleRecording}
+                sttTranscript={stt.transcript}
+                onClearTranscript={stt.clearTranscript}
+              />
+            </>
+          ) : (
+            <SettingsView />
+          )}
         </motion.div>
       )}
     </AnimatePresence>

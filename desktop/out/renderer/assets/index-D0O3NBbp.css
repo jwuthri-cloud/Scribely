@@ -499,29 +499,125 @@ video {
 [hidden]:where(:not([hidden="until-found"])) {
   display: none;
 }
+/* Primary glassmorphism panel */
+.glass {
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    background-color: var(--overlay);
+    border: 1px solid var(--border);
+  }
+/* Lighter glass variant for nested panels */
+/* Frosted card — slightly more opaque */
+/* Glass input container */
+/* Chip / pill button */
 .visible {
   visibility: visible;
+}
+.absolute {
+  position: absolute;
+}
+.relative {
+  position: relative;
+}
+.-right-1\.5 {
+  right: -0.375rem;
+}
+.-top-1\.5 {
+  top: -0.375rem;
+}
+.mx-4 {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+.mb-2 {
+  margin-bottom: 0.5rem;
 }
 .ml-2 {
   margin-left: 0.5rem;
 }
+.ml-auto {
+  margin-left: auto;
+}
+.mr-2 {
+  margin-right: 0.5rem;
+}
+.mt-0\.5 {
+  margin-top: 0.125rem;
+}
+.block {
+  display: block;
+}
+.inline-block {
+  display: inline-block;
+}
 .flex {
   display: flex;
+}
+.h-1 {
+  height: 0.25rem;
+}
+.h-1\.5 {
+  height: 0.375rem;
+}
+.h-16 {
+  height: 4rem;
+}
+.h-2 {
+  height: 0.5rem;
 }
 .h-3 {
   height: 0.75rem;
 }
+.h-4 {
+  height: 1rem;
+}
+.h-5 {
+  height: 1.25rem;
+}
+.h-6 {
+  height: 1.5rem;
+}
+.h-px {
+  height: 1px;
+}
 .h-screen {
   height: 100vh;
+}
+.max-h-40 {
+  max-height: 10rem;
+}
+.w-1\.5 {
+  width: 0.375rem;
+}
+.w-2 {
+  width: 0.5rem;
 }
 .w-3 {
   width: 0.75rem;
 }
+.w-4 {
+  width: 1rem;
+}
+.w-5 {
+  width: 1.25rem;
+}
+.w-6 {
+  width: 1.5rem;
+}
 .w-full {
   width: 100%;
 }
+.min-w-\[80px\] {
+  min-width: 80px;
+}
+.max-w-\[90\%\] {
+  max-width: 90%;
+}
 .flex-1 {
   flex: 1 1 0%;
+}
+.shrink-0 {
+  flex-shrink: 0;
 }
 @keyframes pulse {
 
@@ -555,13 +651,36 @@ video {
 .gap-1 {
   gap: 0.25rem;
 }
+.gap-1\.5 {
+  gap: 0.375rem;
+}
 .gap-2 {
   gap: 0.5rem;
+}
+.space-y-1 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.25rem * var(--tw-space-y-reverse));
+}
+.space-y-2 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));
+}
+.space-y-2\.5 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.625rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.625rem * var(--tw-space-y-reverse));
 }
 .space-y-3 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
   margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
   margin-bottom: calc(0.75rem * var(--tw-space-y-reverse));
+}
+.space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(1.25rem * var(--tw-space-y-reverse));
 }
 .overflow-hidden {
   overflow: hidden;
@@ -593,6 +712,13 @@ video {
 .bg-transparent {
   background-color: transparent;
 }
+.object-cover {
+  -o-object-fit: cover;
+     object-fit: cover;
+}
+.p-3 {
+  padding: 0.75rem;
+}
 .px-1\.5 {
   padding-left: 0.375rem;
   padding-right: 0.375rem;
@@ -600,6 +726,10 @@ video {
 .px-2 {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
+}
+.px-2\.5 {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
 }
 .px-3 {
   padding-left: 0.75rem;
@@ -621,9 +751,17 @@ video {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;
 }
+.py-1\.5 {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
 .py-2 {
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
+}
+.py-2\.5 {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
 }
 .py-3 {
   padding-top: 0.75rem;
@@ -638,8 +776,18 @@ video {
 .text-center {
   text-align: center;
 }
-.text-right {
-  text-align: right;
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.text-2xl {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+.text-\[10px\] {
+  font-size: 10px;
+}
+.text-\[11px\] {
+  font-size: 11px;
 }
 .text-sm {
   font-size: 0.875rem;
@@ -649,19 +797,41 @@ video {
   font-size: 0.75rem;
   line-height: 1rem;
 }
+.font-medium {
+  font-weight: 500;
+}
+.font-semibold {
+  font-weight: 600;
+}
+.uppercase {
+  text-transform: uppercase;
+}
 .leading-relaxed {
   line-height: 1.625;
+}
+.tracking-wide {
+  letter-spacing: 0.025em;
+}
+.tracking-wider {
+  letter-spacing: 0.05em;
+}
+.accent-\[var\(--accent\)\] {
+  accent-color: var(--accent);
+}
+.opacity-40 {
+  opacity: 0.4;
 }
 .outline-none {
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
-.backdrop-blur-xl {
-  --tw-backdrop-blur: blur(24px);
-  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
-}
 .transition {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+.transition-all {
+  transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
@@ -670,14 +840,44 @@ video {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
-.delay-100 {
-  transition-delay: 100ms;
+.duration-150 {
+  transition-duration: 150ms;
 }
-.delay-200 {
-  transition-delay: 200ms;
+.\[animation-delay\:150ms\] {
+  animation-delay: 150ms;
+}
+.\[animation-delay\:300ms\] {
+  animation-delay: 300ms;
 }
 
-/* Global reset for transparent Electron window */
+/* ──────────────────────────────────────────────
+   CSS variable defaults (Atom Dark)
+   ThemeProvider overrides these at runtime.
+   Declaring them here avoids FOUC on first paint.
+   ────────────────────────────────────────────── */
+:root {
+  --bg: #1e2127;
+  --surface: #282c34;
+  --surface-hover: #2c313a;
+  --border: #3e4451;
+  --text: #abb2bf;
+  --text-muted: #5c6370;
+  --text-bright: #d7dae0;
+  --accent: #61afef;
+  --accent-hover: #528bce;
+  --success: #98c379;
+  --warning: #e5c07b;
+  --error: #e06c75;
+  --input-bg: #21252b;
+  --input-border: #3e4451;
+  --chip-bg: #2c313a;
+  --chip-text: #abb2bf;
+  --overlay: rgba(30, 33, 39, 0.85);
+}
+
+/* ──────────────────────────────────────────────
+   Global reset for transparent Electron window
+   ────────────────────────────────────────────── */
 html,
 body,
 #root {
@@ -689,15 +889,18 @@ body,
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text);
 }
 
-/* Glassmorphism utility */
-.glass {
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-}
+/* ──────────────────────────────────────────────
+   Glassmorphism utilities
+   ────────────────────────────────────────────── */
 
-/* Scrollbar styling */
+/* ──────────────────────────────────────────────
+   Scrollbar styling
+   ────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 5px;
 }
@@ -711,16 +914,69 @@ body,
   border-radius: 999px;
 }
 
-/* Placeholder color */
-input::-moz-placeholder {
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ──────────────────────────────────────────────
+   Form element defaults
+   ────────────────────────────────────────────── */
+input::-moz-placeholder, textarea::-moz-placeholder {
   color: var(--text-muted);
 }
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--text-muted);
 }
-.hover\:opacity-80:hover {
-  opacity: 0.8;
+
+input,
+textarea {
+  caret-color: var(--accent);
 }
-.disabled\:opacity-40:disabled {
-  opacity: 0.4;
+
+/* ──────────────────────────────────────────────
+   Selection
+   ────────────────────────────────────────────── */
+::-moz-selection {
+  background: var(--accent);
+  color: #fff;
+}
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ──────────────────────────────────────────────
+   Drag region helpers
+   ────────────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.focus-within\:border-\[var\(--accent\)\]:focus-within {
+  border-color: var(--accent);
+}
+
+.hover\:brightness-110:hover {
+  --tw-brightness: brightness(1.1);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.hover\:brightness-125:hover {
+  --tw-brightness: brightness(1.25);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.active\:scale-95:active {
+  --tw-scale-x: .95;
+  --tw-scale-y: .95;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+.disabled\:opacity-30:disabled {
+  opacity: 0.3;
 }

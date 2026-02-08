@@ -39,7 +39,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                 border: '1px solid var(--border)',
               }}
             >
-              ⌘⇧Space
+              ⌥T
             </kbd>{' '}
             to toggle
           </p>
@@ -59,21 +59,38 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
       {messages.map((msg) => (
         <div
           key={msg.id}
-          className={`text-sm leading-relaxed whitespace-pre-wrap rounded-xl px-3 py-2 max-w-[90%] ${
+          className={`text-sm leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${
             msg.role === 'user' ? 'ml-auto' : ''
           }`}
           style={{
             color:
-              msg.role === 'assistant'
-                ? 'var(--text-bright)'
-                : 'var(--text)',
+              msg.role === 'assistant' ? 'var(--text-bright)' : 'var(--text)',
             backgroundColor:
-              msg.role === 'user'
-                ? 'var(--surface-hover)'
-                : 'transparent',
+              msg.role === 'user' ? 'var(--surface-hover)' : 'transparent',
           }}
         >
-          {msg.content}
+          {/* Render image attachments */}
+          {msg.attachments?.map((att, idx) => (
+            <div key={idx} className="mb-2">
+              {att.type === 'image' && (
+                <img
+                  src={att.data}
+                  alt={att.label || 'Attachment'}
+                  className="rounded-lg max-h-40 object-cover border"
+                  style={{ borderColor: 'var(--border)' }}
+                />
+              )}
+              {att.label && (
+                <span
+                  className="text-[10px] mt-0.5 block"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {att.label}
+                </span>
+              )}
+            </div>
+          ))}
+          <span className="whitespace-pre-wrap">{msg.content}</span>
         </div>
       ))}
       {isLoading && (
@@ -81,9 +98,18 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
           className="flex gap-1.5 items-center px-3 py-2"
           style={{ color: 'var(--text-muted)' }}
         >
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:150ms]" style={{ backgroundColor: 'var(--accent)' }} />
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:300ms]" style={{ backgroundColor: 'var(--accent)' }} />
+          <span
+            className="w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ backgroundColor: 'var(--accent)' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:150ms]"
+            style={{ backgroundColor: 'var(--accent)' }}
+          />
+          <span
+            className="w-1.5 h-1.5 rounded-full animate-pulse [animation-delay:300ms]"
+            style={{ backgroundColor: 'var(--accent)' }}
+          />
         </div>
       )}
     </div>
