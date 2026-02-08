@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────
+   CSS variable defaults (Atom Dark)
+   ThemeProvider overrides these at runtime.
+   Declaring them here avoids FOUC on first paint.
+   ────────────────────────────────────────────── */
+:root {
+  --bg: #1e2127;
+  --surface: #282c34;
+  --surface-hover: #2c313a;
+  --border: #3e4451;
+  --text: #abb2bf;
+  --text-muted: #5c6370;
+  --text-bright: #d7dae0;
+  --accent: #61afef;
+  --accent-hover: #528bce;
+  --success: #98c379;
+  --warning: #e5c07b;
+  --error: #e06c75;
+  --input-bg: #21252b;
+  --input-border: #3e4451;
+  --chip-bg: #2c313a;
+  --chip-text: #abb2bf;
+  --overlay: rgba(30, 33, 39, 0.85);
+}
+
+/* ──────────────────────────────────────────────
+   Global reset for transparent Electron window
+   ────────────────────────────────────────────── */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text);
+}
+
+/* ──────────────────────────────────────────────
+   Glassmorphism utilities
+   ────────────────────────────────────────────── */
+@layer components {
+  /* Primary glassmorphism panel */
+  .glass {
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    background-color: var(--overlay);
+    border: 1px solid var(--border);
+  }
+
+  /* Lighter glass variant for nested panels */
+  .glass-light {
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    background-color: color-mix(in srgb, var(--surface) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  /* Frosted card — slightly more opaque */
+  .glass-card {
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+  }
+
+  /* Glass input container */
+  .glass-input {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 0.75rem;
+    transition: border-color 150ms ease;
+  }
+
+  .glass-input:focus-within {
+    border-color: var(--accent);
+  }
+
+  /* Chip / pill button */
+  .chip {
+    background-color: var(--chip-bg);
+    color: var(--chip-text);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.375rem 0.75rem;
+    transition: filter 150ms ease, transform 100ms ease;
+  }
+
+  .chip:hover {
+    filter: brightness(1.25);
+  }
+
+  .chip:active {
+    transform: scale(0.95);
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Scrollbar styling
+   ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ──────────────────────────────────────────────
+   Form element defaults
+   ────────────────────────────────────────────── */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
+}
+
+/* ──────────────────────────────────────────────
+   Selection
+   ────────────────────────────────────────────── */
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ──────────────────────────────────────────────
+   Drag region helpers
+   ────────────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}

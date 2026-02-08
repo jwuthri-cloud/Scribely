@@ -4,7 +4,7 @@ overview: Build an Electron desktop overlay app inside the assistme repo that ac
 todos:
   - id: scaffold
     content: Scaffold electron-vite + React + TypeScript project in assistme/desktop/
-    status: pending
+    status: in_progress
   - id: main-process
     content: "Implement main process: transparent frameless window, global hotkey (Cmd+Shift+Space), dock hiding"
     status: pending
@@ -22,10 +22,10 @@ todos:
     status: pending
   - id: theming
     content: "Build theme system: ThemeProvider context, CSS variable injection, Atom Dark palette as default, electron-store persistence"
-    status: pending
+    status: completed
   - id: styling
     content: Tailwind config + globals.css using CSS variables for all colors, glassmorphism utilities
-    status: pending
+    status: completed
 isProject: false
 ---
 
