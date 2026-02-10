@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { TranscriptEntry, MeetingStatus } from '../types/transcript'
 
 /**
@@ -136,6 +136,7 @@ export function useMeetingTranscript() {
       transcriptionMode: result?.transcriptionMode || prev.transcriptionMode,
     }))
     setEntries([])
+    lastSavedCount.current = 0
     return result
   }, [])
 
@@ -152,6 +153,41 @@ export function useMeetingTranscript() {
   const clearEntries = useCallback(() => {
     setEntries([])
   }, [])
+
+  // ── Auto-save transcript to disk (debounced, every 10s) ──
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedCount = useRef(0)
+
+  useEffect(() => {
+    if (!status.isActive || entries.length === 0) return
+    // Only save if we have new entries since last save
+    if (entries.length === lastSavedCount.current) return
+
+    // Debounce: wait 10s after last new entry before saving
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        await window.electronAPI?.saveTranscript?.({
+          entries: entries.map((e) => ({
+            id: e.id,
+            speaker: e.speaker,
+            text: e.text,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            source: e.source || 'unknown',
+          })),
+        })
+        lastSavedCount.current = entries.length
+        console.log(`[transcript] Auto-saved ${entries.length} entries`)
+      } catch (err) {
+        console.error('[transcript] Auto-save failed:', err)
+      }
+    }, 10_000)
+
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [entries, status.isActive])
 
   // ── Download local whisper model ─────────────────────
   const downloadModel = useCallback(async () => {

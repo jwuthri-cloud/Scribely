@@ -57,6 +57,25 @@ export interface ElectronAPI {
     data: ArrayBuffer
     mimeType: string
   }) => Promise<{ filepath: string; filename: string }>
+  initRecordingFile: (payload: {
+    mimeType: string
+  }) => Promise<{ filepath: string; filename: string }>
+  appendRecordingChunk: (payload: {
+    filepath: string
+    data: ArrayBuffer
+  }) => Promise<void>
+  saveTranscript: (payload: {
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    sessionId?: string
+    recordingFilepath?: string
+  }) => Promise<{ filepath: string; filename: string }>
   getModelStatus: () => Promise<unknown>
   downloadWhisperModel: () => Promise<{
     success: boolean
@@ -203,6 +222,18 @@ const api: ElectronAPI = {
 
   saveMeetingRecording: (payload) => {
     return ipcRenderer.invoke('meeting:save-recording', payload)
+  },
+
+  initRecordingFile: (payload) => {
+    return ipcRenderer.invoke('meeting:init-recording-file', payload)
+  },
+
+  appendRecordingChunk: (payload) => {
+    return ipcRenderer.invoke('meeting:append-recording-chunk', payload)
+  },
+
+  saveTranscript: (payload) => {
+    return ipcRenderer.invoke('meeting:save-transcript', payload)
   },
 
   getModelStatus: () => {

@@ -177,7 +177,7 @@ export function LiveTranscriptPanel({
       {/* ── Audio waveform (always visible when active) ── */}
       {isActive && (
         <div className="px-3 pb-1">
-          <AudioWaveform isActive={isActive} height={40} />
+          <AudioWaveform isActive={isActive} height={56} />
         </div>
       )}
 

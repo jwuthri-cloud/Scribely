@@ -83,7 +83,7 @@ export function Overlay() {
     // which starts sending frames immediately).
     await transcript.startSession()
 
-    const { micStream, tabStream } = await capture.startCapture({
+    const { micStream, tabStream, mode } = await capture.startCapture({
       mic: true,
       tab: true,
     })
@@ -91,7 +91,7 @@ export function Overlay() {
     // In native mode: micStream is null (audio via CoreAudio),
     // tabStream is video-only for the recorder.
     // In browser mode: both are MediaStreams with audio.
-    if (capture.captureMode !== 'native' && !micStream && !tabStream) {
+    if (mode !== 'native' && !micStream && !tabStream) {
       setMeetingError('No audio source available. Allow mic/screen access.')
       await transcript.stopSession()
       return
@@ -100,18 +100,61 @@ export function Overlay() {
     // Start recorder with whatever streams we have
     // Native mode: tabStream = video-only, micStream = null
     // Browser mode: tabStream = video+audio, micStream = mic audio
+    console.log(`[overlay] Starting recorder: mode=${mode}, tabStream=${!!tabStream}, micStream=${!!micStream}`)
     if (tabStream) {
       await recorder.startRecording(tabStream, micStream)
     } else if (micStream) {
       await recorder.startRecording(micStream)
+    } else {
+      console.log('[overlay] No streams for recorder — video recording will be skipped (transcript still active)')
     }
   }, [capture, transcript, recorder])
 
+  const [savedFiles, setSavedFiles] = useState<{ recording?: string; transcript?: string } | null>(null)
+
   const handleStopMeeting = useCallback(async () => {
+    // Capture entries before anything gets cleared
+    const currentEntries = [...transcript.entries]
+
     await capture.stopCapture()
-    await recorder.stopRecording()
+    const recordingPath = await recorder.stopRecording()
+
+    // Save final transcript to disk (with recording path link)
+    let transcriptPath: string | undefined
+    if (currentEntries.length > 0) {
+      try {
+        const result = await window.electronAPI?.saveTranscript?.({
+          entries: currentEntries.map((e) => ({
+            id: e.id,
+            speaker: e.speaker,
+            text: e.text,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            source: e.source || 'unknown',
+          })),
+          recordingFilepath: recordingPath || undefined,
+        })
+        transcriptPath = result?.filepath
+        if (transcriptPath) {
+          console.log(`[overlay] Transcript saved: ${transcriptPath}`)
+        }
+      } catch (err) {
+        console.error('[overlay] Failed to save transcript:', err)
+      }
+    }
+
     await transcript.stopSession()
     setMeetingError(null)
+
+    // Show save notification
+    if (recordingPath || transcriptPath) {
+      setSavedFiles({
+        recording: recordingPath || undefined,
+        transcript: transcriptPath,
+      })
+      // Auto-dismiss after 6 seconds
+      setTimeout(() => setSavedFiles(null), 6000)
+    }
   }, [capture, recorder, transcript])
 
   const handleToggleMeeting = useCallback(() => {
@@ -197,6 +240,35 @@ export function Overlay() {
                   captureMode={capture.captureMode}
                   nativeAvailable={capture.nativeAvailable}
                 />
+              )}
+
+              {/* Save notification after meeting ends */}
+              {savedFiles && (
+                <div
+                  className="mx-3 mb-2 px-3 py-2 rounded-xl text-[11px] space-y-0.5"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--success)' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Meeting saved
+                  </div>
+                  {savedFiles.recording && (
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      Recording: {savedFiles.recording.split('/').slice(-2).join('/')}
+                    </div>
+                  )}
+                  {savedFiles.transcript && (
+                    <div style={{ color: 'var(--text-muted)' }}>
+                      Transcript: {savedFiles.transcript.split('/').slice(-2).join('/')}
+                    </div>
+                  )}
+                </div>
               )}
 
               <ResponseCard messages={messages} isLoading={isLoading} />

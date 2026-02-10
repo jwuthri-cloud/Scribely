@@ -69,10 +69,9 @@ export function AudioWaveform({ isActive, height = 44 }: AudioWaveformProps) {
     const sys = sysBuf.current
     const len = mic.length
 
-    // Read theme colors
-    const cs = getComputedStyle(canvas)
-    const accent = cs.getPropertyValue('--accent').trim() || '#61afef'
-    const success = cs.getPropertyValue('--success').trim() || '#98c379'
+    // Distinct colors: bright cyan for mic, orange for system
+    const accent = '#00d4ff'
+    const success = '#ff8c00'
 
     // ── Center line ───────────────────────────────
     ctx.strokeStyle = 'rgba(128,128,128,0.12)'

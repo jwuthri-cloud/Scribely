@@ -54,6 +54,25 @@ export interface ElectronAPI {
     data: ArrayBuffer
     mimeType: string
   }) => Promise<{ filepath: string; filename: string }>
+  initRecordingFile: (payload: {
+    mimeType: string
+  }) => Promise<{ filepath: string; filename: string }>
+  appendRecordingChunk: (payload: {
+    filepath: string
+    data: ArrayBuffer
+  }) => Promise<void>
+  saveTranscript: (payload: {
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    sessionId?: string
+    recordingFilepath?: string
+  }) => Promise<{ filepath: string; filename: string }>
   getModelStatus: () => Promise<{
     whisperModel: {
       available: boolean

@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, app } from 'electron'
 import { join } from 'path'
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, writeFile, appendFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { ModelManager } from './model-manager'
 import { Transcriber } from './transcriber'
@@ -64,7 +64,7 @@ export class AudioPipeline {
 
   // ── Fallback buffer (when VAD is not available) ───────
   private fallbackBuffers: Map<string, { frames: Float32Array[]; samples: number }> = new Map()
-  private static readonly FALLBACK_CHUNK_SECONDS = 5
+  private static readonly FALLBACK_CHUNK_SECONDS = 3
 
   // ── Transcription lock (prevent concurrent whisper calls) ──
   private _transcribeLock = false
@@ -747,6 +747,95 @@ export class AudioPipeline {
 
         await writeFile(filepath, Buffer.from(payload.data))
         console.log(`[pipeline] Recording saved: ${filepath}`)
+        return { filepath, filename }
+      },
+    )
+
+    // ── Incremental recording: create file and return path ──
+    ipcMain.handle(
+      'meeting:init-recording-file',
+      async (
+        _event,
+        payload: { mimeType: string },
+      ) => {
+        const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+        await mkdir(dir, { recursive: true })
+
+        const ext = payload.mimeType.includes('webm') ? 'webm' : 'mp4'
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, '-')
+          .replace('T', '_')
+          .slice(0, 19)
+        const filename = `meeting-${timestamp}.${ext}`
+        const filepath = join(dir, filename)
+
+        // Create empty file
+        await writeFile(filepath, Buffer.alloc(0))
+        console.log(`[pipeline] Recording file initialized: ${filepath}`)
+        return { filepath, filename }
+      },
+    )
+
+    // ── Incremental recording: append chunk to file ─────────
+    ipcMain.handle(
+      'meeting:append-recording-chunk',
+      async (
+        _event,
+        payload: { filepath: string; data: ArrayBuffer },
+      ) => {
+        const size = payload.data.byteLength
+        await appendFile(payload.filepath, Buffer.from(payload.data))
+        console.log(`[pipeline] Recording chunk appended: ${(size / 1024).toFixed(1)}KB → ${payload.filepath.split('/').pop()}`)
+      },
+    )
+
+    // ── Save transcript JSON to disk ────────────────────────
+    ipcMain.handle(
+      'meeting:save-transcript',
+      async (
+        _event,
+        payload: {
+          entries: Array<{
+            id: string
+            speaker: string
+            text: string
+            startTime: number
+            endTime: number
+            source: string
+          }>
+          sessionId?: string
+          recordingFilepath?: string
+        },
+      ) => {
+        const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+        await mkdir(dir, { recursive: true })
+
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[:.]/g, '-')
+          .replace('T', '_')
+          .slice(0, 19)
+        const filename = `transcript-${timestamp}.json`
+        const filepath = join(dir, filename)
+
+        const data = {
+          version: 1,
+          createdAt: new Date().toISOString(),
+          sessionId: payload.sessionId,
+          recordingFilepath: payload.recordingFilepath,
+          entries: payload.entries,
+          summary: {
+            totalEntries: payload.entries.length,
+            speakers: [...new Set(payload.entries.map((e) => e.speaker))],
+            durationMs: payload.entries.length > 0
+              ? Math.max(...payload.entries.map((e) => e.endTime))
+              : 0,
+          },
+        }
+
+        await writeFile(filepath, JSON.stringify(data, null, 2))
+        console.log(`[pipeline] Transcript saved: ${filepath} (${payload.entries.length} entries)`)
         return { filepath, filename }
       },
     )

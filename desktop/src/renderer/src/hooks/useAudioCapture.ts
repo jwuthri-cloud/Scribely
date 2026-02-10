@@ -224,17 +224,25 @@ export function useAudioCapture() {
     }
   }, [createPcmExtractor])
 
-  // ── Get display video stream only (no audio extraction) ─
-  // Used in native mode: we only need the video for the recorder,
-  // audio is handled by NativeHelper at the CoreAudio level.
-  const setupVideoOnlyCapture = useCallback(async (): Promise<MediaStream | null> => {
+  // ── Get display stream for recording in native mode ─────
+  // Request both video AND audio from getDisplayMedia so MediaRecorder
+  // gets a proper stream. Audio from this stream is NOT used for
+  // transcription (NativeHelper handles that), but it makes the
+  // recording file contain the system audio too.
+  const setupRecordingCapture = useCallback(async (): Promise<MediaStream | null> => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: false,
+        audio: true,
       })
 
       tabStreamRef.current = stream
+
+      const videoTracks = stream.getVideoTracks()
+      const audioTracks = stream.getAudioTracks()
+      console.log(
+        `[audio-capture] Recording capture: ${videoTracks.length} video, ${audioTracks.length} audio tracks`,
+      )
 
       stream.getVideoTracks()[0]?.addEventListener('ended', () => {
         setTabActive(false)
@@ -243,8 +251,8 @@ export function useAudioCapture() {
       setTabActive(true)
       return stream
     } catch (err) {
-      console.error('[audio-capture] Video-only capture error:', err)
-      // Non-fatal for native mode — audio still works without video recording
+      console.error('[audio-capture] Recording capture error:', err)
+      // Non-fatal for native mode — audio transcription still works without video recording
       return null
     }
   }, [])
@@ -278,10 +286,10 @@ export function useAudioCapture() {
           setMicActive(options.mic)
           setTabActive(options.tab)
 
-          // Get video-only stream for the meeting recorder
-          const videoStream = options.tab ? await setupVideoOnlyCapture() : null
+          // Get display stream for the meeting recorder (video + audio for the file)
+          const videoStream = options.tab ? await setupRecordingCapture() : null
 
-          return { micStream: null, tabStream: videoStream }
+          return { micStream: null, tabStream: videoStream, mode: 'native' as CaptureMode }
         }
 
         console.warn('[audio-capture] Native capture failed — falling back to browser')
@@ -305,13 +313,13 @@ export function useAudioCapture() {
       if (!micStream && !tabStream) {
         setError('No audio source available')
         setCaptureMode('idle')
-        return { micStream: null, tabStream: null }
+        return { micStream: null, tabStream: null, mode: 'idle' as CaptureMode }
       }
 
       setIsCapturing(true)
-      return { micStream, tabStream }
+      return { micStream, tabStream, mode: 'browser' as CaptureMode }
     },
-    [setupMicCapture, setupTabCapture, setupVideoOnlyCapture],
+    [setupMicCapture, setupTabCapture, setupRecordingCapture],
   )
 
   // ── Public: stop capture ─────────────────────────────
