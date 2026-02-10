@@ -23,7 +23,7 @@ enum Config {
     static let systemSampleRate: Double = 48_000
 
     /// Audio chunk duration in seconds sent per protobuf message
-    static let chunkDurationSeconds: Double = 5.0
+    static let chunkDurationSeconds: Double = 3.0
 
     /// Max reconnect attempts before giving up
     static let maxReconnectAttempts = 5

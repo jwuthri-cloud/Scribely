@@ -13,6 +13,7 @@ import { registerAllHotkeys, unregisterAllHotkeys, reregisterHotkeys } from './h
 import { captureScreen } from './screenshot'
 import { AudioPipeline } from './audio/pipeline'
 import { NativeHelperBridge } from './native-bridge'
+import { ScreenRecorder } from './screen-recorder'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -69,6 +70,9 @@ let isInvisible = true // starts invisible (content protection on)
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
+
+// ── Screen Recorder ───────────────────────────────────
+const screenRecorder = new ScreenRecorder()
 
 // ── Native Helper Bridge ───────────────────────────────
 let nativeBridge: NativeHelperBridge | null = null
@@ -127,32 +131,13 @@ function createWindow(): void {
     return allowed.includes(permission)
   })
 
-  // ── Display Media Handling ─────────────────────────────
-  // useSystemPicker (2nd arg) shows the native macOS ScreenCaptureKit picker
-  // so the user can choose which screen/window/app to share + toggle audio.
-  // The handler only runs as a FALLBACK when the system picker is unavailable.
-  session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
-      try {
-        const { desktopCapturer } = await import('electron')
-        const sources = await desktopCapturer.getSources({ types: ['screen'] })
-        if (sources.length > 0) {
-          console.log('[display-media] Using fallback screen source (system picker unavailable)')
-          callback({ video: sources[0], audio: 'loopback' })
-        } else {
-          console.warn('[display-media] No screen sources available for fallback')
-          callback({})
-        }
-      } catch (err) {
-        console.error('[display-media] Fallback handler error:', err)
-        callback({})
-      }
-    },
-    { useSystemPicker: true },
-  )
-
-  // Connect pipeline to window
+  // Connect pipeline and recorder to window
   audioPipeline.setWindow(mainWindow)
+  screenRecorder.setWindow(mainWindow)
+
+  // Install the default display media handler (system picker for browser fallback).
+  // The ScreenRecorder temporarily swaps this to auto-select when recording starts.
+  screenRecorder._installSystemPickerHandler()
 
   // Load the renderer
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -389,14 +374,23 @@ app.on('will-quit', (e) => {
   audioPipeline.destroy()
 
   if (nativeBridge) {
-    // Prevent the quit from completing until the bridge is stopped
+    const bridge = nativeBridge
+    nativeBridge = null // prevent re-entry
+
     e.preventDefault()
-    nativeBridge
+
+    // Give the bridge 2s to stop gracefully, then force quit
+    const forceQuitTimer = setTimeout(() => {
+      console.log('[app] Force quitting (native bridge stop timed out)')
+      app.exit(0)
+    }, 2000)
+
+    bridge
       .stop()
       .catch(() => {})
       .finally(() => {
-        nativeBridge = null
-        app.quit()
+        clearTimeout(forceQuitTimer)
+        app.exit(0)
       })
   }
 })

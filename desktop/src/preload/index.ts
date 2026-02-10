@@ -88,6 +88,15 @@ export interface ElectronAPI {
   onModelProgress: (callback: (data: { modelId: string; progress: number }) => void) => () => void
   onModelComplete: (callback: (data: { modelId: string; path: string }) => void) => () => void
 
+  // ── Screen Recording (main-process driven) ─────
+  startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
+  stopRecording: () => Promise<{ filepath: string | null }>
+  onStartCapture: (
+    callback: (data: { filepath: string }) => void,
+  ) => () => void
+  onStopCapture: (callback: () => void) => () => void
+  writeRecordingChunk: (payload: { data: ArrayBuffer }) => Promise<void>
+
   // ── Audio Levels (waveform visualization) ──────
   onAudioLevels: (
     callback: (levels: { mic: number; system: number; timestamp: number }) => void,
@@ -280,6 +289,36 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('meeting:model-complete', handler)
     return () => ipcRenderer.removeListener('meeting:model-complete', handler)
+  },
+
+  // ── Screen Recording (main-process driven) ─────
+  startRecording: () => {
+    return ipcRenderer.invoke('recording:start')
+  },
+
+  stopRecording: () => {
+    return ipcRenderer.invoke('recording:stop')
+  },
+
+  onStartCapture: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { filepath: string },
+    ) => {
+      callback(data)
+    }
+    ipcRenderer.on('recording:start-capture', handler)
+    return () => ipcRenderer.removeListener('recording:start-capture', handler)
+  },
+
+  onStopCapture: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('recording:stop-capture', handler)
+    return () => ipcRenderer.removeListener('recording:stop-capture', handler)
+  },
+
+  writeRecordingChunk: (payload) => {
+    return ipcRenderer.invoke('recording:write-chunk', payload)
   },
 
   // ── Audio Levels (waveform visualization) ──────

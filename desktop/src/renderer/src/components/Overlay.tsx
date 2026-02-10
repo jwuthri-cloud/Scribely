@@ -83,31 +83,19 @@ export function Overlay() {
     // which starts sending frames immediately).
     await transcript.startSession()
 
-    const { micStream, tabStream, mode } = await capture.startCapture({
+    const { mode } = await capture.startCapture({
       mic: true,
       tab: true,
     })
 
-    // In native mode: micStream is null (audio via CoreAudio),
-    // tabStream is video-only for the recorder.
-    // In browser mode: both are MediaStreams with audio.
-    if (mode !== 'native' && !micStream && !tabStream) {
+    if (mode !== 'native' && mode === 'idle') {
       setMeetingError('No audio source available. Allow mic/screen access.')
       await transcript.stopSession()
       return
     }
 
-    // Start recorder with whatever streams we have
-    // Native mode: tabStream = video-only, micStream = null
-    // Browser mode: tabStream = video+audio, micStream = mic audio
-    console.log(`[overlay] Starting recorder: mode=${mode}, tabStream=${!!tabStream}, micStream=${!!micStream}`)
-    if (tabStream) {
-      await recorder.startRecording(tabStream, micStream)
-    } else if (micStream) {
-      await recorder.startRecording(micStream)
-    } else {
-      console.log('[overlay] No streams for recorder — video recording will be skipped (transcript still active)')
-    }
+    // Start screen recording via main process (desktopCapturer, no picker needed)
+    await recorder.startRecording()
   }, [capture, transcript, recorder])
 
   const [savedFiles, setSavedFiles] = useState<{ recording?: string; transcript?: string } | null>(null)
@@ -132,7 +120,7 @@ export function Overlay() {
             endTime: e.endTime,
             source: e.source || 'unknown',
           })),
-          recordingFilepath: recordingPath || undefined,
+          recordingFilepath: recordingPath ?? undefined,
         })
         transcriptPath = result?.filepath
         if (transcriptPath) {
@@ -149,7 +137,7 @@ export function Overlay() {
     // Show save notification
     if (recordingPath || transcriptPath) {
       setSavedFiles({
-        recording: recordingPath || undefined,
+        recording: recordingPath ?? undefined,
         transcript: transcriptPath,
       })
       // Auto-dismiss after 6 seconds

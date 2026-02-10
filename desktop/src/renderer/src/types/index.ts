@@ -102,6 +102,15 @@ export interface ElectronAPI {
     callback: (data: { modelId: string; path: string }) => void,
   ) => () => void
 
+  // Screen Recording (main-process driven)
+  startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
+  stopRecording: () => Promise<{ filepath: string | null }>
+  onStartCapture: (
+    callback: (data: { filepath: string }) => void,
+  ) => () => void
+  onStopCapture: (callback: () => void) => () => void
+  writeRecordingChunk: (payload: { data: ArrayBuffer }) => Promise<void>
+
   // Audio Levels (waveform visualization)
   onAudioLevels: (
     callback: (levels: { mic: number; system: number; timestamp: number }) => void,

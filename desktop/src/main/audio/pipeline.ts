@@ -200,6 +200,8 @@ export class AudioPipeline {
 
   /** Process an audio frame from the native helper — same path as renderer frames */
   private _nativeFrameCount = 0
+  private _nativeMicFrameCount = 0
+  private _nativeSystemFrameCount = 0
   private _handleNativeAudioFrame(
     source: string,
     pcm: Float32Array,
@@ -217,9 +219,12 @@ export class AudioPipeline {
     }
 
     this._nativeFrameCount++
-    if (this._nativeFrameCount <= 3 || this._nativeFrameCount % 50 === 0) {
+    if (source === 'mic') this._nativeMicFrameCount++
+    else this._nativeSystemFrameCount++
+
+    if (this._nativeFrameCount <= 5 || this._nativeFrameCount % 50 === 0) {
       console.log(
-        `[pipeline] Native audio frame #${this._nativeFrameCount}: source=${source}, samples=${pcm.length}→${resampled.length}, rate=${sampleRate}→${effectiveRate}`,
+        `[pipeline] Native frame #${this._nativeFrameCount} (mic=${this._nativeMicFrameCount}, sys=${this._nativeSystemFrameCount}): source=${source}, samples=${pcm.length}→${resampled.length}, rate=${sampleRate}→${effectiveRate}`,
       )
     }
 
@@ -367,7 +372,7 @@ export class AudioPipeline {
   // ── Fallback: chunk-based pipeline (no VAD) ────────────
 
   /**
-   * When VAD is not available, accumulate frames into 5-second chunks
+   * When VAD is not available, accumulate frames into 3-second chunks
    * and transcribe them directly (Phase 1 behavior).
    */
   private async _handleFallbackFrame(
