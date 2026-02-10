@@ -29,8 +29,66 @@ export interface ElectronAPI {
   // Audio
   onToggleAudio: (callback: () => void) => () => void
 
+  // Meeting / Transcription
+  startMeetingSession: () => Promise<{
+    sessionId: string
+    transcriptionMode: string
+    vadEnabled: boolean
+  }>
+  stopMeetingSession: () => Promise<{ success: boolean }>
+  /** Stream a small audio frame to main process for VAD + transcription */
+  streamAudioFrame: (payload: {
+    source: string
+    pcm: ArrayBuffer
+    sampleRate: number
+    timestamp: number
+  }) => void
+  /** Legacy: send a chunk directly for transcription (bypasses VAD) */
+  transcribeAudioChunk: (payload: {
+    source: string
+    pcm: ArrayBuffer
+    sampleRate: number
+    timestamp: number
+  }) => Promise<unknown>
+  saveMeetingRecording: (payload: {
+    data: ArrayBuffer
+    mimeType: string
+  }) => Promise<{ filepath: string; filename: string }>
+  getModelStatus: () => Promise<{
+    whisperModel: {
+      available: boolean
+      downloading: boolean
+      progress: number
+      path?: string
+    }
+    vadModel: {
+      available: boolean
+      downloading: boolean
+      progress: number
+      ready: boolean
+    }
+  }>
+  downloadWhisperModel: () => Promise<{
+    success: boolean
+    path?: string
+    mode?: string
+    error?: string
+  }>
+  onTranscriptEntry: (callback: (entry: any) => void) => () => void
+  onMeetingStatusUpdate: (callback: (update: any) => void) => () => void
+  onModelProgress: (
+    callback: (data: { modelId: string; progress: number }) => void,
+  ) => () => void
+  onModelComplete: (
+    callback: (data: { modelId: string; path: string }) => void,
+  ) => () => void
+
   // Reset chat
   onResetChat: (callback: () => void) => () => void
+
+  // Invisibility
+  toggleInvisibility: () => Promise<boolean>
+  getInvisibility: () => Promise<boolean>
 
   // App lifecycle
   quit: () => void
@@ -50,5 +108,20 @@ export interface ChatMessage {
   attachments?: ChatAttachment[]
 }
 
-export type { AppSettings, HotkeyConfig, ChatAttachment } from './settings'
-export { HOTKEY_LABELS, DEFAULT_HOTKEYS, DEFAULT_SETTINGS } from './settings'
+export type { AppSettings, HotkeyConfig, ChatAttachment, TranscriptionProvider, TranscriptionSettings } from './settings'
+export { HOTKEY_LABELS, DEFAULT_HOTKEYS, DEFAULT_SETTINGS, DEFAULT_TRANSCRIPTION } from './settings'
+
+// Transcript types
+export type {
+  TranscriptEntry,
+  SpeakerProfile,
+  MeetingSession,
+  AudioCaptureConfig,
+  ModelStatus,
+  MeetingStatus,
+  AudioSource,
+  MeetingMode,
+  AudioSourceType,
+  WhisperModelStatus,
+  VadModelStatus,
+} from './transcript'

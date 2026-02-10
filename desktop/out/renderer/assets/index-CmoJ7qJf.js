@@ -7038,8 +7038,248 @@ const atomDark = {
     overlay: "rgba(30, 33, 39, 0.85)"
   }
 };
+const monokai = {
+  id: "monokai",
+  name: "Monokai",
+  colors: {
+    bg: "#272822",
+    surface: "#2e2e2a",
+    surfaceHover: "#3e3d32",
+    border: "#49483e",
+    text: "#f8f8f2",
+    textMuted: "#75715e",
+    textBright: "#f8f8f0",
+    accent: "#a6e22e",
+    accentHover: "#8cc218",
+    success: "#a6e22e",
+    warning: "#e6db74",
+    error: "#f92672",
+    inputBg: "#1e1f1c",
+    inputBorder: "#49483e",
+    chipBg: "#3e3d32",
+    chipText: "#f8f8f2",
+    overlay: "rgba(39, 40, 34, 0.88)"
+  }
+};
+const dracula = {
+  id: "dracula",
+  name: "Dracula",
+  colors: {
+    bg: "#282a36",
+    surface: "#2d2f3d",
+    surfaceHover: "#343746",
+    border: "#44475a",
+    text: "#f8f8f2",
+    textMuted: "#6272a4",
+    textBright: "#f8f8f2",
+    accent: "#bd93f9",
+    accentHover: "#a87aef",
+    success: "#50fa7b",
+    warning: "#f1fa8c",
+    error: "#ff5555",
+    inputBg: "#21222c",
+    inputBorder: "#44475a",
+    chipBg: "#343746",
+    chipText: "#f8f8f2",
+    overlay: "rgba(40, 42, 54, 0.88)"
+  }
+};
+const solarizedDark = {
+  id: "solarized-dark",
+  name: "Solarized Dark",
+  colors: {
+    bg: "#002b36",
+    surface: "#073642",
+    surfaceHover: "#0a4050",
+    border: "#2a5460",
+    text: "#839496",
+    textMuted: "#586e75",
+    textBright: "#eee8d5",
+    accent: "#268bd2",
+    accentHover: "#1e7aba",
+    success: "#859900",
+    warning: "#b58900",
+    error: "#dc322f",
+    inputBg: "#00212b",
+    inputBorder: "#2a5460",
+    chipBg: "#073642",
+    chipText: "#93a1a1",
+    overlay: "rgba(0, 43, 54, 0.88)"
+  }
+};
+const solarizedLight = {
+  id: "solarized-light",
+  name: "Solarized Light",
+  colors: {
+    bg: "#fdf6e3",
+    surface: "#eee8d5",
+    surfaceHover: "#e6dfca",
+    border: "#d3cbb7",
+    text: "#657b83",
+    textMuted: "#93a1a1",
+    textBright: "#073642",
+    accent: "#268bd2",
+    accentHover: "#1e7aba",
+    success: "#859900",
+    warning: "#b58900",
+    error: "#dc322f",
+    inputBg: "#fdf6e3",
+    inputBorder: "#d3cbb7",
+    chipBg: "#eee8d5",
+    chipText: "#586e75",
+    overlay: "rgba(253, 246, 227, 0.92)"
+  }
+};
+const githubDark = {
+  id: "github-dark",
+  name: "GitHub Dark",
+  colors: {
+    bg: "#0d1117",
+    surface: "#161b22",
+    surfaceHover: "#1c2129",
+    border: "#30363d",
+    text: "#c9d1d9",
+    textMuted: "#8b949e",
+    textBright: "#f0f6fc",
+    accent: "#58a6ff",
+    accentHover: "#4090e0",
+    success: "#3fb950",
+    warning: "#d29922",
+    error: "#f85149",
+    inputBg: "#0d1117",
+    inputBorder: "#30363d",
+    chipBg: "#21262d",
+    chipText: "#c9d1d9",
+    overlay: "rgba(13, 17, 23, 0.90)"
+  }
+};
+const githubLight = {
+  id: "github-light",
+  name: "GitHub Light",
+  colors: {
+    bg: "#ffffff",
+    surface: "#f6f8fa",
+    surfaceHover: "#eef0f3",
+    border: "#d0d7de",
+    text: "#24292f",
+    textMuted: "#656d76",
+    textBright: "#1f2328",
+    accent: "#0969da",
+    accentHover: "#0757b5",
+    success: "#1a7f37",
+    warning: "#9a6700",
+    error: "#cf222e",
+    inputBg: "#ffffff",
+    inputBorder: "#d0d7de",
+    chipBg: "#f6f8fa",
+    chipText: "#24292f",
+    overlay: "rgba(255, 255, 255, 0.92)"
+  }
+};
+const nord = {
+  id: "nord",
+  name: "Nord",
+  colors: {
+    bg: "#2e3440",
+    surface: "#3b4252",
+    surfaceHover: "#434c5e",
+    border: "#4c566a",
+    text: "#d8dee9",
+    textMuted: "#7b88a1",
+    textBright: "#eceff4",
+    accent: "#88c0d0",
+    accentHover: "#6fb3c2",
+    success: "#a3be8c",
+    warning: "#ebcb8b",
+    error: "#bf616a",
+    inputBg: "#2e3440",
+    inputBorder: "#4c566a",
+    chipBg: "#3b4252",
+    chipText: "#d8dee9",
+    overlay: "rgba(46, 52, 64, 0.88)"
+  }
+};
+const oneDarkPro = {
+  id: "one-dark-pro",
+  name: "One Dark Pro",
+  colors: {
+    bg: "#1e1e1e",
+    surface: "#252526",
+    surfaceHover: "#2d2d30",
+    border: "#3c3c3c",
+    text: "#abb2bf",
+    textMuted: "#636b78",
+    textBright: "#d7dae0",
+    accent: "#61afef",
+    accentHover: "#4d9cda",
+    success: "#98c379",
+    warning: "#d19a66",
+    error: "#e06c75",
+    inputBg: "#1b1b1b",
+    inputBorder: "#3c3c3c",
+    chipBg: "#2d2d30",
+    chipText: "#abb2bf",
+    overlay: "rgba(30, 30, 30, 0.88)"
+  }
+};
+const gruvboxDark = {
+  id: "gruvbox-dark",
+  name: "Gruvbox Dark",
+  colors: {
+    bg: "#282828",
+    surface: "#3c3836",
+    surfaceHover: "#504945",
+    border: "#504945",
+    text: "#ebdbb2",
+    textMuted: "#928374",
+    textBright: "#fbf1c7",
+    accent: "#83a598",
+    accentHover: "#6d9486",
+    success: "#b8bb26",
+    warning: "#fabd2f",
+    error: "#fb4934",
+    inputBg: "#1d2021",
+    inputBorder: "#504945",
+    chipBg: "#3c3836",
+    chipText: "#ebdbb2",
+    overlay: "rgba(40, 40, 40, 0.88)"
+  }
+};
+const tokyoNight = {
+  id: "tokyo-night",
+  name: "Tokyo Night",
+  colors: {
+    bg: "#1a1b26",
+    surface: "#1e2030",
+    surfaceHover: "#24283b",
+    border: "#2f3348",
+    text: "#a9b1d6",
+    textMuted: "#565f89",
+    textBright: "#c0caf5",
+    accent: "#7aa2f7",
+    accentHover: "#6690e6",
+    success: "#9ece6a",
+    warning: "#e0af68",
+    error: "#f7768e",
+    inputBg: "#16161e",
+    inputBorder: "#2f3348",
+    chipBg: "#24283b",
+    chipText: "#a9b1d6",
+    overlay: "rgba(26, 27, 38, 0.88)"
+  }
+};
 const themes = {
-  "atom-dark": atomDark
+  "atom-dark": atomDark,
+  "one-dark-pro": oneDarkPro,
+  "monokai": monokai,
+  "dracula": dracula,
+  "tokyo-night": tokyoNight,
+  "nord": nord,
+  "gruvbox-dark": gruvboxDark,
+  "github-dark": githubDark,
+  "github-light": githubLight,
+  "solarized-dark": solarizedDark,
+  "solarized-light": solarizedLight
 };
 const DEFAULT_THEME_ID = "atom-dark";
 const ThemeContext = reactExports.createContext(null);
@@ -14403,8 +14643,22 @@ const createMotionComponent = /* @__PURE__ */ createMotionComponentFactory({
   ...layout
 }, createDomVisualElement);
 const motion = /* @__PURE__ */ createDOMMotionComponentProxy(createMotionComponent);
-function TitleBar({ view, onToggleView, onReset }) {
+function TitleBar({
+  view,
+  onToggleView,
+  onReset,
+  meetingActive,
+  onToggleMeeting
+}) {
   const [closeHovered, setCloseHovered] = reactExports.useState(false);
+  const [invisible, setInvisible] = reactExports.useState(true);
+  reactExports.useEffect(() => {
+    window.electronAPI?.getInvisibility().then(setInvisible);
+  }, []);
+  const handleToggleInvisibility = reactExports.useCallback(async () => {
+    const newState = await window.electronAPI?.toggleInvisibility();
+    if (newState !== void 0) setInvisible(newState);
+  }, []);
   const handleClose = () => {
     if (window.electronAPI?.quit) {
       window.electronAPI.quit();
@@ -14466,6 +14720,73 @@ function TitleBar({ view, onToggleView, onReset }) {
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+          view === "chat" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125",
+              style: {
+                color: invisible ? "var(--accent)" : "var(--text-muted)",
+                WebkitAppRegion: "no-drag"
+              },
+              onClick: handleToggleInvisibility,
+              "aria-label": invisible ? "Make visible to screen share" : "Hide from screen share",
+              title: invisible ? "Hidden from screen share" : "Visible to screen share",
+              children: invisible ? (
+                /* Eye-off icon */
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "13", height: "13", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "path",
+                    {
+                      d: "M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24",
+                      stroke: "currentColor",
+                      strokeWidth: "1.8",
+                      strokeLinecap: "round",
+                      strokeLinejoin: "round"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("line", { x1: "1", y1: "1", x2: "23", y2: "23", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" })
+                ] })
+              ) : (
+                /* Eye icon */
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "13", height: "13", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "path",
+                    {
+                      d: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z",
+                      stroke: "currentColor",
+                      strokeWidth: "1.8",
+                      strokeLinecap: "round",
+                      strokeLinejoin: "round"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("circle", { cx: "12", cy: "12", r: "3", stroke: "currentColor", strokeWidth: "1.8" })
+                ] })
+              )
+            }
+          ),
+          view === "chat" && onToggleMeeting && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              className: "flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125",
+              style: {
+                color: meetingActive ? "var(--error)" : "var(--text-muted)",
+                WebkitAppRegion: "no-drag"
+              },
+              onClick: onToggleMeeting,
+              "aria-label": meetingActive ? "Stop meeting" : "Start meeting",
+              title: meetingActive ? "Stop meeting" : "Start meeting capture",
+              children: meetingActive ? (
+                /* Stop icon when active */
+                /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: "13", height: "13", viewBox: "0 0 24 24", fill: "none", children: /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "6", y: "6", width: "12", height: "12", rx: "2", fill: "currentColor" }) })
+              ) : (
+                /* Transcript icon when inactive */
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { width: "13", height: "13", viewBox: "0 0 24 24", fill: "none", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "3", y: "5", width: "18", height: "14", rx: "2", stroke: "currentColor", strokeWidth: "1.8" }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M8 12h8M8 9h5", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" })
+                ] })
+              )
+            }
+          ),
           view === "chat" && onReset && /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
@@ -14687,7 +15008,9 @@ function InputBar({
   isRecording,
   onToggleRecording,
   sttTranscript,
-  onClearTranscript
+  onClearTranscript,
+  modelDownloading,
+  modelProgress = 0
 }) {
   const [value, setValue] = reactExports.useState("");
   const inputRef = reactExports.useRef(null);
@@ -14737,14 +15060,39 @@ function InputBar({
     isRecording && /* @__PURE__ */ jsxRuntimeExports.jsxs(
       "div",
       {
-        className: "flex items-center gap-2 text-xs px-2 py-1 rounded-lg",
+        className: "flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg",
         style: {
-          backgroundColor: "rgba(224, 108, 117, 0.15)",
-          color: "var(--error)"
+          backgroundColor: modelDownloading ? "color-mix(in srgb, var(--accent) 12%, transparent)" : "rgba(224, 108, 117, 0.15)",
+          color: modelDownloading ? "var(--accent)" : "var(--error)"
         },
         children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-2 h-2 rounded-full animate-pulse", style: { backgroundColor: "var(--error)" } }),
-          "Recording... press mic or hotkey to stop"
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: "w-2 h-2 rounded-full shrink-0 animate-pulse",
+              style: {
+                backgroundColor: modelDownloading ? "var(--accent)" : "var(--error)"
+              }
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "flex-1", children: modelDownloading ? `Downloading transcription model... ${modelProgress}%` : "Recording... press mic or hotkey to stop" }),
+          modelDownloading && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "w-16 h-1 rounded-full overflow-hidden shrink-0",
+              style: { backgroundColor: "var(--border)" },
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: "h-full rounded-full transition-all duration-300",
+                  style: {
+                    backgroundColor: "var(--accent)",
+                    width: `${modelProgress}%`
+                  }
+                }
+              )
+            }
+          )
         ]
       }
     ),
@@ -14966,11 +15314,16 @@ const DEFAULT_HOTKEYS = {
   toggleAudio: "Alt+A",
   resetChat: "Alt+R"
 };
+const DEFAULT_TRANSCRIPTION = {
+  provider: "local-fast",
+  apiKeys: {}
+};
 const DEFAULT_SETTINGS = {
   themeId: "atom-dark",
   hotkeys: { ...DEFAULT_HOTKEYS },
   moveStepPx: 50,
-  windowOpacity: 0.85
+  windowOpacity: 0.85,
+  transcription: { ...DEFAULT_TRANSCRIPTION }
 };
 const HOTKEY_LABELS = {
   toggleOverlay: "Toggle Overlay",
@@ -15032,23 +15385,50 @@ function SettingsView() {
         }
       )
     ] }, key)) }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Theme", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-wrap gap-2", children: themeIds.map((id2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-      "button",
+    /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Theme", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: themeIds.map((id2) => {
+      const t = themes[id2];
+      if (!t) return null;
+      const isActive = theme.id === id2;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          onClick: () => {
+            setThemeId(id2);
+            updateSetting("themeId", id2);
+          },
+          className: "flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium transition-all duration-150 border text-left",
+          style: {
+            backgroundColor: isActive ? "var(--accent)" : "var(--surface)",
+            color: isActive ? "#fff" : "var(--text)",
+            borderColor: isActive ? "var(--accent)" : "var(--border)"
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: "w-5 h-5 rounded-md border shrink-0 grid grid-cols-2 grid-rows-2 overflow-hidden",
+                style: { borderColor: isActive ? "rgba(255,255,255,0.3)" : "var(--border)" },
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { backgroundColor: t.colors.bg } }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { backgroundColor: t.colors.accent } }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { backgroundColor: t.colors.surface } }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { backgroundColor: t.colors.text, opacity: 0.7 } })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate", children: t.name })
+          ]
+        },
+        id2
+      );
+    }) }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      TranscriptionSection,
       {
-        onClick: () => {
-          setThemeId(id2);
-          updateSetting("themeId", id2);
-        },
-        className: "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 border",
-        style: {
-          backgroundColor: theme.id === id2 ? "var(--accent)" : "var(--surface)",
-          color: theme.id === id2 ? "#fff" : "var(--text)",
-          borderColor: theme.id === id2 ? "var(--accent)" : "var(--border)"
-        },
-        children: id2.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")
-      },
-      id2
-    )) }) }),
+        transcription: settings.transcription || DEFAULT_TRANSCRIPTION,
+        onUpdate: (t) => updateSetting("transcription", t)
+      }
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Window", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
@@ -15121,6 +15501,239 @@ function SettingsView() {
     ) })
   ] });
 }
+const PROVIDERS = [
+  { id: "local-fast", label: "Fast", detail: "small.en ~488MB", group: "local" },
+  { id: "local-balanced", label: "Balanced", detail: "medium.en ~1.5GB", group: "local" },
+  { id: "local-accurate", label: "Accurate", detail: "large-v3-turbo ~1.6GB", group: "local" },
+  { id: "groq", label: "Groq", detail: "whisper-large-v3", group: "cloud" },
+  { id: "deepgram", label: "Deepgram", detail: "Nova-3", group: "cloud" }
+];
+function TranscriptionSection({
+  transcription,
+  onUpdate
+}) {
+  const [showGroqKey, setShowGroqKey] = reactExports.useState(false);
+  const [showDgKey, setShowDgKey] = reactExports.useState(false);
+  const [modelStatus, setModelStatus] = reactExports.useState(null);
+  reactExports.useEffect(() => {
+    window.electronAPI?.getModelStatus?.().then((s) => {
+      setModelStatus(s?.whisperModel || null);
+    });
+  }, [transcription.provider]);
+  reactExports.useEffect(() => {
+    const unsub = window.electronAPI?.onModelProgress?.((data) => {
+      setModelStatus((prev) => ({
+        available: prev?.available || false,
+        downloading: true,
+        progress: Math.max(prev?.progress || 0, data.progress)
+      }));
+    });
+    const unsub2 = window.electronAPI?.onModelComplete?.(() => {
+      setModelStatus({ available: true, downloading: false, progress: 100 });
+    });
+    return () => {
+      unsub?.();
+      unsub2?.();
+    };
+  }, []);
+  const setProvider = (provider) => {
+    onUpdate({ ...transcription, provider });
+  };
+  const setApiKey = (service, value) => {
+    onUpdate({
+      ...transcription,
+      apiKeys: { ...transcription.apiKeys, [service]: value }
+    });
+  };
+  const isCloud = transcription.provider === "groq" || transcription.provider === "deepgram";
+  const isLocal = transcription.provider.startsWith("local-");
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(Section, { title: "Transcription", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-3", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "span",
+        {
+          className: "text-[10px] uppercase tracking-wider font-medium",
+          style: { color: "var(--text-muted)" },
+          children: "Local (free)"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-1.5 mt-1.5", children: PROVIDERS.filter((p) => p.group === "local").map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          onClick: () => setProvider(p.id),
+          className: "flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border text-center",
+          style: {
+            backgroundColor: transcription.provider === p.id ? "var(--accent)" : "var(--surface)",
+            color: transcription.provider === p.id ? "#fff" : "var(--text)",
+            borderColor: transcription.provider === p.id ? "var(--accent)" : "var(--border)"
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: p.label }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "text-[9px] mt-0.5 font-normal",
+                style: {
+                  opacity: 0.7,
+                  color: transcription.provider === p.id ? "#fff" : "var(--text-muted)"
+                },
+                children: p.detail
+              }
+            )
+          ]
+        },
+        p.id
+      )) })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "span",
+        {
+          className: "text-[10px] uppercase tracking-wider font-medium",
+          style: { color: "var(--text-muted)" },
+          children: "Cloud (API key required)"
+        }
+      ),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-1.5 mt-1.5", children: PROVIDERS.filter((p) => p.group === "cloud").map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          onClick: () => setProvider(p.id),
+          className: "flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border text-center",
+          style: {
+            backgroundColor: transcription.provider === p.id ? "var(--accent)" : "var(--surface)",
+            color: transcription.provider === p.id ? "#fff" : "var(--text)",
+            borderColor: transcription.provider === p.id ? "var(--accent)" : "var(--border)"
+          },
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: p.label }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "text-[9px] mt-0.5 font-normal",
+                style: {
+                  opacity: 0.7,
+                  color: transcription.provider === p.id ? "#fff" : "var(--text-muted)"
+                },
+                children: p.detail
+              }
+            )
+          ]
+        },
+        p.id
+      )) })
+    ] }),
+    transcription.provider === "groq" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px]", style: { color: "var(--text)" }, children: "Groq API Key" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: showGroqKey ? "text" : "password",
+            value: transcription.apiKeys.groq || "",
+            onChange: (e) => setApiKey("groq", e.target.value),
+            placeholder: "gsk_...",
+            className: "flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none bg-transparent",
+            style: {
+              borderColor: "var(--border)",
+              color: "var(--text)"
+            }
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: () => setShowGroqKey(!showGroqKey),
+            className: "text-[10px] px-1.5 py-1 rounded",
+            style: { color: "var(--text-muted)" },
+            children: showGroqKey ? "Hide" : "Show"
+          }
+        )
+      ] })
+    ] }),
+    transcription.provider === "deepgram" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-1", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px]", style: { color: "var(--text)" }, children: "Deepgram API Key" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: showDgKey ? "text" : "password",
+            value: transcription.apiKeys.deepgram || "",
+            onChange: (e) => setApiKey("deepgram", e.target.value),
+            placeholder: "Enter API key...",
+            className: "flex-1 text-xs px-2 py-1.5 rounded-lg border outline-none bg-transparent",
+            style: {
+              borderColor: "var(--border)",
+              color: "var(--text)"
+            }
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: () => setShowDgKey(!showDgKey),
+            className: "text-[10px] px-1.5 py-1 rounded",
+            style: { color: "var(--text-muted)" },
+            children: showDgKey ? "Hide" : "Show"
+          }
+        )
+      ] })
+    ] }),
+    isLocal && modelStatus && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px]", style: { color: "var(--text-muted)" }, children: modelStatus.downloading ? `Downloading... ${modelStatus.progress}%` : modelStatus.available ? "Model ready" : "Model not downloaded" }),
+      modelStatus.downloading && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: "w-20 h-1 rounded-full overflow-hidden",
+          style: { backgroundColor: "var(--border)" },
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "h-full rounded-full transition-all duration-300",
+              style: {
+                backgroundColor: "var(--accent)",
+                width: `${modelStatus.progress}%`
+              }
+            }
+          )
+        }
+      ),
+      !modelStatus.downloading && !modelStatus.available && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          onClick: () => window.electronAPI?.downloadWhisperModel?.(),
+          className: "text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110",
+          style: {
+            borderColor: "var(--accent)",
+            color: "var(--accent)"
+          },
+          children: "Download"
+        }
+      ),
+      modelStatus.available && !modelStatus.downloading && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "span",
+        {
+          className: "text-[10px] px-1.5 py-0.5 rounded-md",
+          style: {
+            backgroundColor: "color-mix(in srgb, var(--success) 15%, transparent)",
+            color: "var(--success)"
+          },
+          children: "Ready"
+        }
+      )
+    ] }),
+    isCloud && !transcription.apiKeys[transcription.provider] && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      "span",
+      {
+        className: "text-[10px] block",
+        style: { color: "var(--warning, var(--error))" },
+        children: [
+          "API key required for ",
+          transcription.provider === "groq" ? "Groq" : "Deepgram"
+        ]
+      }
+    )
+  ] }) });
+}
 function Section({ title, children }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-2", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -15143,6 +15756,301 @@ function Section({ title, children }) {
       }
     )
   ] });
+}
+const SPEAKER_COLORS = {
+  You: "var(--accent)",
+  Them: "var(--success)"
+};
+function SpeakerLabel({ speaker, confidence = 1 }) {
+  const color2 = SPEAKER_COLORS[speaker] || "var(--warning)";
+  const isLowConfidence = confidence < 0.6;
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "span",
+    {
+      className: "inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded",
+      style: {
+        backgroundColor: `color-mix(in srgb, ${color2} 15%, transparent)`,
+        color: color2,
+        opacity: isLowConfidence ? 0.6 : 1
+      },
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "span",
+          {
+            className: "w-1.5 h-1.5 rounded-full shrink-0",
+            style: { backgroundColor: color2 }
+          }
+        ),
+        speaker
+      ]
+    }
+  );
+}
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1e3);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+function LiveTranscriptPanel({
+  entries,
+  isActive,
+  isRecording,
+  formattedDuration,
+  transcriptionMode,
+  micActive,
+  tabActive,
+  onStop,
+  error,
+  modelDownloading,
+  modelProgress = 0
+}) {
+  const [expanded, setExpanded] = reactExports.useState(true);
+  const scrollRef = reactExports.useRef(null);
+  const autoScrollRef = reactExports.useRef(true);
+  reactExports.useEffect(() => {
+    if (expanded && autoScrollRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [entries, expanded]);
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 40;
+  };
+  const grouped = [];
+  for (const entry of entries) {
+    const last = grouped[grouped.length - 1];
+    if (last && last.speaker === entry.speaker) {
+      last.entries.push(entry);
+    } else {
+      grouped.push({ speaker: entry.speaker, entries: [entry] });
+    }
+  }
+  const lastEntry = entries[entries.length - 1];
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+    "div",
+    {
+      className: "mx-3 mb-2 rounded-xl overflow-hidden shrink-0",
+      style: {
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)"
+      },
+      children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "button",
+          {
+            className: "w-full flex items-center gap-2 px-3 py-2 text-left",
+            onClick: () => setExpanded((v) => !v),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "span",
+                {
+                  className: "w-2 h-2 rounded-full shrink-0 animate-pulse",
+                  style: { backgroundColor: "var(--error)" }
+                }
+              ),
+              isRecording && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "span",
+                {
+                  className: "text-[11px] font-mono shrink-0",
+                  style: { color: "var(--text)" },
+                  children: formattedDuration
+                }
+              ),
+              !expanded && lastEntry && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "span",
+                {
+                  className: "text-[11px] truncate flex-1",
+                  style: { color: "var(--text-muted)" },
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { style: { color: lastEntry.speaker === "You" ? "var(--accent)" : "var(--success)" }, children: [
+                      lastEntry.speaker,
+                      ":"
+                    ] }),
+                    " ",
+                    lastEntry.text
+                  ]
+                }
+              ),
+              expanded && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "span",
+                {
+                  className: "text-[11px] flex-1",
+                  style: { color: "var(--text-muted)" },
+                  children: "Live Transcript"
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 shrink-0", children: [
+                micActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "span",
+                  {
+                    className: "text-[9px] px-1 py-px rounded font-medium",
+                    style: {
+                      backgroundColor: "color-mix(in srgb, var(--accent) 15%, transparent)",
+                      color: "var(--accent)"
+                    },
+                    children: "MIC"
+                  }
+                ),
+                tabActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "span",
+                  {
+                    className: "text-[9px] px-1 py-px rounded font-medium",
+                    style: {
+                      backgroundColor: "color-mix(in srgb, var(--success) 15%, transparent)",
+                      color: "var(--success)"
+                    },
+                    children: "TAB"
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(ModeBadge, { mode: transcriptionMode })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "svg",
+                {
+                  width: "10",
+                  height: "10",
+                  viewBox: "0 0 10 10",
+                  fill: "none",
+                  className: "shrink-0 transition-transform",
+                  style: {
+                    color: "var(--text-muted)",
+                    transform: expanded ? "rotate(180deg)" : "rotate(0)"
+                  },
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { d: "M2 3.5L5 6.5L8 3.5", stroke: "currentColor", strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
+                }
+              )
+            ]
+          }
+        ),
+        expanded && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          error && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: "mx-3 mb-2 text-[11px] px-2 py-1 rounded",
+              style: {
+                backgroundColor: "rgba(224, 108, 117, 0.15)",
+                color: "var(--error)"
+              },
+              children: error
+            }
+          ),
+          modelDownloading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mx-3 mb-2 space-y-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: "flex items-center justify-between text-[10px]",
+                style: { color: "var(--text-muted)" },
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Downloading Whisper model..." }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+                    modelProgress,
+                    "%"
+                  ] })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: "h-1 rounded-full overflow-hidden",
+                style: { backgroundColor: "var(--border)" },
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: "h-full rounded-full transition-all duration-300",
+                    style: { backgroundColor: "var(--accent)", width: `${modelProgress}%` }
+                  }
+                )
+              }
+            )
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              ref: scrollRef,
+              className: "max-h-[200px] overflow-y-auto px-3 pb-2 space-y-2",
+              onScroll: handleScroll,
+              children: [
+                entries.length === 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 py-2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "span",
+                    {
+                      className: "w-1.5 h-1.5 rounded-full animate-pulse",
+                      style: { backgroundColor: "var(--accent)" }
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px]", style: { color: "var(--text-muted)" }, children: "Waiting for speech..." })
+                ] }),
+                grouped.map((group, i) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-0.5", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx(SpeakerLabel, { speaker: group.speaker, confidence: group.entries[0].confidence }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px]", style: { color: "var(--text-muted)" }, children: formatTime(group.entries[0].startTime) })
+                  ] }),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "p",
+                    {
+                      className: "text-[12px] leading-relaxed pl-0.5",
+                      style: { color: "var(--text)" },
+                      children: group.entries.map((e) => e.text).join(" ")
+                    }
+                  )
+                ] }, i)),
+                isActive && entries.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1 py-0.5", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "span",
+                    {
+                      className: "w-1 h-1 rounded-full animate-pulse",
+                      style: { backgroundColor: "var(--accent)" }
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px]", style: { color: "var(--text-muted)" }, children: "Listening..." })
+                ] })
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "px-3 pb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: (e) => {
+                e.stopPropagation();
+                onStop();
+              },
+              className: "w-full flex items-center justify-center gap-1.5 text-[11px] font-medium py-1.5 rounded-lg transition-all hover:brightness-110 active:scale-[0.98]",
+              style: { backgroundColor: "var(--error)", color: "#fff" },
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { width: "8", height: "8", viewBox: "0 0 24 24", fill: "currentColor", children: /* @__PURE__ */ jsxRuntimeExports.jsx("rect", { x: "4", y: "4", width: "16", height: "16", rx: "2" }) }),
+                "Stop Meeting"
+              ]
+            }
+          ) })
+        ] })
+      ]
+    }
+  );
+}
+const MODE_BADGE_MAP = {
+  "local-fast": { label: "SMALL", color: "success" },
+  "local-balanced": { label: "MED", color: "success" },
+  "local-accurate": { label: "TURBO", color: "success" },
+  groq: { label: "GROQ", color: "warning" },
+  deepgram: { label: "DEEPGRAM", color: "warning" },
+  downloading: { label: "DL...", color: "accent" }
+};
+function ModeBadge({ mode }) {
+  const info = MODE_BADGE_MAP[mode] || { label: mode.toUpperCase(), color: "warning" };
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+    "span",
+    {
+      className: "text-[9px] px-1 py-px rounded font-medium",
+      style: {
+        backgroundColor: `color-mix(in srgb, var(--${info.color}) 15%, transparent)`,
+        color: `var(--${info.color})`
+      },
+      children: info.label
+    }
+  );
 }
 function useChat() {
   const [messages, setMessages] = reactExports.useState([]);
@@ -15217,61 +16125,81 @@ function useWhisperSTT() {
   const [isRecording, setIsRecording] = reactExports.useState(false);
   const [transcript, setTranscript] = reactExports.useState("");
   const [error, setError] = reactExports.useState(null);
-  const mediaRecorderRef = reactExports.useRef(null);
   const streamRef = reactExports.useRef(null);
-  const chunksRef = reactExports.useRef([]);
+  const contextRef = reactExports.useRef(null);
+  const processorRef = reactExports.useRef(null);
+  const bufferRef = reactExports.useRef([]);
   const intervalRef = reactExports.useRef(null);
-  const transcribeChunk = reactExports.useCallback(async (blob) => {
-    if (blob.size < 1e3) return;
-    {
-      setError("No VITE_OPENAI_API_KEY set — STT disabled");
-      return;
+  const flushBuffer = reactExports.useCallback(async () => {
+    if (bufferRef.current.length === 0) return;
+    const chunks = bufferRef.current;
+    bufferRef.current = [];
+    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+    const merged = new Float32Array(totalLen);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    if (merged.length < 16e3 * 0.3) return;
+    try {
+      const result = await window.electronAPI?.transcribeAudioChunk?.({
+        source: "mic",
+        pcm: merged.buffer,
+        sampleRate: 16e3,
+        timestamp: Date.now()
+      });
+      const text = typeof result === "object" && result !== null && "text" in result ? result.text : "";
+      if (text?.trim()) {
+        setTranscript((prev) => prev ? `${prev} ${text.trim()}` : text.trim());
+      }
+    } catch (err) {
+      console.error("[stt] Transcription failed:", err);
     }
   }, []);
-  const flushChunks = reactExports.useCallback(() => {
-    if (chunksRef.current.length === 0) return;
-    const blob = new Blob(chunksRef.current, { type: "audio/webm;codecs=opus" });
-    chunksRef.current = [];
-    transcribeChunk(blob);
-  }, [transcribeChunk]);
   const startRecording = reactExports.useCallback(async () => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const recorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus"
-      });
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
+      const ctx = new AudioContext({ sampleRate: 16e3 });
+      contextRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      processor.onaudioprocess = (e) => {
+        const pcm = e.inputBuffer.getChannelData(0);
+        bufferRef.current.push(new Float32Array(pcm));
       };
-      recorder.start(500);
-      mediaRecorderRef.current = recorder;
+      source.connect(processor);
+      processor.connect(ctx.destination);
       setIsRecording(true);
-      intervalRef.current = setInterval(flushChunks, CHUNK_INTERVAL_MS);
+      intervalRef.current = setInterval(flushBuffer, CHUNK_INTERVAL_MS);
     } catch (err) {
       setError("Microphone access denied");
-      console.error("[whisper] Mic error:", err);
+      console.error("[stt] Mic error:", err);
     }
-  }, [flushChunks]);
+  }, [flushBuffer]);
   const stopRecording = reactExports.useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+    flushBuffer();
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
     }
-    mediaRecorderRef.current = null;
-    flushChunks();
+    if (contextRef.current) {
+      contextRef.current.close();
+      contextRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     setIsRecording(false);
-  }, [flushChunks]);
+  }, [flushBuffer]);
   const toggleRecording = reactExports.useCallback(() => {
     if (isRecording) {
       stopRecording();
@@ -15285,12 +16213,9 @@ function useWhisperSTT() {
   reactExports.useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
+      processorRef.current?.disconnect();
+      contextRef.current?.close();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
   return {
@@ -15303,12 +16228,514 @@ function useWhisperSTT() {
     clearTranscript
   };
 }
+const TARGET_SAMPLE_RATE = 16e3;
+function useAudioCapture() {
+  const [isCapturing, setIsCapturing] = reactExports.useState(false);
+  const [micActive, setMicActive] = reactExports.useState(false);
+  const [tabActive, setTabActive] = reactExports.useState(false);
+  const [error, setError] = reactExports.useState(null);
+  const micStreamRef = reactExports.useRef(null);
+  const tabStreamRef = reactExports.useRef(null);
+  const micContextRef = reactExports.useRef(null);
+  const tabContextRef = reactExports.useRef(null);
+  const micProcessorRef = reactExports.useRef(null);
+  const tabProcessorRef = reactExports.useRef(null);
+  const streamFrame = reactExports.useCallback(
+    (input, source) => {
+      const copy = new Float32Array(input.length);
+      copy.set(input);
+      try {
+        window.electronAPI?.streamAudioFrame({
+          source,
+          pcm: copy.buffer,
+          sampleRate: TARGET_SAMPLE_RATE,
+          timestamp: Date.now()
+        });
+      } catch (err) {
+        console.error(`[audio-capture] Failed to stream ${source} frame:`, err);
+      }
+    },
+    []
+  );
+  const createPcmExtractor = reactExports.useCallback(
+    async (stream, source) => {
+      let ctx;
+      try {
+        ctx = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
+      } catch {
+        ctx = new AudioContext();
+      }
+      if (ctx.state === "suspended") {
+        console.log(`[audio-capture] AudioContext suspended for ${source}, resuming…`);
+        await ctx.resume();
+      }
+      const audioSource = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const silencer = ctx.createGain();
+      silencer.gain.value = 0;
+      processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        streamFrame(input, source);
+      };
+      audioSource.connect(processor);
+      processor.connect(silencer);
+      silencer.connect(ctx.destination);
+      console.log(
+        `[audio-capture] Streaming extractor ready for ${source} (rate=${ctx.sampleRate}, state=${ctx.state})`
+      );
+      return { ctx, processor };
+    },
+    [streamFrame]
+  );
+  const setupMicCapture = reactExports.useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: TARGET_SAMPLE_RATE,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+      micStreamRef.current = stream;
+      const { ctx, processor } = await createPcmExtractor(stream, "mic");
+      micContextRef.current = ctx;
+      micProcessorRef.current = processor;
+      setMicActive(true);
+      return stream;
+    } catch (err) {
+      console.error("[audio-capture] Mic error:", err);
+      setError("Microphone access denied");
+      return null;
+    }
+  }, [createPcmExtractor]);
+  const setupTabCapture = reactExports.useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: {
+          autoGainControl: false,
+          echoCancellation: false,
+          noiseSuppression: false
+        }
+      });
+      tabStreamRef.current = stream;
+      const audioTracks = stream.getAudioTracks();
+      const videoTracks = stream.getVideoTracks();
+      console.log(
+        `[audio-capture] Display media: ${audioTracks.length} audio, ${videoTracks.length} video`
+      );
+      if (audioTracks.length === 0) {
+        console.warn("[audio-capture] No audio tracks — system audio capture may not be permitted");
+        setError("No system audio captured. Grant screen recording permission in System Settings.");
+        return stream;
+      }
+      const settings = audioTracks[0].getSettings();
+      console.log("[audio-capture] Audio track settings:", JSON.stringify(settings));
+      const audioOnly = new MediaStream(audioTracks);
+      const { ctx, processor } = await createPcmExtractor(audioOnly, "system");
+      tabContextRef.current = ctx;
+      tabProcessorRef.current = processor;
+      videoTracks[0]?.addEventListener("ended", () => {
+        setTabActive(false);
+      });
+      setTabActive(true);
+      return stream;
+    } catch (err) {
+      console.error("[audio-capture] Tab capture error:", err);
+      setError("Screen capture was cancelled or denied");
+      return null;
+    }
+  }, [createPcmExtractor]);
+  const startCapture = reactExports.useCallback(
+    async (options) => {
+      setError(null);
+      let micStream = null;
+      let tabStream = null;
+      if (options.tab) {
+        tabStream = await setupTabCapture();
+      }
+      if (options.mic) {
+        micStream = await setupMicCapture();
+      }
+      if (!micStream && !tabStream) {
+        setError("No audio source available");
+        return { micStream: null, tabStream: null };
+      }
+      setIsCapturing(true);
+      return { micStream, tabStream };
+    },
+    [setupMicCapture, setupTabCapture]
+  );
+  const stopCapture = reactExports.useCallback(() => {
+    micProcessorRef.current?.disconnect();
+    tabProcessorRef.current?.disconnect();
+    micProcessorRef.current = null;
+    tabProcessorRef.current = null;
+    micContextRef.current?.close();
+    tabContextRef.current?.close();
+    micContextRef.current = null;
+    tabContextRef.current = null;
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    tabStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    tabStreamRef.current = null;
+    setIsCapturing(false);
+    setMicActive(false);
+    setTabActive(false);
+    setError(null);
+  }, []);
+  reactExports.useEffect(() => {
+    return () => {
+      micProcessorRef.current?.disconnect();
+      tabProcessorRef.current?.disconnect();
+      micContextRef.current?.close();
+      tabContextRef.current?.close();
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      tabStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+  return {
+    isCapturing,
+    micActive,
+    tabActive,
+    error,
+    startCapture,
+    stopCapture,
+    getMicStream: () => micStreamRef.current,
+    getTabStream: () => tabStreamRef.current
+  };
+}
+function useMeetingTranscript() {
+  const [entries, setEntries] = reactExports.useState([]);
+  const [status, setStatus] = reactExports.useState({
+    isActive: false,
+    isTranscribing: false,
+    transcriptionMode: "local-fast",
+    modelStatus: {
+      whisperModel: {
+        available: false,
+        downloading: false,
+        progress: 0
+      },
+      vadModel: {
+        available: false,
+        downloading: false,
+        progress: 0,
+        ready: false
+      }
+    }
+  });
+  reactExports.useEffect(() => {
+    const api = window.electronAPI;
+    if (!api) return;
+    const unsubEntry = api.onTranscriptEntry?.((entry) => {
+      setEntries((prev) => [...prev, entry]);
+    });
+    const unsubStatus = api.onMeetingStatusUpdate?.(
+      (update) => {
+        setStatus((prev) => ({ ...prev, ...update }));
+      }
+    );
+    const unsubProgress = api.onModelProgress?.(
+      (data) => {
+        setStatus((prev) => {
+          if (data.modelId === "silero-vad-v5") {
+            return {
+              ...prev,
+              modelStatus: {
+                ...prev.modelStatus,
+                vadModel: {
+                  ...prev.modelStatus.vadModel,
+                  downloading: true,
+                  progress: Math.max(prev.modelStatus.vadModel.progress, data.progress)
+                }
+              }
+            };
+          }
+          return {
+            ...prev,
+            modelStatus: {
+              ...prev.modelStatus,
+              whisperModel: {
+                ...prev.modelStatus.whisperModel,
+                downloading: true,
+                progress: Math.max(prev.modelStatus.whisperModel.progress, data.progress)
+              }
+            }
+          };
+        });
+      }
+    );
+    const unsubComplete = api.onModelComplete?.(
+      (data) => {
+        setStatus((prev) => {
+          if (data.modelId === "silero-vad-v5") {
+            return {
+              ...prev,
+              modelStatus: {
+                ...prev.modelStatus,
+                vadModel: {
+                  available: true,
+                  downloading: false,
+                  progress: 100,
+                  ready: true
+                }
+              }
+            };
+          }
+          return {
+            ...prev,
+            modelStatus: {
+              ...prev.modelStatus,
+              whisperModel: {
+                ...prev.modelStatus.whisperModel,
+                available: true,
+                downloading: false,
+                progress: 100
+              }
+            }
+          };
+        });
+      }
+    );
+    api.getModelStatus?.().then((modelStatus) => {
+      if (modelStatus) {
+        setStatus((prev) => ({
+          ...prev,
+          modelStatus: {
+            whisperModel: modelStatus.whisperModel || prev.modelStatus.whisperModel,
+            vadModel: modelStatus.vadModel || prev.modelStatus.vadModel
+          }
+        }));
+      }
+    });
+    return () => {
+      unsubEntry?.();
+      unsubStatus?.();
+      unsubProgress?.();
+      unsubComplete?.();
+    };
+  }, []);
+  const startSession = reactExports.useCallback(async () => {
+    const result = await window.electronAPI?.startMeetingSession?.();
+    setStatus((prev) => ({
+      ...prev,
+      isActive: true,
+      isTranscribing: true,
+      transcriptionMode: result?.transcriptionMode || prev.transcriptionMode
+    }));
+    setEntries([]);
+    return result;
+  }, []);
+  const stopSession = reactExports.useCallback(async () => {
+    await window.electronAPI?.stopMeetingSession?.();
+    setStatus((prev) => ({
+      ...prev,
+      isActive: false,
+      isTranscribing: false
+    }));
+  }, []);
+  const clearEntries = reactExports.useCallback(() => {
+    setEntries([]);
+  }, []);
+  const downloadModel = reactExports.useCallback(async () => {
+    setStatus((prev) => ({
+      ...prev,
+      modelStatus: {
+        ...prev.modelStatus,
+        whisperModel: {
+          ...prev.modelStatus.whisperModel,
+          downloading: true,
+          progress: 0
+        }
+      }
+    }));
+    const result = await window.electronAPI?.downloadWhisperModel?.();
+    if (result?.success) {
+      setStatus((prev) => ({
+        ...prev,
+        transcriptionMode: result.mode || prev.transcriptionMode,
+        modelStatus: {
+          ...prev.modelStatus,
+          whisperModel: {
+            available: true,
+            downloading: false,
+            progress: 100,
+            path: result.path
+          }
+        }
+      }));
+    } else {
+      setStatus((prev) => ({
+        ...prev,
+        modelStatus: {
+          ...prev.modelStatus,
+          whisperModel: {
+            ...prev.modelStatus.whisperModel,
+            downloading: false,
+            error: result?.error || "Download failed"
+          }
+        }
+      }));
+    }
+    return result;
+  }, []);
+  return {
+    entries,
+    status,
+    startSession,
+    stopSession,
+    clearEntries,
+    downloadModel
+  };
+}
+function useMeetingRecorder() {
+  const [state, setState] = reactExports.useState({
+    isRecording: false,
+    duration: 0,
+    error: null
+  });
+  const mediaRecorderRef = reactExports.useRef(null);
+  const chunksRef = reactExports.useRef([]);
+  const timerRef = reactExports.useRef(null);
+  const startTimeRef = reactExports.useRef(0);
+  const mixerCtxRef = reactExports.useRef(null);
+  const startRecording = reactExports.useCallback(
+    (tabStream, micStream) => {
+      try {
+        let combinedStream;
+        if (tabStream && micStream) {
+          const audioCtx = new AudioContext();
+          mixerCtxRef.current = audioCtx;
+          const tabAudioTracks = tabStream.getAudioTracks();
+          const dest = audioCtx.createMediaStreamDestination();
+          if (tabAudioTracks.length > 0) {
+            const tabAudio = audioCtx.createMediaStreamSource(
+              new MediaStream(tabAudioTracks)
+            );
+            tabAudio.connect(dest);
+          }
+          const micAudio = audioCtx.createMediaStreamSource(micStream);
+          micAudio.connect(dest);
+          combinedStream = new MediaStream([
+            ...tabStream.getVideoTracks(),
+            ...dest.stream.getAudioTracks()
+          ]);
+        } else if (tabStream) {
+          combinedStream = tabStream;
+        } else if (micStream) {
+          combinedStream = micStream;
+        } else {
+          setState((prev) => ({ ...prev, error: "No streams to record" }));
+          return;
+        }
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus") ? "video/webm;codecs=vp8,opus" : "video/webm";
+        const recorder = new MediaRecorder(combinedStream, {
+          mimeType,
+          videoBitsPerSecond: 25e5
+        });
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+        recorder.start(1e3);
+        mediaRecorderRef.current = recorder;
+        startTimeRef.current = Date.now();
+        timerRef.current = setInterval(() => {
+          setState((prev) => ({
+            ...prev,
+            duration: Math.floor((Date.now() - startTimeRef.current) / 1e3)
+          }));
+        }, 1e3);
+        setState({ isRecording: true, duration: 0, error: null });
+      } catch (err) {
+        console.error("[recorder] Failed to start:", err);
+        setState((prev) => ({ ...prev, error: "Failed to start recording" }));
+      }
+    },
+    []
+  );
+  const stopRecording = reactExports.useCallback(async () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return new Promise((resolve) => {
+      const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state === "inactive") {
+        setState((prev) => ({ ...prev, isRecording: false }));
+        resolve(null);
+        return;
+      }
+      recorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        chunksRef.current = [];
+        mixerCtxRef.current?.close();
+        mixerCtxRef.current = null;
+        try {
+          const arrayBuffer = await blob.arrayBuffer();
+          const result = await window.electronAPI?.saveMeetingRecording?.({
+            data: arrayBuffer,
+            mimeType: "video/webm"
+          });
+          setState({ isRecording: false, duration: 0, error: null });
+          resolve(result?.filepath || null);
+        } catch (err) {
+          console.error("[recorder] Failed to save:", err);
+          setState((prev) => ({
+            ...prev,
+            isRecording: false,
+            error: "Failed to save recording"
+          }));
+          resolve(null);
+        }
+      };
+      recorder.stop();
+      mediaRecorderRef.current = null;
+    });
+  }, []);
+  const formatDuration = reactExports.useCallback((seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    const s = seconds % 60;
+    if (h > 0) {
+      return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }, []);
+  return {
+    ...state,
+    formattedDuration: formatDuration(state.duration),
+    startRecording,
+    stopRecording
+  };
+}
 function Overlay() {
   const [visible, setVisible] = reactExports.useState(true);
   const [view, setView] = reactExports.useState("chat");
   const [pendingScreenshot, setPendingScreenshot] = reactExports.useState(null);
+  const [windowOpacity, setWindowOpacity] = reactExports.useState(1);
   const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat();
   const stt = useWhisperSTT();
+  const capture = useAudioCapture();
+  const transcript = useMeetingTranscript();
+  const recorder = useMeetingRecorder();
+  const [meetingError, setMeetingError] = reactExports.useState(null);
+  reactExports.useEffect(() => {
+    window.electronAPI?.getSettings().then((s) => {
+      if (s?.windowOpacity !== void 0) setWindowOpacity(s.windowOpacity);
+    });
+  }, []);
+  reactExports.useEffect(() => {
+    const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
+      if (s?.windowOpacity !== void 0) setWindowOpacity(s.windowOpacity);
+    });
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
   reactExports.useEffect(() => {
     const unsubscribe = window.electronAPI?.onToggleVisibility((v) => {
       setVisible(v);
@@ -15320,12 +16747,12 @@ function Overlay() {
   reactExports.useEffect(() => {
     const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
       setPendingScreenshot(dataUrl);
-      setView("chat");
+      if (view === "settings") setView("chat");
     });
     return () => {
       unsubscribe?.();
     };
-  }, []);
+  }, [view]);
   reactExports.useEffect(() => {
     const unsubscribe = window.electronAPI?.onToggleAudio(() => {
       stt.toggleRecording();
@@ -15334,6 +16761,36 @@ function Overlay() {
       unsubscribe?.();
     };
   }, [stt.toggleRecording]);
+  const handleStartMeeting = reactExports.useCallback(async () => {
+    setMeetingError(null);
+    const { micStream, tabStream } = await capture.startCapture({
+      mic: true,
+      tab: true
+    });
+    if (!micStream && !tabStream) {
+      setMeetingError("No audio source available. Allow mic/screen access.");
+      return;
+    }
+    await transcript.startSession();
+    if (tabStream) {
+      recorder.startRecording(tabStream, micStream);
+    } else if (micStream) {
+      recorder.startRecording(micStream);
+    }
+  }, [capture, transcript, recorder]);
+  const handleStopMeeting = reactExports.useCallback(async () => {
+    capture.stopCapture();
+    await recorder.stopRecording();
+    await transcript.stopSession();
+    setMeetingError(null);
+  }, [capture, recorder, transcript]);
+  const handleToggleMeeting = reactExports.useCallback(() => {
+    if (transcript.status.isActive) {
+      handleStopMeeting();
+    } else {
+      handleStartMeeting();
+    }
+  }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting]);
   const handleSend = reactExports.useCallback(
     (content, attachments) => {
       sendMessage(content, attachments);
@@ -15354,6 +16811,7 @@ function Overlay() {
   const toggleView = reactExports.useCallback(() => {
     setView((v) => v === "chat" ? "settings" : "chat");
   }, []);
+  const meetingActive = transcript.status.isActive;
   return /* @__PURE__ */ jsxRuntimeExports.jsx(AnimatePresence, { mode: "wait", children: visible && /* @__PURE__ */ jsxRuntimeExports.jsxs(
     motion.div,
     {
@@ -15364,10 +16822,20 @@ function Overlay() {
       className: "glass w-full h-screen flex flex-col rounded-2xl border overflow-hidden",
       style: {
         backgroundColor: "var(--overlay)",
-        borderColor: "var(--border)"
+        borderColor: "var(--border)",
+        opacity: windowOpacity
       },
       children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TitleBar, { view, onToggleView: toggleView, onReset: resetChat }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TitleBar,
+          {
+            view,
+            onToggleView: toggleView,
+            onReset: resetChat,
+            meetingActive,
+            onToggleMeeting: handleToggleMeeting
+          }
+        ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -15376,6 +16844,22 @@ function Overlay() {
           }
         ),
         view === "chat" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          meetingActive && /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LiveTranscriptPanel,
+            {
+              entries: transcript.entries,
+              isActive: meetingActive,
+              isRecording: recorder.isRecording,
+              formattedDuration: recorder.formattedDuration,
+              transcriptionMode: transcript.status.transcriptionMode,
+              micActive: capture.micActive,
+              tabActive: capture.tabActive,
+              onStop: handleStopMeeting,
+              error: meetingError || capture.error || recorder.error,
+              modelDownloading: transcript.status.modelStatus?.whisperModel?.downloading,
+              modelProgress: transcript.status.modelStatus?.whisperModel?.progress
+            }
+          ),
           /* @__PURE__ */ jsxRuntimeExports.jsx(ResponseCard, { messages, isLoading }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(ActionChips, { onAction: (action) => handleSend(action) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -15391,7 +16875,9 @@ function Overlay() {
               isRecording: stt.isRecording,
               onToggleRecording: stt.toggleRecording,
               sttTranscript: stt.transcript,
-              onClearTranscript: stt.clearTranscript
+              onClearTranscript: stt.clearTranscript,
+              modelDownloading: transcript.status.modelStatus?.whisperModel?.downloading,
+              modelProgress: transcript.status.modelStatus?.whisperModel?.progress
             }
           )
         ] }) : /* @__PURE__ */ jsxRuntimeExports.jsx(SettingsView, {})

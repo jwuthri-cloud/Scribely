@@ -1,9 +1,18 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  session,
+  desktopCapturer,
+  systemPreferences,
+} from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 import { applyInvisibility } from './invisibility'
 import { registerAllHotkeys, unregisterAllHotkeys, reregisterHotkeys } from './hotkey'
 import { captureScreen } from './screenshot'
+import { AudioPipeline } from './audio/pipeline'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -16,11 +25,20 @@ interface HotkeyConfig {
   resetChat: string
 }
 
+interface TranscriptionSettings {
+  provider: string
+  apiKeys: {
+    groq?: string
+    deepgram?: string
+  }
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  transcription: TranscriptionSettings
 }
 
 const store = new Store<AppSettings>({
@@ -38,11 +56,32 @@ const store = new Store<AppSettings>({
     },
     moveStepPx: 50,
     windowOpacity: 0.85,
+    transcription: {
+      provider: 'local-fast',
+      apiKeys: {},
+    },
   },
 })
 
 let mainWindow: BrowserWindow | null = null
 let pendingResponseTimer: ReturnType<typeof setTimeout> | null = null
+let isInvisible = true // starts invisible (content protection on)
+
+// ── Audio Pipeline ─────────────────────────────────────
+const audioPipeline = new AudioPipeline(store.get('transcription'))
+
+// ── Chromium flags for macOS audio loopback ────────────
+// These must be set before app.ready(). They enable system audio capture
+// even when output goes through Bluetooth (AirPods) or other non-default routes.
+app.commandLine.appendSwitch(
+  'enable-features',
+  [
+    'MacLoopbackAudioForScreenShare',
+    'MacSckSystemAudioLoopbackOverride',
+    'ScreenCaptureKitStreamPickerSonoma',
+    'ScreenCaptureKitAudio',
+  ].join(','),
+)
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -72,6 +111,44 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // ── Grant media permissions to the renderer ──────────────────
+  // Without this, getUserMedia() for microphone is silently denied by Electron.
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = ['media', 'display-capture', 'mediaKeySystem']
+    console.log(`[permissions] Permission request: ${permission} → ${allowed.includes(permission) ? 'granted' : 'denied'}`)
+    callback(allowed.includes(permission))
+  })
+
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    const allowed = ['media', 'display-capture', 'mediaKeySystem']
+    return allowed.includes(permission)
+  })
+
+  // ── Display Media Handler (for getDisplayMedia in renderer) ──
+  // On macOS the native system picker (useSystemPicker: true) does NOT
+  // return audio tracks — only video. So we skip it and auto-select
+  // the primary screen with loopback audio via desktopCapturer instead.
+  // This guarantees both video AND system audio are captured.
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] })
+      const primaryScreen = sources[0]
+      if (primaryScreen) {
+        console.log('[display-media] Auto-selecting screen with loopback audio')
+        callback({ video: primaryScreen, audio: 'loopback' })
+      } else {
+        console.warn('[display-media] No screen sources found')
+        callback({})
+      }
+    } catch (err) {
+      console.error('[display-media] Handler error:', err)
+      callback({})
+    }
+  })
+
+  // Connect pipeline to window
+  audioPipeline.setWindow(mainWindow)
+
   // Load the renderer
   if (process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -98,6 +175,15 @@ function registerIpcHandlers(): void {
         // Deep merge hotkeys
         const current = store.get('hotkeys')
         store.set('hotkeys', { ...current, ...(value as Partial<HotkeyConfig>) })
+      } else if (key === 'transcription' && typeof value === 'object') {
+        // Deep merge transcription settings
+        const current = store.get('transcription')
+        const incoming = value as Partial<TranscriptionSettings>
+        store.set('transcription', {
+          ...current,
+          ...incoming,
+          apiKeys: { ...current.apiKeys, ...incoming.apiKeys },
+        })
       } else {
         store.set(key as keyof AppSettings, value as never)
       }
@@ -108,6 +194,11 @@ function registerIpcHandlers(): void {
     // Re-register hotkeys if they changed
     if (oldHotkeys !== newHotkeys && mainWindow) {
       reregisterHotkeys(mainWindow, store)
+    }
+
+    // Notify audio pipeline if transcription settings changed
+    if (partial.transcription) {
+      audioPipeline.onSettingsChanged(store.get('transcription'))
     }
 
     // Notify renderer that settings changed
@@ -153,6 +244,18 @@ function registerIpcHandlers(): void {
     }
   })
 
+  // ── Invisibility toggle ─────────────────────────────
+  ipcMain.handle('toggle-invisibility', () => {
+    if (!mainWindow) return isInvisible
+    isInvisible = !isInvisible
+    mainWindow.setContentProtection(isInvisible)
+    return isInvisible
+  })
+
+  ipcMain.handle('get-invisibility', () => {
+    return isInvisible
+  })
+
   // ── App lifecycle ─────────────────────────────────
   ipcMain.on('app-quit', () => {
     app.quit()
@@ -160,12 +263,31 @@ function registerIpcHandlers(): void {
 }
 
 // Hide the dock icon on macOS so the overlay is truly minimal
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
     app.dock.hide()
+
+    // Request microphone permission — triggers the macOS permission dialog
+    // on first run so getUserMedia won't fail with "access denied" later.
+    const micStatus = systemPreferences.getMediaAccessStatus('microphone')
+    if (micStatus !== 'granted') {
+      console.log(`[permissions] Microphone status: ${micStatus} — requesting access…`)
+      const granted = await systemPreferences.askForMediaAccess('microphone')
+      console.log(`[permissions] Microphone access ${granted ? 'granted' : 'denied'}`)
+    }
+
+    // Screen recording permission is handled by the system picker
+    // (useSystemPicker: true) — macOS shows the permission flow automatically.
+    const screenStatus = systemPreferences.getMediaAccessStatus('screen')
+    console.log(`[permissions] Screen recording status: ${screenStatus}`)
   }
 
   registerIpcHandlers()
+
+  // Initialize audio pipeline (registers its own IPC handlers)
+  audioPipeline.registerIpcHandlers()
+  await audioPipeline.init()
+
   createWindow()
 
   app.on('activate', () => {
@@ -183,4 +305,5 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   unregisterAllHotkeys()
+  audioPipeline.destroy()
 })

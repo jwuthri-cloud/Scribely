@@ -13,6 +13,8 @@ interface InputBarProps {
   onToggleRecording?: () => void
   sttTranscript?: string
   onClearTranscript?: () => void
+  modelDownloading?: boolean
+  modelProgress?: number
 }
 
 export function InputBar({
@@ -27,6 +29,8 @@ export function InputBar({
   onToggleRecording,
   sttTranscript,
   onClearTranscript,
+  modelDownloading,
+  modelProgress = 0,
 }: InputBarProps) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -82,14 +86,39 @@ export function InputBar({
       {/* Recording indicator */}
       {isRecording && (
         <div
-          className="flex items-center gap-2 text-xs px-2 py-1 rounded-lg"
+          className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg"
           style={{
-            backgroundColor: 'rgba(224, 108, 117, 0.15)',
-            color: 'var(--error)',
+            backgroundColor: modelDownloading
+              ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
+              : 'rgba(224, 108, 117, 0.15)',
+            color: modelDownloading ? 'var(--accent)' : 'var(--error)',
           }}
         >
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--error)' }} />
-          Recording... press mic or hotkey to stop
+          <span
+            className="w-2 h-2 rounded-full shrink-0 animate-pulse"
+            style={{
+              backgroundColor: modelDownloading ? 'var(--accent)' : 'var(--error)',
+            }}
+          />
+          <span className="flex-1">
+            {modelDownloading
+              ? `Downloading transcription model... ${modelProgress}%`
+              : 'Recording... press mic or hotkey to stop'}
+          </span>
+          {modelDownloading && (
+            <div
+              className="w-16 h-1 rounded-full overflow-hidden shrink-0"
+              style={{ backgroundColor: 'var(--border)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  width: `${modelProgress}%`,
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 

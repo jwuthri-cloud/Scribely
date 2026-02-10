@@ -61,11 +61,68 @@ const api = {
     electron.ipcRenderer.on("toggle-audio", handler);
     return () => electron.ipcRenderer.removeListener("toggle-audio", handler);
   },
+  // ── Meeting / Transcription ─────────────────────
+  startMeetingSession: () => {
+    return electron.ipcRenderer.invoke("meeting:start-session");
+  },
+  stopMeetingSession: () => {
+    return electron.ipcRenderer.invoke("meeting:stop-session");
+  },
+  streamAudioFrame: (payload) => {
+    electron.ipcRenderer.send("meeting:audio-frame", payload);
+  },
+  transcribeAudioChunk: (payload) => {
+    return electron.ipcRenderer.invoke("meeting:transcribe-chunk", payload);
+  },
+  saveMeetingRecording: (payload) => {
+    return electron.ipcRenderer.invoke("meeting:save-recording", payload);
+  },
+  getModelStatus: () => {
+    return electron.ipcRenderer.invoke("meeting:get-model-status");
+  },
+  downloadWhisperModel: () => {
+    return electron.ipcRenderer.invoke("meeting:download-model");
+  },
+  onTranscriptEntry: (callback) => {
+    const handler = (_event, entry) => {
+      callback(entry);
+    };
+    electron.ipcRenderer.on("meeting:transcript-entry", handler);
+    return () => electron.ipcRenderer.removeListener("meeting:transcript-entry", handler);
+  },
+  onMeetingStatusUpdate: (callback) => {
+    const handler = (_event, update) => {
+      callback(update);
+    };
+    electron.ipcRenderer.on("meeting:status-update", handler);
+    return () => electron.ipcRenderer.removeListener("meeting:status-update", handler);
+  },
+  onModelProgress: (callback) => {
+    const handler = (_event, data) => {
+      callback(data);
+    };
+    electron.ipcRenderer.on("meeting:model-progress", handler);
+    return () => electron.ipcRenderer.removeListener("meeting:model-progress", handler);
+  },
+  onModelComplete: (callback) => {
+    const handler = (_event, data) => {
+      callback(data);
+    };
+    electron.ipcRenderer.on("meeting:model-complete", handler);
+    return () => electron.ipcRenderer.removeListener("meeting:model-complete", handler);
+  },
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback) => {
     const handler = () => callback();
     electron.ipcRenderer.on("reset-chat", handler);
     return () => electron.ipcRenderer.removeListener("reset-chat", handler);
+  },
+  // ── Invisibility ──────────────────────────────
+  toggleInvisibility: () => {
+    return electron.ipcRenderer.invoke("toggle-invisibility");
+  },
+  getInvisibility: () => {
+    return electron.ipcRenderer.invoke("get-invisibility");
   },
   // ── App lifecycle ───────────────────────────────
   quit: () => {

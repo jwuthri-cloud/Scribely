@@ -20,11 +20,33 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
   resetChat: 'Alt+R',
 }
 
+// ── Transcription Provider Settings ─────────────────────
+export type TranscriptionProvider =
+  | 'local-fast'     // whisper small.en (~488MB, Metal)
+  | 'local-balanced' // whisper medium.en (~1.5GB, Metal)
+  | 'local-accurate' // whisper large-v3-turbo (~1.6GB, Metal, multilingual)
+  | 'groq'           // Groq Whisper large-v3
+  | 'deepgram'       // Deepgram Nova-3
+
+export interface TranscriptionSettings {
+  provider: TranscriptionProvider
+  apiKeys: {
+    groq?: string
+    deepgram?: string
+  }
+}
+
+export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
+  provider: 'local-fast',
+  apiKeys: {},
+}
+
 export interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  transcription: TranscriptionSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -32,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hotkeys: { ...DEFAULT_HOTKEYS },
   moveStepPx: 50,
   windowOpacity: 0.85,
+  transcription: { ...DEFAULT_TRANSCRIPTION },
 }
 
 export interface ChatAttachment {

@@ -5,16 +5,43 @@ import { ResponseCard } from './ResponseCard'
 import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
 import { SettingsView } from './SettingsView'
+import { LiveTranscriptPanel } from './LiveTranscriptPanel'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
+import { useAudioCapture } from '../hooks/useAudioCapture'
+import { useMeetingTranscript } from '../hooks/useMeetingTranscript'
+import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import type { ChatAttachment } from '../types'
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
   const [view, setView] = useState<'chat' | 'settings'>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
+  const [windowOpacity, setWindowOpacity] = useState(1)
   const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat()
   const stt = useWhisperSTT()
+
+  // ── Meeting hooks (live inside the chat view) ─────────
+  const capture = useAudioCapture()
+  const transcript = useMeetingTranscript()
+  const recorder = useMeetingRecorder()
+  const [meetingError, setMeetingError] = useState<string | null>(null)
+
+  // ── Window opacity (CSS-based since setOpacity is a no-op on transparent windows)
+  useEffect(() => {
+    window.electronAPI?.getSettings().then((s) => {
+      if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
+    })
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
+      if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [])
 
   // Toggle visibility from main process
   useEffect(() => {
@@ -30,13 +57,12 @@ export function Overlay() {
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
       setPendingScreenshot(dataUrl)
-      // Switch to chat view if in settings
-      setView('chat')
+      if (view === 'settings') setView('chat')
     })
     return () => {
       unsubscribe?.()
     }
-  }, [])
+  }, [view])
 
   // Audio toggle from hotkey
   useEffect(() => {
@@ -48,10 +74,48 @@ export function Overlay() {
     }
   }, [stt.toggleRecording])
 
+  // ── Meeting start/stop ────────────────────────────────
+  const handleStartMeeting = useCallback(async () => {
+    setMeetingError(null)
+
+    const { micStream, tabStream } = await capture.startCapture({
+      mic: true,
+      tab: true,
+    })
+
+    if (!micStream && !tabStream) {
+      setMeetingError('No audio source available. Allow mic/screen access.')
+      return
+    }
+
+    await transcript.startSession()
+
+    if (tabStream) {
+      recorder.startRecording(tabStream, micStream)
+    } else if (micStream) {
+      recorder.startRecording(micStream)
+    }
+  }, [capture, transcript, recorder])
+
+  const handleStopMeeting = useCallback(async () => {
+    capture.stopCapture()
+    await recorder.stopRecording()
+    await transcript.stopSession()
+    setMeetingError(null)
+  }, [capture, recorder, transcript])
+
+  const handleToggleMeeting = useCallback(() => {
+    if (transcript.status.isActive) {
+      handleStopMeeting()
+    } else {
+      handleStartMeeting()
+    }
+  }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting])
+
+  // ── Chat handlers ─────────────────────────────────────
   const handleSend = useCallback(
     (content: string, attachments?: ChatAttachment[]) => {
       sendMessage(content, attachments)
-      // Clear pending screenshot after sending
       setPendingScreenshot(null)
     },
     [sendMessage],
@@ -72,6 +136,8 @@ export function Overlay() {
     setView((v) => (v === 'chat' ? 'settings' : 'chat'))
   }, [])
 
+  const meetingActive = transcript.status.isActive
+
   return (
     <AnimatePresence mode="wait">
       {visible && (
@@ -85,9 +151,16 @@ export function Overlay() {
           style={{
             backgroundColor: 'var(--overlay)',
             borderColor: 'var(--border)',
+            opacity: windowOpacity,
           }}
         >
-          <TitleBar view={view} onToggleView={toggleView} onReset={resetChat} />
+          <TitleBar
+            view={view}
+            onToggleView={toggleView}
+            onReset={resetChat}
+            meetingActive={meetingActive}
+            onToggleMeeting={handleToggleMeeting}
+          />
 
           {/* Subtle separator */}
           <div
@@ -97,6 +170,23 @@ export function Overlay() {
 
           {view === 'chat' ? (
             <>
+              {/* Live transcript panel — visible when meeting is active */}
+              {meetingActive && (
+                <LiveTranscriptPanel
+                  entries={transcript.entries}
+                  isActive={meetingActive}
+                  isRecording={recorder.isRecording}
+                  formattedDuration={recorder.formattedDuration}
+                  transcriptionMode={transcript.status.transcriptionMode}
+                  micActive={capture.micActive}
+                  tabActive={capture.tabActive}
+                  onStop={handleStopMeeting}
+                  error={meetingError || capture.error || recorder.error}
+                  modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                  modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                />
+              )}
+
               <ResponseCard messages={messages} isLoading={isLoading} />
               <ActionChips onAction={(action) => handleSend(action)} />
               <InputBar
@@ -111,6 +201,8 @@ export function Overlay() {
                 onToggleRecording={stt.toggleRecording}
                 sttTranscript={stt.transcript}
                 onClearTranscript={stt.clearTranscript}
+                modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
               />
             </>
           ) : (

@@ -1,65 +1,62 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-const WHISPER_API_URL = 'https://api.openai.com/v1/audio/transcriptions'
 const CHUNK_INTERVAL_MS = 3000
 
 /**
- * Real-time speech-to-text using the browser MediaRecorder + OpenAI Whisper API.
- * Records in chunks and transcribes each chunk for near-real-time results.
+ * Speech-to-text using local whisper.cpp (via main process) or OpenAI cloud fallback.
+ * Records mic in chunks, sends PCM to main process for transcription.
  */
 export function useWhisperSTT() {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  const contextRef = useRef<AudioContext | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const bufferRef = useRef<Float32Array[]>([])
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const transcribeChunk = useCallback(async (blob: Blob) => {
-    // Skip tiny/empty chunks
-    if (blob.size < 1000) return
+  // Flush buffered PCM to main process for transcription
+  const flushBuffer = useCallback(async () => {
+    if (bufferRef.current.length === 0) return
 
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY || ''
-    if (!apiKey) {
-      setError('No VITE_OPENAI_API_KEY set — STT disabled')
-      return
+    const chunks = bufferRef.current
+    bufferRef.current = []
+
+    // Merge chunks into a single Float32Array
+    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0)
+    const merged = new Float32Array(totalLen)
+    let offset = 0
+    for (const chunk of chunks) {
+      merged.set(chunk, offset)
+      offset += chunk.length
     }
 
-    const formData = new FormData()
-    formData.append('file', blob, 'audio.webm')
-    formData.append('model', 'whisper-1')
-    formData.append('response_format', 'text')
+    // Skip very short audio (< 0.3s at 16kHz)
+    if (merged.length < 16000 * 0.3) return
 
     try {
-      const res = await fetch(WHISPER_API_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: formData,
+      const result = await window.electronAPI?.transcribeAudioChunk?.({
+        source: 'mic',
+        pcm: merged.buffer,
+        sampleRate: 16000,
+        timestamp: Date.now(),
       })
 
-      if (!res.ok) {
-        const msg = await res.text()
-        console.error('[whisper] API error:', msg)
-        return
-      }
+      // result has { text, speaker, ... } if transcription succeeded
+      const text =
+        typeof result === 'object' && result !== null && 'text' in result
+          ? (result as { text: string }).text
+          : ''
 
-      const text = (await res.text()).trim()
-      if (text) {
-        setTranscript((prev) => (prev ? `${prev} ${text}` : text))
+      if (text?.trim()) {
+        setTranscript((prev) => (prev ? `${prev} ${text.trim()}` : text.trim()))
       }
     } catch (err) {
-      console.error('[whisper] Transcription failed:', err)
+      console.error('[stt] Transcription failed:', err)
     }
   }, [])
-
-  const flushChunks = useCallback(() => {
-    if (chunksRef.current.length === 0) return
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm;codecs=opus' })
-    chunksRef.current = []
-    transcribeChunk(blob)
-  }, [transcribeChunk])
 
   const startRecording = useCallback(async () => {
     try {
@@ -67,27 +64,31 @@ export function useWhisperSTT() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
-      })
+      // Create AudioContext at 16kHz to match whisper's expected sample rate
+      const ctx = new AudioContext({ sampleRate: 16000 })
+      contextRef.current = ctx
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data)
-        }
+      const source = ctx.createMediaStreamSource(stream)
+      const processor = ctx.createScriptProcessor(4096, 1, 1)
+      processorRef.current = processor
+
+      processor.onaudioprocess = (e) => {
+        const pcm = e.inputBuffer.getChannelData(0)
+        bufferRef.current.push(new Float32Array(pcm))
       }
 
-      recorder.start(500) // collect data every 500ms
-      mediaRecorderRef.current = recorder
+      source.connect(processor)
+      processor.connect(ctx.destination)
+
       setIsRecording(true)
 
-      // Flush chunks to Whisper every CHUNK_INTERVAL_MS
-      intervalRef.current = setInterval(flushChunks, CHUNK_INTERVAL_MS)
+      // Flush to whisper every CHUNK_INTERVAL_MS
+      intervalRef.current = setInterval(flushBuffer, CHUNK_INTERVAL_MS)
     } catch (err) {
       setError('Microphone access denied')
-      console.error('[whisper] Mic error:', err)
+      console.error('[stt] Mic error:', err)
     }
-  }, [flushChunks])
+  }, [flushBuffer])
 
   const stopRecording = useCallback(() => {
     if (intervalRef.current) {
@@ -95,13 +96,18 @@ export function useWhisperSTT() {
       intervalRef.current = null
     }
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
-    }
-    mediaRecorderRef.current = null
+    // Flush remaining audio
+    flushBuffer()
 
-    // Transcribe any remaining chunks
-    flushChunks()
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
+    }
+
+    if (contextRef.current) {
+      contextRef.current.close()
+      contextRef.current = null
+    }
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop())
@@ -109,7 +115,7 @@ export function useWhisperSTT() {
     }
 
     setIsRecording(false)
-  }, [flushChunks])
+  }, [flushBuffer])
 
   const toggleRecording = useCallback(() => {
     if (isRecording) {
@@ -127,12 +133,9 @@ export function useWhisperSTT() {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop()
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop())
-      }
+      processorRef.current?.disconnect()
+      contextRef.current?.close()
+      streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 

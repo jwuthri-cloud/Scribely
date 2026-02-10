@@ -1,13 +1,32 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface TitleBarProps {
   view: 'chat' | 'settings'
   onToggleView: () => void
   onReset?: () => void
+  meetingActive?: boolean
+  onToggleMeeting?: () => void
 }
 
-export function TitleBar({ view, onToggleView, onReset }: TitleBarProps) {
+export function TitleBar({
+  view,
+  onToggleView,
+  onReset,
+  meetingActive,
+  onToggleMeeting,
+}: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
+  const [invisible, setInvisible] = useState(true)
+
+  // Load initial invisibility state
+  useEffect(() => {
+    window.electronAPI?.getInvisibility().then(setInvisible)
+  }, [])
+
+  const handleToggleInvisibility = useCallback(async () => {
+    const newState = await window.electronAPI?.toggleInvisibility()
+    if (newState !== undefined) setInvisible(newState)
+  }, [])
 
   const handleClose = () => {
     if (window.electronAPI?.quit) {
@@ -67,8 +86,75 @@ export function TitleBar({ view, onToggleView, onReset }: TitleBarProps) {
         {view === 'settings' ? 'Settings' : 'AssistMe'}
       </span>
 
-      {/* Right side: reset + gear buttons */}
+      {/* Right side: invisibility + meeting toggle + reset + gear */}
       <div className="flex items-center gap-1.5">
+        {/* Invisibility toggle — hide/show from screen sharing */}
+        {view === 'chat' && (
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
+            style={{
+              color: invisible ? 'var(--accent)' : 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag',
+            } as React.CSSProperties}
+            onClick={handleToggleInvisibility}
+            aria-label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
+            title={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
+          >
+            {invisible ? (
+              /* Eye-off icon */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            ) : (
+              /* Eye icon */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Meeting toggle — starts/stops meeting capture */}
+        {view === 'chat' && onToggleMeeting && (
+          <button
+            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
+            style={{
+              color: meetingActive ? 'var(--error)' : 'var(--text-muted)',
+              WebkitAppRegion: 'no-drag',
+            } as React.CSSProperties}
+            onClick={onToggleMeeting}
+            aria-label={meetingActive ? 'Stop meeting' : 'Start meeting'}
+            title={meetingActive ? 'Stop meeting' : 'Start meeting capture'}
+          >
+            {meetingActive ? (
+              /* Stop icon when active */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+              </svg>
+            ) : (
+              /* Transcript icon when inactive */
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                <path d="M8 12h8M8 9h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+        )}
+
         {view === 'chat' && onReset && (
           <button
             className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
