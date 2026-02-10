@@ -193,8 +193,21 @@ export class Transcriber {
     duration: number,
   ): Promise<TranscriptionResult> {
     try {
+      const os = require('os')
       const task = await (this.whisper as any).transcribe(pcm, {
         language: 'en',
+        n_threads: Math.max(4, os.cpus().length - 2), // use most cores
+        no_timestamps: true,       // skip timestamp computation
+        single_segment: true,      // don't split into multiple segments
+        no_context: true,          // don't use cross-chunk context (faster)
+        suppress_blank: true,      // skip blank tokens
+        suppress_non_speech_tokens: true,
+        temperature: 0.0,          // greedy decoding (no sampling)
+        max_tokens: 128,           // cap output length for short chunks
+        print_progress: false,
+        print_realtime: false,
+        print_timestamps: false,
+        print_special: false,
       })
       const segments = await task.result
       const text = Array.isArray(segments)

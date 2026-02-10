@@ -64,11 +64,12 @@ export class AudioPipeline {
 
   // ── Fallback buffer (when VAD is not available) ───────
   private fallbackBuffers: Map<string, { frames: Float32Array[]; samples: number }> = new Map()
-  private static readonly FALLBACK_CHUNK_SECONDS = 3
+  private static readonly FALLBACK_CHUNK_SECONDS = 2
 
   // ── Transcription lock (prevent concurrent whisper calls) ──
   private _transcribeLock = false
   private _transcribeQueue: Array<{ source: string; audio: Float32Array; sampleRate: number; timestamp: number }> = []
+  private static readonly MAX_QUEUE_SIZE = 4 // drop old chunks if queue backs up
 
   // ── Audio level metering ───────────────────────────────
   private _lastLevelSendTime = 0
@@ -372,8 +373,8 @@ export class AudioPipeline {
   // ── Fallback: chunk-based pipeline (no VAD) ────────────
 
   /**
-   * When VAD is not available, accumulate frames into 3-second chunks
-   * and transcribe them directly (Phase 1 behavior).
+   * When VAD is not available, accumulate frames into 2-second chunks
+   * and transcribe them directly. Mic chunks get priority in the queue.
    */
   private async _handleFallbackFrame(
     source: string,
@@ -404,7 +405,24 @@ export class AudioPipeline {
       if (combined.length < sampleRate * 0.3) return
 
       // Queue for serialized transcription (prevents concurrent whisper calls)
-      this._transcribeQueue.push({ source, audio: combined, sampleRate, timestamp })
+      // Mic chunks get priority — insert at front of queue
+      if (source === 'mic') {
+        this._transcribeQueue.unshift({ source, audio: combined, sampleRate, timestamp })
+      } else {
+        this._transcribeQueue.push({ source, audio: combined, sampleRate, timestamp })
+      }
+
+      // Drop oldest system chunks if queue is backing up (keep mic chunks)
+      while (this._transcribeQueue.length > AudioPipeline.MAX_QUEUE_SIZE) {
+        const dropIdx = this._transcribeQueue.findIndex((item, i) => i > 0 && item.source === 'system')
+        if (dropIdx >= 0) {
+          console.log(`[pipeline] Dropping stale system chunk (queue=${this._transcribeQueue.length})`)
+          this._transcribeQueue.splice(dropIdx, 1)
+        } else {
+          break
+        }
+      }
+
       this._drainTranscribeQueue()
     }
   }
@@ -419,10 +437,10 @@ export class AudioPipeline {
       if (!this.isActive) continue
 
       try {
-        console.log(
-          `[pipeline] Transcribing ${item.source} chunk: ${item.audio.length} samples (${(item.audio.length / item.sampleRate).toFixed(1)}s) @ ${item.sampleRate}Hz`,
-        )
+        const t0 = Date.now()
         const result = await this.transcriber.transcribe(item.audio, item.sampleRate)
+        const elapsed = Date.now() - t0
+
         if (result.text) {
           const entry = {
             id: randomUUID(),
@@ -437,13 +455,13 @@ export class AudioPipeline {
             isEdited: false,
           }
 
-          console.log(`[pipeline] → ${entry.speaker}: "${entry.text}"`)
+          console.log(`[pipeline] → ${entry.speaker} (${elapsed}ms, q=${this._transcribeQueue.length}): "${entry.text}"`)
 
           if (this.isActive) {
             this.sendToRenderer('meeting:transcript-entry', entry)
           }
         } else {
-          console.log(`[pipeline] ${item.source} chunk: silence or empty transcription`)
+          console.log(`[pipeline] ${item.source} chunk: silence (${elapsed}ms)`)
         }
       } catch (err) {
         console.error(`[pipeline] Transcription error (${item.source}):`, err)
