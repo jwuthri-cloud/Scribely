@@ -16313,11 +16313,7 @@ function useAudioCapture() {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: {
-          autoGainControl: false,
-          echoCancellation: false,
-          noiseSuppression: false
-        }
+        audio: true
       });
       tabStreamRef.current = stream;
       const audioTracks = stream.getAudioTracks();
@@ -16325,25 +16321,70 @@ function useAudioCapture() {
       console.log(
         `[audio-capture] Display media: ${audioTracks.length} audio, ${videoTracks.length} video`
       );
+      const bindStreamEnded = (activeStream) => {
+        activeStream.getVideoTracks()[0]?.addEventListener("ended", () => {
+          setTabActive(false);
+        });
+      };
       if (audioTracks.length === 0) {
-        console.warn("[audio-capture] No audio tracks — system audio capture may not be permitted");
-        setError("No system audio captured. Grant screen recording permission in System Settings.");
-        return stream;
+        const firstSurface = videoTracks[0]?.getSettings?.().displaySurface || "unknown";
+        console.warn(
+          `[audio-capture] No audio tracks for selected surface=${firstSurface}. Retrying with monitor preference.`
+        );
+        stream.getTracks().forEach((t) => t.stop());
+        const monitorPreferredStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { displaySurface: "monitor" },
+          audio: true
+        });
+        tabStreamRef.current = monitorPreferredStream;
+        const monitorAudioTracks = monitorPreferredStream.getAudioTracks();
+        const monitorVideoTracks = monitorPreferredStream.getVideoTracks();
+        console.log(
+          `[audio-capture] Monitor retry: ${monitorAudioTracks.length} audio, ${monitorVideoTracks.length} video`
+        );
+        if (monitorAudioTracks.length === 0) {
+          const retrySurface = monitorVideoTracks[0]?.getSettings?.().displaySurface || "unknown";
+          setError(
+            `No system audio available (surface=${retrySurface}). On macOS, choose Entire Screen and enable Share audio.`
+          );
+          return monitorPreferredStream;
+        }
+        bindStreamEnded(monitorPreferredStream);
+        setTabActive(true);
+        const monitorSettings = monitorAudioTracks[0].getSettings();
+        console.log(
+          "[audio-capture] Monitor audio track settings:",
+          JSON.stringify(monitorSettings)
+        );
+        const monitorAudioOnly = new MediaStream(monitorAudioTracks);
+        const { ctx: ctx2, processor: processor2 } = await createPcmExtractor(monitorAudioOnly, "system");
+        tabContextRef.current = ctx2;
+        tabProcessorRef.current = processor2;
+        return monitorPreferredStream;
       }
+      bindStreamEnded(stream);
+      setTabActive(true);
       const settings = audioTracks[0].getSettings();
       console.log("[audio-capture] Audio track settings:", JSON.stringify(settings));
       const audioOnly = new MediaStream(audioTracks);
       const { ctx, processor } = await createPcmExtractor(audioOnly, "system");
       tabContextRef.current = ctx;
       tabProcessorRef.current = processor;
-      videoTracks[0]?.addEventListener("ended", () => {
-        setTabActive(false);
-      });
-      setTabActive(true);
       return stream;
     } catch (err) {
       console.error("[audio-capture] Tab capture error:", err);
-      setError("Screen capture was cancelled or denied");
+      const message = err && typeof err === "object" && "name" in err ? String(err.name) : "unknown";
+      if (message === "NotAllowedError") {
+        setError(
+          'Screen capture permission denied. Enable "Electron" in macOS Privacy > Screen & System Audio Recording, then restart app.'
+        );
+      } else if (message === "NotSupportedError") {
+        setError(
+          "Screen capture not supported in current mode. Restart app and try again."
+        );
+      } else {
+        setError(`Screen capture failed (${message}). Please retry and allow sharing.`);
+      }
       return null;
     }
   }, [createPcmExtractor]);
@@ -16352,11 +16393,11 @@ function useAudioCapture() {
       setError(null);
       let micStream = null;
       let tabStream = null;
-      if (options.tab) {
-        tabStream = await setupTabCapture();
-      }
       if (options.mic) {
         micStream = await setupMicCapture();
+      }
+      if (options.tab) {
+        tabStream = await setupTabCapture();
       }
       if (!micStream && !tabStream) {
         setError("No audio source available");
@@ -16601,14 +16642,24 @@ function useMeetingRecorder() {
   const timerRef = reactExports.useRef(null);
   const startTimeRef = reactExports.useRef(0);
   const mixerCtxRef = reactExports.useRef(null);
+  const hasLiveAudioTrack = reactExports.useCallback((stream) => {
+    if (!stream) return false;
+    return stream.getAudioTracks().some((track) => track.readyState === "live");
+  }, []);
   const startRecording = reactExports.useCallback(
-    (tabStream, micStream) => {
+    async (tabStream, micStream) => {
       try {
         let combinedStream;
         if (tabStream && micStream) {
           const audioCtx = new AudioContext();
           mixerCtxRef.current = audioCtx;
-          const tabAudioTracks = tabStream.getAudioTracks();
+          if (audioCtx.state === "suspended") {
+            console.log("[recorder] AudioContext suspended, resuming…");
+            await audioCtx.resume();
+          }
+          console.log(`[recorder] AudioContext state=${audioCtx.state} rate=${audioCtx.sampleRate}`);
+          const tabAudioTracks = tabStream.getAudioTracks().filter((track) => track.readyState === "live");
+          const micAudioTracks = micStream.getAudioTracks().filter((track) => track.readyState === "live");
           const dest = audioCtx.createMediaStreamDestination();
           if (tabAudioTracks.length > 0) {
             const tabAudio = audioCtx.createMediaStreamSource(
@@ -16616,18 +16667,31 @@ function useMeetingRecorder() {
             );
             tabAudio.connect(dest);
           }
-          const micAudio = audioCtx.createMediaStreamSource(micStream);
-          micAudio.connect(dest);
-          combinedStream = new MediaStream([
-            ...tabStream.getVideoTracks(),
-            ...dest.stream.getAudioTracks()
-          ]);
+          if (micAudioTracks.length > 0) {
+            const micAudio = audioCtx.createMediaStreamSource(
+              new MediaStream(micAudioTracks)
+            );
+            micAudio.connect(dest);
+          }
+          const videoTracks = tabStream.getVideoTracks().filter((track) => track.readyState === "live");
+          const mixedAudioTracks = dest.stream.getAudioTracks().filter((track) => track.readyState === "live");
+          combinedStream = new MediaStream([...videoTracks, ...mixedAudioTracks]);
+          if (mixedAudioTracks.length === 0) {
+            console.warn("[recorder] Started video recording without audio tracks");
+          }
         } else if (tabStream) {
+          if (!hasLiveAudioTrack(tabStream)) {
+            console.warn("[recorder] Tab stream has no live audio track");
+          }
           combinedStream = tabStream;
         } else if (micStream) {
           combinedStream = micStream;
         } else {
           setState((prev) => ({ ...prev, error: "No streams to record" }));
+          return;
+        }
+        if (combinedStream.getTracks().length === 0) {
+          setState((prev) => ({ ...prev, error: "No active tracks to record" }));
           return;
         }
         const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus") ? "video/webm;codecs=vp8,opus" : "video/webm";
@@ -16655,7 +16719,7 @@ function useMeetingRecorder() {
         setState((prev) => ({ ...prev, error: "Failed to start recording" }));
       }
     },
-    []
+    [hasLiveAudioTrack]
   );
   const stopRecording = reactExports.useCallback(async () => {
     if (timerRef.current) {
@@ -16773,9 +16837,9 @@ function Overlay() {
     }
     await transcript.startSession();
     if (tabStream) {
-      recorder.startRecording(tabStream, micStream);
+      await recorder.startRecording(tabStream, micStream);
     } else if (micStream) {
-      recorder.startRecording(micStream);
+      await recorder.startRecording(micStream);
     }
   }, [capture, transcript, recorder]);
   const handleStopMeeting = reactExports.useCallback(async () => {

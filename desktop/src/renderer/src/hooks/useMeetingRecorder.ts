@@ -22,9 +22,13 @@ export function useMeetingRecorder() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef(0)
   const mixerCtxRef = useRef<AudioContext | null>(null)
+  const hasLiveAudioTrack = useCallback((stream?: MediaStream | null): boolean => {
+    if (!stream) return false
+    return stream.getAudioTracks().some((track) => track.readyState === 'live')
+  }, [])
 
   const startRecording = useCallback(
-    (tabStream: MediaStream, micStream?: MediaStream | null) => {
+    async (tabStream: MediaStream, micStream?: MediaStream | null) => {
       try {
         let combinedStream: MediaStream
 
@@ -32,8 +36,18 @@ export function useMeetingRecorder() {
           // Merge tab audio + mic audio, keep tab video
           const audioCtx = new AudioContext()
           mixerCtxRef.current = audioCtx
+          if (audioCtx.state === 'suspended') {
+            console.log('[recorder] AudioContext suspended, resuming…')
+            await audioCtx.resume()
+          }
+          console.log(`[recorder] AudioContext state=${audioCtx.state} rate=${audioCtx.sampleRate}`)
 
-          const tabAudioTracks = tabStream.getAudioTracks()
+          const tabAudioTracks = tabStream
+            .getAudioTracks()
+            .filter((track) => track.readyState === 'live')
+          const micAudioTracks = micStream
+            .getAudioTracks()
+            .filter((track) => track.readyState === 'live')
           const dest = audioCtx.createMediaStreamDestination()
 
           if (tabAudioTracks.length > 0) {
@@ -43,20 +57,40 @@ export function useMeetingRecorder() {
             tabAudio.connect(dest)
           }
 
-          const micAudio = audioCtx.createMediaStreamSource(micStream)
-          micAudio.connect(dest)
+          if (micAudioTracks.length > 0) {
+            const micAudio = audioCtx.createMediaStreamSource(
+              new MediaStream(micAudioTracks),
+            )
+            micAudio.connect(dest)
+          }
+
+          const videoTracks = tabStream
+            .getVideoTracks()
+            .filter((track) => track.readyState === 'live')
+          const mixedAudioTracks = dest.stream
+            .getAudioTracks()
+            .filter((track) => track.readyState === 'live')
 
           // Tab video + mixed audio
-          combinedStream = new MediaStream([
-            ...tabStream.getVideoTracks(),
-            ...dest.stream.getAudioTracks(),
-          ])
+          combinedStream = new MediaStream([...videoTracks, ...mixedAudioTracks])
+
+          if (mixedAudioTracks.length === 0) {
+            console.warn('[recorder] Started video recording without audio tracks')
+          }
         } else if (tabStream) {
+          if (!hasLiveAudioTrack(tabStream)) {
+            console.warn('[recorder] Tab stream has no live audio track')
+          }
           combinedStream = tabStream
         } else if (micStream) {
           combinedStream = micStream
         } else {
           setState((prev) => ({ ...prev, error: 'No streams to record' }))
+          return
+        }
+
+        if (combinedStream.getTracks().length === 0) {
+          setState((prev) => ({ ...prev, error: 'No active tracks to record' }))
           return
         }
 
@@ -96,7 +130,7 @@ export function useMeetingRecorder() {
         setState((prev) => ({ ...prev, error: 'Failed to start recording' }))
       }
     },
-    [],
+    [hasLiveAudioTrack],
   )
 
   const stopRecording = useCallback(async (): Promise<string | null> => {

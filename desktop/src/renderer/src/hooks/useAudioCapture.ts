@@ -23,6 +23,9 @@ export function useAudioCapture() {
   const tabContextRef = useRef<AudioContext | null>(null)
   const micProcessorRef = useRef<ScriptProcessorNode | null>(null)
   const tabProcessorRef = useRef<ScriptProcessorNode | null>(null)
+  // Cloned streams used for PCM extraction — must be stopped on cleanup
+  const micCloneRef = useRef<MediaStream | null>(null)
+  const tabCloneRef = useRef<MediaStream | null>(null)
 
   // ── Stream a single audio frame to main process ────────
   const streamFrame = useCallback(
@@ -104,7 +107,11 @@ export function useAudioCapture() {
       })
 
       micStreamRef.current = stream
-      const { ctx, processor } = await createPcmExtractor(stream, 'mic')
+      // Clone the stream for PCM extraction so the original stays available
+      // for the MediaRecorder in useMeetingRecorder
+      const clonedMicStream = new MediaStream(stream.getAudioTracks().map((t) => t.clone()))
+      micCloneRef.current = clonedMicStream
+      const { ctx, processor } = await createPcmExtractor(clonedMicStream, 'mic')
       micContextRef.current = ctx
       micProcessorRef.current = processor
       setMicActive(true)
@@ -117,17 +124,14 @@ export function useAudioCapture() {
   }, [createPcmExtractor])
 
   // ── Start tab/window capture via getDisplayMedia ─────
-  // The main process handler auto-selects the primary screen with
-  // loopback audio, so this call always returns both video + audio.
   const setupTabCapture = useCallback(async (): Promise<MediaStream | null> => {
     try {
+      // Keep constraints minimal for maximum Electron/Chromium compatibility.
+      // Some advanced display-audio hints can cause immediate rejections on
+      // certain versions and surface as "cancelled or denied".
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: {
-          autoGainControl: false,
-          echoCancellation: false,
-          noiseSuppression: false,
-        },
+        audio: true,
       })
 
       tabStreamRef.current = stream
@@ -138,32 +142,60 @@ export function useAudioCapture() {
         `[audio-capture] Display media: ${audioTracks.length} audio, ${videoTracks.length} video`,
       )
 
-      if (audioTracks.length === 0) {
-        console.warn('[audio-capture] No audio tracks — system audio capture may not be permitted')
-        setError('No system audio captured. Grant screen recording permission in System Settings.')
-        return stream
+      const bindStreamEnded = (activeStream: MediaStream) => {
+        activeStream.getVideoTracks()[0]?.addEventListener('ended', () => {
+          setTabActive(false)
+        })
       }
 
-      // Log track details for debugging
-      const settings = audioTracks[0].getSettings()
-      console.log('[audio-capture] Audio track settings:', JSON.stringify(settings))
+      if (audioTracks.length === 0) {
+        const surface =
+          videoTracks[0]?.getSettings?.().displaySurface || 'unknown'
+        console.warn(
+          `[audio-capture] No audio tracks for surface=${surface}. ` +
+            'Window/app capture on macOS often lacks system audio — mic will still work.',
+        )
+        // Don't retry / show a second picker. Video-only capture is fine;
+        // the mic stream provides user audio for transcription.
+      }
 
-      // Extract audio for PCM processing
-      const audioOnly = new MediaStream(audioTracks)
-      const { ctx, processor } = await createPcmExtractor(audioOnly, 'system')
-      tabContextRef.current = ctx
-      tabProcessorRef.current = processor
-
-      // Handle stream ending (user stops sharing)
-      videoTracks[0]?.addEventListener('ended', () => {
-        setTabActive(false)
-      })
-
+      bindStreamEnded(stream)
       setTabActive(true)
+
+      // Set up PCM extraction only when system audio is available
+      if (audioTracks.length > 0) {
+        const settings = audioTracks[0].getSettings()
+        console.log('[audio-capture] Audio track settings:', JSON.stringify(settings))
+
+        // Clone audio tracks for PCM extraction so the originals stay available
+        // for the MediaRecorder in useMeetingRecorder. Without cloning, connecting
+        // the track to a second AudioContext can starve the original of data.
+        const clonedAudioTracks = audioTracks.map((t) => t.clone())
+        const audioOnly = new MediaStream(clonedAudioTracks)
+        tabCloneRef.current = audioOnly
+        const { ctx, processor } = await createPcmExtractor(audioOnly, 'system')
+        tabContextRef.current = ctx
+        tabProcessorRef.current = processor
+      }
+
       return stream
     } catch (err) {
       console.error('[audio-capture] Tab capture error:', err)
-      setError('Screen capture was cancelled or denied')
+      const message =
+        err && typeof err === 'object' && 'name' in err
+          ? String((err as { name?: string }).name)
+          : 'unknown'
+      if (message === 'NotAllowedError') {
+        setError(
+          'Screen capture permission denied. Enable "Electron" in macOS Privacy > Screen & System Audio Recording, then restart app.',
+        )
+      } else if (message === 'NotSupportedError') {
+        setError(
+          'Screen capture not supported in current mode. Restart app and try again.',
+        )
+      } else {
+        setError(`Screen capture failed (${message}). Please retry and allow sharing.`)
+      }
       return null
     }
   }, [createPcmExtractor])
@@ -211,11 +243,15 @@ export function useAudioCapture() {
     micContextRef.current = null
     tabContextRef.current = null
 
-    // Stop all media tracks
+    // Stop all media tracks (originals + clones used for PCM extraction)
     micStreamRef.current?.getTracks().forEach((t) => t.stop())
     tabStreamRef.current?.getTracks().forEach((t) => t.stop())
+    micCloneRef.current?.getTracks().forEach((t) => t.stop())
+    tabCloneRef.current?.getTracks().forEach((t) => t.stop())
     micStreamRef.current = null
     tabStreamRef.current = null
+    micCloneRef.current = null
+    tabCloneRef.current = null
 
     setIsCapturing(false)
     setMicActive(false)
@@ -232,6 +268,8 @@ export function useAudioCapture() {
       tabContextRef.current?.close()
       micStreamRef.current?.getTracks().forEach((t) => t.stop())
       tabStreamRef.current?.getTracks().forEach((t) => t.stop())
+      micCloneRef.current?.getTracks().forEach((t) => t.stop())
+      tabCloneRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 

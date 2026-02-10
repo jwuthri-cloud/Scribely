@@ -91,9 +91,9 @@ export function Overlay() {
     await transcript.startSession()
 
     if (tabStream) {
-      recorder.startRecording(tabStream, micStream)
+      await recorder.startRecording(tabStream, micStream)
     } else if (micStream) {
-      recorder.startRecording(micStream)
+      await recorder.startRecording(micStream)
     }
   }, [capture, transcript, recorder])
 

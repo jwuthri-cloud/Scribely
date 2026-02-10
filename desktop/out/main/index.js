@@ -1,4 +1,26 @@
 "use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 const electron = require("electron");
 const path = require("path");
 const Store = require("electron-store");
@@ -1127,22 +1149,34 @@ function createWindow() {
     electron.shell.openExternal(url);
     return { action: "deny" };
   });
-  electron.session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-    try {
-      const sources = await electron.desktopCapturer.getSources({ types: ["screen"] });
-      const primaryScreen = sources[0];
-      if (primaryScreen) {
-        console.log("[display-media] Auto-selecting screen with loopback audio");
-        callback({ video: primaryScreen, audio: "loopback" });
-      } else {
-        console.warn("[display-media] No screen sources found");
+  electron.session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    const allowed = ["media", "display-capture", "mediaKeySystem"];
+    console.log(`[permissions] Permission request: ${permission} → ${allowed.includes(permission) ? "granted" : "denied"}`);
+    callback(allowed.includes(permission));
+  });
+  electron.session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    const allowed = ["media", "display-capture", "mediaKeySystem"];
+    return allowed.includes(permission);
+  });
+  electron.session.defaultSession.setDisplayMediaRequestHandler(
+    async (_request, callback) => {
+      try {
+        const { desktopCapturer } = await import("electron");
+        const sources = await desktopCapturer.getSources({ types: ["screen"] });
+        if (sources.length > 0) {
+          console.log("[display-media] Using fallback screen source (system picker unavailable)");
+          callback({ video: sources[0], audio: "loopback" });
+        } else {
+          console.warn("[display-media] No screen sources available for fallback");
+          callback({});
+        }
+      } catch (err) {
+        console.error("[display-media] Fallback handler error:", err);
         callback({});
       }
-    } catch (err) {
-      console.error("[display-media] Handler error:", err);
-      callback({});
-    }
-  });
+    },
+    { useSystemPicker: true }
+  );
   audioPipeline.setWindow(mainWindow);
   if (process.env["ELECTRON_RENDERER_URL"]) {
     mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);

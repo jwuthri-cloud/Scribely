@@ -4,7 +4,6 @@ import {
   ipcMain,
   shell,
   session,
-  desktopCapturer,
   systemPreferences,
 } from 'electron'
 import { join } from 'path'
@@ -124,27 +123,29 @@ function createWindow(): void {
     return allowed.includes(permission)
   })
 
-  // ── Display Media Handler (for getDisplayMedia in renderer) ──
-  // On macOS the native system picker (useSystemPicker: true) does NOT
-  // return audio tracks — only video. So we skip it and auto-select
-  // the primary screen with loopback audio via desktopCapturer instead.
-  // This guarantees both video AND system audio are captured.
-  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-    try {
-      const sources = await desktopCapturer.getSources({ types: ['screen'] })
-      const primaryScreen = sources[0]
-      if (primaryScreen) {
-        console.log('[display-media] Auto-selecting screen with loopback audio')
-        callback({ video: primaryScreen, audio: 'loopback' })
-      } else {
-        console.warn('[display-media] No screen sources found')
+  // ── Display Media Handling ─────────────────────────────
+  // useSystemPicker (2nd arg) shows the native macOS ScreenCaptureKit picker
+  // so the user can choose which screen/window/app to share + toggle audio.
+  // The handler only runs as a FALLBACK when the system picker is unavailable.
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (_request, callback) => {
+      try {
+        const { desktopCapturer } = await import('electron')
+        const sources = await desktopCapturer.getSources({ types: ['screen'] })
+        if (sources.length > 0) {
+          console.log('[display-media] Using fallback screen source (system picker unavailable)')
+          callback({ video: sources[0], audio: 'loopback' })
+        } else {
+          console.warn('[display-media] No screen sources available for fallback')
+          callback({})
+        }
+      } catch (err) {
+        console.error('[display-media] Fallback handler error:', err)
         callback({})
       }
-    } catch (err) {
-      console.error('[display-media] Handler error:', err)
-      callback({})
-    }
-  })
+    },
+    { useSystemPicker: true },
+  )
 
   // Connect pipeline to window
   audioPipeline.setWindow(mainWindow)

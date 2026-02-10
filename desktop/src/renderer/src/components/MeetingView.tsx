@@ -34,10 +34,10 @@ export function MeetingView() {
 
     // 3. Start video recording if we have a tab stream
     if (tabStream) {
-      recorder.startRecording(tabStream, micStream)
+      await recorder.startRecording(tabStream, micStream)
     } else if (micStream) {
       // Audio-only recording
-      recorder.startRecording(micStream)
+      await recorder.startRecording(micStream)
     }
   }, [capture, transcript, recorder])
 
