@@ -69,6 +69,37 @@ export interface ElectronAPI {
   onModelProgress: (callback: (data: { modelId: string; progress: number }) => void) => () => void
   onModelComplete: (callback: (data: { modelId: string; path: string }) => void) => () => void
 
+  // ── Audio Levels (waveform visualization) ──────
+  onAudioLevels: (
+    callback: (levels: { mic: number; system: number; timestamp: number }) => void,
+  ) => () => void
+
+  // ── Native Capture ─────────────────────────────
+  startNativeCapture: (options: {
+    mic: boolean
+    system: boolean
+  }) => Promise<{ success: boolean; error?: string }>
+  stopNativeCapture: () => Promise<{ success: boolean; error?: string }>
+  getNativeStatus: () => Promise<{
+    available: boolean
+    connected: boolean
+    processRunning: boolean
+    captureState: string
+    micActive: boolean
+    systemAudioActive: boolean
+  }>
+  onNativeStatusChanged: (
+    callback: (status: {
+      available: boolean
+      connected: boolean
+      processRunning: boolean
+      captureState: string
+      micActive: boolean
+      systemAudioActive: boolean
+    }) => void,
+  ) => () => void
+  onNativeError: (callback: (error: { code: string; message: string }) => void) => () => void
+
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback: () => void) => () => void
 
@@ -218,6 +249,60 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('meeting:model-complete', handler)
     return () => ipcRenderer.removeListener('meeting:model-complete', handler)
+  },
+
+  // ── Audio Levels (waveform visualization) ──────
+  onAudioLevels: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      levels: { mic: number; system: number; timestamp: number },
+    ) => {
+      callback(levels)
+    }
+    ipcRenderer.on('meeting:audio-levels', handler)
+    return () => ipcRenderer.removeListener('meeting:audio-levels', handler)
+  },
+
+  // ── Native Capture ─────────────────────────────
+  startNativeCapture: (options) => {
+    return ipcRenderer.invoke('meeting:start-native-capture', options)
+  },
+
+  stopNativeCapture: () => {
+    return ipcRenderer.invoke('meeting:stop-native-capture')
+  },
+
+  getNativeStatus: () => {
+    return ipcRenderer.invoke('meeting:get-native-status')
+  },
+
+  onNativeStatusChanged: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: {
+        available: boolean
+        connected: boolean
+        processRunning: boolean
+        captureState: string
+        micActive: boolean
+        systemAudioActive: boolean
+      },
+    ) => {
+      callback(status)
+    }
+    ipcRenderer.on('native:status-changed', handler)
+    return () => ipcRenderer.removeListener('native:status-changed', handler)
+  },
+
+  onNativeError: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      error: { code: string; message: string },
+    ) => {
+      callback(error)
+    }
+    ipcRenderer.on('native:error', handler)
+    return () => ipcRenderer.removeListener('native:error', handler)
   },
 
   // ── Reset chat ──────────────────────────────────

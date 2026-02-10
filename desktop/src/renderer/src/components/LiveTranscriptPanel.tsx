@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { SpeakerLabel } from './SpeakerLabel'
+import { AudioWaveform } from './AudioWaveform'
 import type { TranscriptEntry } from '../types/transcript'
 
 interface LiveTranscriptPanelProps {
@@ -14,6 +15,8 @@ interface LiveTranscriptPanelProps {
   error?: string | null
   modelDownloading?: boolean
   modelProgress?: number
+  captureMode?: 'native' | 'browser' | 'idle'
+  nativeAvailable?: boolean
 }
 
 function formatTime(ms: number): string {
@@ -35,6 +38,8 @@ export function LiveTranscriptPanel({
   error,
   modelDownloading,
   modelProgress = 0,
+  captureMode = 'browser',
+  nativeAvailable = false,
 }: LiveTranscriptPanelProps) {
   const [expanded, setExpanded] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -139,6 +144,17 @@ export function LiveTranscriptPanel({
               TAB
             </span>
           )}
+          {captureMode === 'native' && (
+            <span
+              className="text-[9px] px-1 py-px rounded font-medium"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--warning) 15%, transparent)',
+                color: 'var(--warning)',
+              }}
+            >
+              NATIVE
+            </span>
+          )}
           <ModeBadge mode={transcriptionMode} />
         </div>
 
@@ -157,6 +173,13 @@ export function LiveTranscriptPanel({
           <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
+
+      {/* ── Audio waveform (always visible when active) ── */}
+      {isActive && (
+        <div className="px-3 pb-1">
+          <AudioWaveform isActive={isActive} height={40} />
+        </div>
+      )}
 
       {/* ── Expanded transcript ─────────────────────── */}
       {expanded && (

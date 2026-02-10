@@ -10,6 +10,7 @@ export function useWhisperSTT() {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [micLevel, setMicLevel] = useState(0)
 
   const streamRef = useRef<MediaStream | null>(null)
   const contextRef = useRef<AudioContext | null>(null)
@@ -75,6 +76,17 @@ export function useWhisperSTT() {
       processor.onaudioprocess = (e) => {
         const pcm = e.inputBuffer.getChannelData(0)
         bufferRef.current.push(new Float32Array(pcm))
+
+        // Compute RMS for waveform visualization
+        let sumSq = 0
+        const step = Math.max(1, Math.floor(pcm.length / 256))
+        let count = 0
+        for (let i = 0; i < pcm.length; i += step) {
+          sumSq += pcm[i] * pcm[i]
+          count++
+        }
+        const rms = Math.sqrt(sumSq / count)
+        setMicLevel(Math.min(1, rms * 5))
       }
 
       source.connect(processor)
@@ -115,6 +127,7 @@ export function useWhisperSTT() {
     }
 
     setIsRecording(false)
+    setMicLevel(0)
   }, [flushBuffer])
 
   const toggleRecording = useCallback(() => {
@@ -143,6 +156,7 @@ export function useWhisperSTT() {
     isRecording,
     transcript,
     error,
+    micLevel,
     startRecording,
     stopRecording,
     toggleRecording,

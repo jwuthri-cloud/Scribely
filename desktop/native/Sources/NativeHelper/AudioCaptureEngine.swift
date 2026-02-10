@@ -1,0 +1,552 @@
+import Foundation
+import CoreAudio
+import AudioToolbox
+import AVFoundation
+import ScreenCaptureKit
+
+// MARK: - AudioCaptureEngine
+
+/// Captures microphone audio via CoreAudio AudioUnit HAL and
+/// system audio via ScreenCaptureKit's SCStream audio tap (macOS 14+).
+///
+/// Emits `Assistme_AudioFrame` protobuf messages via the `onAudioFrame` callback,
+/// chunked at `Config.chunkDurationSeconds` intervals.
+final class AudioCaptureEngine {
+
+    // ── State ───────────────────────────────────────────────
+
+    enum State: String {
+        case idle, capturing, paused, error
+    }
+
+    private(set) var currentState: State = .idle
+    private(set) var isMicActive = false
+    private(set) var isSystemAudioActive = false
+
+    // ── Callbacks ───────────────────────────────────────────
+
+    /// Called when an audio frame chunk is ready to send over IPC
+    var onAudioFrame: ((Assistme_AudioFrame) -> Void)?
+
+    /// Called on capture errors
+    var onError: ((_ code: String, _ message: String) -> Void)?
+
+    // ── Mic capture (AudioUnit HAL) ─────────────────────────
+
+    fileprivate var micAudioUnit: AudioComponentInstance?
+    private var micBuffer: [Float] = []
+    private let micLock = NSLock()
+    private let micChunkSamples: Int
+
+    // ── System audio capture (SCStream) ─────────────────────
+
+    private var scStream: SCStream?
+    private var streamOutput: SystemAudioStreamOutput?
+    private var systemBuffer: [Float] = []
+    private let systemLock = NSLock()
+    private let systemChunkSamples: Int
+
+    // ── Init ────────────────────────────────────────────────
+
+    init() {
+        micChunkSamples = Int(Config.micSampleRate * Config.chunkDurationSeconds)
+        systemChunkSamples = Int(Config.systemSampleRate * Config.chunkDurationSeconds)
+    }
+
+    // MARK: - Public API
+
+    func start(captureMic: Bool, captureSystem: Bool) {
+        stop() // clean slate
+
+        currentState = .capturing
+
+        if captureMic {
+            do {
+                try startMicCapture()
+                isMicActive = true
+                log(.info, "Mic capture started (16 kHz mono)")
+            } catch {
+                log(.error, "Mic capture failed: \(error)")
+                onError?("MIC_START_FAILED", error.localizedDescription)
+            }
+        }
+
+        if captureSystem {
+            startSystemAudioCapture()
+        }
+    }
+
+    func stop() {
+        stopMicCapture()
+        stopSystemAudioCapture()
+        flushBuffers()
+        currentState = .idle
+        isMicActive = false
+        isSystemAudioActive = false
+    }
+
+    func pause() {
+        guard currentState == .capturing else { return }
+        // Pause mic
+        if let au = micAudioUnit {
+            AudioOutputUnitStop(au)
+        }
+        // Pause system audio
+        scStream?.stopCapture { _ in }
+        currentState = .paused
+    }
+
+    func resume() {
+        guard currentState == .paused else { return }
+        // Resume mic
+        if let au = micAudioUnit {
+            AudioOutputUnitStart(au)
+        }
+        // Resume system audio
+        if let stream = scStream {
+            stream.startCapture { _ in }
+        }
+        currentState = .capturing
+    }
+
+    // MARK: - Mic Capture (AudioUnit HAL)
+
+    private func startMicCapture() throws {
+        // Find HAL output audio component (used for input capture)
+        var desc = AudioComponentDescription(
+            componentType: kAudioUnitType_Output,
+            componentSubType: kAudioUnitSubType_HALOutput,
+            componentManufacturer: kAudioUnitManufacturer_Apple,
+            componentFlags: 0,
+            componentFlagsMask: 0
+        )
+
+        guard let component = AudioComponentFindNext(nil, &desc) else {
+            throw AudioCaptureError.componentNotFound
+        }
+
+        var audioUnit: AudioComponentInstance?
+        var status = AudioComponentInstanceNew(component, &audioUnit)
+        guard status == noErr, let au = audioUnit else {
+            throw AudioCaptureError.instanceCreationFailed(status)
+        }
+
+        // Enable input (element 1)
+        var enableInput: UInt32 = 1
+        status = AudioUnitSetProperty(
+            au,
+            kAudioOutputUnitProperty_EnableIO,
+            kAudioUnitScope_Input,
+            1, // input element
+            &enableInput,
+            UInt32(MemoryLayout<UInt32>.size)
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.propertySetFailed("EnableIO-Input", status)
+        }
+
+        // Disable output (element 0) — we're only capturing, not playing
+        var disableOutput: UInt32 = 0
+        status = AudioUnitSetProperty(
+            au,
+            kAudioOutputUnitProperty_EnableIO,
+            kAudioUnitScope_Output,
+            0, // output element
+            &disableOutput,
+            UInt32(MemoryLayout<UInt32>.size)
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.propertySetFailed("EnableIO-Output", status)
+        }
+
+        // Set the default input device
+        var deviceID = AudioDeviceID(0)
+        var propSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var propAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &propAddr,
+            0, nil,
+            &propSize,
+            &deviceID
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.deviceNotFound(status)
+        }
+
+        status = AudioUnitSetProperty(
+            au,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &deviceID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.propertySetFailed("CurrentDevice", status)
+        }
+
+        // Set stream format: 16 kHz mono Float32
+        var streamFormat = AudioStreamBasicDescription(
+            mSampleRate: Config.micSampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+            mBytesPerPacket: 4,
+            mFramesPerPacket: 1,
+            mBytesPerFrame: 4,
+            mChannelsPerFrame: 1,
+            mBitsPerChannel: 32,
+            mReserved: 0
+        )
+
+        status = AudioUnitSetProperty(
+            au,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            1, // output scope of input element = what we read
+            &streamFormat,
+            UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.propertySetFailed("StreamFormat", status)
+        }
+
+        // Set input callback
+        var callbackStruct = AURenderCallbackStruct(
+            inputProc: micInputCallback,
+            inputProcRefCon: Unmanaged.passUnretained(self).toOpaque()
+        )
+        status = AudioUnitSetProperty(
+            au,
+            kAudioOutputUnitProperty_SetInputCallback,
+            kAudioUnitScope_Global,
+            0,
+            &callbackStruct,
+            UInt32(MemoryLayout<AURenderCallbackStruct>.size)
+        )
+        guard status == noErr else {
+            throw AudioCaptureError.propertySetFailed("InputCallback", status)
+        }
+
+        // Initialize and start
+        status = AudioUnitInitialize(au)
+        guard status == noErr else {
+            throw AudioCaptureError.initializeFailed(status)
+        }
+
+        status = AudioOutputUnitStart(au)
+        guard status == noErr else {
+            throw AudioCaptureError.startFailed(status)
+        }
+
+        micAudioUnit = au
+    }
+
+    private func stopMicCapture() {
+        guard let au = micAudioUnit else { return }
+        AudioOutputUnitStop(au)
+        AudioUnitUninitialize(au)
+        AudioComponentInstanceDispose(au)
+        micAudioUnit = nil
+        isMicActive = false
+        log(.info, "Mic capture stopped")
+    }
+
+    /// Accumulate mic PCM samples and emit chunks
+    fileprivate func handleMicSamples(_ samples: [Float]) {
+        micLock.lock()
+        micBuffer.append(contentsOf: samples)
+
+        if micBuffer.count >= micChunkSamples {
+            let chunk = Array(micBuffer.prefix(micChunkSamples))
+            micBuffer.removeFirst(micChunkSamples)
+            micLock.unlock()
+            emitAudioFrame(source: "mic", samples: chunk, sampleRate: UInt32(Config.micSampleRate))
+        } else {
+            micLock.unlock()
+        }
+    }
+
+    // MARK: - System Audio Capture (SCStream)
+
+    private func startSystemAudioCapture() {
+        // SCStream requires macOS 14+ for audio-only capture
+        guard #available(macOS 14.0, *) else {
+            log(.warn, "System audio capture requires macOS 14+")
+            onError?("SYSTEM_AUDIO_UNSUPPORTED", "macOS 14+ required for system audio capture")
+            return
+        }
+
+        Task {
+            do {
+                try await _startSCStreamCapture()
+                isSystemAudioActive = true
+                log(.info, "System audio capture started (SCStream, 48 kHz)")
+            } catch {
+                log(.error, "System audio capture failed: \(error)")
+                onError?("SYSTEM_AUDIO_START_FAILED", error.localizedDescription)
+            }
+        }
+    }
+
+    @available(macOS 14.0, *)
+    private func _startSCStreamCapture() async throws {
+        // Get shareable content (we need at least one display for audio-only capture)
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: false
+        )
+
+        guard let display = content.displays.first else {
+            throw AudioCaptureError.noDisplayFound
+        }
+
+        // Configure: capture audio only, exclude app's own audio
+        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+
+        let config = SCStreamConfiguration()
+        config.capturesAudio = true
+        config.excludesCurrentProcessAudio = true
+        config.sampleRate = Int(Config.systemSampleRate)
+        config.channelCount = 1  // Mono for speech processing
+
+        // Minimize video overhead — we only want audio
+        config.width = 2
+        config.height = 2
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 1) // 1 fps minimum
+        config.showsCursor = false
+
+        // Create stream
+        let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+
+        // Create output handler
+        let output = SystemAudioStreamOutput { [weak self] samples in
+            self?.handleSystemSamples(samples)
+        }
+
+        try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+        try await stream.startCapture()
+
+        self.scStream = stream
+        self.streamOutput = output
+    }
+
+    private func stopSystemAudioCapture() {
+        guard let stream = scStream else { return }
+        stream.stopCapture { [weak self] error in
+            if let error = error {
+                log(.warn, "SCStream stop error: \(error)")
+            }
+            self?.scStream = nil
+            self?.streamOutput = nil
+            self?.isSystemAudioActive = false
+            log(.info, "System audio capture stopped")
+        }
+    }
+
+    /// Accumulate system audio PCM samples and emit chunks
+    private func handleSystemSamples(_ samples: [Float]) {
+        systemLock.lock()
+        systemBuffer.append(contentsOf: samples)
+
+        if systemBuffer.count >= systemChunkSamples {
+            let chunk = Array(systemBuffer.prefix(systemChunkSamples))
+            systemBuffer.removeFirst(systemChunkSamples)
+            systemLock.unlock()
+            emitAudioFrame(source: "system", samples: chunk, sampleRate: UInt32(Config.systemSampleRate))
+        } else {
+            systemLock.unlock()
+        }
+    }
+
+    // MARK: - Shared
+
+    private func emitAudioFrame(source: String, samples: [Float], sampleRate: UInt32) {
+        var frame = Assistme_AudioFrame()
+        frame.source = source
+        frame.sampleRate = sampleRate
+        frame.timestampMs = UInt64(Date().timeIntervalSince1970 * 1000)
+        frame.numSamples = UInt32(samples.count)
+
+        // Convert Float32 array to raw bytes (zero-copy via Data)
+        frame.pcmData = samples.withUnsafeBufferPointer { ptr in
+            Data(buffer: ptr.baseAddress!.withMemoryRebound(to: UInt8.self, capacity: ptr.count * 4) {
+                UnsafeBufferPointer(start: $0, count: ptr.count * 4)
+            })
+        }
+
+        onAudioFrame?(frame)
+    }
+
+    private func flushBuffers() {
+        micLock.lock()
+        if !micBuffer.isEmpty {
+            let remaining = micBuffer
+            micBuffer.removeAll()
+            micLock.unlock()
+            if remaining.count > Int(Config.micSampleRate) / 3 { // > ~333ms
+                emitAudioFrame(source: "mic", samples: remaining, sampleRate: UInt32(Config.micSampleRate))
+            }
+        } else {
+            micLock.unlock()
+        }
+
+        systemLock.lock()
+        if !systemBuffer.isEmpty {
+            let remaining = systemBuffer
+            systemBuffer.removeAll()
+            systemLock.unlock()
+            if remaining.count > Int(Config.systemSampleRate) / 3 {
+                emitAudioFrame(source: "system", samples: remaining, sampleRate: UInt32(Config.systemSampleRate))
+            }
+        } else {
+            systemLock.unlock()
+        }
+    }
+
+    // MARK: - Errors
+
+    enum AudioCaptureError: Error, CustomStringConvertible {
+        case componentNotFound
+        case instanceCreationFailed(OSStatus)
+        case propertySetFailed(String, OSStatus)
+        case deviceNotFound(OSStatus)
+        case initializeFailed(OSStatus)
+        case startFailed(OSStatus)
+        case noDisplayFound
+
+        var description: String {
+            switch self {
+            case .componentNotFound:
+                return "HAL output audio component not found"
+            case .instanceCreationFailed(let s):
+                return "AudioUnit instance creation failed (OSStatus \(s))"
+            case .propertySetFailed(let prop, let s):
+                return "AudioUnit property '\(prop)' set failed (OSStatus \(s))"
+            case .deviceNotFound(let s):
+                return "Default input device not found (OSStatus \(s))"
+            case .initializeFailed(let s):
+                return "AudioUnit initialize failed (OSStatus \(s))"
+            case .startFailed(let s):
+                return "AudioUnit start failed (OSStatus \(s))"
+            case .noDisplayFound:
+                return "No display found for SCStream audio capture"
+            }
+        }
+    }
+}
+
+// MARK: - CoreAudio Input Callback (C function)
+
+/// AudioUnit input callback — called on the real-time audio IO thread.
+/// Renders mic input into a buffer and forwards to the engine.
+private func micInputCallback(
+    inRefCon: UnsafeMutableRawPointer,
+    ioActionFlags: UnsafeMutablePointer<AudioUnitRenderActionFlags>,
+    inTimeStamp: UnsafePointer<AudioTimeStamp>,
+    inBusNumber: UInt32,
+    inNumberFrames: UInt32,
+    ioData: UnsafeMutablePointer<AudioBufferList>?
+) -> OSStatus {
+    let engine = Unmanaged<AudioCaptureEngine>.fromOpaque(inRefCon).takeUnretainedValue()
+
+    guard let au = engine.micAudioUnit else { return noErr }
+
+    // Allocate buffer for rendered audio
+    let bufferSize = Int(inNumberFrames) * MemoryLayout<Float>.size
+    let rawPtr = UnsafeMutableRawPointer.allocate(byteCount: bufferSize, alignment: MemoryLayout<Float>.alignment)
+    defer { rawPtr.deallocate() }
+
+    var bufferList = AudioBufferList(
+        mNumberBuffers: 1,
+        mBuffers: AudioBuffer(
+            mNumberChannels: 1,
+            mDataByteSize: UInt32(bufferSize),
+            mData: rawPtr
+        )
+    )
+
+    // Render input audio into our buffer
+    let status = AudioUnitRender(
+        au,
+        ioActionFlags,
+        inTimeStamp,
+        inBusNumber,
+        inNumberFrames,
+        &bufferList
+    )
+
+    guard status == noErr else { return status }
+
+    // Extract Float32 samples
+    let floatPtr = rawPtr.assumingMemoryBound(to: Float.self)
+    let samples = Array(UnsafeBufferPointer(start: floatPtr, count: Int(inNumberFrames)))
+
+    // Forward to engine (off the audio thread)
+    DispatchQueue.global(qos: .userInteractive).async {
+        engine.handleMicSamples(samples)
+    }
+
+    return noErr
+}
+
+// MARK: - SCStream Audio Output Handler
+
+/// Receives audio sample buffers from SCStream and extracts Float32 PCM.
+final class SystemAudioStreamOutput: NSObject, SCStreamOutput {
+    private let onSamples: ([Float]) -> Void
+
+    init(onSamples: @escaping ([Float]) -> Void) {
+        self.onSamples = onSamples
+    }
+
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        guard type == .audio else { return }
+        guard sampleBuffer.isValid, sampleBuffer.numSamples > 0 else { return }
+
+        // Extract audio buffer
+        guard let blockBuffer = sampleBuffer.dataBuffer else { return }
+
+        var totalLength = 0
+        var dataPointer: UnsafeMutablePointer<CChar>?
+        let status = CMBlockBufferGetDataPointer(
+            blockBuffer, atOffset: 0, lengthAtOffsetOut: nil,
+            totalLengthOut: &totalLength, dataPointerOut: &dataPointer
+        )
+        guard status == kCMBlockBufferNoErr, let ptr = dataPointer else { return }
+
+        // Get audio format to determine sample count
+        guard let formatDesc = sampleBuffer.formatDescription,
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc) else { return }
+
+        let bytesPerSample = Int(asbd.pointee.mBitsPerChannel / 8)
+        guard bytesPerSample == 4 else { return } // Expect Float32
+
+        let channelCount = Int(asbd.pointee.mChannelsPerFrame)
+        let sampleCount = totalLength / (bytesPerSample * channelCount)
+
+        // Convert to Float32 array
+        let floatPtr = UnsafeRawPointer(ptr).assumingMemoryBound(to: Float.self)
+
+        if channelCount == 1 {
+            // Mono — direct copy
+            let samples = Array(UnsafeBufferPointer(start: floatPtr, count: sampleCount))
+            onSamples(samples)
+        } else {
+            // Multi-channel — mix down to mono by averaging
+            var monoSamples = [Float](repeating: 0, count: sampleCount)
+            let scale = 1.0 / Float(channelCount)
+            for i in 0..<sampleCount {
+                var sum: Float = 0
+                for ch in 0..<channelCount {
+                    sum += floatPtr[i * channelCount + ch]
+                }
+                monoSamples[i] = sum * scale
+            }
+            onSamples(monoSamples)
+        }
+    }
+}

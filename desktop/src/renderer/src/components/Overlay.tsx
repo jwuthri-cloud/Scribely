@@ -78,18 +78,28 @@ export function Overlay() {
   const handleStartMeeting = useCallback(async () => {
     setMeetingError(null)
 
+    // Start the transcription session FIRST so the pipeline is active
+    // before any audio frames arrive (especially important for native capture
+    // which starts sending frames immediately).
+    await transcript.startSession()
+
     const { micStream, tabStream } = await capture.startCapture({
       mic: true,
       tab: true,
     })
 
-    if (!micStream && !tabStream) {
+    // In native mode: micStream is null (audio via CoreAudio),
+    // tabStream is video-only for the recorder.
+    // In browser mode: both are MediaStreams with audio.
+    if (capture.captureMode !== 'native' && !micStream && !tabStream) {
       setMeetingError('No audio source available. Allow mic/screen access.')
+      await transcript.stopSession()
       return
     }
 
-    await transcript.startSession()
-
+    // Start recorder with whatever streams we have
+    // Native mode: tabStream = video-only, micStream = null
+    // Browser mode: tabStream = video+audio, micStream = mic audio
     if (tabStream) {
       await recorder.startRecording(tabStream, micStream)
     } else if (micStream) {
@@ -98,7 +108,7 @@ export function Overlay() {
   }, [capture, transcript, recorder])
 
   const handleStopMeeting = useCallback(async () => {
-    capture.stopCapture()
+    await capture.stopCapture()
     await recorder.stopRecording()
     await transcript.stopSession()
     setMeetingError(null)
@@ -184,6 +194,8 @@ export function Overlay() {
                   error={meetingError || capture.error || recorder.error}
                   modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
                   modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                  captureMode={capture.captureMode}
+                  nativeAvailable={capture.nativeAvailable}
                 />
               )}
 
@@ -201,6 +213,7 @@ export function Overlay() {
                 onToggleRecording={stt.toggleRecording}
                 sttTranscript={stt.transcript}
                 onClearTranscript={stt.clearTranscript}
+                micLevel={stt.micLevel}
                 modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
                 modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
               />

@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { ModelManager } from './model-manager'
 import { Transcriber } from './transcriber'
 import { VoiceActivityDetector, type SpeechSegment } from './vad'
+import type { NativeHelperBridge } from '../native-bridge'
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -25,6 +26,23 @@ const PROVIDER_MODEL_MAP: Record<string, string> = {
 
 const VAD_MODEL_ID = 'silero-vad-v5' as const
 const VAD_SAMPLE_RATE = 16000
+const TARGET_SAMPLE_RATE = 16000
+
+// ── Simple linear-interpolation resampler ───────────────
+function resample(pcm: Float32Array, fromRate: number, toRate: number): Float32Array {
+  if (fromRate === toRate) return pcm
+  const ratio = fromRate / toRate
+  const outLength = Math.round(pcm.length / ratio)
+  const out = new Float32Array(outLength)
+  for (let i = 0; i < outLength; i++) {
+    const srcIdx = i * ratio
+    const lo = Math.floor(srcIdx)
+    const hi = Math.min(lo + 1, pcm.length - 1)
+    const frac = srcIdx - lo
+    out[i] = pcm[lo] * (1 - frac) + pcm[hi] * frac
+  }
+  return out
+}
 
 // ── AudioPipeline ──────────────────────────────────────────
 
@@ -46,7 +64,27 @@ export class AudioPipeline {
 
   // ── Fallback buffer (when VAD is not available) ───────
   private fallbackBuffers: Map<string, { frames: Float32Array[]; samples: number }> = new Map()
-  private static readonly FALLBACK_CHUNK_SECONDS = 3
+  private static readonly FALLBACK_CHUNK_SECONDS = 5
+
+  // ── Transcription lock (prevent concurrent whisper calls) ──
+  private _transcribeLock = false
+  private _transcribeQueue: Array<{ source: string; audio: Float32Array; sampleRate: number; timestamp: number }> = []
+
+  // ── Audio level metering ───────────────────────────────
+  private _lastLevelSendTime = 0
+  private static readonly LEVEL_SEND_INTERVAL_MS = 80
+  private _micLevel = 0
+  private _systemLevel = 0
+
+  // ── Native capture bridge ─────────────────────────────
+  private nativeBridge: NativeHelperBridge | null = null
+  private nativeAudioHandler: ((data: {
+    source: string
+    pcm: Float32Array
+    sampleRate: number
+    timestamp: number
+    numSamples: number
+  }) => void) | null = null
 
   constructor(transcriptionSettings: TranscriptionSettings) {
     this.modelManager = new ModelManager()
@@ -85,9 +123,12 @@ export class AudioPipeline {
 
   async init(): Promise<void> {
     await this.transcriber.init()
-    await this._initVad()
+    // VAD disabled for now — use chunk-based transcription directly.
+    // Uncomment the line below to re-enable VAD segmentation:
+    // await this._initVad()
+    this.vadReady = false
     console.log(
-      `[pipeline] Initialized — transcription: ${this.transcriber.mode}, VAD: ${this.vadReady ? 'ready' : 'unavailable'}`,
+      `[pipeline] Initialized — transcription: ${this.transcriber.mode}, VAD: disabled (chunk-based)`,
     )
   }
 
@@ -127,6 +168,112 @@ export class AudioPipeline {
 
   setWindow(window: BrowserWindow): void {
     this.window = window
+  }
+
+  // ── Native Bridge Integration ─────────────────────────
+
+  /** Connect a NativeHelperBridge to route native audio frames through the pipeline */
+  setNativeBridge(bridge: NativeHelperBridge): void {
+    // Detach previous bridge if any
+    this._detachNativeBridge()
+
+    this.nativeBridge = bridge
+
+    // Listen for audio frames from the native helper
+    this.nativeAudioHandler = (data) => {
+      if (!this.isActive) return
+      this._handleNativeAudioFrame(data.source, data.pcm, data.sampleRate, data.timestamp)
+    }
+    this.nativeBridge.on('audio-frame', this.nativeAudioHandler)
+
+    console.log('[pipeline] NativeHelperBridge connected')
+  }
+
+  /** Detach the native bridge and remove listeners */
+  private _detachNativeBridge(): void {
+    if (this.nativeBridge && this.nativeAudioHandler) {
+      this.nativeBridge.removeListener('audio-frame', this.nativeAudioHandler)
+    }
+    this.nativeAudioHandler = null
+    this.nativeBridge = null
+  }
+
+  /** Process an audio frame from the native helper — same path as renderer frames */
+  private _nativeFrameCount = 0
+  private _handleNativeAudioFrame(
+    source: string,
+    pcm: Float32Array,
+    sampleRate: number,
+    timestamp: number,
+  ): void {
+    if (pcm.length === 0) return
+
+    // Resample to 16kHz if needed (system audio comes in at 48kHz)
+    let resampled = pcm
+    let effectiveRate = sampleRate
+    if (sampleRate !== TARGET_SAMPLE_RATE) {
+      resampled = resample(pcm, sampleRate, TARGET_SAMPLE_RATE)
+      effectiveRate = TARGET_SAMPLE_RATE
+    }
+
+    this._nativeFrameCount++
+    if (this._nativeFrameCount <= 3 || this._nativeFrameCount % 50 === 0) {
+      console.log(
+        `[pipeline] Native audio frame #${this._nativeFrameCount}: source=${source}, samples=${pcm.length}→${resampled.length}, rate=${sampleRate}→${effectiveRate}`,
+      )
+    }
+
+    // Send audio levels to renderer for waveform visualization
+    this._updateAudioLevel(source, resampled)
+
+    const vad = source === 'mic' ? this.micVad : this.tabVad
+
+    if (vad && this.vadReady) {
+      vad.processChunk(resampled, effectiveRate).catch((err) => {
+        console.error(`[pipeline] VAD processing error (native/${source}):`, err)
+      })
+    } else {
+      this._handleFallbackFrame(source, resampled, effectiveRate, timestamp).catch((err) => {
+        console.error(`[pipeline] Fallback transcription error (native):`, err)
+      })
+    }
+  }
+
+  /** Get the connected native bridge (if any) */
+  getNativeBridge(): NativeHelperBridge | null {
+    return this.nativeBridge
+  }
+
+  /** Compute RMS level from PCM and send to renderer (throttled) */
+  private _updateAudioLevel(source: string, pcm: Float32Array): void {
+    // Compute RMS
+    let sumSq = 0
+    const step = Math.max(1, Math.floor(pcm.length / 512)) // sample at most 512 points
+    let count = 0
+    for (let i = 0; i < pcm.length; i += step) {
+      sumSq += pcm[i] * pcm[i]
+      count++
+    }
+    const rms = Math.sqrt(sumSq / count)
+    // Normalize to 0-1 range (typical speech RMS is 0.01-0.2)
+    const level = Math.min(1, rms * 5)
+
+    if (source === 'mic') {
+      this._micLevel = level
+    } else {
+      this._systemLevel = level
+    }
+
+    // Throttle sends
+    const now = Date.now()
+    if (now - this._lastLevelSendTime < AudioPipeline.LEVEL_SEND_INTERVAL_MS) return
+    this._lastLevelSendTime = now
+
+    this.sendToRenderer('meeting:audio-levels', {
+      mic: this._micLevel,
+      system: this._systemLevel,
+      timestamp: now,
+    })
   }
 
   // ── Settings changed ───────────────────────────────────
@@ -220,7 +367,7 @@ export class AudioPipeline {
   // ── Fallback: chunk-based pipeline (no VAD) ────────────
 
   /**
-   * When VAD is not available, accumulate frames into 3-second chunks
+   * When VAD is not available, accumulate frames into 5-second chunks
    * and transcribe them directly (Phase 1 behavior).
    */
   private async _handleFallbackFrame(
@@ -251,26 +398,54 @@ export class AudioPipeline {
       // Skip very short chunks
       if (combined.length < sampleRate * 0.3) return
 
-      const result = await this.transcriber.transcribe(combined, sampleRate)
-      if (result.text) {
-        const entry = {
-          id: randomUUID(),
-          speaker: source === 'mic' ? 'You' : 'Them',
-          text: result.text,
-          startTime: this.isActive ? timestamp - this.sessionStartTime : 0,
-          endTime: this.isActive
-            ? timestamp - this.sessionStartTime + result.duration * 1000
-            : result.duration * 1000,
-          confidence: 1.0,
-          source,
-          isEdited: false,
-        }
+      // Queue for serialized transcription (prevents concurrent whisper calls)
+      this._transcribeQueue.push({ source, audio: combined, sampleRate, timestamp })
+      this._drainTranscribeQueue()
+    }
+  }
 
-        if (this.isActive) {
-          this.sendToRenderer('meeting:transcript-entry', entry)
+  /** Serialize whisper transcriptions — only one at a time to avoid Metal conflicts */
+  private async _drainTranscribeQueue(): Promise<void> {
+    if (this._transcribeLock) return
+    this._transcribeLock = true
+
+    while (this._transcribeQueue.length > 0) {
+      const item = this._transcribeQueue.shift()!
+      if (!this.isActive) continue
+
+      try {
+        console.log(
+          `[pipeline] Transcribing ${item.source} chunk: ${item.audio.length} samples (${(item.audio.length / item.sampleRate).toFixed(1)}s) @ ${item.sampleRate}Hz`,
+        )
+        const result = await this.transcriber.transcribe(item.audio, item.sampleRate)
+        if (result.text) {
+          const entry = {
+            id: randomUUID(),
+            speaker: item.source === 'mic' ? 'You' : 'Them',
+            text: result.text,
+            startTime: this.isActive ? item.timestamp - this.sessionStartTime : 0,
+            endTime: this.isActive
+              ? item.timestamp - this.sessionStartTime + result.duration * 1000
+              : result.duration * 1000,
+            confidence: 1.0,
+            source: item.source,
+            isEdited: false,
+          }
+
+          console.log(`[pipeline] → ${entry.speaker}: "${entry.text}"`)
+
+          if (this.isActive) {
+            this.sendToRenderer('meeting:transcript-entry', entry)
+          }
+        } else {
+          console.log(`[pipeline] ${item.source} chunk: silence or empty transcription`)
         }
+      } catch (err) {
+        console.error(`[pipeline] Transcription error (${item.source}):`, err)
       }
     }
+
+    this._transcribeLock = false
   }
 
   /** Flush remaining fallback buffers */
@@ -288,22 +463,10 @@ export class AudioPipeline {
 
         if (combined.length < 16000 * 0.3) continue
 
-        const result = await this.transcriber.transcribe(combined, 16000)
-        if (result.text && this.isActive) {
-          const entry = {
-            id: randomUUID(),
-            speaker: source === 'mic' ? 'You' : 'Them',
-            text: result.text,
-            startTime: 0,
-            endTime: result.duration * 1000,
-            confidence: 1.0,
-            source,
-            isEdited: false,
-          }
-          this.sendToRenderer('meeting:transcript-entry', entry)
-        }
+        this._transcribeQueue.push({ source, audio: combined, sampleRate: 16000, timestamp: Date.now() })
       }
     }
+    await this._drainTranscribeQueue()
   }
 
   // ── IPC Handlers ───────────────────────────────────────
@@ -317,14 +480,15 @@ export class AudioPipeline {
         this._autoDownloadModel(whisperModelId)
       }
 
-      // Auto-download VAD model if needed
-      this._autoDownloadModel(VAD_MODEL_ID)
+      // VAD disabled — skip auto-download
+      // this._autoDownloadModel(VAD_MODEL_ID)
 
       this.isActive = true
       this.sessionStartTime = Date.now()
       this.segmentQueue = []
       this.isProcessingQueue = false
       this.fallbackBuffers.clear()
+      this._transcribeQueue = []
 
       // Reset VAD state for fresh session
       this.micVad?.flush()
@@ -356,6 +520,7 @@ export class AudioPipeline {
       this.isActive = false
       this.segmentQueue = []
       this.fallbackBuffers.clear()
+      this._transcribeQueue = []
 
       console.log('[pipeline] Meeting session stopped')
       return { success: true }
@@ -379,6 +544,9 @@ export class AudioPipeline {
 
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length === 0) return
+
+        // Send audio levels to renderer for waveform visualization
+        this._updateAudioLevel(payload.source, pcm)
 
         const vad = payload.source === 'mic' ? this.micVad : this.tabVad
 
@@ -490,6 +658,71 @@ export class AudioPipeline {
       }
     })
 
+    // ── Native capture: start ──────────────────────────
+    ipcMain.handle(
+      'meeting:start-native-capture',
+      async (
+        _event,
+        options: { mic: boolean; system: boolean },
+      ) => {
+        console.log('[pipeline] start-native-capture called:', JSON.stringify(options))
+        console.log('[pipeline] nativeBridge exists:', !!this.nativeBridge)
+        console.log('[pipeline] nativeBridge status:', this.nativeBridge ? JSON.stringify(this.nativeBridge.status) : 'N/A')
+
+        if (!this.nativeBridge) {
+          return { success: false, error: 'Native helper not connected' }
+        }
+        if (!this.nativeBridge.status.connected) {
+          return { success: false, error: 'Native helper not connected (socket down)' }
+        }
+        try {
+          this._nativeFrameCount = 0
+          await this.nativeBridge.startCapture({
+            mic: options.mic,
+            system: options.system,
+          })
+          console.log('[pipeline] Native capture command sent successfully')
+          return { success: true }
+        } catch (err) {
+          console.error('[pipeline] Native capture start failed:', err)
+          return { success: false, error: String(err) }
+        }
+      },
+    )
+
+    // ── Native capture: stop ───────────────────────────
+    ipcMain.handle('meeting:stop-native-capture', async () => {
+      if (!this.nativeBridge) {
+        return { success: false, error: 'Native helper not connected' }
+      }
+      try {
+        await this.nativeBridge.stopCapture()
+        return { success: true }
+      } catch (err) {
+        console.error('[pipeline] Native capture stop failed:', err)
+        return { success: false, error: String(err) }
+      }
+    })
+
+    // ── Native capture: get status ─────────────────────
+    ipcMain.handle('meeting:get-native-status', () => {
+      const status = !this.nativeBridge
+        ? {
+            available: false,
+            connected: false,
+            processRunning: false,
+            captureState: 'idle',
+            micActive: false,
+            systemAudioActive: false,
+          }
+        : {
+            available: true,
+            ...this.nativeBridge.status,
+          }
+      console.log('[pipeline] get-native-status:', JSON.stringify(status))
+      return status
+    })
+
     // ── Save meeting recording to disk ───────────────────
     ipcMain.handle(
       'meeting:save-recording',
@@ -528,6 +761,7 @@ export class AudioPipeline {
   }
 
   destroy(): void {
+    this._detachNativeBridge()
     this.micVad?.destroy()
     this.tabVad?.destroy()
     this.transcriber.destroy()

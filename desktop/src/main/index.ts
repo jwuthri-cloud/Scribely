@@ -12,6 +12,7 @@ import { applyInvisibility } from './invisibility'
 import { registerAllHotkeys, unregisterAllHotkeys, reregisterHotkeys } from './hotkey'
 import { captureScreen } from './screenshot'
 import { AudioPipeline } from './audio/pipeline'
+import { NativeHelperBridge } from './native-bridge'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -68,6 +69,9 @@ let isInvisible = true // starts invisible (content protection on)
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
+
+// ── Native Helper Bridge ───────────────────────────────
+let nativeBridge: NativeHelperBridge | null = null
 
 // ── Chromium flags for macOS audio loopback ────────────
 // These must be set before app.ready(). They enable system audio capture
@@ -263,6 +267,74 @@ function registerIpcHandlers(): void {
   })
 }
 
+// ── Native Helper Bridge Lifecycle ─────────────────────
+async function initNativeBridge(): Promise<void> {
+  if (process.platform !== 'darwin') {
+    console.log('[native-bridge] Skipping — not on macOS')
+    return
+  }
+
+  nativeBridge = new NativeHelperBridge()
+
+  // Helper: safely send to renderer only if window is alive
+  const safeSend = (channel: string, data: unknown): void => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, data)
+      }
+    } catch {
+      // Window already destroyed — ignore
+    }
+  }
+
+  // Forward native bridge events to renderer
+  nativeBridge.on('connected', () => {
+    console.log('[native-bridge] Connected to NativeHelper')
+    safeSend('native:status-changed', {
+      available: true,
+      ...nativeBridge!.status,
+    })
+  })
+
+  nativeBridge.on('disconnected', () => {
+    console.log('[native-bridge] Disconnected from NativeHelper')
+    safeSend('native:status-changed', {
+      available: false,
+      connected: false,
+      processRunning: false,
+      captureState: 'idle',
+      micActive: false,
+      systemAudioActive: false,
+    })
+  })
+
+  nativeBridge.on('status', () => {
+    safeSend('native:status-changed', {
+      available: true,
+      ...nativeBridge!.status,
+    })
+  })
+
+  nativeBridge.on('error', (err) => {
+    console.error('[native-bridge] Error:', err)
+    safeSend('native:error', err)
+  })
+
+  // Connect to the audio pipeline
+  audioPipeline.setNativeBridge(nativeBridge)
+
+  // Start the native helper process
+  try {
+    await nativeBridge.start()
+    console.log('[native-bridge] ✓ NativeHelper started and connected — native audio capture AVAILABLE')
+    console.log('[native-bridge]   Status:', JSON.stringify(nativeBridge.status))
+  } catch (err) {
+    console.warn('[native-bridge] ✗ Failed to start NativeHelper — falling back to browser-only capture')
+    console.warn('[native-bridge]   Error:', err)
+    console.warn('[native-bridge]   Build it with: cd desktop && npm run build:native')
+  }
+}
+
 // Hide the dock icon on macOS so the overlay is truly minimal
 app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
@@ -289,6 +361,9 @@ app.whenReady().then(async () => {
   audioPipeline.registerIpcHandlers()
   await audioPipeline.init()
 
+  // Start native helper bridge (non-blocking — falls back to browser capture on failure)
+  initNativeBridge()
+
   createWindow()
 
   app.on('activate', () => {
@@ -304,7 +379,24 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
+app.on('before-quit', () => {
+  // Null out mainWindow early so async callbacks don't touch a destroyed object
+  mainWindow = null
+})
+
+app.on('will-quit', (e) => {
   unregisterAllHotkeys()
   audioPipeline.destroy()
+
+  if (nativeBridge) {
+    // Prevent the quit from completing until the bridge is stopped
+    e.preventDefault()
+    nativeBridge
+      .stop()
+      .catch(() => {})
+      .finally(() => {
+        nativeBridge = null
+        app.quit()
+      })
+  }
 })

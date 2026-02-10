@@ -10,14 +10,37 @@
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:preload": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.web.json",
-    "typecheck": "npm run typecheck:main && npm run typecheck:renderer"
+    "typecheck": "npm run typecheck:main && npm run typecheck:renderer",
+    "build:native": "./scripts/build-native.sh",
+    "build:native:debug": "./scripts/build-native.sh --debug",
+    "build:proto": "./scripts/compile-proto.sh",
+    "dist": "npm run build:all && electron-builder --mac",
+    "build:all": "npm run build:proto && npm run build:native && npm run build"
   },
   "dependencies": {
     "electron-store": "^8.2.0",
     "framer-motion": "^11.15.0",
     "nswindow-napi": "^0.0.3",
     "onnxruntime-node": "^1.24.1",
+    "protobufjs": "^8.0.0",
     "smart-whisper": "^0.8.1"
+  },
+  "build": {
+    "appId": "com.assistme.desktop",
+    "productName": "AssistMe",
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "extraResources": [
+      {
+        "from": "resources/native/NativeHelper",
+        "to": "native/NativeHelper"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    }
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -25,6 +48,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "electron": "^34.0.0",
+    "electron-builder": "^26.7.0",
     "electron-vite": "^3.0.0",
     "postcss": "^8.4.49",
     "react": "^18.3.1",

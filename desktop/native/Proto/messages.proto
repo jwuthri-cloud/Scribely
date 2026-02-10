@@ -1,0 +1,67 @@
+syntax = "proto3";
+package assistme;
+
+// ── Control messages (Electron -> NativeHelper) ─────────────
+
+message ControlMessage {
+  oneof command {
+    StartCapture start_capture = 1;
+    StopCapture stop_capture = 2;
+    PauseCapture pause_capture = 3;
+    ResumeCapture resume_capture = 4;
+    GetStatus get_status = 5;
+  }
+}
+
+message StartCapture {
+  bool capture_mic = 1;
+  bool capture_system = 2;
+}
+
+message StopCapture {}
+message PauseCapture {}
+message ResumeCapture {}
+message GetStatus {}
+
+// ── Data messages (NativeHelper -> Electron) ────────────────
+
+message NativeMessage {
+  oneof payload {
+    AudioFrame audio_frame = 1;
+    StatusUpdate status = 2;
+    MeetingEvent meeting_event = 3;
+    MetricsUpdate metrics = 4;
+    ErrorEvent error = 5;
+  }
+}
+
+message AudioFrame {
+  string source = 1;        // "mic" or "system"
+  bytes pcm_data = 2;       // Float32 PCM samples as raw bytes
+  uint32 sample_rate = 3;
+  uint64 timestamp_ms = 4;
+  uint32 num_samples = 5;
+}
+
+message StatusUpdate {
+  string state = 1;          // "idle", "capturing", "paused", "error"
+  bool mic_active = 2;
+  bool system_audio_active = 3;
+}
+
+message MeetingEvent {
+  string event_type = 1;     // "MEETING_DETECTED", "MEETING_ENDED"
+  float confidence = 2;
+  string source_app = 3;
+}
+
+message MetricsUpdate {
+  float cpu_percent = 1;
+  uint64 memory_bytes = 2;
+  uint32 dropped_frames = 3;
+}
+
+message ErrorEvent {
+  string code = 1;
+  string message = 2;
+}

@@ -83,6 +83,37 @@ export interface ElectronAPI {
     callback: (data: { modelId: string; path: string }) => void,
   ) => () => void
 
+  // Audio Levels (waveform visualization)
+  onAudioLevels: (
+    callback: (levels: { mic: number; system: number; timestamp: number }) => void,
+  ) => () => void
+
+  // Native Capture
+  startNativeCapture: (options: {
+    mic: boolean
+    system: boolean
+  }) => Promise<{ success: boolean; error?: string }>
+  stopNativeCapture: () => Promise<{ success: boolean; error?: string }>
+  getNativeStatus: () => Promise<{
+    available: boolean
+    connected: boolean
+    processRunning: boolean
+    captureState: string
+    micActive: boolean
+    systemAudioActive: boolean
+  }>
+  onNativeStatusChanged: (
+    callback: (status: {
+      available: boolean
+      connected: boolean
+      processRunning: boolean
+      captureState: string
+      micActive: boolean
+      systemAudioActive: boolean
+    }) => void,
+  ) => () => void
+  onNativeError: (callback: (error: { code: string; message: string }) => void) => () => void
+
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 

@@ -2,20 +2,43 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 
 const TARGET_SAMPLE_RATE = 16000
 
+export type CaptureMode = 'native' | 'browser' | 'idle'
+
+interface NativeStatus {
+  available: boolean
+  connected: boolean
+  processRunning: boolean
+  captureState: string
+  micActive: boolean
+  systemAudioActive: boolean
+}
+
 /**
- * Dual-stream audio capture hook.
- * Captures mic (local user) and tab/window (remote audio) as separate streams.
+ * Dual-stream audio capture hook with native helper support.
  *
- * Phase 2: Streams each ScriptProcessorNode frame (~256ms at 4096 buffer / 16kHz)
- * directly to the main process via fire-and-forget IPC. The main process handles
- * VAD segmentation and transcription. Falls back to the old chunk-based approach
- * if streamAudioFrame is not available.
+ * When NativeHelper is connected:
+ *   - Audio (mic + system) is captured natively at the CoreAudio level
+ *   - getDisplayMedia is used ONLY for video (for the meeting recorder)
+ *   - No browser-based audio extraction needed
+ *
+ * When NativeHelper is unavailable:
+ *   - Falls back to browser-based capture (getUserMedia + getDisplayMedia)
+ *   - Streams PCM frames to main process via IPC for VAD + transcription
  */
 export function useAudioCapture() {
   const [isCapturing, setIsCapturing] = useState(false)
   const [micActive, setMicActive] = useState(false)
   const [tabActive, setTabActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('idle')
+  const [nativeStatus, setNativeStatus] = useState<NativeStatus>({
+    available: false,
+    connected: false,
+    processRunning: false,
+    captureState: 'idle',
+    micActive: false,
+    systemAudioActive: false,
+  })
 
   const micStreamRef = useRef<MediaStream | null>(null)
   const tabStreamRef = useRef<MediaStream | null>(null)
@@ -23,17 +46,38 @@ export function useAudioCapture() {
   const tabContextRef = useRef<AudioContext | null>(null)
   const micProcessorRef = useRef<ScriptProcessorNode | null>(null)
   const tabProcessorRef = useRef<ScriptProcessorNode | null>(null)
-  // Cloned streams used for PCM extraction — must be stopped on cleanup
   const micCloneRef = useRef<MediaStream | null>(null)
   const tabCloneRef = useRef<MediaStream | null>(null)
+
+  // ── Track native status from main process ──────────────
+  useEffect(() => {
+    window.electronAPI?.getNativeStatus?.().then((status) => {
+      if (status) setNativeStatus(status)
+    })
+
+    const unsubStatus = window.electronAPI?.onNativeStatusChanged?.((status) => {
+      setNativeStatus(status)
+      if (status.captureState === 'capturing') {
+        setMicActive(status.micActive)
+        setTabActive(status.systemAudioActive)
+      }
+    })
+
+    const unsubError = window.electronAPI?.onNativeError?.((err) => {
+      console.error('[audio-capture] Native error:', err)
+    })
+
+    return () => {
+      unsubStatus?.()
+      unsubError?.()
+    }
+  }, [])
 
   // ── Stream a single audio frame to main process ────────
   const streamFrame = useCallback(
     (input: Float32Array, source: 'mic' | 'system') => {
       const copy = new Float32Array(input.length)
       copy.set(input)
-
-      // Use the streaming IPC (fire-and-forget, processed by VAD in main)
       try {
         window.electronAPI?.streamAudioFrame({
           source,
@@ -61,8 +105,6 @@ export function useAudioCapture() {
         ctx = new AudioContext()
       }
 
-      // AudioContext can start suspended (especially with Bluetooth devices
-      // like AirPods). Explicitly resume to ensure processing runs.
       if (ctx.state === 'suspended') {
         console.log(`[audio-capture] AudioContext suspended for ${source}, resuming…`)
         await ctx.resume()
@@ -70,12 +112,9 @@ export function useAudioCapture() {
 
       const audioSource = ctx.createMediaStreamSource(stream)
       const processor = ctx.createScriptProcessor(4096, 1, 1)
-
-      // Route through a zero-gain node to prevent playback
       const silencer = ctx.createGain()
       silencer.gain.value = 0
 
-      // Stream each frame directly to the main process (Phase 2 VAD pipeline)
       processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0)
         streamFrame(input, source)
@@ -88,13 +127,12 @@ export function useAudioCapture() {
       console.log(
         `[audio-capture] Streaming extractor ready for ${source} (rate=${ctx.sampleRate}, state=${ctx.state})`,
       )
-
       return { ctx, processor }
     },
     [streamFrame],
   )
 
-  // ── Start mic capture ────────────────────────────────
+  // ── Browser: start mic capture ────────────────────────
   const setupMicCapture = useCallback(async (): Promise<MediaStream | null> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -107,8 +145,6 @@ export function useAudioCapture() {
       })
 
       micStreamRef.current = stream
-      // Clone the stream for PCM extraction so the original stays available
-      // for the MediaRecorder in useMeetingRecorder
       const clonedMicStream = new MediaStream(stream.getAudioTracks().map((t) => t.clone()))
       micCloneRef.current = clonedMicStream
       const { ctx, processor } = await createPcmExtractor(clonedMicStream, 'mic')
@@ -123,12 +159,9 @@ export function useAudioCapture() {
     }
   }, [createPcmExtractor])
 
-  // ── Start tab/window capture via getDisplayMedia ─────
+  // ── Browser: start tab/window capture via getDisplayMedia ─
   const setupTabCapture = useCallback(async (): Promise<MediaStream | null> => {
     try {
-      // Keep constraints minimal for maximum Electron/Chromium compatibility.
-      // Some advanced display-audio hints can cause immediate rejections on
-      // certain versions and surface as "cancelled or denied".
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
@@ -149,27 +182,20 @@ export function useAudioCapture() {
       }
 
       if (audioTracks.length === 0) {
-        const surface =
-          videoTracks[0]?.getSettings?.().displaySurface || 'unknown'
+        const surface = videoTracks[0]?.getSettings?.().displaySurface || 'unknown'
         console.warn(
           `[audio-capture] No audio tracks for surface=${surface}. ` +
             'Window/app capture on macOS often lacks system audio — mic will still work.',
         )
-        // Don't retry / show a second picker. Video-only capture is fine;
-        // the mic stream provides user audio for transcription.
       }
 
       bindStreamEnded(stream)
       setTabActive(true)
 
-      // Set up PCM extraction only when system audio is available
       if (audioTracks.length > 0) {
         const settings = audioTracks[0].getSettings()
         console.log('[audio-capture] Audio track settings:', JSON.stringify(settings))
 
-        // Clone audio tracks for PCM extraction so the originals stay available
-        // for the MediaRecorder in useMeetingRecorder. Without cloning, connecting
-        // the track to a second AudioContext can starve the original of data.
         const clonedAudioTracks = audioTracks.map((t) => t.clone())
         const audioOnly = new MediaStream(clonedAudioTracks)
         tabCloneRef.current = audioOnly
@@ -190,9 +216,7 @@ export function useAudioCapture() {
           'Screen capture permission denied. Enable "Electron" in macOS Privacy > Screen & System Audio Recording, then restart app.',
         )
       } else if (message === 'NotSupportedError') {
-        setError(
-          'Screen capture not supported in current mode. Restart app and try again.',
-        )
+        setError('Screen capture not supported in current mode. Restart app and try again.')
       } else {
         setError(`Screen capture failed (${message}). Please retry and allow sharing.`)
       }
@@ -200,50 +224,113 @@ export function useAudioCapture() {
     }
   }, [createPcmExtractor])
 
-  // ── Public: start capture (tab + mic) ────────────────
+  // ── Get display video stream only (no audio extraction) ─
+  // Used in native mode: we only need the video for the recorder,
+  // audio is handled by NativeHelper at the CoreAudio level.
+  const setupVideoOnlyCapture = useCallback(async (): Promise<MediaStream | null> => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      })
+
+      tabStreamRef.current = stream
+
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        setTabActive(false)
+      })
+
+      setTabActive(true)
+      return stream
+    } catch (err) {
+      console.error('[audio-capture] Video-only capture error:', err)
+      // Non-fatal for native mode — audio still works without video recording
+      return null
+    }
+  }, [])
+
+  // ── Public: start capture ─────────────────────────────
+  // Always queries live native status from main process (not stale React state).
+  // When native helper is connected: use native for audio, browser for video only.
+  // When native is unavailable: full browser-based capture.
   const startCapture = useCallback(
     async (options: { mic: boolean; tab: boolean }) => {
       setError(null)
 
+      // Query live native status — don't rely on React state which may be stale
+      const liveStatus = await window.electronAPI?.getNativeStatus?.()
+      const nativeReady = liveStatus?.available && liveStatus?.connected
+      console.log('[audio-capture] Native status:', JSON.stringify(liveStatus))
+
+      // ── Native path: audio via CoreAudio, video via getDisplayMedia ──
+      if (nativeReady) {
+        console.log('[audio-capture] Native helper connected — starting native audio capture')
+
+        const result = await window.electronAPI?.startNativeCapture({
+          mic: options.mic,
+          system: options.tab,
+        })
+        console.log('[audio-capture] startNativeCapture result:', JSON.stringify(result))
+
+        if (result?.success) {
+          setCaptureMode('native')
+          setIsCapturing(true)
+          setMicActive(options.mic)
+          setTabActive(options.tab)
+
+          // Get video-only stream for the meeting recorder
+          const videoStream = options.tab ? await setupVideoOnlyCapture() : null
+
+          return { micStream: null, tabStream: videoStream }
+        }
+
+        console.warn('[audio-capture] Native capture failed — falling back to browser')
+        setError(result?.error || 'Native capture failed to start')
+      }
+
+      // ── Browser fallback: full browser-based capture ──
+      console.log('[audio-capture] Using browser-based capture (native unavailable)')
+      setCaptureMode('browser')
+
       let micStream: MediaStream | null = null
       let tabStream: MediaStream | null = null
 
-      // Start mic FIRST — getDisplayMedia can lock the audio device,
-      // causing getUserMedia to fail with "access denied" if called after.
       if (options.mic) {
         micStream = await setupMicCapture()
       }
-
       if (options.tab) {
         tabStream = await setupTabCapture()
       }
 
       if (!micStream && !tabStream) {
         setError('No audio source available')
+        setCaptureMode('idle')
         return { micStream: null, tabStream: null }
       }
 
       setIsCapturing(true)
       return { micStream, tabStream }
     },
-    [setupMicCapture, setupTabCapture],
+    [setupMicCapture, setupTabCapture, setupVideoOnlyCapture],
   )
 
   // ── Public: stop capture ─────────────────────────────
-  const stopCapture = useCallback(() => {
-    // Disconnect processors
+  const stopCapture = useCallback(async () => {
+    if (captureMode === 'native') {
+      await window.electronAPI?.stopNativeCapture()
+    }
+
+    // Clean up browser resources (video stream in native mode, everything in browser mode)
     micProcessorRef.current?.disconnect()
     tabProcessorRef.current?.disconnect()
     micProcessorRef.current = null
     tabProcessorRef.current = null
 
-    // Close audio contexts
     micContextRef.current?.close()
     tabContextRef.current?.close()
     micContextRef.current = null
     tabContextRef.current = null
 
-    // Stop all media tracks (originals + clones used for PCM extraction)
     micStreamRef.current?.getTracks().forEach((t) => t.stop())
     tabStreamRef.current?.getTracks().forEach((t) => t.stop())
     micCloneRef.current?.getTracks().forEach((t) => t.stop())
@@ -257,7 +344,8 @@ export function useAudioCapture() {
     setMicActive(false)
     setTabActive(false)
     setError(null)
-  }, [])
+    setCaptureMode('idle')
+  }, [captureMode])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -278,6 +366,9 @@ export function useAudioCapture() {
     micActive,
     tabActive,
     error,
+    captureMode,
+    nativeAvailable: nativeStatus.available && nativeStatus.connected,
+    nativeStatus,
     startCapture,
     stopCapture,
     getMicStream: () => micStreamRef.current,

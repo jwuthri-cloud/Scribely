@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
+import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
 
 interface InputBarProps {
@@ -13,6 +14,7 @@ interface InputBarProps {
   onToggleRecording?: () => void
   sttTranscript?: string
   onClearTranscript?: () => void
+  micLevel?: number
   modelDownloading?: boolean
   modelProgress?: number
 }
@@ -29,6 +31,7 @@ export function InputBar({
   onToggleRecording,
   sttTranscript,
   onClearTranscript,
+  micLevel = 0,
   modelDownloading,
   modelProgress = 0,
 }: InputBarProps) {
@@ -83,40 +86,51 @@ export function InputBar({
         </div>
       )}
 
-      {/* Recording indicator */}
+      {/* Recording indicator + waveform */}
       {isRecording && (
         <div
-          className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg"
+          className="rounded-lg overflow-hidden"
           style={{
             backgroundColor: modelDownloading
               ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
-              : 'rgba(224, 108, 117, 0.15)',
-            color: modelDownloading ? 'var(--accent)' : 'var(--error)',
+              : 'rgba(224, 108, 117, 0.1)',
           }}
         >
-          <span
-            className="w-2 h-2 rounded-full shrink-0 animate-pulse"
+          <div
+            className="flex items-center gap-2 text-xs px-2 py-1.5"
             style={{
-              backgroundColor: modelDownloading ? 'var(--accent)' : 'var(--error)',
+              color: modelDownloading ? 'var(--accent)' : 'var(--error)',
             }}
-          />
-          <span className="flex-1">
-            {modelDownloading
-              ? `Downloading transcription model... ${modelProgress}%`
-              : 'Recording... press mic or hotkey to stop'}
-          </span>
-          {modelDownloading && (
-            <div
-              className="w-16 h-1 rounded-full overflow-hidden shrink-0"
-              style={{ backgroundColor: 'var(--border)' }}
-            >
+          >
+            <span
+              className="w-2 h-2 rounded-full shrink-0 animate-pulse"
+              style={{
+                backgroundColor: modelDownloading ? 'var(--accent)' : 'var(--error)',
+              }}
+            />
+            <span className="flex-1">
+              {modelDownloading
+                ? `Downloading transcription model... ${modelProgress}%`
+                : 'Recording... press mic or hotkey to stop'}
+            </span>
+            {modelDownloading && (
               <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  width: `${modelProgress}%`,
-                }}
-              />
+                className="w-16 h-1 rounded-full overflow-hidden shrink-0"
+                style={{ backgroundColor: 'var(--border)' }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    width: `${modelProgress}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          {!modelDownloading && (
+            <div className="px-2 pb-1.5">
+              <MicWaveform level={micLevel} isActive={isRecording} height={28} />
             </div>
           )}
         </div>
