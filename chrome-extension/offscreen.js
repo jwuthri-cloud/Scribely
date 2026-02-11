@@ -20,7 +20,10 @@ const MSG_CONTROL = 0x03
 const TARGET_SAMPLE_RATE = 16000
 
 let mediaStream = null
-let audioContext = null
+let micStream = null      // local mic MediaStream (for recording mix)
+let audioContext = null   // 16kHz context for PCM extraction (high-quality Chrome resampler)
+let playbackCtx = null    // native-rate context for low-latency audio playback
+let mixerCtx = null       // native-rate context for mixing tab + mic audio into MediaRecorder
 let workletNode = null
 let mediaRecorder = null
 let ws = null
@@ -155,6 +158,16 @@ async function startCapture(streamId, wsPort) {
       }
     }
 
+    // 4. Capture local mic so the user's voice is in the .webm recording.
+    //    Falls back gracefully — recording just won't have mic audio.
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log(`[offscreen] Mic captured for recording mix`)
+    } catch (err) {
+      console.warn('[offscreen] Mic capture failed — recording will not include mic:', err.message)
+      micStream = null
+    }
+
     // 5. Send hello with the real sample rate so Electron knows how to resample
     sendControl(ws, {
       type: 'hello',
@@ -162,10 +175,15 @@ async function startCapture(streamId, wsPort) {
       sampleRate: actualSampleRate,
     })
 
-    // 6. Set up MediaRecorder for video chunks
+    // 6. Set up MediaRecorder for video chunks.
+    //    If we have a mic, mix tab audio + mic audio into one stream
+    //    so the .webm file contains both.
     const videoTracks = mediaStream.getVideoTracks()
     if (videoTracks.length > 0) {
-      setupVideoCapture(mediaStream)
+      const recordingStream = micStream
+        ? createMixedRecordingStream(mediaStream, micStream)
+        : mediaStream
+      setupVideoCapture(recordingStream)
     }
 
     // Notify background that capture started
@@ -186,14 +204,28 @@ async function startCapture(streamId, wsPort) {
 }
 
 // ── Audio capture via AudioWorklet + low-latency playback ──
+//
+// Two separate AudioContexts:
+//   1. captureCtx (audioContext) at 16 kHz — Chrome's built-in resampler
+//      converts the tab's native 48 kHz audio to 16 kHz with a proper
+//      anti-aliased sinc filter.  The AudioWorklet then extracts clean
+//      16 kHz PCM that goes straight to Whisper without any further
+//      resampling in Electron (the pipeline's linear-interp resampler
+//      becomes a no-op since source == target == 16 kHz).
+//   2. playbackCtx at native rate — routes cloned audio tracks to the
+//      user's speakers with the lowest possible latency.
+//
 async function setupAudioCapture(stream) {
   const audioOnly = new MediaStream(stream.getAudioTracks())
 
-  // Always use native sample rate (typically 48kHz).  Forcing 16kHz makes
-  // Chrome resample inside the capture chain which adds latency.
-  // Electron's AudioPipeline handles the 48kHz → 16kHz resample instead.
-  // 'interactive' latencyHint asks for the smallest buffer size.
-  audioContext = new AudioContext({ latencyHint: 'interactive' })
+  // ── Capture context at 16 kHz ──
+  // Chrome will accept 16 kHz and resample internally with a high-quality
+  // filter.  Fall back to native rate if the browser refuses.
+  try {
+    audioContext = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE })
+  } catch {
+    audioContext = new AudioContext()
+  }
 
   if (audioContext.state === 'suspended') {
     await audioContext.resume()
@@ -201,7 +233,6 @@ async function setupAudioCapture(stream) {
 
   await audioContext.audioWorklet.addModule('pcm-worklet.js')
 
-  // ── PCM extraction chain (silent) ──
   const source = audioContext.createMediaStreamSource(audioOnly)
   workletNode = new AudioWorkletNode(audioContext, 'pcm-extractor')
 
@@ -217,16 +248,49 @@ async function setupAudioCapture(stream) {
   workletNode.connect(silencer)
   silencer.connect(audioContext.destination)
 
-  // ── Playback chain (audible) ──
-  // Route cloned audio tracks through the AudioContext's destination so the
-  // user still hears the tab audio.  This is much lower latency than an
-  // <audio> element (which Chrome buffers aggressively in offscreen docs).
+  // ── Playback context at native rate ──
+  // Separate context so the 16 kHz capture rate doesn't add latency or
+  // degrade the audio the user hears through their speakers.
+  playbackCtx = new AudioContext({ latencyHint: 'interactive' })
+  if (playbackCtx.state === 'suspended') {
+    await playbackCtx.resume()
+  }
+
   playbackTracks = stream.getAudioTracks().map(t => t.clone())
   const playbackStream = new MediaStream(playbackTracks)
-  const playbackSource = audioContext.createMediaStreamSource(playbackStream)
-  playbackSource.connect(audioContext.destination)
+  const playbackSource = playbackCtx.createMediaStreamSource(playbackStream)
+  playbackSource.connect(playbackCtx.destination)
 
-  console.log(`[offscreen] Audio capture + playback ready (rate=${audioContext.sampleRate})`)
+  console.log(
+    `[offscreen] Audio capture at ${audioContext.sampleRate}Hz, ` +
+    `playback at ${playbackCtx.sampleRate}Hz`
+  )
+}
+
+// ── Mix tab audio + mic audio for recording ───────────
+function createMixedRecordingStream(tabStream, micStream) {
+  mixerCtx = new AudioContext()
+
+  const tabSource = mixerCtx.createMediaStreamSource(
+    new MediaStream(tabStream.getAudioTracks())
+  )
+  const micSource = mixerCtx.createMediaStreamSource(micStream)
+  const dest = mixerCtx.createMediaStreamDestination()
+
+  tabSource.connect(dest)
+  micSource.connect(dest)
+
+  // Combine: mixed audio (tab + mic) + tab video
+  const mixed = new MediaStream([
+    ...dest.stream.getAudioTracks(),
+    ...tabStream.getVideoTracks(),
+  ])
+
+  console.log(
+    `[offscreen] Recording mix: ${mixed.getAudioTracks().length} audio + ` +
+    `${mixed.getVideoTracks().length} video tracks`
+  )
+  return mixed
 }
 
 // ── Video capture via MediaRecorder ───────────────────
@@ -279,6 +343,21 @@ function stopCapture() {
   if (audioContext) {
     audioContext.close().catch(() => {})
     audioContext = null
+  }
+
+  if (playbackCtx) {
+    playbackCtx.close().catch(() => {})
+    playbackCtx = null
+  }
+
+  if (mixerCtx) {
+    mixerCtx.close().catch(() => {})
+    mixerCtx = null
+  }
+
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop())
+    micStream = null
   }
 
   // Stop cloned playback tracks
