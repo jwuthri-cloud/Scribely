@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-interface SourceInfo {
+export interface SourceInfo {
   id: string
   name: string
   type: 'screen' | 'window'
@@ -50,7 +50,7 @@ export function useMeetingRecorder() {
       setPickerSources(data.sources)
     })
 
-    // Main says "go ahead and call getDisplayMedia now" (handler is installed)
+    // Main says "go ahead and call getDisplayMedia now" (handler is installed for chosen source)
     const unsubStart = window.electronAPI?.onStartCapture?.(async (data) => {
       console.log('[recorder] Got start-capture signal')
       try {
@@ -64,7 +64,9 @@ export function useMeetingRecorder() {
         const tracks = stream.getTracks()
         const hasVideo = tracks.some((t) => t.kind === 'video')
         const hasAudio = tracks.some((t) => t.kind === 'audio')
-        console.log(`[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`)
+        console.log(
+          `[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`,
+        )
 
         // Pick mime type based on available tracks
         let mimeType: string
