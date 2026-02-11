@@ -8,6 +8,38 @@ interface TitleBarProps {
   onToggleMeeting?: () => void
 }
 
+/** Small icon button used in the title bar */
+function TitleBtn({
+  onClick,
+  label,
+  title,
+  active,
+  color,
+  children,
+}: {
+  onClick: () => void
+  label: string
+  title: string
+  active?: boolean
+  color?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+      style={{
+        color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)'),
+        WebkitAppRegion: 'no-drag',
+      } as React.CSSProperties}
+      onClick={onClick}
+      aria-label={label}
+      title={title}
+    >
+      {children}
+    </button>
+  )
+}
+
 export function TitleBar({
   view,
   onToggleView,
@@ -38,7 +70,7 @@ export function TitleBar({
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-2.5 shrink-0 select-none"
+      className="flex items-center justify-between px-4 py-2 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Left side: close button + back arrow (in settings) */}
@@ -57,15 +89,7 @@ export function TitleBar({
         />
 
         {view === 'settings' && (
-          <button
-            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
-            style={{
-              color: 'var(--text-muted)',
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties}
-            onClick={onToggleView}
-            aria-label="Back to chat"
-          >
+          <TitleBtn onClick={onToggleView} label="Back to chat" title="Back to chat">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
                 d="M7.5 2L3.5 6L7.5 10"
@@ -75,7 +99,7 @@ export function TitleBar({
                 strokeLinejoin="round"
               />
             </svg>
-          </button>
+          </TitleBtn>
         )}
       </div>
 
@@ -87,21 +111,16 @@ export function TitleBar({
       </span>
 
       {/* Right side: invisibility + meeting toggle + reset + gear */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-0.5">
         {/* Invisibility toggle — hide/show from screen sharing */}
         {view === 'chat' && (
-          <button
-            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
-            style={{
-              color: invisible ? 'var(--accent)' : 'var(--text-muted)',
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties}
+          <TitleBtn
             onClick={handleToggleInvisibility}
-            aria-label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
-            title={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
+            label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
+            title={invisible ? 'Hidden from screen share (click to show)' : 'Visible to screen share (click to hide)'}
+            active={invisible}
           >
             {invisible ? (
-              /* Eye-off icon */
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
@@ -113,7 +132,6 @@ export function TitleBar({
                 <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             ) : (
-              /* Eye icon */
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
@@ -125,46 +143,36 @@ export function TitleBar({
                 <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
               </svg>
             )}
-          </button>
+          </TitleBtn>
         )}
 
-        {/* Meeting toggle — starts/stops meeting capture */}
+        {/* Meeting toggle */}
         {view === 'chat' && onToggleMeeting && (
-          <button
-            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
-            style={{
-              color: meetingActive ? 'var(--error)' : 'var(--text-muted)',
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties}
+          <TitleBtn
             onClick={onToggleMeeting}
-            aria-label={meetingActive ? 'Stop meeting' : 'Start meeting'}
-            title={meetingActive ? 'Stop meeting' : 'Start meeting capture'}
+            label={meetingActive ? 'Stop meeting' : 'Start meeting'}
+            title={meetingActive ? 'Stop meeting capture' : 'Start meeting capture'}
+            color={meetingActive ? 'var(--error)' : undefined}
           >
             {meetingActive ? (
-              /* Stop icon when active */
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
               </svg>
             ) : (
-              /* Transcript icon when inactive */
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
                 <path d="M8 12h8M8 9h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             )}
-          </button>
+          </TitleBtn>
         )}
 
+        {/* Reset chat */}
         {view === 'chat' && onReset && (
-          <button
-            className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
-            style={{
-              color: 'var(--text-muted)',
-              WebkitAppRegion: 'no-drag',
-            } as React.CSSProperties}
+          <TitleBtn
             onClick={onReset}
-            aria-label="Reset chat"
-            title="Reset chat"
+            label="Reset chat"
+            title="Reset chat (⌥R)"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
@@ -181,18 +189,15 @@ export function TitleBar({
                 strokeLinejoin="round"
               />
             </svg>
-          </button>
+          </TitleBtn>
         )}
 
-        <button
-          className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:brightness-125"
-          style={{
-            color: view === 'settings' ? 'var(--accent)' : 'var(--text-muted)',
-            WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties}
+        {/* Settings gear */}
+        <TitleBtn
           onClick={onToggleView}
-          aria-label={view === 'settings' ? 'Back to chat' : 'Settings'}
+          label={view === 'settings' ? 'Back to chat' : 'Settings'}
           title="Settings"
+          active={view === 'settings'}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
             <path
@@ -206,7 +211,7 @@ export function TitleBar({
               strokeWidth="1.8"
             />
           </svg>
-        </button>
+        </TitleBtn>
       </div>
     </div>
   )

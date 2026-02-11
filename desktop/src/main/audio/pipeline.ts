@@ -15,6 +15,7 @@ interface TranscriptionSettings {
     groq?: string
     deepgram?: string
   }
+  chunkDurationSec?: number
 }
 
 // Provider → whisper model ID mapping (matches transcriber.ts)
@@ -64,7 +65,7 @@ export class AudioPipeline {
 
   // ── Fallback buffer (when VAD is not available) ───────
   private fallbackBuffers: Map<string, { frames: Float32Array[]; samples: number }> = new Map()
-  private static readonly FALLBACK_CHUNK_SECONDS = 2
+  private _chunkDurationSec = 2
 
   // ── Transcription lock (prevent concurrent whisper calls) ──
   private _transcribeLock = false
@@ -93,6 +94,11 @@ export class AudioPipeline {
       provider: transcriptionSettings.provider as any,
       apiKeys: transcriptionSettings.apiKeys,
     })
+
+    // Apply initial chunk duration from settings
+    if (transcriptionSettings.chunkDurationSec != null) {
+      this._chunkDurationSec = Math.max(1, Math.min(10, transcriptionSettings.chunkDurationSec))
+    }
 
     // Forward model download progress to renderer
     this.modelManager.on('progress', (data) => {
@@ -288,6 +294,12 @@ export class AudioPipeline {
     const provider = settings.provider as any
     console.log(`[pipeline] Transcription provider changed to: ${provider}`)
 
+    // Update chunk duration
+    if (settings.chunkDurationSec != null) {
+      this._chunkDurationSec = Math.max(1, Math.min(10, settings.chunkDurationSec))
+      console.log(`[pipeline] Chunk duration set to ${this._chunkDurationSec}s`)
+    }
+
     await this.transcriber.setProvider(provider, settings.apiKeys)
 
     // Auto-download whisper model if needed
@@ -389,7 +401,7 @@ export class AudioPipeline {
     buf.frames.push(pcm)
     buf.samples += pcm.length
 
-    const chunkSamples = sampleRate * AudioPipeline.FALLBACK_CHUNK_SECONDS
+    const chunkSamples = sampleRate * this._chunkDurationSec
     if (buf.samples >= chunkSamples) {
       // Flush buffer
       const combined = new Float32Array(buf.samples)

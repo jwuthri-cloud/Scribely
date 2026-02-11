@@ -1,5 +1,62 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import type { ChatMessage } from '../types'
+import type { HotkeyConfig } from '../types/settings'
+import { DEFAULT_HOTKEYS } from '../types/settings'
+
+/** Converts an Electron accelerator to macOS-style symbols */
+function fmtKey(acc: string): string {
+  return acc
+    .replace(/CommandOrControl|Command/g, '⌘')
+    .replace(/Control/g, '⌃')
+    .replace(/Alt/g, '⌥')
+    .replace(/Shift/g, '⇧')
+    .replace(/\+/g, '')
+}
+
+/** Hotkeys to show on the main page (exclude directional moves) */
+const VISIBLE_HOTKEYS: { key: keyof HotkeyConfig; label: string; icon: React.ReactNode }[] = [
+  {
+    key: 'toggleOverlay',
+    label: 'Toggle overlay',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+  {
+    key: 'takeScreenshot',
+    label: 'Screenshot',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },
+  {
+    key: 'toggleAudio',
+    label: 'Voice input',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="2" width="6" height="12" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0" />
+        <path d="M12 19v3" />
+      </svg>
+    ),
+  },
+  {
+    key: 'resetChat',
+    label: 'Reset chat',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 4v6h6" />
+        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+      </svg>
+    ),
+  },
+]
 
 interface ResponseCardProps {
   messages: ChatMessage[]
@@ -8,6 +65,14 @@ interface ResponseCardProps {
 
 export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
+
+  // Load actual hotkey config
+  useEffect(() => {
+    window.electronAPI?.getSettings().then((s) => {
+      if (s?.hotkeys) setHotkeys(s.hotkeys)
+    })
+  }, [])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -18,37 +83,55 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
 
   if (messages.length === 0 && !isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center space-y-3">
-          <div
-            className="text-2xl opacity-40 select-none"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ✦
-          </div>
-          <p
-            className="text-sm leading-relaxed"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Press{' '}
-            <kbd
-              className="px-1.5 py-0.5 rounded text-[11px] font-mono"
-              style={{
-                backgroundColor: 'var(--chip-bg)',
-                color: 'var(--chip-text)',
-                border: '1px solid var(--border)',
-              }}
+      <div className="flex-1 flex items-center justify-center px-5">
+        <div className="w-full max-w-[260px] space-y-4">
+          {/* Logo / brand */}
+          <div className="text-center space-y-1.5">
+            <div
+              className="text-lg font-semibold tracking-tight select-none"
+              style={{ color: 'var(--text-bright)' }}
             >
-              ⌥T
-            </kbd>{' '}
-            to toggle
-          </p>
-          <p
-            className="text-xs"
-            style={{ color: 'var(--text-muted)', opacity: 0.7 }}
+              AssistMe
+            </div>
+            <p
+              className="text-[11px] leading-relaxed"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Type a message, pick an action, or use a shortcut
+            </p>
+          </div>
+
+          {/* Hotkey reference */}
+          <div
+            className="rounded-xl p-2.5 space-y-0.5"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--surface) 60%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
+            }}
           >
-            Type a message or pick an action below
-          </p>
+            {VISIBLE_HOTKEYS.map(({ key, label, icon }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
+                  <span className="text-[11px]">{label}</span>
+                </div>
+                <kbd
+                  className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
+                  style={{
+                    backgroundColor: 'var(--chip-bg)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {fmtKey(hotkeys[key])}
+                </kbd>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )

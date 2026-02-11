@@ -87,13 +87,14 @@ export class ScreenRecorder {
 
     ipcMain.handle(
       'recording:write-chunk',
-      async (_event, payload: { data: ArrayBuffer }) => {
+      async (_event, payload: { data: Uint8Array }) => {
         if (!this.filepath) return
         this.chunkCount++
-        await appendFile(this.filepath, Buffer.from(payload.data))
+        const buf = Buffer.from(payload.data)
+        await appendFile(this.filepath, buf)
         if (this.chunkCount <= 3 || this.chunkCount % 10 === 0) {
           console.log(
-            `[screen-recorder] Chunk #${this.chunkCount}: ${(payload.data.byteLength / 1024).toFixed(1)}KB → ${this.filepath.split('/').pop()}`,
+            `[screen-recorder] Chunk #${this.chunkCount}: ${(buf.byteLength / 1024).toFixed(1)}KB → ${this.filepath.split('/').pop()}`,
           )
         }
       },
@@ -121,8 +122,9 @@ export class ScreenRecorder {
       await writeFile(this.filepath, Buffer.alloc(0))
       console.log(`[screen-recorder] Recording file created: ${this.filepath}`)
 
-      // Keep the system picker so user can choose which tab/window to record
-      this._installSystemPickerHandler()
+      // Auto-select the primary screen (no picker) — the system picker doesn't
+      // reliably show in overlay/transparent windows, causing getDisplayMedia to hang.
+      this._installAutoSelectHandler()
 
       // Tell renderer to call getDisplayMedia
       this.win?.webContents.send('recording:start-capture', {

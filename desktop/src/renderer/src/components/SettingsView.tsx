@@ -452,6 +452,39 @@ function TranscriptionSection({
             API key required for {transcription.provider === 'groq' ? 'Groq' : 'Deepgram'}
           </span>
         )}
+
+        {/* Chunk duration slider */}
+        <div className="space-y-1 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px]" style={{ color: 'var(--text)' }}>
+              Chunk duration
+            </span>
+            <span
+              className="text-[11px] font-mono"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {transcription.chunkDurationSec ?? 2}s
+            </span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            value={transcription.chunkDurationSec ?? 2}
+            onChange={(e) =>
+              onUpdate({ ...transcription, chunkDurationSec: Number(e.target.value) })
+            }
+            className="w-full accent-[var(--accent)] h-1"
+          />
+          <div
+            className="flex justify-between text-[9px]"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <span>1s (fast)</span>
+            <span>10s (accurate)</span>
+          </div>
+        </div>
       </div>
     </Section>
   )

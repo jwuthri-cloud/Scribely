@@ -150,6 +150,16 @@ textarea {
 }
 
 /* ──────────────────────────────────────────────
+   Keyboard shortcut badges
+   ────────────────────────────────────────────── */
+kbd {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 0.625rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+}
+
+/* ──────────────────────────────────────────────
    Drag region helpers
    ────────────────────────────────────────────── */
 .drag-region {

@@ -34,11 +34,14 @@ export interface TranscriptionSettings {
     groq?: string
     deepgram?: string
   }
+  /** Transcription chunk duration in seconds (1–10). Lower = faster but noisier. */
+  chunkDurationSec: number
 }
 
 export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
   provider: 'local-fast',
   apiKeys: {},
+  chunkDurationSec: 2,
 }
 
 export interface AppSettings {

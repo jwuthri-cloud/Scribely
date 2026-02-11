@@ -109,7 +109,7 @@ export interface ElectronAPI {
     callback: (data: { filepath: string }) => void,
   ) => () => void
   onStopCapture: (callback: () => void) => () => void
-  writeRecordingChunk: (payload: { data: ArrayBuffer }) => Promise<void>
+  writeRecordingChunk: (payload: { data: Uint8Array }) => Promise<void>
 
   // Audio Levels (waveform visualization)
   onAudioLevels: (

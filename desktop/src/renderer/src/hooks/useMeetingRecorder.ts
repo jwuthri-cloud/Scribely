@@ -72,7 +72,8 @@ export function useMeetingRecorder() {
           if (e.data.size > 0) {
             try {
               const buf = await e.data.arrayBuffer()
-              await window.electronAPI?.writeRecordingChunk?.({ data: buf })
+              // Send as Uint8Array — raw ArrayBuffer is not serializable over Electron IPC
+              await window.electronAPI?.writeRecordingChunk?.({ data: new Uint8Array(buf) })
             } catch (err) {
               console.error('[recorder] Failed to send chunk:', err)
             }
@@ -127,12 +128,25 @@ export function useMeetingRecorder() {
 
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
+      // Wait for the final ondataavailable + onstop before tearing down the stream,
+      // otherwise the last chunk (and sometimes all chunks) are lost.
+      recorder.onstop = () => {
+        console.log('[recorder] MediaRecorder stopped, cleaning up stream')
+        streamRef.current?.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+      // requestData() flushes any buffered data as a final ondataavailable event
+      try {
+        recorder.requestData()
+      } catch {
+        // ignore if no data buffered
+      }
       recorder.stop()
+    } else {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
     }
     mediaRecorderRef.current = null
-
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
 
     setState((prev) => ({ ...prev, isRecording: false, duration: 0 }))
   }, [])

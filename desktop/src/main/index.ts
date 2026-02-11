@@ -32,6 +32,7 @@ interface TranscriptionSettings {
     groq?: string
     deepgram?: string
   }
+  chunkDurationSec: number
 }
 
 interface AppSettings {
@@ -60,6 +61,7 @@ const store = new Store<AppSettings>({
     transcription: {
       provider: 'local-fast',
       apiKeys: {},
+      chunkDurationSec: 2,
     },
   },
 })

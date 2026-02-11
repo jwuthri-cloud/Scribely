@@ -19,6 +19,7 @@ interface TranscriptionSettings {
     groq?: string
     deepgram?: string
   }
+  chunkDurationSec: number
 }
 
 interface AppSettings {
