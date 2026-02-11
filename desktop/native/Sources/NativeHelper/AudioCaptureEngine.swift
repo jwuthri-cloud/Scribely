@@ -66,13 +66,19 @@ final class AudioCaptureEngine {
                 isMicActive = true
                 log(.info, "Mic capture started (16 kHz mono)")
             } catch {
-                log(.error, "Mic capture failed: \(error)")
+                log(.warn, "Mic capture failed (non-fatal, continuing with system audio): \(error)")
                 onError?("MIC_START_FAILED", error.localizedDescription)
+                // Non-fatal — continue with system audio only
             }
         }
 
         if captureSystem {
             startSystemAudioCapture()
+        }
+
+        // If neither source started, mark as error
+        if !isMicActive && !isSystemAudioActive && !captureSystem {
+            currentState = .error
         }
     }
 
@@ -304,14 +310,26 @@ final class AudioCaptureEngine {
             throw AudioCaptureError.noDisplayFound
         }
 
-        // Configure: capture audio only, exclude app's own audio
-        let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
+        // Configure: capture audio only
+        // Exclude our own NativeHelper process so we don't create a feedback loop,
+        // but do NOT exclude Electron (the parent) — that would silence tab audio
+        // routed through the browser.
+        var excludedApps: [SCRunningApplication] = []
+        let myPID = ProcessInfo.processInfo.processIdentifier
+        for app in content.applications {
+            // Only exclude NativeHelper itself (by PID match)
+            if app.processID == myPID {
+                excludedApps.append(app)
+            }
+        }
+
+        let filter = SCContentFilter(display: display, excludingApplications: excludedApps, exceptingWindows: [])
 
         let config = SCStreamConfiguration()
         config.capturesAudio = true
-        config.excludesCurrentProcessAudio = true
+        config.excludesCurrentProcessAudio = false  // Don't exclude — we need all system audio
         config.sampleRate = Int(Config.systemSampleRate)
-        config.channelCount = 1  // Mono for speech processing
+        config.channelCount = 2  // Request stereo — SCStream often ignores mono requests
 
         // Minimize video overhead — we only want audio
         config.width = 2
@@ -518,7 +536,7 @@ final class SystemAudioStreamOutput: NSObject, SCStreamOutput {
         )
         guard status == kCMBlockBufferNoErr, let ptr = dataPointer else { return }
 
-        // Get audio format to determine sample count
+        // Get audio format to determine sample count and layout
         guard let formatDesc = sampleBuffer.formatDescription,
               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc) else { return }
 
@@ -526,25 +544,43 @@ final class SystemAudioStreamOutput: NSObject, SCStreamOutput {
         guard bytesPerSample == 4 else { return } // Expect Float32
 
         let channelCount = Int(asbd.pointee.mChannelsPerFrame)
-        let sampleCount = totalLength / (bytesPerSample * channelCount)
+        let isInterleaved = (asbd.pointee.mFormatFlags & kAudioFormatFlagIsNonInterleaved) == 0
+        let numFrames = sampleBuffer.numSamples  // number of audio frames
 
         // Convert to Float32 array
         let floatPtr = UnsafeRawPointer(ptr).assumingMemoryBound(to: Float.self)
+        let totalFloats = totalLength / bytesPerSample
 
         if channelCount == 1 {
             // Mono — direct copy
-            let samples = Array(UnsafeBufferPointer(start: floatPtr, count: sampleCount))
+            let count = min(numFrames, totalFloats)
+            let samples = Array(UnsafeBufferPointer(start: floatPtr, count: count))
             onSamples(samples)
-        } else {
-            // Multi-channel — mix down to mono by averaging
-            var monoSamples = [Float](repeating: 0, count: sampleCount)
+        } else if isInterleaved {
+            // Interleaved multi-channel — mix down to mono by averaging
+            let frameCount = min(numFrames, totalFloats / channelCount)
+            var monoSamples = [Float](repeating: 0, count: frameCount)
             let scale = 1.0 / Float(channelCount)
-            for i in 0..<sampleCount {
+            for i in 0..<frameCount {
                 var sum: Float = 0
                 for ch in 0..<channelCount {
                     sum += floatPtr[i * channelCount + ch]
                 }
                 monoSamples[i] = sum * scale
+            }
+            onSamples(monoSamples)
+        } else {
+            // Non-interleaved: channels are stored sequentially in separate planes
+            // Layout: [ch0_frame0, ch0_frame1, ..., ch1_frame0, ch1_frame1, ...]
+            let framesPerChannel = totalFloats / channelCount
+            let frameCount = min(numFrames, framesPerChannel)
+            var monoSamples = [Float](repeating: 0, count: frameCount)
+            let scale = 1.0 / Float(channelCount)
+            for ch in 0..<channelCount {
+                let channelOffset = ch * framesPerChannel
+                for i in 0..<frameCount {
+                    monoSamples[i] += floatPtr[channelOffset + i] * scale
+                }
             }
             onSamples(monoSamples)
         }
