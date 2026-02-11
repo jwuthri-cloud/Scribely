@@ -282,6 +282,8 @@ function initExtensionWsServer(): void {
   extensionWsServer.on('connected', () => {
     console.log('[extension-ws] Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
+    // Start external recording so video chunks are saved to disk
+    screenRecorder.startExternalRecording()
     // Auto-start meeting session when extension connects
     safeSend('extension:auto-start-meeting', {})
   })
@@ -289,6 +291,8 @@ function initExtensionWsServer(): void {
   extensionWsServer.on('disconnected', () => {
     console.log('[extension-ws] Chrome extension disconnected')
     safeSend('extension:status-changed', { connected: false })
+    // Stop external recording
+    screenRecorder.stopExternalRecording()
     // Auto-stop meeting when extension disconnects
     safeSend('extension:auto-stop-meeting', {})
   })
@@ -312,9 +316,11 @@ function initExtensionWsServer(): void {
     return { connected: extensionWsServer.isClientConnected }
   })
 
-  // IPC handler to tell the extension to stop capturing
+  // IPC handler to tell the extension to stop capturing.
+  // Uses stopCaptureClient() which also closes the socket from our side
+  // to guarantee the 'disconnected' event fires even if the client is slow.
   ipcMain.handle('extension:stop-capture', () => {
-    extensionWsServer.sendControl({ type: 'stop-capture' })
+    extensionWsServer.stopCaptureClient()
     return { success: true }
   })
 

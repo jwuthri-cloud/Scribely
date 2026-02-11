@@ -15,24 +15,21 @@ export interface ExtensionWsServerOptions {
   host?: string
 }
 
-export interface ExtensionWsServerEvents {
-  audioFrame: (pcm: Float32Array, sampleRate: number) => void
-  videoChunk: (data: Buffer) => void
-  connected: () => void
-  disconnected: () => void
-  error: (err: Error) => void
-}
-
 /**
  * Local WebSocket server that receives audio/video streams from the
  * Chrome extension's offscreen document.
  *
- * Audio frames arrive as raw PCM Float32 at 16kHz, tagged as "system" source.
- * Video chunks arrive as WebM blobs for screen recording.
+ * IMPORTANT: The popup's connectivity check also briefly opens a WebSocket.
+ * We only consider a client as the "capture client" after it sends a
+ * { type: "hello" } control message. Until then, connections are anonymous
+ * and do NOT trigger the connected/disconnected events.
  */
 export class ExtensionWsServer extends EventEmitter {
   private wss: WebSocketServer | null = null
-  private client: WebSocket | null = null
+  /** The active capture client (sent a hello handshake) */
+  private captureClient: WebSocket | null = null
+  /** Sample rate reported by the capture client (defaults to 16000) */
+  private clientSampleRate: number = 16000
   private _port: number
   private _host: string
 
@@ -46,8 +43,9 @@ export class ExtensionWsServer extends EventEmitter {
     return this._port
   }
 
+  /** True only when the offscreen capture document is connected (sent hello) */
   get isClientConnected(): boolean {
-    return this.client !== null && this.client.readyState === WebSocket.OPEN
+    return this.captureClient !== null && this.captureClient.readyState === WebSocket.OPEN
   }
 
   /** Start listening for extension connections */
@@ -64,31 +62,27 @@ export class ExtensionWsServer extends EventEmitter {
     })
 
     this.wss.on('connection', (ws) => {
-      // Only allow one client at a time
-      if (this.client) {
-        console.log('[ws-server] Rejecting extra connection — one client already connected')
-        ws.close(4000, 'Only one client allowed')
-        return
-      }
-
-      this.client = ws
-      console.log('[ws-server] Chrome extension connected')
-      this.emit('connected')
+      console.log('[ws-server] New WebSocket connection (awaiting hello handshake)')
 
       ws.on('message', (data: Buffer, isBinary: boolean) => {
         if (!isBinary || data.length < 2) return
-        this._handleMessage(data)
+        this._handleMessage(ws, data)
       })
 
       ws.on('close', () => {
-        console.log('[ws-server] Chrome extension disconnected')
-        this.client = null
-        this.emit('disconnected')
+        if (ws === this.captureClient) {
+          console.log('[ws-server] Capture client disconnected')
+          this.captureClient = null
+          this.emit('disconnected')
+        }
+        // Anonymous connections closing is a no-op
       })
 
       ws.on('error', (err) => {
         console.error('[ws-server] Client error:', err)
-        this.emit('error', err)
+        if (ws === this.captureClient) {
+          this.emit('error', err)
+        }
       })
     })
 
@@ -100,9 +94,9 @@ export class ExtensionWsServer extends EventEmitter {
 
   /** Stop the WebSocket server */
   stop(): void {
-    if (this.client) {
-      this.client.close()
-      this.client = null
+    if (this.captureClient) {
+      this.captureClient.close()
+      this.captureClient = null
     }
     if (this.wss) {
       this.wss.close()
@@ -111,36 +105,70 @@ export class ExtensionWsServer extends EventEmitter {
     console.log('[ws-server] Stopped')
   }
 
-  /** Send a control message to the connected extension */
+  /** Send a control message to the connected capture client */
   sendControl(payload: Record<string, unknown>): void {
-    if (!this.client || this.client.readyState !== WebSocket.OPEN) return
+    if (!this.captureClient || this.captureClient.readyState !== WebSocket.OPEN) return
     const json = JSON.stringify(payload)
     const header = Buffer.alloc(1)
     header[0] = MSG_CONTROL
     const body = Buffer.from(json, 'utf-8')
-    this.client.send(Buffer.concat([header, body]))
+    this.captureClient.send(Buffer.concat([header, body]))
+  }
+
+  /**
+   * Send stop-capture to the extension and close the socket from the server
+   * side after a short delay to guarantee the 'disconnected' event fires
+   * even if the client never responds.
+   */
+  stopCaptureClient(): void {
+    if (!this.captureClient || this.captureClient.readyState !== WebSocket.OPEN) {
+      // Client already gone — make sure disconnected fires anyway so
+      // the Electron auto-stop logic doesn't get stuck.
+      if (this.captureClient) {
+        this.captureClient = null
+        this.emit('disconnected')
+      }
+      return
+    }
+
+    this.sendControl({ type: 'stop-capture' })
+    const client = this.captureClient
+
+    // After 500ms, force-close + emit disconnected if the client hasn't
+    // cleanly disconnected yet (e.g. extension crashed or is unresponsive).
+    setTimeout(() => {
+      if (client.readyState !== WebSocket.CLOSED && client.readyState !== WebSocket.CLOSING) {
+        client.close(1000, 'Stop capture requested')
+      }
+      // If captureClient is still set (capture-stopped control msg never arrived),
+      // emit disconnected so Electron doesn't stay in a stale state.
+      if (this.captureClient === client) {
+        this.captureClient = null
+        this.emit('disconnected')
+      }
+    }, 500)
   }
 
   // ── Internal message parsing ─────────────────────────
 
-  private _handleMessage(data: Buffer): void {
+  private _handleMessage(ws: WebSocket, data: Buffer): void {
     const type = data[0]
     const payload = data.subarray(1)
 
     switch (type) {
       case MSG_AUDIO: {
-        // Payload is raw PCM Float32 at 16kHz.
+        if (ws !== this.captureClient) return // ignore audio from non-capture clients
         // Copy into an aligned buffer — the ws Buffer's byteOffset after
         // subarray(1) is not guaranteed to be a multiple of 4.
         const aligned = new ArrayBuffer(payload.byteLength)
         new Uint8Array(aligned).set(payload)
         const pcm = new Float32Array(aligned)
-        this.emit('audioFrame', pcm, 16000)
+        this.emit('audioFrame', pcm, this.clientSampleRate)
         break
       }
 
       case MSG_VIDEO: {
-        // Payload is WebM blob data
+        if (ws !== this.captureClient) return
         this.emit('videoChunk', Buffer.from(payload))
         break
       }
@@ -148,7 +176,7 @@ export class ExtensionWsServer extends EventEmitter {
       case MSG_CONTROL: {
         try {
           const msg = JSON.parse(payload.toString('utf-8'))
-          this._handleControl(msg)
+          this._handleControl(ws, msg)
         } catch {
           console.warn('[ws-server] Invalid control message')
         }
@@ -160,8 +188,30 @@ export class ExtensionWsServer extends EventEmitter {
     }
   }
 
-  private _handleControl(msg: Record<string, unknown>): void {
+  private _handleControl(ws: WebSocket, msg: Record<string, unknown>): void {
     console.log('[ws-server] Control message:', JSON.stringify(msg))
-    // Future: handle start/stop/status messages from extension
+
+    if (msg.type === 'hello' && msg.source === 'chrome-extension') {
+      // This is the real capture client (offscreen document).
+      // Kick any previous capture client.
+      if (this.captureClient && this.captureClient !== ws) {
+        this.captureClient.close(4001, 'Replaced by new capture client')
+        this.captureClient = null
+      }
+      this.captureClient = ws
+      if (typeof msg.sampleRate === 'number' && msg.sampleRate > 0) {
+        this.clientSampleRate = msg.sampleRate
+      } else {
+        this.clientSampleRate = 16000
+      }
+      console.log(`[ws-server] ✓ Capture client identified (sampleRate=${this.clientSampleRate}) — extension capture active`)
+      this.emit('connected')
+    }
+
+    if (msg.type === 'capture-stopped' && ws === this.captureClient) {
+      console.log('[ws-server] Capture client signaled stop')
+      this.captureClient = null
+      this.emit('disconnected')
+    }
   }
 }

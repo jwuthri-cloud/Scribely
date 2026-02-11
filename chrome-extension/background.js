@@ -122,6 +122,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       isCapturing = false
       capturedTabId = null
       console.log('[bg] Capture stopped by offscreen doc')
+      // Close the offscreen document so Chrome clears the tab capture
+      // indicator.  This is essential for Electron-initiated stops where
+      // the background's own stopCapture() is never called.
+      closeOffscreenDocument().catch(() => {})
       return false
 
     case 'capture-error':

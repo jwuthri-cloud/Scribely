@@ -202,6 +202,55 @@ export class ScreenRecorder {
     return { filepath: fp }
   }
 
+  /**
+   * Start recording for external sources (e.g. Chrome extension) without
+   * showing the source picker or touching the renderer.  Creates the output
+   * file and sets isRecording so writeExternalChunk() accepts data.
+   */
+  async startExternalRecording(): Promise<{ success: boolean; filepath?: string; error?: string }> {
+    if (this.isRecording) {
+      return { success: true, filepath: this.filepath! }
+    }
+
+    try {
+      const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+      await mkdir(dir, { recursive: true })
+
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .replace('T', '_')
+        .slice(0, 19)
+      const filename = `meeting-${timestamp}.webm`
+      this.filepath = join(dir, filename)
+      this.chunkCount = 0
+
+      await writeFile(this.filepath, Buffer.alloc(0))
+      console.log(`[screen-recorder] External recording file created: ${this.filepath}`)
+
+      this.isRecording = true
+      return { success: true, filepath: this.filepath }
+    } catch (err) {
+      console.error('[screen-recorder] Failed to start external recording:', err)
+      return { success: false, error: String(err) }
+    }
+  }
+
+  /**
+   * Stop an external recording without sending stop-capture to the renderer.
+   */
+  async stopExternalRecording(): Promise<{ filepath: string | null }> {
+    if (!this.isRecording) {
+      return { filepath: this.filepath }
+    }
+
+    console.log(`[screen-recorder] Stopping external recording (${this.chunkCount} chunks written)`)
+    this.isRecording = false
+
+    const fp = this.filepath
+    return { filepath: fp }
+  }
+
   getFilepath(): string | null {
     return this.filepath
   }

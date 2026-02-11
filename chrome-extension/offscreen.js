@@ -24,6 +24,8 @@ let audioContext = null
 let workletNode = null
 let mediaRecorder = null
 let ws = null
+let isStopping = false
+let playbackTracks = null // cloned tracks used for AudioContext playback
 
 // ── WebSocket connection ──────────────────────────────
 function connectWebSocket(port) {
@@ -33,8 +35,8 @@ function connectWebSocket(port) {
 
     socket.onopen = () => {
       console.log('[offscreen] WebSocket connected')
-      // Send hello control message
-      sendControl(socket, { type: 'hello', source: 'chrome-extension' })
+      // Hello is sent from startCapture() after AudioContext is created,
+      // so we can include the actual sampleRate.
       resolve(socket)
     }
 
@@ -61,6 +63,11 @@ function connectWebSocket(port) {
 
     socket.onclose = () => {
       console.log('[offscreen] WebSocket closed')
+      // If Electron quits or the WS drops, stop capturing
+      if (mediaStream) {
+        console.log('[offscreen] WS lost — stopping capture')
+        stopCapture()
+      }
     }
 
     // Timeout after 5 seconds
@@ -106,6 +113,7 @@ function sendVideoChunk(socket, data) {
 
 // ── Start capture ─────────────────────────────────────
 async function startCapture(streamId, wsPort) {
+  isStopping = false // reset guard for new session
   try {
     // 1. Get the media stream from the tab capture stream ID
     mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -134,22 +142,27 @@ async function startCapture(streamId, wsPort) {
     // 2. Connect to Electron's WebSocket server
     ws = await connectWebSocket(wsPort)
 
-    // 3. Play the tab audio back to the user's speakers so they still hear it.
-    //    We clone the audio tracks so the playback is independent of the capture graph.
+    // 3. Set up AudioWorklet for PCM extraction + low-latency playback
+    //    (playback goes through the AudioContext, NOT an <audio> element —
+    //    Chrome's <audio> in offscreen docs buffers aggressively, adding
+    //    seconds of delay.)
     const audioTracks = mediaStream.getAudioTracks()
-    if (audioTracks.length > 0) {
-      const playbackStream = new MediaStream(audioTracks.map(t => t.clone()))
-      const audioEl = document.getElementById('tabAudioPlayback')
-      audioEl.srcObject = playbackStream
-      audioEl.play().catch(() => {})
-    }
-
-    // 4. Set up AudioWorklet for PCM extraction at 16kHz
+    let actualSampleRate = TARGET_SAMPLE_RATE
     if (audioTracks.length > 0) {
       await setupAudioCapture(mediaStream)
+      if (audioContext) {
+        actualSampleRate = audioContext.sampleRate
+      }
     }
 
-    // 4. Set up MediaRecorder for video chunks
+    // 5. Send hello with the real sample rate so Electron knows how to resample
+    sendControl(ws, {
+      type: 'hello',
+      source: 'chrome-extension',
+      sampleRate: actualSampleRate,
+    })
+
+    // 6. Set up MediaRecorder for video chunks
     const videoTracks = mediaStream.getVideoTracks()
     if (videoTracks.length > 0) {
       setupVideoCapture(mediaStream)
@@ -172,16 +185,15 @@ async function startCapture(streamId, wsPort) {
   }
 }
 
-// ── Audio capture via AudioWorklet ────────────────────
+// ── Audio capture via AudioWorklet + low-latency playback ──
 async function setupAudioCapture(stream) {
   const audioOnly = new MediaStream(stream.getAudioTracks())
 
-  // Try to create context at 16kHz directly; fall back to native rate + resampling
-  try {
-    audioContext = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE })
-  } catch {
-    audioContext = new AudioContext()
-  }
+  // Always use native sample rate (typically 48kHz).  Forcing 16kHz makes
+  // Chrome resample inside the capture chain which adds latency.
+  // Electron's AudioPipeline handles the 48kHz → 16kHz resample instead.
+  // 'interactive' latencyHint asks for the smallest buffer size.
+  audioContext = new AudioContext({ latencyHint: 'interactive' })
 
   if (audioContext.state === 'suspended') {
     await audioContext.resume()
@@ -189,6 +201,7 @@ async function setupAudioCapture(stream) {
 
   await audioContext.audioWorklet.addModule('pcm-worklet.js')
 
+  // ── PCM extraction chain (silent) ──
   const source = audioContext.createMediaStreamSource(audioOnly)
   workletNode = new AudioWorkletNode(audioContext, 'pcm-extractor')
 
@@ -199,25 +212,35 @@ async function setupAudioCapture(stream) {
   }
 
   source.connect(workletNode)
-  // Connect to destination to keep the graph alive (output is silent)
   const silencer = audioContext.createGain()
   silencer.gain.value = 0
   workletNode.connect(silencer)
   silencer.connect(audioContext.destination)
 
-  console.log(`[offscreen] Audio capture ready (rate=${audioContext.sampleRate})`)
+  // ── Playback chain (audible) ──
+  // Route cloned audio tracks through the AudioContext's destination so the
+  // user still hears the tab audio.  This is much lower latency than an
+  // <audio> element (which Chrome buffers aggressively in offscreen docs).
+  playbackTracks = stream.getAudioTracks().map(t => t.clone())
+  const playbackStream = new MediaStream(playbackTracks)
+  const playbackSource = audioContext.createMediaStreamSource(playbackStream)
+  playbackSource.connect(audioContext.destination)
+
+  console.log(`[offscreen] Audio capture + playback ready (rate=${audioContext.sampleRate})`)
 }
 
 // ── Video capture via MediaRecorder ───────────────────
 function setupVideoCapture(stream) {
-  const videoOnly = new MediaStream(stream.getVideoTracks())
+  // Use the full stream (audio + video) so the saved .webm includes sound.
+  // Audio also goes through the AudioWorklet for real-time transcription —
+  // both consumers can read from the same tracks simultaneously.
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+    ? 'video/webm;codecs=vp9,opus'
+    : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+      ? 'video/webm;codecs=vp8,opus'
+      : 'video/webm;codecs=vp8'
 
-  // Pick the best available codec
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-    ? 'video/webm;codecs=vp9'
-    : 'video/webm;codecs=vp8'
-
-  mediaRecorder = new MediaRecorder(videoOnly, {
+  mediaRecorder = new MediaRecorder(stream, {
     mimeType,
     videoBitsPerSecond: 2_500_000, // 2.5 Mbps
   })
@@ -240,6 +263,9 @@ function setupVideoCapture(stream) {
 
 // ── Stop capture ──────────────────────────────────────
 function stopCapture() {
+  if (isStopping) return
+  isStopping = true
+
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
@@ -255,11 +281,10 @@ function stopCapture() {
     audioContext = null
   }
 
-  // Stop audio playback
-  const audioEl = document.getElementById('tabAudioPlayback')
-  if (audioEl) {
-    audioEl.pause()
-    audioEl.srcObject = null
+  // Stop cloned playback tracks
+  if (playbackTracks) {
+    playbackTracks.forEach(t => t.stop())
+    playbackTracks = null
   }
 
   if (mediaStream) {
@@ -275,6 +300,9 @@ function stopCapture() {
 
   chrome.runtime.sendMessage({ type: 'capture-stopped' })
   console.log('[offscreen] Capture stopped — all resources cleaned up')
+  // NOTE: isStopping stays true to block late async callbacks (e.g.
+  // track "ended" events fired after track.stop()).  It is reset at the
+  // top of startCapture() when a new session begins.
 }
 
 // ── Listen for messages from background ───────────────
