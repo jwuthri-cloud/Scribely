@@ -18,13 +18,16 @@ interface SourceInfo {
  * 3. Renderer calls recording:select-source with the chosen ID
  * 4. Main installs a handler that auto-selects that source, tells renderer to getDisplayMedia
  * 5. Renderer MediaRecorder sends chunks to main for incremental disk writes
+ *
+ * Note: Electron does not support Chromium's built-in tab picker — getDisplayMedia always
+ * goes through setDisplayMediaRequestHandler. We use desktopCapturer.getSources to list
+ * all screens and windows (which includes browser windows with their tab titles).
  */
 export class ScreenRecorder {
   private win: BrowserWindow | null = null
   private isRecording = false
   private filepath: string | null = null
   private chunkCount = 0
-  private selectedSourceId: string | null = null
 
   constructor() {
     this._registerIPC()
@@ -36,7 +39,6 @@ export class ScreenRecorder {
 
   /**
    * Install handler that auto-selects a specific source by ID.
-   * Used after the user picks a source from our custom picker.
    */
   private _installSourceHandler(sourceId: string): void {
     session.defaultSession.setDisplayMediaRequestHandler(
@@ -62,7 +64,7 @@ export class ScreenRecorder {
   }
 
   /**
-   * Install a no-op handler for when we're not recording.
+   * Default handler for non-recording display media requests.
    */
   _installDefaultHandler(): void {
     session.defaultSession.setDisplayMediaRequestHandler(
@@ -75,7 +77,7 @@ export class ScreenRecorder {
             callback({})
           }
         } catch (err) {
-          console.error('[display-media] Default handler error:', err)
+          console.error('[screen-recorder] Default handler error:', err)
           callback({})
         }
       },
@@ -136,7 +138,7 @@ export class ScreenRecorder {
       await writeFile(this.filepath, Buffer.alloc(0))
       console.log(`[screen-recorder] Recording file created: ${this.filepath}`)
 
-      // Get available sources for the picker
+      // Get available sources for the picker (screens + windows including browser tabs)
       const rawSources = await desktopCapturer.getSources({
         types: ['screen', 'window'],
         thumbnailSize: { width: 320, height: 180 },
@@ -168,7 +170,6 @@ export class ScreenRecorder {
    * Step 2: User picked a source — install the handler and tell renderer to getDisplayMedia.
    */
   private async _onSourceSelected(sourceId: string): Promise<void> {
-    this.selectedSourceId = sourceId
     console.log(`[screen-recorder] User selected source: ${sourceId}`)
 
     // Install handler that will auto-select this source when getDisplayMedia is called

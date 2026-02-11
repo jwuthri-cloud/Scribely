@@ -36,7 +36,6 @@ export function useMeetingRecorder() {
 
   // Picker state
   const [pickerSources, setPickerSources] = useState<SourceInfo[] | null>(null)
-  const [pickerFilepath, setPickerFilepath] = useState<string | null>(null)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -48,7 +47,6 @@ export function useMeetingRecorder() {
     // Main sends available sources for the picker
     const unsubPicker = window.electronAPI?.onShowPicker?.((data) => {
       console.log(`[recorder] Got show-picker signal (${data.sources.length} sources)`)
-      setPickerFilepath(data.filepath)
       setPickerSources(data.sources)
     })
 
@@ -180,14 +178,12 @@ export function useMeetingRecorder() {
   /** User picked a source from the picker */
   const selectSource = useCallback(async (sourceId: string) => {
     setPickerSources(null)
-    setPickerFilepath(null)
     await window.electronAPI?.selectRecordingSource?.(sourceId)
   }, [])
 
   /** User dismissed the picker */
   const dismissPicker = useCallback(() => {
     setPickerSources(null)
-    setPickerFilepath(null)
   }, [])
 
   const stopRecording = useCallback(async (): Promise<string | null> => {
