@@ -65,11 +65,11 @@ ipcServer.onControlMessage = { controlMsg in
         log(.info, "StartCapture — mic: \(start.captureMic), system: \(start.captureSystem)")
         audioEngine.start(captureMic: start.captureMic, captureSystem: start.captureSystem)
 
-        // Send status update
+        // Send status update — use actual engine state (mic may have failed to start)
         var status = Assistme_StatusUpdate()
-        status.state = "capturing"
-        status.micActive = start.captureMic
-        status.systemAudioActive = start.captureSystem
+        status.state = audioEngine.currentState.rawValue
+        status.micActive = audioEngine.isMicActive
+        status.systemAudioActive = start.captureSystem  // async, will update via separate status
         var msg = Assistme_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
