@@ -91,21 +91,12 @@ export function useAudioCapture() {
   }, [])
 
   // ── Stream a single audio frame to main process ────────
-  // For mic frames, apply an energy gate: compute RMS and drop frames
-  // below a noise-floor threshold.  This prevents ambient silence from
-  // reaching the VAD/Whisper pipeline, which would otherwise hallucinate
-  // phrases like "Thank you. Bye." on near-silent input.
-  const MIC_RMS_GATE = 0.005 // ~-46 dBFS — well above mic self-noise
-
+  // All frames (including silent ones) are sent so the WAV recorder can
+  // write continuous audio that stays in sync with the video.  The energy
+  // gate that prevents Whisper hallucinations is applied in the main
+  // process pipeline instead (before VAD, not here).
   const streamFrame = useCallback(
     (input: Float32Array, source: 'mic' | 'system') => {
-      if (source === 'mic') {
-        let sumSq = 0
-        for (let i = 0; i < input.length; i++) sumSq += input[i] * input[i]
-        const rms = Math.sqrt(sumSq / input.length)
-        if (rms < MIC_RMS_GATE) return // drop silent frame
-      }
-
       const copy = new Float32Array(input.length)
       copy.set(input)
       try {

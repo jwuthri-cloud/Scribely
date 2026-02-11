@@ -599,6 +599,17 @@ export class AudioPipeline {
         // Send audio levels to renderer for waveform visualization
         this._updateAudioLevel(payload.source, pcm)
 
+        // Energy gate for mic: drop near-silent frames before they reach
+        // VAD/Whisper.  Without this, ambient noise triggers hallucinations
+        // like "Thank you. Bye."  (Gate moved here from the renderer so
+        // the WAV recorder still gets continuous audio for sync.)
+        if (payload.source === 'mic') {
+          let sumSq = 0
+          for (let i = 0; i < pcm.length; i++) sumSq += pcm[i] * pcm[i]
+          const rms = Math.sqrt(sumSq / pcm.length)
+          if (rms < 0.005) return // ~-46 dBFS
+        }
+
         const vad = payload.source === 'mic' ? this.micVad : this.tabVad
 
         if (vad && this.vadReady) {

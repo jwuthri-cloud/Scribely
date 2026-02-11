@@ -7,28 +7,30 @@
  * - MediaRecorder (for WebM video)
  * - WebSocket (to stream data to the Electron app)
  *
- * Binary protocol to Electron WS server:
- *   0x01 + Float32Array → audio PCM frame (16kHz)
- *   0x02 + Uint8Array   → video WebM chunk
- *   0x03 + JSON string   → control message
+ * Binary protocol (bidirectional with Electron WS server):
+ *   0x01 + Float32Array → audio PCM frame (16kHz)           [offscreen → Electron]
+ *   0x02 + Uint8Array   → video WebM chunk                  [offscreen → Electron]
+ *   0x03 + JSON string   → control message                  [both directions]
+ *   0x04 + Float32Array → mic PCM (16kHz, from Electron)    [Electron → offscreen]
  */
 
 const MSG_AUDIO = 0x01
 const MSG_VIDEO = 0x02
 const MSG_CONTROL = 0x03
+const MSG_MIC = 0x04
 
 const TARGET_SAMPLE_RATE = 16000
 
 let mediaStream = null
-let micStream = null      // local mic MediaStream (for recording mix)
-let audioContext = null   // 16kHz context for PCM extraction (high-quality Chrome resampler)
-let playbackCtx = null    // native-rate context for low-latency audio playback
-let mixerCtx = null       // native-rate context for mixing tab + mic audio into MediaRecorder
+let audioContext = null      // 16kHz context for PCM extraction (high-quality Chrome resampler)
+let playbackCtx = null       // native-rate context for low-latency audio playback
+let mixerCtx = null          // native-rate context for mixing tab + mic audio into MediaRecorder
+let micInjectorNode = null   // AudioWorklet node that receives mic PCM from Electron via WS
 let workletNode = null
 let mediaRecorder = null
 let ws = null
 let isStopping = false
-let playbackTracks = null // cloned tracks used for AudioContext playback
+let playbackTracks = null    // cloned tracks used for AudioContext playback
 
 // ── WebSocket connection ──────────────────────────────
 function connectWebSocket(port) {
@@ -49,10 +51,11 @@ function connectWebSocket(port) {
     }
 
     socket.onmessage = (event) => {
-      // Handle control messages from Electron (e.g. stop-capture)
       if (!(event.data instanceof ArrayBuffer) || event.data.byteLength < 2) return
       const view = new Uint8Array(event.data)
+
       if (view[0] === MSG_CONTROL) {
+        // Handle control messages from Electron (e.g. stop-capture)
         try {
           const json = new TextDecoder().decode(view.slice(1))
           const msg = JSON.parse(json)
@@ -61,6 +64,12 @@ function connectWebSocket(port) {
             stopCapture()
           }
         } catch { /* ignore parse errors */ }
+      } else if (view[0] === MSG_MIC) {
+        // Mic PCM forwarded from Electron — inject into the recording mixer
+        if (micInjectorNode) {
+          const pcmBuf = event.data.slice(1) // new aligned ArrayBuffer
+          micInjectorNode.port.postMessage(pcmBuf, [pcmBuf])
+        }
       }
     }
 
@@ -158,31 +167,20 @@ async function startCapture(streamId, wsPort) {
       }
     }
 
-    // 4. Capture local mic so the user's voice is in the .webm recording.
-    //    Falls back gracefully — recording just won't have mic audio.
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      console.log(`[offscreen] Mic captured for recording mix`)
-    } catch (err) {
-      console.warn('[offscreen] Mic capture failed — recording will not include mic:', err.message)
-      micStream = null
-    }
-
-    // 5. Send hello with the real sample rate so Electron knows how to resample
+    // 4. Send hello with the real sample rate so Electron knows how to resample
     sendControl(ws, {
       type: 'hello',
       source: 'chrome-extension',
       sampleRate: actualSampleRate,
     })
 
-    // 6. Set up MediaRecorder for video chunks.
-    //    If we have a mic, mix tab audio + mic audio into one stream
-    //    so the .webm file contains both.
+    // 5. Set up MediaRecorder for video chunks.
+    //    Always create a mixer so Electron can forward mic PCM via WS and
+    //    we mix it into the recording.  (The offscreen doc can't capture the
+    //    mic itself — it's a hidden context with no permission prompt.)
     const videoTracks = mediaStream.getVideoTracks()
     if (videoTracks.length > 0) {
-      const recordingStream = micStream
-        ? createMixedRecordingStream(mediaStream, micStream)
-        : mediaStream
+      const recordingStream = await createMixedRecordingStream(mediaStream)
       setupVideoCapture(recordingStream)
     }
 
@@ -268,17 +266,38 @@ async function setupAudioCapture(stream) {
 }
 
 // ── Mix tab audio + mic audio for recording ───────────
-function createMixedRecordingStream(tabStream, micStream) {
+//
+// Mic audio arrives from Electron via WebSocket (MSG_MIC) because the
+// offscreen document is hidden and cannot show a mic permission prompt.
+// The PCM injector AudioWorklet converts the incoming 16 kHz PCM into
+// audio at the mixer's native rate (48 kHz) using linear interpolation.
+//
+async function createMixedRecordingStream(tabStream) {
   mixerCtx = new AudioContext()
+  if (mixerCtx.state === 'suspended') {
+    await mixerCtx.resume()
+  }
 
+  // Tab audio source
   const tabSource = mixerCtx.createMediaStreamSource(
     new MediaStream(tabStream.getAudioTracks())
   )
-  const micSource = mixerCtx.createMediaStreamSource(micStream)
   const dest = mixerCtx.createMediaStreamDestination()
-
   tabSource.connect(dest)
-  micSource.connect(dest)
+
+  // Mic injector — receives PCM from Electron via WebSocket
+  await mixerCtx.audioWorklet.addModule('pcm-injector-worklet.js')
+  micInjectorNode = new AudioWorkletNode(mixerCtx, 'pcm-injector', {
+    processorOptions: { sourceRate: TARGET_SAMPLE_RATE }, // 16 kHz
+  })
+  micInjectorNode.connect(dest)
+
+  // Keep the AudioContext alive by also connecting to the main destination
+  // (silenced).  Without this, Chrome may aggressively suspend the context.
+  const silencer = mixerCtx.createGain()
+  silencer.gain.value = 0
+  tabSource.connect(silencer)
+  silencer.connect(mixerCtx.destination)
 
   // Combine: mixed audio (tab + mic) + tab video
   const mixed = new MediaStream([
@@ -287,8 +306,8 @@ function createMixedRecordingStream(tabStream, micStream) {
   ])
 
   console.log(
-    `[offscreen] Recording mix: ${mixed.getAudioTracks().length} audio + ` +
-    `${mixed.getVideoTracks().length} video tracks`
+    `[offscreen] Recording mixer ready (${mixerCtx.sampleRate}Hz): ` +
+    `${mixed.getAudioTracks().length} audio + ${mixed.getVideoTracks().length} video tracks`
   )
   return mixed
 }
@@ -350,14 +369,14 @@ function stopCapture() {
     playbackCtx = null
   }
 
+  if (micInjectorNode) {
+    micInjectorNode.disconnect()
+    micInjectorNode = null
+  }
+
   if (mixerCtx) {
     mixerCtx.close().catch(() => {})
     mixerCtx = null
-  }
-
-  if (micStream) {
-    micStream.getTracks().forEach(t => t.stop())
-    micStream = null
   }
 
   // Stop cloned playback tracks

@@ -9,6 +9,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 const MSG_AUDIO = 0x01
 const MSG_VIDEO = 0x02
 const MSG_CONTROL = 0x03
+const MSG_MIC = 0x04
 
 export interface ExtensionWsServerOptions {
   port?: number
@@ -103,6 +104,19 @@ export class ExtensionWsServer extends EventEmitter {
       this.wss = null
     }
     console.log('[ws-server] Stopped')
+  }
+
+  /**
+   * Forward mic PCM from Electron back to the offscreen document so it can
+   * be mixed into the WebM recording.  The offscreen doc cannot capture the
+   * mic itself (hidden context, no permission prompt), so Electron relays it.
+   */
+  sendMicAudio(pcm: Float32Array): void {
+    if (!this.captureClient || this.captureClient.readyState !== WebSocket.OPEN) return
+    const header = Buffer.alloc(1)
+    header[0] = MSG_MIC
+    const body = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength)
+    this.captureClient.send(Buffer.concat([header, body]))
   }
 
   /** Send a control message to the connected capture client */

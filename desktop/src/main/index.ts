@@ -307,6 +307,25 @@ function initExtensionWsServer(): void {
     screenRecorder.writeExternalChunk(data)
   })
 
+  // Forward mic audio from the renderer back to the Chrome extension so the
+  // offscreen document can mix it into the WebM recording.  Also write mic
+  // PCM to a companion WAV file for manual mixing later.
+  ipcMain.on(
+    'meeting:audio-frame',
+    (
+      _event: Electron.IpcMainEvent,
+      payload: { source: string; pcm: ArrayBuffer; sampleRate: number; timestamp: number },
+    ) => {
+      if (payload.source === 'mic' && extensionWsServer.isClientConnected) {
+        const pcm = new Float32Array(payload.pcm)
+        if (pcm.length > 0) {
+          extensionWsServer.sendMicAudio(pcm)
+          screenRecorder.writeMicPcm(pcm)
+        }
+      }
+    },
+  )
+
   extensionWsServer.on('error', (err: Error) => {
     console.error('[extension-ws] Error:', err)
   })
