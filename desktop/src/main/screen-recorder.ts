@@ -121,8 +121,8 @@ export class ScreenRecorder {
       await writeFile(this.filepath, Buffer.alloc(0))
       console.log(`[screen-recorder] Recording file created: ${this.filepath}`)
 
-      // Swap to auto-select handler so getDisplayMedia skips the picker
-      this._installAutoSelectHandler()
+      // Keep the system picker so user can choose which tab/window to record
+      this._installSystemPickerHandler()
 
       // Tell renderer to call getDisplayMedia
       this.win?.webContents.send('recording:start-capture', {

@@ -94,7 +94,7 @@ export function Overlay() {
       return
     }
 
-    // Start screen recording via main process (desktopCapturer, no picker needed)
+    // Start screen recording via main process (system picker will ask user which tab)
     await recorder.startRecording()
   }, [capture, transcript, recorder])
 

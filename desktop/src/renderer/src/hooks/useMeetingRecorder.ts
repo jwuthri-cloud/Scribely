@@ -36,7 +36,7 @@ export function useMeetingRecorder() {
       console.log('[recorder] Got start-capture signal')
       try {
         // getDisplayMedia triggers setDisplayMediaRequestHandler in main
-        // which auto-selects the primary screen — no picker shown
+        // which shows the system picker so user can choose which tab/window to record
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
