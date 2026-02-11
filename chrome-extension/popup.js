@@ -14,6 +14,9 @@ const tabName = document.getElementById('tabName')
 const errorBox = document.getElementById('errorBox')
 const captureBtn = document.getElementById('captureBtn')
 const captureBtnText = document.getElementById('captureBtnText')
+const micBar = document.getElementById('micBar')
+const micStatus = document.getElementById('micStatus')
+const micGrantLink = document.getElementById('micGrantLink')
 
 let currentTabId = null
 let isCapturing = false
@@ -40,8 +43,42 @@ async function init() {
   // Check WebSocket connectivity
   await checkDesktopConnection()
 
+  // Check mic permission
+  await checkMicPermission()
+
   captureBtn.disabled = false
 }
+
+// ── Check microphone permission status ────────────────
+async function checkMicPermission() {
+  micBar.style.display = 'flex'
+  try {
+    const result = await navigator.permissions.query({ name: 'microphone' })
+    updateMicStatus(result.state)
+    result.addEventListener('change', () => updateMicStatus(result.state))
+  } catch {
+    micStatus.textContent = 'Unknown'
+    micStatus.className = 'value'
+    micGrantLink.style.display = 'inline'
+  }
+}
+
+function updateMicStatus(state) {
+  if (state === 'granted') {
+    micStatus.textContent = 'Enabled'
+    micStatus.className = 'value ok'
+    micGrantLink.style.display = 'none'
+  } else {
+    micStatus.textContent = state === 'denied' ? 'Denied' : 'Not granted'
+    micStatus.className = 'value err'
+    micGrantLink.style.display = 'inline'
+  }
+}
+
+micGrantLink.addEventListener('click', (e) => {
+  e.preventDefault()
+  chrome.tabs.create({ url: 'permissions.html' })
+})
 
 // ── Check if Electron WS server is reachable ──────────
 async function checkDesktopConnection() {

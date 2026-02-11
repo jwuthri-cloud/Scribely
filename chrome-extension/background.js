@@ -134,6 +134,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       capturedTabId = null
       return false
 
+    case 'mic-permission-granted':
+      console.log('[bg] Mic permission granted via permissions page')
+      return false
+
     default:
       return false
   }

@@ -22,10 +22,11 @@ const MSG_MIC = 0x04
 const TARGET_SAMPLE_RATE = 16000
 
 let mediaStream = null
+let micStream = null         // local mic MediaStream (direct capture if permission granted)
 let audioContext = null      // 16kHz context for PCM extraction (high-quality Chrome resampler)
 let playbackCtx = null       // native-rate context for low-latency audio playback
 let mixerCtx = null          // native-rate context for mixing tab + mic audio into MediaRecorder
-let micInjectorNode = null   // AudioWorklet node that receives mic PCM from Electron via WS
+let micInjectorNode = null   // AudioWorklet node — WS fallback when direct mic capture fails
 let workletNode = null
 let mediaRecorder = null
 let ws = null
@@ -167,20 +168,30 @@ async function startCapture(streamId, wsPort) {
       }
     }
 
-    // 4. Send hello with the real sample rate so Electron knows how to resample
+    // 4. Try to capture local mic directly (works after user grants
+    //    permission via the permissions page — same extension origin).
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      console.log('[offscreen] Direct mic capture OK')
+    } catch (err) {
+      console.warn('[offscreen] Direct mic capture failed (' + err.name + ') — will use WS fallback')
+      micStream = null
+    }
+
+    // 5. Send hello with the real sample rate so Electron knows how to resample
     sendControl(ws, {
       type: 'hello',
       source: 'chrome-extension',
       sampleRate: actualSampleRate,
     })
 
-    // 5. Set up MediaRecorder for video chunks.
-    //    Always create a mixer so Electron can forward mic PCM via WS and
-    //    we mix it into the recording.  (The offscreen doc can't capture the
-    //    mic itself — it's a hidden context with no permission prompt.)
+    // 6. Set up MediaRecorder with mixed audio (tab + mic) + tab video.
+    //    If direct mic capture worked, mix it in directly.
+    //    Otherwise, set up the WS-based PCM injector as fallback so
+    //    Electron can relay mic audio back to us.
     const videoTracks = mediaStream.getVideoTracks()
     if (videoTracks.length > 0) {
-      const recordingStream = await createMixedRecordingStream(mediaStream)
+      const recordingStream = await createMixedRecordingStream(mediaStream, micStream)
       setupVideoCapture(recordingStream)
     }
 
@@ -267,12 +278,11 @@ async function setupAudioCapture(stream) {
 
 // ── Mix tab audio + mic audio for recording ───────────
 //
-// Mic audio arrives from Electron via WebSocket (MSG_MIC) because the
-// offscreen document is hidden and cannot show a mic permission prompt.
-// The PCM injector AudioWorklet converts the incoming 16 kHz PCM into
-// audio at the mixer's native rate (48 kHz) using linear interpolation.
+// Two paths for mic audio:
+//   1. Direct: getUserMedia succeeds (permission pre-granted via permissions page)
+//   2. Fallback: Electron relays mic PCM over WebSocket → AudioWorklet injector
 //
-async function createMixedRecordingStream(tabStream) {
+async function createMixedRecordingStream(tabStream, localMicStream) {
   mixerCtx = new AudioContext()
   if (mixerCtx.state === 'suspended') {
     await mixerCtx.resume()
@@ -285,12 +295,20 @@ async function createMixedRecordingStream(tabStream) {
   const dest = mixerCtx.createMediaStreamDestination()
   tabSource.connect(dest)
 
-  // Mic injector — receives PCM from Electron via WebSocket
-  await mixerCtx.audioWorklet.addModule('pcm-injector-worklet.js')
-  micInjectorNode = new AudioWorkletNode(mixerCtx, 'pcm-injector', {
-    processorOptions: { sourceRate: TARGET_SAMPLE_RATE }, // 16 kHz
-  })
-  micInjectorNode.connect(dest)
+  if (localMicStream) {
+    // ── Direct mic path (preferred) ──────────────────────
+    const micSource = mixerCtx.createMediaStreamSource(localMicStream)
+    micSource.connect(dest)
+    console.log('[offscreen] Mixer: tab audio + DIRECT mic')
+  } else {
+    // ── WS fallback path ─────────────────────────────────
+    await mixerCtx.audioWorklet.addModule('pcm-injector-worklet.js')
+    micInjectorNode = new AudioWorkletNode(mixerCtx, 'pcm-injector', {
+      processorOptions: { sourceRate: TARGET_SAMPLE_RATE }, // 16 kHz
+    })
+    micInjectorNode.connect(dest)
+    console.log('[offscreen] Mixer: tab audio + WS mic injector (fallback)')
+  }
 
   // Keep the AudioContext alive by also connecting to the main destination
   // (silenced).  Without this, Chrome may aggressively suspend the context.
@@ -367,6 +385,12 @@ function stopCapture() {
   if (playbackCtx) {
     playbackCtx.close().catch(() => {})
     playbackCtx = null
+  }
+
+  // Stop local mic stream (direct capture path)
+  if (micStream) {
+    micStream.getTracks().forEach(t => t.stop())
+    micStream = null
   }
 
   if (micInjectorNode) {

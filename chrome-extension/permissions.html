@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AssistMe — Microphone Access</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 420px;
+      text-align: center;
+    }
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 20px; color: #fff; margin-bottom: 8px; }
+    p { font-size: 14px; color: #aaa; margin-bottom: 24px; line-height: 1.5; }
+    .btn {
+      padding: 12px 32px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #4caf50;
+      color: #fff;
+      transition: all 0.15s ease;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status {
+      margin-top: 16px;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    .ok { color: #4caf50; }
+    .err { color: #f44336; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🎙</div>
+    <h1>Microphone Access</h1>
+    <p>
+      AssistMe needs microphone permission to include your voice
+      in the recorded video. This is a one-time request.
+    </p>
+    <button id="grantBtn" class="btn">Grant Microphone Access</button>
+    <div id="status"></div>
+  </div>
+  <script src="permissions.js"></script>
+</body>
+</html>
