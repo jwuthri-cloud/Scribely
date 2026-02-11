@@ -13,11 +13,20 @@ interface HotkeyConfig {
   resetChat: string
 }
 
+interface TranscriptionSettings {
+  provider: string
+  apiKeys: {
+    groq?: string
+    deepgram?: string
+  }
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  transcription: TranscriptionSettings
 }
 
 /**

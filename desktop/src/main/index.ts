@@ -109,6 +109,9 @@ function createWindow(): void {
     },
   })
 
+  // Apply saved window opacity
+  mainWindow.setOpacity(store.get('windowOpacity'))
+
   // Apply macOS screen-sharing invisibility
   applyInvisibility(mainWindow)
 
@@ -181,9 +184,14 @@ function registerIpcHandlers(): void {
 
     const newHotkeys = JSON.stringify(store.get('hotkeys'))
 
-    // Re-register hotkeys if they changed
-    if (oldHotkeys !== newHotkeys && mainWindow) {
+    // Re-register hotkeys if hotkeys or moveStepPx changed
+    if ((oldHotkeys !== newHotkeys || partial.moveStepPx !== undefined) && mainWindow) {
       reregisterHotkeys(mainWindow, store)
+    }
+
+    // Apply window opacity immediately
+    if (partial.windowOpacity !== undefined && mainWindow) {
+      mainWindow.setOpacity(store.get('windowOpacity'))
     }
 
     // Notify audio pipeline if transcription settings changed
