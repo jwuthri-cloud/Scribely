@@ -77,6 +77,9 @@ export function Overlay() {
 
   // ── Meeting start/stop ────────────────────────────────
   const handleStartMeeting = useCallback(async () => {
+    // Guard against double-start (e.g. manual click + auto-start from extension)
+    if (transcript.status.isActive) return
+
     setMeetingError(null)
 
     // Start the transcription session FIRST so the pipeline is active
@@ -89,24 +92,39 @@ export function Overlay() {
       tab: true,
     })
 
-    if (mode !== 'native' && mode === 'idle') {
+    if (mode === 'idle') {
       setMeetingError('No audio source available. Allow mic/screen access.')
       await transcript.stopSession()
       return
     }
 
-    // Start screen recording via main process (system picker will ask user which tab)
-    await recorder.startRecording()
+    // In extension mode, video comes from the Chrome extension over WebSocket —
+    // skip the Electron screen recorder (which would trigger the macOS source picker).
+    if (mode !== 'extension') {
+      await recorder.startRecording()
+    }
   }, [capture, transcript, recorder])
 
   const [savedFiles, setSavedFiles] = useState<{ recording?: string; transcript?: string } | null>(null)
 
   const handleStopMeeting = useCallback(async () => {
+    if (!transcript.status.isActive) return
+
     // Capture entries before anything gets cleared
     const currentEntries = [...transcript.entries]
+    const wasExtensionMode = capture.captureMode === 'extension'
 
     await capture.stopCapture()
-    const recordingPath = await recorder.stopRecording()
+
+    // In extension mode, tell the extension to stop capturing and skip
+    // the Electron screen recorder (it was never started).
+    let recordingPath: string | null | undefined
+    if (wasExtensionMode) {
+      // Signal the extension to stop via the WS server
+      await window.electronAPI?.stopExtensionCapture?.()
+    } else {
+      recordingPath = await recorder.stopRecording()
+    }
 
     // Save final transcript to disk (with recording path link)
     let transcriptPath: string | undefined
@@ -151,6 +169,26 @@ export function Overlay() {
       handleStopMeeting()
     } else {
       handleStartMeeting()
+    }
+  }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting])
+
+  // ── Auto-start/stop meeting when Chrome extension connects/disconnects ──
+  useEffect(() => {
+    const unsubStart = window.electronAPI?.onExtensionAutoStartMeeting?.(() => {
+      if (!transcript.status.isActive) {
+        console.log('[overlay] Extension connected — auto-starting meeting')
+        handleStartMeeting()
+      }
+    })
+    const unsubStop = window.electronAPI?.onExtensionAutoStopMeeting?.(() => {
+      if (transcript.status.isActive) {
+        console.log('[overlay] Extension disconnected — auto-stopping meeting')
+        handleStopMeeting()
+      }
+    })
+    return () => {
+      unsubStart?.()
+      unsubStop?.()
     }
   }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting])
 
@@ -228,6 +266,7 @@ export function Overlay() {
                   modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
                   captureMode={capture.captureMode}
                   nativeAvailable={capture.nativeAvailable}
+                  extensionConnected={capture.extensionConnected}
                 />
               )}
 

@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AssistMe Offscreen Capture</title>
+</head>
+<body>
+  <!-- This document is never shown to the user.
+       It exists solely to access getUserMedia / MediaRecorder / AudioWorklet
+       which are not available in MV3 service workers. -->
+  <!-- Hidden audio element to play back captured tab audio so user still hears it -->
+  <audio id="tabAudioPlayback" autoplay></audio>
+  <script src="offscreen.js"></script>
+</body>
+</html>

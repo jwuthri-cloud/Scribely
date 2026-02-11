@@ -149,6 +149,15 @@ export interface ElectronAPI {
   ) => () => void
   onNativeError: (callback: (error: { code: string; message: string }) => void) => () => void
 
+  // Chrome Extension Capture
+  getExtensionStatus: () => Promise<{ connected: boolean }>
+  onExtensionStatusChanged: (
+    callback: (status: { connected: boolean }) => void,
+  ) => () => void
+  onExtensionAutoStartMeeting: (callback: () => void) => () => void
+  onExtensionAutoStopMeeting: (callback: () => void) => () => void
+  stopExtensionCapture: () => Promise<{ success: boolean }>
+
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 

@@ -14,6 +14,7 @@ import { captureScreen } from './screenshot'
 import { AudioPipeline } from './audio/pipeline'
 import { NativeHelperBridge } from './native-bridge'
 import { ScreenRecorder } from './screen-recorder'
+import { ExtensionWsServer } from './ws-server'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -75,6 +76,9 @@ const audioPipeline = new AudioPipeline(store.get('transcription'))
 
 // ── Screen Recorder ───────────────────────────────────
 const screenRecorder = new ScreenRecorder()
+
+// ── Chrome Extension WebSocket Server ──────────────────
+const extensionWsServer = new ExtensionWsServer()
 
 // ── Native Helper Bridge ───────────────────────────────
 let nativeBridge: NativeHelperBridge | null = null
@@ -262,6 +266,61 @@ function registerIpcHandlers(): void {
   })
 }
 
+// ── Chrome Extension WS Server Lifecycle ──────────────
+function initExtensionWsServer(): void {
+  // Helper: safely send to renderer only if window is alive
+  const safeSend = (channel: string, data: unknown): void => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, data)
+      }
+    } catch {
+      // Window already destroyed — ignore
+    }
+  }
+
+  extensionWsServer.on('connected', () => {
+    console.log('[extension-ws] Chrome extension connected')
+    safeSend('extension:status-changed', { connected: true })
+    // Auto-start meeting session when extension connects
+    safeSend('extension:auto-start-meeting', {})
+  })
+
+  extensionWsServer.on('disconnected', () => {
+    console.log('[extension-ws] Chrome extension disconnected')
+    safeSend('extension:status-changed', { connected: false })
+    // Auto-stop meeting when extension disconnects
+    safeSend('extension:auto-stop-meeting', {})
+  })
+
+  // Feed audio frames from extension into AudioPipeline as "system" source
+  extensionWsServer.on('audioFrame', (pcm: Float32Array, sampleRate: number) => {
+    audioPipeline.handleExternalAudioFrame('system', pcm, sampleRate, Date.now())
+  })
+
+  // Feed video chunks from extension into ScreenRecorder
+  extensionWsServer.on('videoChunk', (data: Buffer) => {
+    screenRecorder.writeExternalChunk(data)
+  })
+
+  extensionWsServer.on('error', (err: Error) => {
+    console.error('[extension-ws] Error:', err)
+  })
+
+  // IPC handler so renderer can query extension connection status
+  ipcMain.handle('extension:get-status', () => {
+    return { connected: extensionWsServer.isClientConnected }
+  })
+
+  // IPC handler to tell the extension to stop capturing
+  ipcMain.handle('extension:stop-capture', () => {
+    extensionWsServer.sendControl({ type: 'stop-capture' })
+    return { success: true }
+  })
+
+  extensionWsServer.start()
+}
+
 // ── Native Helper Bridge Lifecycle ─────────────────────
 async function initNativeBridge(): Promise<void> {
   if (process.platform !== 'darwin') {
@@ -356,6 +415,9 @@ app.whenReady().then(async () => {
   audioPipeline.registerIpcHandlers()
   await audioPipeline.init()
 
+  // Start Chrome extension WebSocket server
+  initExtensionWsServer()
+
   // Start native helper bridge (non-blocking — falls back to browser capture on failure)
   initNativeBridge()
 
@@ -381,6 +443,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', (e) => {
   unregisterAllHotkeys()
+  extensionWsServer.stop()
   audioPipeline.destroy()
 
   if (nativeBridge) {

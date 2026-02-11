@@ -15,8 +15,9 @@ interface LiveTranscriptPanelProps {
   error?: string | null
   modelDownloading?: boolean
   modelProgress?: number
-  captureMode?: 'native' | 'browser' | 'idle'
+  captureMode?: 'extension' | 'hybrid' | 'browser' | 'idle'
   nativeAvailable?: boolean
+  extensionConnected?: boolean
 }
 
 function formatTime(ms: number): string {
@@ -40,6 +41,7 @@ export function LiveTranscriptPanel({
   modelProgress = 0,
   captureMode = 'browser',
   nativeAvailable = false,
+  extensionConnected = false,
 }: LiveTranscriptPanelProps) {
   const [expanded, setExpanded] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -144,7 +146,18 @@ export function LiveTranscriptPanel({
               TAB
             </span>
           )}
-          {captureMode === 'native' && (
+          {captureMode === 'extension' && (
+            <span
+              className="text-[9px] px-1 py-px rounded font-medium"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                color: 'var(--accent)',
+              }}
+            >
+              EXT
+            </span>
+          )}
+          {captureMode === 'hybrid' && (
             <span
               className="text-[9px] px-1 py-px rounded font-medium"
               style={{

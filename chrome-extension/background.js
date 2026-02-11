@@ -1,0 +1,136 @@
+/**
+ * Background service worker for AssistMe Tab Capture extension.
+ *
+ * Handles:
+ * - Tab capture stream ID via chrome.tabCapture.getMediaStreamId()
+ * - Creating/managing the offscreen document for media processing
+ * - Message relay between popup and offscreen document
+ */
+
+const OFFSCREEN_URL = 'offscreen.html'
+const WS_PORT = 9876
+
+// ── State ──────────────────────────────────────────────
+let isCapturing = false
+let capturedTabId = null
+
+// ── Offscreen document management ─────────────────────
+async function ensureOffscreenDocument() {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  })
+
+  if (contexts.length > 0) return // already exists
+
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_URL,
+    reasons: ['USER_MEDIA'],
+    justification: 'Tab audio/video capture for AssistMe transcription',
+  })
+}
+
+async function closeOffscreenDocument() {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
+  })
+
+  if (contexts.length > 0) {
+    await chrome.offscreen.closeDocument()
+  }
+}
+
+// ── Start tab capture ─────────────────────────────────
+async function startCapture(tabId) {
+  if (isCapturing) {
+    console.log('[bg] Already capturing — stop first')
+    return { success: false, error: 'Already capturing' }
+  }
+
+  try {
+    // Get a media stream ID for the target tab
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId })
+
+    // Ensure offscreen document is running
+    await ensureOffscreenDocument()
+
+    // Tell offscreen document to start capture with the stream ID
+    chrome.runtime.sendMessage({
+      type: 'start-capture',
+      streamId,
+      tabId,
+      wsPort: WS_PORT,
+    })
+
+    isCapturing = true
+    capturedTabId = tabId
+    return { success: true }
+  } catch (err) {
+    console.error('[bg] Tab capture failed:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+// ── Stop tab capture ──────────────────────────────────
+async function stopCapture() {
+  if (!isCapturing) return { success: true }
+
+  try {
+    chrome.runtime.sendMessage({ type: 'stop-capture' })
+    // Give the offscreen doc time to clean up, then close it
+    setTimeout(async () => {
+      await closeOffscreenDocument()
+    }, 500)
+
+    isCapturing = false
+    capturedTabId = null
+    return { success: true }
+  } catch (err) {
+    console.error('[bg] Stop capture failed:', err)
+    return { success: false, error: err.message }
+  }
+}
+
+// ── Message handler ───────────────────────────────────
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  switch (message.type) {
+    case 'get-status':
+      sendResponse({
+        isCapturing,
+        capturedTabId,
+      })
+      return false
+
+    case 'start-capture-request': {
+      // From popup: start capturing the specified tab
+      startCapture(message.tabId).then(sendResponse)
+      return true // async response
+    }
+
+    case 'stop-capture-request':
+      stopCapture().then(sendResponse)
+      return true
+
+    case 'capture-started':
+      // Confirmation from offscreen document
+      isCapturing = true
+      console.log('[bg] Capture confirmed by offscreen doc')
+      return false
+
+    case 'capture-stopped':
+      isCapturing = false
+      capturedTabId = null
+      console.log('[bg] Capture stopped by offscreen doc')
+      return false
+
+    case 'capture-error':
+      console.error('[bg] Capture error:', message.error)
+      isCapturing = false
+      capturedTabId = null
+      return false
+
+    default:
+      return false
+  }
+})

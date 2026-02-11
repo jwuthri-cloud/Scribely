@@ -135,6 +135,15 @@ export interface ElectronAPI {
   ) => () => void
   onNativeError: (callback: (error: { code: string; message: string }) => void) => () => void
 
+  // ── Chrome Extension Capture ───────────────────
+  getExtensionStatus: () => Promise<{ connected: boolean }>
+  onExtensionStatusChanged: (
+    callback: (status: { connected: boolean }) => void,
+  ) => () => void
+  onExtensionAutoStartMeeting: (callback: () => void) => () => void
+  onExtensionAutoStopMeeting: (callback: () => void) => () => void
+  stopExtensionCapture: () => Promise<{ success: boolean }>
+
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback: () => void) => () => void
 
@@ -392,6 +401,38 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('native:error', handler)
     return () => ipcRenderer.removeListener('native:error', handler)
+  },
+
+  // ── Chrome Extension Capture ───────────────────
+  getExtensionStatus: () => {
+    return ipcRenderer.invoke('extension:get-status')
+  },
+
+  onExtensionStatusChanged: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: { connected: boolean },
+    ) => {
+      callback(status)
+    }
+    ipcRenderer.on('extension:status-changed', handler)
+    return () => ipcRenderer.removeListener('extension:status-changed', handler)
+  },
+
+  onExtensionAutoStartMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('extension:auto-start-meeting', handler)
+    return () => ipcRenderer.removeListener('extension:auto-start-meeting', handler)
+  },
+
+  onExtensionAutoStopMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('extension:auto-stop-meeting', handler)
+    return () => ipcRenderer.removeListener('extension:auto-stop-meeting', handler)
+  },
+
+  stopExtensionCapture: () => {
+    return ipcRenderer.invoke('extension:stop-capture')
   },
 
   // ── Reset chat ──────────────────────────────────

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 
 const TARGET_SAMPLE_RATE = 16000
 
-export type CaptureMode = 'native' | 'browser' | 'idle'
+export type CaptureMode = 'extension' | 'hybrid' | 'browser' | 'idle'
 
 interface NativeStatus {
   available: boolean
@@ -14,15 +14,16 @@ interface NativeStatus {
 }
 
 /**
- * Dual-stream audio capture hook with native helper support.
+ * Dual-stream audio capture hook with hybrid native + browser support.
  *
- * When NativeHelper is connected:
- *   - Audio (mic + system) is captured natively at the CoreAudio level
- *   - getDisplayMedia is used ONLY for video (for the meeting recorder)
- *   - No browser-based audio extraction needed
+ * When NativeHelper is connected (hybrid mode):
+ *   - System audio is captured natively via SCStream (ScreenCaptureKit)
+ *   - Mic is captured via browser getUserMedia (works with all devices
+ *     including Bluetooth/AirPods without triggering HFP quality degradation)
+ *   - PCM frames from both sources are streamed to main process for transcription
  *
- * When NativeHelper is unavailable:
- *   - Falls back to browser-based capture (getUserMedia + getDisplayMedia)
+ * When NativeHelper is unavailable (browser fallback):
+ *   - Falls back to full browser-based capture (getUserMedia + getDisplayMedia)
  *   - Streams PCM frames to main process via IPC for VAD + transcription
  */
 export function useAudioCapture() {
@@ -39,6 +40,7 @@ export function useAudioCapture() {
     micActive: false,
     systemAudioActive: false,
   })
+  const [extensionConnected, setExtensionConnected] = useState(false)
 
   const micStreamRef = useRef<MediaStream | null>(null)
   const tabStreamRef = useRef<MediaStream | null>(null)
@@ -70,6 +72,21 @@ export function useAudioCapture() {
     return () => {
       unsubStatus?.()
       unsubError?.()
+    }
+  }, [])
+
+  // ── Track Chrome extension connection status ──────────
+  useEffect(() => {
+    window.electronAPI?.getExtensionStatus?.().then((status) => {
+      if (status) setExtensionConnected(status.connected)
+    })
+
+    const unsub = window.electronAPI?.onExtensionStatusChanged?.((status) => {
+      setExtensionConnected(status.connected)
+    })
+
+    return () => {
+      unsub?.()
     }
   }, [])
 
@@ -133,15 +150,13 @@ export function useAudioCapture() {
   )
 
   // ── Browser: start mic capture ────────────────────────
+  // Request mic with no constraints — let the browser pick the best quality.
+  // Forcing sampleRate/echoCancellation degrades Bluetooth audio quality.
+  // The AudioContext in createPcmExtractor handles downsampling to 16kHz.
   const setupMicCapture = useCallback(async (): Promise<MediaStream | null> => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: TARGET_SAMPLE_RATE,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        audio: true,
       })
 
       micStreamRef.current = stream
@@ -225,40 +240,79 @@ export function useAudioCapture() {
   }, [createPcmExtractor])
 
   // ── Public: start capture ─────────────────────────────
-  // Always queries live native status from main process (not stale React state).
-  // When native helper is connected: use native for audio, browser for video only.
-  // When native is unavailable: full browser-based capture.
+  // Priority order: extension → native → browser fallback.
+  //
+  // Extension mode (Chrome extension connected via WebSocket):
+  //   - System audio + video → captured by Chrome extension, streamed over WS
+  //   - Mic → browser getUserMedia (same as hybrid mode)
+  //   - No macOS picker needed — Chrome handles tab selection
+  //
+  // Hybrid mode (native connected):
+  //   - System audio → native SCStream (ScreenCaptureKit)
+  //   - Mic → browser getUserMedia
+  //
+  // Browser fallback (nothing available):
+  //   - Full browser-based capture (getUserMedia + getDisplayMedia)
   const startCapture = useCallback(
     async (options: { mic: boolean; tab: boolean }) => {
       setError(null)
+
+      // Query live extension status
+      const extStatus = await window.electronAPI?.getExtensionStatus?.()
+      const extensionReady = extStatus?.connected
+      console.log('[audio-capture] Extension status:', JSON.stringify(extStatus))
+
+      // ── Extension path: Chrome extension handles tab audio + video ──
+      if (extensionReady && options.tab) {
+        console.log('[audio-capture] Extension mode — Chrome extension captures tab audio/video')
+
+        // Tab audio is already streaming via WebSocket to AudioPipeline
+        setTabActive(true)
+
+        // Start browser mic capture
+        let micStream: MediaStream | null = null
+        if (options.mic) {
+          micStream = await setupMicCapture()
+        }
+
+        setCaptureMode('extension')
+        setIsCapturing(true)
+        return { micStream, tabStream: null, mode: 'extension' as CaptureMode }
+      }
 
       // Query live native status — don't rely on React state which may be stale
       const liveStatus = await window.electronAPI?.getNativeStatus?.()
       const nativeReady = liveStatus?.available && liveStatus?.connected
       console.log('[audio-capture] Native status:', JSON.stringify(liveStatus))
 
-      // ── Native path: audio via CoreAudio, video via getDisplayMedia ──
+      // ── Hybrid path: browser mic + native system audio ──
       if (nativeReady) {
-        console.log('[audio-capture] Native helper connected — starting native audio capture')
+        console.log('[audio-capture] Hybrid mode — browser mic + native system audio')
 
-        const result = await window.electronAPI?.startNativeCapture({
-          mic: options.mic,
-          system: options.tab,
-        })
-        console.log('[audio-capture] startNativeCapture result:', JSON.stringify(result))
+        // Start native capture for system audio ONLY (no mic)
+        if (options.tab) {
+          const result = await window.electronAPI?.startNativeCapture({
+            mic: false,
+            system: true,
+          })
+          console.log('[audio-capture] startNativeCapture (system only) result:', JSON.stringify(result))
 
-        if (result?.success) {
-          setCaptureMode('native')
-          setIsCapturing(true)
-          setMicActive(options.mic)
-          setTabActive(options.tab)
-
-          // No need for getDisplayMedia — screen recording is handled by main process
-          return { micStream: null, tabStream: null, mode: 'native' as CaptureMode }
+          if (result?.success) {
+            setTabActive(true)
+          } else {
+            console.warn('[audio-capture] Native system audio failed:', result?.error)
+          }
         }
 
-        console.warn('[audio-capture] Native capture failed — falling back to browser')
-        setError(result?.error || 'Native capture failed to start')
+        // Start browser mic capture (works with all devices including AirPods)
+        let micStream: MediaStream | null = null
+        if (options.mic) {
+          micStream = await setupMicCapture()
+        }
+
+        setCaptureMode('hybrid')
+        setIsCapturing(true)
+        return { micStream, tabStream: null, mode: 'hybrid' as CaptureMode }
       }
 
       // ── Browser fallback: full browser-based capture ──
@@ -289,9 +343,12 @@ export function useAudioCapture() {
 
   // ── Public: stop capture ─────────────────────────────
   const stopCapture = useCallback(async () => {
-    if (captureMode === 'native') {
-      await window.electronAPI?.stopNativeCapture()
+    if (captureMode === 'hybrid' || captureMode === 'browser') {
+      // Stop native system audio capture if it was running
+      await window.electronAPI?.stopNativeCapture?.()
     }
+    // Extension mode: audio/video stops when the extension user clicks "Stop"
+    // in Chrome — no action needed from Electron side
 
     // Clean up browser resources (video stream in native mode, everything in browser mode)
     micProcessorRef.current?.disconnect()
@@ -342,6 +399,7 @@ export function useAudioCapture() {
     captureMode,
     nativeAvailable: nativeStatus.available && nativeStatus.connected,
     nativeStatus,
+    extensionConnected,
     startCapture,
     stopCapture,
     getMicStream: () => micStreamRef.current,

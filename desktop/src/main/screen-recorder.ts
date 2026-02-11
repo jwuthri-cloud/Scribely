@@ -209,4 +209,19 @@ export class ScreenRecorder {
   getIsRecording(): boolean {
     return this.isRecording
   }
+
+  /**
+   * Write an external video chunk to the recording file (e.g. from Chrome
+   * extension WebSocket). If no recording is active, the chunk is ignored.
+   */
+  async writeExternalChunk(data: Buffer): Promise<void> {
+    if (!this.filepath || !this.isRecording) return
+    this.chunkCount++
+    await appendFile(this.filepath, data)
+    if (this.chunkCount <= 3 || this.chunkCount % 10 === 0) {
+      console.log(
+        `[screen-recorder] External chunk #${this.chunkCount}: ${(data.byteLength / 1024).toFixed(1)}KB → ${this.filepath.split('/').pop()}`,
+      )
+    }
+  }
 }

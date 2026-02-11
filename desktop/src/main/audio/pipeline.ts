@@ -256,6 +256,22 @@ export class AudioPipeline {
     return this.nativeBridge
   }
 
+  // ── External audio frame (from Chrome extension WS) ────
+
+  /**
+   * Process an externally-provided audio frame (e.g. from the Chrome extension
+   * WebSocket server). Same processing path as native bridge frames.
+   */
+  handleExternalAudioFrame(
+    source: string,
+    pcm: Float32Array,
+    sampleRate: number,
+    timestamp: number,
+  ): void {
+    if (!this.isActive) return
+    this._handleNativeAudioFrame(source, pcm, sampleRate, timestamp)
+  }
+
   /** Compute RMS level from PCM and send to renderer (throttled) */
   private _updateAudioLevel(source: string, pcm: Float32Array): void {
     // Compute RMS
