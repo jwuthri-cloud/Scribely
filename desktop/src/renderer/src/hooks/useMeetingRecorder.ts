@@ -1,5 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 
+interface SourceInfo {
+  id: string
+  name: string
+  type: 'screen' | 'window'
+  thumbnailDataUrl: string
+}
+
 interface RecorderState {
   isRecording: boolean
   duration: number
@@ -12,10 +19,12 @@ interface RecorderState {
  *
  * Flow:
  * 1. Overlay calls startRecording() → IPC to main
- * 2. Main creates file, sends 'recording:start-capture' back
- * 3. We call getDisplayMedia() — main's handler auto-selects the screen (no picker)
- * 4. MediaRecorder sends chunks to main for incremental disk writes
- * 5. On stop, main sends 'recording:stop-capture'
+ * 2. Main lists sources, sends 'recording:show-picker' with thumbnails
+ * 3. We show a picker UI, user picks a source
+ * 4. We call selectRecordingSource(id) → main installs handler, sends 'recording:start-capture'
+ * 5. We call getDisplayMedia() — handler auto-selects the chosen source
+ * 6. MediaRecorder sends chunks to main for incremental disk writes
+ * 7. On stop, main sends 'recording:stop-capture'
  */
 export function useMeetingRecorder() {
   const [state, setState] = useState<RecorderState>({
@@ -25,6 +34,10 @@ export function useMeetingRecorder() {
     filepath: null,
   })
 
+  // Picker state
+  const [pickerSources, setPickerSources] = useState<SourceInfo[] | null>(null)
+  const [pickerFilepath, setPickerFilepath] = useState<string | null>(null)
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef(0)
@@ -32,11 +45,17 @@ export function useMeetingRecorder() {
 
   // Listen for main process signals
   useEffect(() => {
+    // Main sends available sources for the picker
+    const unsubPicker = window.electronAPI?.onShowPicker?.((data) => {
+      console.log(`[recorder] Got show-picker signal (${data.sources.length} sources)`)
+      setPickerFilepath(data.filepath)
+      setPickerSources(data.sources)
+    })
+
+    // Main says "go ahead and call getDisplayMedia now" (handler is installed)
     const unsubStart = window.electronAPI?.onStartCapture?.(async (data) => {
       console.log('[recorder] Got start-capture signal')
       try {
-        // getDisplayMedia triggers setDisplayMediaRequestHandler in main
-        // which shows the system picker so user can choose which tab/window to record
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
@@ -72,7 +91,6 @@ export function useMeetingRecorder() {
           if (e.data.size > 0) {
             try {
               const buf = await e.data.arrayBuffer()
-              // Send as Uint8Array — raw ArrayBuffer is not serializable over Electron IPC
               await window.electronAPI?.writeRecordingChunk?.({ data: new Uint8Array(buf) })
             } catch (err) {
               console.error('[recorder] Failed to send chunk:', err)
@@ -115,6 +133,7 @@ export function useMeetingRecorder() {
     })
 
     return () => {
+      unsubPicker?.()
       unsubStart?.()
       unsubStop?.()
     }
@@ -128,14 +147,11 @@ export function useMeetingRecorder() {
 
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
-      // Wait for the final ondataavailable + onstop before tearing down the stream,
-      // otherwise the last chunk (and sometimes all chunks) are lost.
       recorder.onstop = () => {
         console.log('[recorder] MediaRecorder stopped, cleaning up stream')
         streamRef.current?.getTracks().forEach((t) => t.stop())
         streamRef.current = null
       }
-      // requestData() flushes any buffered data as a final ondataavailable event
       try {
         recorder.requestData()
       } catch {
@@ -161,6 +177,19 @@ export function useMeetingRecorder() {
     }
   }, [])
 
+  /** User picked a source from the picker */
+  const selectSource = useCallback(async (sourceId: string) => {
+    setPickerSources(null)
+    setPickerFilepath(null)
+    await window.electronAPI?.selectRecordingSource?.(sourceId)
+  }, [])
+
+  /** User dismissed the picker */
+  const dismissPicker = useCallback(() => {
+    setPickerSources(null)
+    setPickerFilepath(null)
+  }, [])
+
   const stopRecording = useCallback(async (): Promise<string | null> => {
     const result = await window.electronAPI?.stopRecording?.()
     stopInternal()
@@ -182,5 +211,9 @@ export function useMeetingRecorder() {
     formattedDuration: formatDuration(state.duration),
     startRecording,
     stopRecording,
+    // Picker
+    pickerSources,
+    selectSource,
+    dismissPicker,
   }
 }

@@ -11,6 +11,7 @@ import { useWhisperSTT } from '../hooks/useWhisperSTT'
 import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useMeetingTranscript } from '../hooks/useMeetingTranscript'
 import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
+import { SourcePicker } from './SourcePicker'
 import type { ChatAttachment } from '../types'
 
 export function Overlay() {
@@ -280,6 +281,15 @@ export function Overlay() {
             </>
           ) : (
             <SettingsView />
+          )}
+
+          {/* Source picker overlay */}
+          {recorder.pickerSources && (
+            <SourcePicker
+              sources={recorder.pickerSources}
+              onSelect={recorder.selectSource}
+              onDismiss={recorder.dismissPicker}
+            />
           )}
         </motion.div>
       )}

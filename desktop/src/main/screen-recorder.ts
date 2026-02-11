@@ -2,14 +2,21 @@ import { desktopCapturer, ipcMain, app, BrowserWindow, session } from 'electron'
 import { join } from 'path'
 import { mkdir, writeFile, appendFile } from 'fs/promises'
 
+interface SourceInfo {
+  id: string
+  name: string
+  type: 'screen' | 'window'
+  thumbnailDataUrl: string
+}
+
 /**
  * Main-process screen recorder.
  *
  * Flow:
- * 1. Renderer calls recording:start → main creates file
- * 2. Main temporarily swaps the displayMediaRequestHandler to auto-select the screen
- * 3. Renderer calls getDisplayMedia → handler auto-selects (no picker)
- * 4. After stream is acquired, handler is restored to system picker mode
+ * 1. Renderer calls recording:start → main lists sources, sends them to renderer
+ * 2. Renderer shows a picker UI, user picks a source
+ * 3. Renderer calls recording:select-source with the chosen ID
+ * 4. Main installs a handler that auto-selects that source, tells renderer to getDisplayMedia
  * 5. Renderer MediaRecorder sends chunks to main for incremental disk writes
  */
 export class ScreenRecorder {
@@ -17,6 +24,7 @@ export class ScreenRecorder {
   private isRecording = false
   private filepath: string | null = null
   private chunkCount = 0
+  private selectedSourceId: string | null = null
 
   constructor() {
     this._registerIPC()
@@ -27,52 +35,50 @@ export class ScreenRecorder {
   }
 
   /**
-   * Install the auto-select handler (no picker).
-   * After one getDisplayMedia call completes, restores the system picker handler.
+   * Install handler that auto-selects a specific source by ID.
+   * Used after the user picks a source from our custom picker.
    */
-  private _installAutoSelectHandler(): void {
+  private _installSourceHandler(sourceId: string): void {
     session.defaultSession.setDisplayMediaRequestHandler(
       async (_request, callback) => {
         try {
-          const sources = await desktopCapturer.getSources({ types: ['screen'] })
-          if (sources.length > 0) {
-            console.log(`[screen-recorder] Auto-selecting: "${sources[0].name}" (${sources[0].id})`)
-            callback({ video: sources[0], audio: 'loopback' })
+          const sources = await desktopCapturer.getSources({
+            types: ['screen', 'window'],
+          })
+          const match = sources.find((s) => s.id === sourceId) || sources[0]
+          if (match) {
+            console.log(`[screen-recorder] Selecting source: "${match.name}" (${match.id})`)
+            callback({ video: match, audio: 'loopback' })
           } else {
-            console.warn('[screen-recorder] No screen sources available')
+            console.warn('[screen-recorder] No matching source found')
             callback({})
           }
         } catch (err) {
-          console.error('[screen-recorder] Auto-select error:', err)
+          console.error('[screen-recorder] Source handler error:', err)
           callback({})
         }
-        // Restore the system picker handler after this request completes
-        this._installSystemPickerHandler()
       },
     )
   }
 
   /**
-   * Install the system picker handler (normal mode).
-   * Shows the macOS ScreenCaptureKit picker so user can choose tab/window.
+   * Install a no-op handler for when we're not recording.
    */
-  _installSystemPickerHandler(): void {
+  _installDefaultHandler(): void {
     session.defaultSession.setDisplayMediaRequestHandler(
       async (_request, callback) => {
         try {
           const sources = await desktopCapturer.getSources({ types: ['screen'] })
           if (sources.length > 0) {
-            console.log('[display-media] Fallback (system picker unavailable): using primary screen')
             callback({ video: sources[0], audio: 'loopback' })
           } else {
             callback({})
           }
         } catch (err) {
-          console.error('[display-media] Fallback handler error:', err)
+          console.error('[display-media] Default handler error:', err)
           callback({})
         }
       },
-      { useSystemPicker: true },
     )
   }
 
@@ -83,6 +89,11 @@ export class ScreenRecorder {
 
     ipcMain.handle('recording:stop', async () => {
       return this.stop()
+    })
+
+    // Renderer picked a source from the custom picker
+    ipcMain.handle('recording:select-source', async (_event, sourceId: string) => {
+      return this._onSourceSelected(sourceId)
     })
 
     ipcMain.handle(
@@ -101,6 +112,9 @@ export class ScreenRecorder {
     )
   }
 
+  /**
+   * Step 1: Create file, list sources, send to renderer for picking.
+   */
   async start(): Promise<{ success: boolean; filepath?: string; error?: string }> {
     if (this.isRecording) {
       return { success: true, filepath: this.filepath! }
@@ -122,22 +136,50 @@ export class ScreenRecorder {
       await writeFile(this.filepath, Buffer.alloc(0))
       console.log(`[screen-recorder] Recording file created: ${this.filepath}`)
 
-      // Auto-select the primary screen (no picker) — the system picker doesn't
-      // reliably show in overlay/transparent windows, causing getDisplayMedia to hang.
-      this._installAutoSelectHandler()
-
-      // Tell renderer to call getDisplayMedia
-      this.win?.webContents.send('recording:start-capture', {
-        filepath: this.filepath,
+      // Get available sources for the picker
+      const rawSources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 180 },
       })
 
-      this.isRecording = true
+      const sources: SourceInfo[] = rawSources.map((s) => ({
+        id: s.id,
+        name: s.name,
+        type: s.id.startsWith('screen:') ? 'screen' : 'window',
+        thumbnailDataUrl: s.thumbnail.toDataURL(),
+      }))
+
+      console.log(`[screen-recorder] Found ${sources.length} sources, sending picker to renderer`)
+
+      // Send sources to renderer so it can show a picker
+      this.win?.webContents.send('recording:show-picker', {
+        filepath: this.filepath,
+        sources,
+      })
+
       return { success: true, filepath: this.filepath }
     } catch (err) {
       console.error('[screen-recorder] Failed to start:', err)
-      this._installSystemPickerHandler()
       return { success: false, error: String(err) }
     }
+  }
+
+  /**
+   * Step 2: User picked a source — install the handler and tell renderer to getDisplayMedia.
+   */
+  private async _onSourceSelected(sourceId: string): Promise<void> {
+    this.selectedSourceId = sourceId
+    console.log(`[screen-recorder] User selected source: ${sourceId}`)
+
+    // Install handler that will auto-select this source when getDisplayMedia is called
+    this._installSourceHandler(sourceId)
+
+    // Now tell renderer to call getDisplayMedia (the handler will provide the chosen source)
+    this.win?.webContents.send('recording:start-capture', {
+      filepath: this.filepath,
+    })
+
+    this.isRecording = true
   }
 
   async stop(): Promise<{ filepath: string | null }> {
@@ -148,7 +190,7 @@ export class ScreenRecorder {
     console.log(`[screen-recorder] Stopping recording (${this.chunkCount} chunks written)`)
     this.win?.webContents.send('recording:stop-capture')
     this.isRecording = false
-    this._installSystemPickerHandler()
+    this._installDefaultHandler()
 
     const fp = this.filepath
     return { filepath: fp }

@@ -91,6 +91,13 @@ export interface ElectronAPI {
   // ── Screen Recording (main-process driven) ─────
   startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
   stopRecording: () => Promise<{ filepath: string | null }>
+  selectRecordingSource: (sourceId: string) => Promise<void>
+  onShowPicker: (
+    callback: (data: {
+      filepath: string
+      sources: Array<{ id: string; name: string; type: 'screen' | 'window'; thumbnailDataUrl: string }>
+    }) => void,
+  ) => () => void
   onStartCapture: (
     callback: (data: { filepath: string }) => void,
   ) => () => void
@@ -298,6 +305,18 @@ const api: ElectronAPI = {
 
   stopRecording: () => {
     return ipcRenderer.invoke('recording:stop')
+  },
+
+  selectRecordingSource: (sourceId: string) => {
+    return ipcRenderer.invoke('recording:select-source', sourceId)
+  },
+
+  onShowPicker: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('recording:show-picker', handler)
+    return () => ipcRenderer.removeListener('recording:show-picker', handler)
   },
 
   onStartCapture: (callback) => {

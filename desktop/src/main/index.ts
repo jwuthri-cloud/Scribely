@@ -140,9 +140,9 @@ function createWindow(): void {
   audioPipeline.setWindow(mainWindow)
   screenRecorder.setWindow(mainWindow)
 
-  // Install the default display media handler (system picker for browser fallback).
-  // The ScreenRecorder temporarily swaps this to auto-select when recording starts.
-  screenRecorder._installSystemPickerHandler()
+  // Install the default display media handler.
+  // The ScreenRecorder swaps this to auto-select the user's chosen source when recording.
+  screenRecorder._installDefaultHandler()
 
   // Load the renderer
   if (process.env['ELECTRON_RENDERER_URL']) {
