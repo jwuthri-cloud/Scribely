@@ -41,6 +41,8 @@ export function useMeetingRecorder() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef(0)
   const streamRef = useRef<MediaStream | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+  const mixerCtxRef = useRef<AudioContext | null>(null)
 
   // Listen for main process signals
   useEffect(() => {
@@ -68,13 +70,60 @@ export function useMeetingRecorder() {
           `[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`,
         )
 
+        // ── Mix mic audio into the recording ──────────────
+        // Capture the local mic and combine it with display audio so the
+        // resulting WebM contains both system audio and the user's voice.
+        let recordingStream = stream
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          micStreamRef.current = micStream
+
+          const mixerCtx = new AudioContext()
+          mixerCtxRef.current = mixerCtx
+          if (mixerCtx.state === 'suspended') await mixerCtx.resume()
+
+          const dest = mixerCtx.createMediaStreamDestination()
+
+          // Connect display/system audio if present
+          if (hasAudio) {
+            const displaySource = mixerCtx.createMediaStreamSource(
+              new MediaStream(stream.getAudioTracks()),
+            )
+            displaySource.connect(dest)
+          }
+
+          // Connect mic audio
+          const micSource = mixerCtx.createMediaStreamSource(micStream)
+          micSource.connect(dest)
+
+          // Keep AudioContext alive
+          const silencer = mixerCtx.createGain()
+          silencer.gain.value = 0
+          micSource.connect(silencer)
+          silencer.connect(mixerCtx.destination)
+
+          // New stream: mixed audio + display video
+          recordingStream = new MediaStream([
+            ...dest.stream.getAudioTracks(),
+            ...stream.getVideoTracks(),
+          ])
+
+          console.log('[recorder] Mic mixed into recording stream')
+        } catch (micErr) {
+          console.warn('[recorder] Mic capture failed, recording without mic:', micErr)
+        }
+
         // Pick mime type based on available tracks
+        const recTracks = recordingStream.getTracks()
+        const recHasVideo = recTracks.some((t) => t.kind === 'video')
+        const recHasAudio = recTracks.some((t) => t.kind === 'audio')
+
         let mimeType: string
-        if (hasVideo && hasAudio) {
+        if (recHasVideo && recHasAudio) {
           mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
             ? 'video/webm;codecs=vp9,opus'
             : 'video/webm'
-        } else if (hasVideo) {
+        } else if (recHasVideo) {
           mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
             ? 'video/webm;codecs=vp9'
             : 'video/webm'
@@ -82,7 +131,7 @@ export function useMeetingRecorder() {
           mimeType = 'audio/webm;codecs=opus'
         }
 
-        const recorder = new MediaRecorder(stream, {
+        const recorder = new MediaRecorder(recordingStream, {
           mimeType,
           videoBitsPerSecond: 2_500_000,
         })
@@ -163,6 +212,12 @@ export function useMeetingRecorder() {
       streamRef.current = null
     }
     mediaRecorderRef.current = null
+
+    // Clean up mic stream & mixer
+    micStreamRef.current?.getTracks().forEach((t) => t.stop())
+    micStreamRef.current = null
+    mixerCtxRef.current?.close().catch(() => {})
+    mixerCtxRef.current = null
 
     setState((prev) => ({ ...prev, isRecording: false, duration: 0 }))
   }, [])
