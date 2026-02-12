@@ -1,7 +1,6 @@
 import { desktopCapturer, ipcMain, app, BrowserWindow, session } from 'electron'
 import { join } from 'path'
-import { mkdir, writeFile, appendFile, open } from 'fs/promises'
-import type { FileHandle } from 'fs/promises'
+import { mkdir, writeFile, appendFile } from 'fs/promises'
 
 export interface SourceInfo {
   id: string
@@ -28,12 +27,6 @@ export class ScreenRecorder {
   private isRecording = false
   private filepath: string | null = null
   private chunkCount = 0
-
-  // Separate mic WAV file (synced with the WebM video)
-  private micWavPath: string | null = null
-  private micWavFd: FileHandle | null = null
-  private micWavDataSize = 0
-  private videoStarted = false // true after the first video chunk arrives
 
   constructor() {
     this._registerIPC()
@@ -235,14 +228,6 @@ export class ScreenRecorder {
       await writeFile(this.filepath, Buffer.alloc(0))
       console.log(`[screen-recorder] External recording file created: ${this.filepath}`)
 
-      // Create a companion WAV file for mic audio (synced with the video)
-      const micFilename = `meeting-${timestamp}-mic.wav`
-      this.micWavPath = join(dir, micFilename)
-      this.micWavFd = await open(this.micWavPath, 'w')
-      await this.micWavFd.write(this._createWavHeader(0)) // placeholder header
-      this.micWavDataSize = 0
-      console.log(`[screen-recorder] Mic WAV file created: ${this.micWavPath}`)
-
       this.isRecording = true
       return { success: true, filepath: this.filepath }
     } catch (err) {
@@ -261,22 +246,6 @@ export class ScreenRecorder {
 
     console.log(`[screen-recorder] Stopping external recording (${this.chunkCount} chunks written)`)
     this.isRecording = false
-
-    // Finalize the mic WAV: rewrite the header with the actual data size
-    if (this.micWavFd) {
-      try {
-        const header = this._createWavHeader(this.micWavDataSize)
-        await this.micWavFd.write(header, 0, header.length, 0)
-        await this.micWavFd.close()
-        console.log(
-          `[screen-recorder] Mic WAV finalized: ${this.micWavPath} ` +
-            `(${(this.micWavDataSize / 1024).toFixed(0)}KB)`,
-        )
-      } catch (err) {
-        console.error('[screen-recorder] Failed to finalize mic WAV:', err)
-      }
-      this.micWavFd = null
-    }
 
     const fp = this.filepath
     return { filepath: fp }
@@ -297,7 +266,6 @@ export class ScreenRecorder {
   async writeExternalChunk(data: Buffer): Promise<void> {
     if (!this.filepath || !this.isRecording) return
     this.chunkCount++
-    if (!this.videoStarted) this.videoStarted = true
     await appendFile(this.filepath, data)
     if (this.chunkCount <= 3 || this.chunkCount % 10 === 0) {
       console.log(
@@ -306,51 +274,4 @@ export class ScreenRecorder {
     }
   }
 
-  /**
-   * Write mic PCM (Float32, 16 kHz mono) to the companion WAV file.
-   * Converts to 16-bit signed integers for maximum compatibility.
-   */
-  async writeMicPcm(pcm: Float32Array): Promise<void> {
-    if (!this.micWavFd || !this.isRecording) return
-    try {
-      const int16 = new Int16Array(pcm.length)
-      for (let i = 0; i < pcm.length; i++) {
-        const s = Math.max(-1, Math.min(1, pcm[i]))
-        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff
-      }
-      const buf = Buffer.from(int16.buffer, int16.byteOffset, int16.byteLength)
-      await this.micWavFd.write(buf)
-      this.micWavDataSize += buf.byteLength
-    } catch (err) {
-      console.error('[screen-recorder] Failed to write mic PCM:', err)
-    }
-  }
-
-  /**
-   * Create a standard WAV header (16-bit PCM, 16 kHz, mono).
-   * dataSize = 0 for the initial placeholder; updated on stop.
-   */
-  private _createWavHeader(dataSize: number): Buffer {
-    const sampleRate = 16000
-    const numChannels = 1
-    const bitsPerSample = 16
-    const byteRate = (sampleRate * numChannels * bitsPerSample) / 8
-    const blockAlign = (numChannels * bitsPerSample) / 8
-
-    const header = Buffer.alloc(44)
-    header.write('RIFF', 0)
-    header.writeUInt32LE(36 + dataSize, 4)
-    header.write('WAVE', 8)
-    header.write('fmt ', 12)
-    header.writeUInt32LE(16, 16) // fmt chunk size
-    header.writeUInt16LE(1, 20) // PCM format
-    header.writeUInt16LE(numChannels, 22)
-    header.writeUInt32LE(sampleRate, 24)
-    header.writeUInt32LE(byteRate, 28)
-    header.writeUInt16LE(blockAlign, 32)
-    header.writeUInt16LE(bitsPerSample, 34)
-    header.write('data', 36)
-    header.writeUInt32LE(dataSize, 40)
-    return header
-  }
 }
