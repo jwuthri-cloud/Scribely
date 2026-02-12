@@ -1,36 +1,171 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+interface AppSettings {
+  themeId: string
+  hotkeys: Record<string, string>
+  moveStepPx: number
+  windowOpacity: number
+}
+
 export interface ElectronAPI {
-  /** Subscribe to visibility toggle from main process. Returns unsubscribe fn. */
+  // ── Visibility ──────────────────────────────────
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
 
-  /** Send a chat message to the main process */
+  // ── Chat ────────────────────────────────────────
   sendMessage: (message: string) => void
-
-  /** Subscribe to chat responses from main process. Returns unsubscribe fn. */
   onMessage: (callback: (response: string) => void) => () => void
+  cancelResponse: () => void
 
-  /** Get persisted theme ID from electron-store */
+  // ── Settings ────────────────────────────────────
+  getSettings: () => Promise<AppSettings>
+  updateSettings: (partial: Partial<AppSettings>) => void
+  onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
+
+  // ── Legacy theme (kept for ThemeProvider compat) ─
   getThemeId: () => Promise<string>
-
-  /** Persist theme ID to electron-store */
   setThemeId: (themeId: string) => void
 
-  /** Request the app to quit */
+  // ── Screenshot ──────────────────────────────────
+  takeScreenshot: () => Promise<string>
+  onScreenshotTaken: (callback: (dataUrl: string) => void) => () => void
+
+  // ── Audio ───────────────────────────────────────
+  onToggleAudio: (callback: () => void) => () => void
+
+  // ── Meeting / Transcription ─────────────────────
+  startMeetingSession: () => Promise<{
+    sessionId: string
+    transcriptionMode: string
+    vadEnabled: boolean
+  }>
+  stopMeetingSession: () => Promise<{ success: boolean }>
+  /** Stream a small audio frame to the main process for VAD + transcription */
+  streamAudioFrame: (payload: {
+    source: string
+    pcm: ArrayBuffer
+    sampleRate: number
+    timestamp: number
+  }) => void
+  /** Legacy: send a chunk directly for transcription (bypasses VAD) */
+  transcribeAudioChunk: (payload: {
+    source: string
+    pcm: ArrayBuffer
+    sampleRate: number
+    timestamp: number
+  }) => Promise<unknown>
+  saveMeetingRecording: (payload: {
+    data: ArrayBuffer
+    mimeType: string
+  }) => Promise<{ filepath: string; filename: string }>
+  initRecordingFile: (payload: {
+    mimeType: string
+  }) => Promise<{ filepath: string; filename: string }>
+  appendRecordingChunk: (payload: {
+    filepath: string
+    data: ArrayBuffer
+  }) => Promise<void>
+  saveTranscript: (payload: {
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    sessionId?: string
+    recordingFilepath?: string
+  }) => Promise<{ filepath: string; filename: string }>
+  getModelStatus: () => Promise<unknown>
+  downloadWhisperModel: () => Promise<{
+    success: boolean
+    path?: string
+    mode?: string
+    error?: string
+  }>
+  onTranscriptEntry: (callback: (entry: unknown) => void) => () => void
+  onMeetingStatusUpdate: (callback: (update: unknown) => void) => () => void
+  onModelProgress: (callback: (data: { modelId: string; progress: number }) => void) => () => void
+  onModelComplete: (callback: (data: { modelId: string; path: string }) => void) => () => void
+
+  // ── Screen Recording (main-process driven) ─────
+  startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
+  stopRecording: () => Promise<{ filepath: string | null }>
+  selectRecordingSource: (sourceId: string) => Promise<void>
+  onShowPicker: (
+    callback: (data: {
+      filepath: string
+      sources: Array<{ id: string; name: string; type: 'screen' | 'window'; thumbnailDataUrl: string }>
+    }) => void,
+  ) => () => void
+  onStartCapture: (
+    callback: (data: { filepath: string }) => void,
+  ) => () => void
+  onStopCapture: (callback: () => void) => () => void
+  writeRecordingChunk: (payload: { data: Uint8Array }) => Promise<void>
+
+  // ── Audio Levels (waveform visualization) ──────
+  onAudioLevels: (
+    callback: (levels: { mic: number; system: number; timestamp: number }) => void,
+  ) => () => void
+
+  // ── Native Capture ─────────────────────────────
+  startNativeCapture: (options: {
+    mic: boolean
+    system: boolean
+  }) => Promise<{ success: boolean; error?: string }>
+  stopNativeCapture: () => Promise<{ success: boolean; error?: string }>
+  getNativeStatus: () => Promise<{
+    available: boolean
+    connected: boolean
+    processRunning: boolean
+    captureState: string
+    micActive: boolean
+    systemAudioActive: boolean
+  }>
+  onNativeStatusChanged: (
+    callback: (status: {
+      available: boolean
+      connected: boolean
+      processRunning: boolean
+      captureState: string
+      micActive: boolean
+      systemAudioActive: boolean
+    }) => void,
+  ) => () => void
+  onNativeError: (callback: (error: { code: string; message: string }) => void) => () => void
+
+  // ── Chrome Extension Capture ───────────────────
+  getExtensionStatus: () => Promise<{ connected: boolean }>
+  onExtensionStatusChanged: (
+    callback: (status: { connected: boolean }) => void,
+  ) => () => void
+  onExtensionAutoStartMeeting: (callback: () => void) => () => void
+  onExtensionAutoStopMeeting: (callback: () => void) => () => void
+  stopExtensionCapture: () => Promise<{ success: boolean }>
+
+  // ── Reset chat ──────────────────────────────────
+  onResetChat: (callback: () => void) => () => void
+
+  // ── Invisibility ──────────────────────────────
+  toggleInvisibility: () => Promise<boolean>
+  getInvisibility: () => Promise<boolean>
+
+  // ── App lifecycle ───────────────────────────────
   quit: () => void
 }
 
 const api: ElectronAPI = {
+  // ── Visibility ──────────────────────────────────
   onToggleVisibility: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, visible: boolean) => {
       callback(visible)
     }
     ipcRenderer.on('toggle-visibility', handler)
-    return () => {
-      ipcRenderer.removeListener('toggle-visibility', handler)
-    }
+    return () => ipcRenderer.removeListener('toggle-visibility', handler)
   },
 
+  // ── Chat ────────────────────────────────────────
   sendMessage: (message: string) => {
     ipcRenderer.send('send-message', message)
   },
@@ -40,11 +175,31 @@ const api: ElectronAPI = {
       callback(response)
     }
     ipcRenderer.on('chat-response', handler)
-    return () => {
-      ipcRenderer.removeListener('chat-response', handler)
-    }
+    return () => ipcRenderer.removeListener('chat-response', handler)
   },
 
+  cancelResponse: () => {
+    ipcRenderer.send('cancel-response')
+  },
+
+  // ── Settings ────────────────────────────────────
+  getSettings: () => {
+    return ipcRenderer.invoke('get-settings')
+  },
+
+  updateSettings: (partial: Partial<AppSettings>) => {
+    ipcRenderer.send('update-settings', partial)
+  },
+
+  onSettingsChanged: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings) => {
+      callback(settings)
+    }
+    ipcRenderer.on('settings-changed', handler)
+    return () => ipcRenderer.removeListener('settings-changed', handler)
+  },
+
+  // ── Legacy theme ────────────────────────────────
   getThemeId: () => {
     return ipcRenderer.invoke('get-theme-id')
   },
@@ -53,6 +208,250 @@ const api: ElectronAPI = {
     ipcRenderer.send('set-theme-id', themeId)
   },
 
+  // ── Screenshot ──────────────────────────────────
+  takeScreenshot: () => {
+    return ipcRenderer.invoke('take-screenshot')
+  },
+
+  onScreenshotTaken: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, dataUrl: string) => {
+      callback(dataUrl)
+    }
+    ipcRenderer.on('screenshot-taken', handler)
+    return () => ipcRenderer.removeListener('screenshot-taken', handler)
+  },
+
+  // ── Audio ───────────────────────────────────────
+  onToggleAudio: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('toggle-audio', handler)
+    return () => ipcRenderer.removeListener('toggle-audio', handler)
+  },
+
+  // ── Meeting / Transcription ─────────────────────
+  startMeetingSession: () => {
+    return ipcRenderer.invoke('meeting:start-session')
+  },
+
+  stopMeetingSession: () => {
+    return ipcRenderer.invoke('meeting:stop-session')
+  },
+
+  streamAudioFrame: (payload) => {
+    ipcRenderer.send('meeting:audio-frame', payload)
+  },
+
+  transcribeAudioChunk: (payload) => {
+    return ipcRenderer.invoke('meeting:transcribe-chunk', payload)
+  },
+
+  saveMeetingRecording: (payload) => {
+    return ipcRenderer.invoke('meeting:save-recording', payload)
+  },
+
+  initRecordingFile: (payload) => {
+    return ipcRenderer.invoke('meeting:init-recording-file', payload)
+  },
+
+  appendRecordingChunk: (payload) => {
+    return ipcRenderer.invoke('meeting:append-recording-chunk', payload)
+  },
+
+  saveTranscript: (payload) => {
+    return ipcRenderer.invoke('meeting:save-transcript', payload)
+  },
+
+  getModelStatus: () => {
+    return ipcRenderer.invoke('meeting:get-model-status')
+  },
+
+  downloadWhisperModel: () => {
+    return ipcRenderer.invoke('meeting:download-model')
+  },
+
+  onTranscriptEntry: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, entry: unknown) => {
+      callback(entry)
+    }
+    ipcRenderer.on('meeting:transcript-entry', handler)
+    return () => ipcRenderer.removeListener('meeting:transcript-entry', handler)
+  },
+
+  onMeetingStatusUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: unknown) => {
+      callback(update)
+    }
+    ipcRenderer.on('meeting:status-update', handler)
+    return () => ipcRenderer.removeListener('meeting:status-update', handler)
+  },
+
+  onModelProgress: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { modelId: string; progress: number },
+    ) => {
+      callback(data)
+    }
+    ipcRenderer.on('meeting:model-progress', handler)
+    return () => ipcRenderer.removeListener('meeting:model-progress', handler)
+  },
+
+  onModelComplete: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { modelId: string; path: string },
+    ) => {
+      callback(data)
+    }
+    ipcRenderer.on('meeting:model-complete', handler)
+    return () => ipcRenderer.removeListener('meeting:model-complete', handler)
+  },
+
+  // ── Screen Recording (main-process driven) ─────
+  startRecording: () => {
+    return ipcRenderer.invoke('recording:start')
+  },
+
+  stopRecording: () => {
+    return ipcRenderer.invoke('recording:stop')
+  },
+
+  selectRecordingSource: (sourceId: string) => {
+    return ipcRenderer.invoke('recording:select-source', sourceId)
+  },
+
+  onShowPicker: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('recording:show-picker', handler)
+    return () => ipcRenderer.removeListener('recording:show-picker', handler)
+  },
+
+  onStartCapture: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { filepath: string },
+    ) => {
+      callback(data)
+    }
+    ipcRenderer.on('recording:start-capture', handler)
+    return () => ipcRenderer.removeListener('recording:start-capture', handler)
+  },
+
+  onStopCapture: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('recording:stop-capture', handler)
+    return () => ipcRenderer.removeListener('recording:stop-capture', handler)
+  },
+
+  writeRecordingChunk: (payload) => {
+    return ipcRenderer.invoke('recording:write-chunk', payload)
+  },
+
+  // ── Audio Levels (waveform visualization) ──────
+  onAudioLevels: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      levels: { mic: number; system: number; timestamp: number },
+    ) => {
+      callback(levels)
+    }
+    ipcRenderer.on('meeting:audio-levels', handler)
+    return () => ipcRenderer.removeListener('meeting:audio-levels', handler)
+  },
+
+  // ── Native Capture ─────────────────────────────
+  startNativeCapture: (options) => {
+    return ipcRenderer.invoke('meeting:start-native-capture', options)
+  },
+
+  stopNativeCapture: () => {
+    return ipcRenderer.invoke('meeting:stop-native-capture')
+  },
+
+  getNativeStatus: () => {
+    return ipcRenderer.invoke('meeting:get-native-status')
+  },
+
+  onNativeStatusChanged: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: {
+        available: boolean
+        connected: boolean
+        processRunning: boolean
+        captureState: string
+        micActive: boolean
+        systemAudioActive: boolean
+      },
+    ) => {
+      callback(status)
+    }
+    ipcRenderer.on('native:status-changed', handler)
+    return () => ipcRenderer.removeListener('native:status-changed', handler)
+  },
+
+  onNativeError: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      error: { code: string; message: string },
+    ) => {
+      callback(error)
+    }
+    ipcRenderer.on('native:error', handler)
+    return () => ipcRenderer.removeListener('native:error', handler)
+  },
+
+  // ── Chrome Extension Capture ───────────────────
+  getExtensionStatus: () => {
+    return ipcRenderer.invoke('extension:get-status')
+  },
+
+  onExtensionStatusChanged: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: { connected: boolean },
+    ) => {
+      callback(status)
+    }
+    ipcRenderer.on('extension:status-changed', handler)
+    return () => ipcRenderer.removeListener('extension:status-changed', handler)
+  },
+
+  onExtensionAutoStartMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('extension:auto-start-meeting', handler)
+    return () => ipcRenderer.removeListener('extension:auto-start-meeting', handler)
+  },
+
+  onExtensionAutoStopMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('extension:auto-stop-meeting', handler)
+    return () => ipcRenderer.removeListener('extension:auto-stop-meeting', handler)
+  },
+
+  stopExtensionCapture: () => {
+    return ipcRenderer.invoke('extension:stop-capture')
+  },
+
+  // ── Reset chat ──────────────────────────────────
+  onResetChat: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('reset-chat', handler)
+    return () => ipcRenderer.removeListener('reset-chat', handler)
+  },
+
+  // ── Invisibility ──────────────────────────────
+  toggleInvisibility: () => {
+    return ipcRenderer.invoke('toggle-invisibility')
+  },
+
+  getInvisibility: () => {
+    return ipcRenderer.invoke('get-invisibility')
+  },
+
+  // ── App lifecycle ───────────────────────────────
   quit: () => {
     ipcRenderer.send('app-quit')
   },

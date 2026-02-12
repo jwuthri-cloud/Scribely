@@ -1,9 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { ChatMessage } from '../types'
+import type { ChatMessage, ChatAttachment } from '../types'
 
 /**
- * Chat hook that communicates with the main process via IPC.
- * Falls back to a local echo if electronAPI is unavailable (e.g. in browser dev).
+ * Chat hook with IPC communication, reset, stop, and attachment support.
  */
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -26,38 +25,59 @@ export function useChat() {
     }
   }, [])
 
-  const sendMessage = useCallback((content: string) => {
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-    }
-
-    setMessages((prev) => [...prev, userMsg])
-    setIsLoading(true)
-
-    if (window.electronAPI?.sendMessage) {
-      // Route through IPC to main process
-      window.electronAPI.sendMessage(content)
-    } else {
-      // Fallback for browser-only dev
-      setTimeout(() => {
-        const assistantMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: `You said: "${content}"\n\n(Placeholder — backend integration coming soon.)`,
-          timestamp: Date.now(),
-        }
-        setMessages((prev) => [...prev, assistantMsg])
-        setIsLoading(false)
-      }, 600)
+  // Listen for reset-chat IPC (from hotkey)
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onResetChat(() => {
+      setMessages([])
+      setIsLoading(false)
+    })
+    return () => {
+      unsubscribe?.()
     }
   }, [])
 
-  const clearMessages = useCallback(() => {
+  const sendMessage = useCallback(
+    (content: string, attachments?: ChatAttachment[]) => {
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content,
+        timestamp: Date.now(),
+        attachments,
+      }
+
+      setMessages((prev) => [...prev, userMsg])
+      setIsLoading(true)
+
+      if (window.electronAPI?.sendMessage) {
+        window.electronAPI.sendMessage(content)
+      } else {
+        // Fallback for browser-only dev
+        setTimeout(() => {
+          const assistantMsg: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `You said: "${content}"\n\n(Placeholder — backend integration coming soon.)`,
+            timestamp: Date.now(),
+          }
+          setMessages((prev) => [...prev, assistantMsg])
+          setIsLoading(false)
+        }, 600)
+      }
+    },
+    [],
+  )
+
+  const resetChat = useCallback(() => {
     setMessages([])
+    setIsLoading(false)
   }, [])
 
-  return { messages, isLoading, sendMessage, clearMessages }
+  const stopGeneration = useCallback(() => {
+    if (!isLoading) return
+    setIsLoading(false)
+    window.electronAPI?.cancelResponse()
+  }, [isLoading])
+
+  return { messages, isLoading, sendMessage, resetChat, stopGeneration }
 }

@@ -23,9 +23,11 @@ function applyThemeVariables(colors: ThemeColors): void {
   }
 }
 
-/** Persist theme ID via electron-store (IPC) with localStorage fallback */
+/** Persist theme ID via unified settings API with fallback to legacy IPC */
 function persistThemeId(id: string): void {
-  if (window.electronAPI?.setThemeId) {
+  if (window.electronAPI?.updateSettings) {
+    window.electronAPI.updateSettings({ themeId: id })
+  } else if (window.electronAPI?.setThemeId) {
     window.electronAPI.setThemeId(id)
   }
   try {
@@ -35,7 +37,7 @@ function persistThemeId(id: string): void {
   }
 }
 
-/** Read persisted theme ID — sync fallback for initial render */
+/** Read persisted theme ID -- sync fallback for initial render */
 function getStoredThemeIdSync(): string {
   try {
     return localStorage.getItem('theme-id') ?? DEFAULT_THEME_ID
@@ -49,24 +51,59 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const theme = themes[themeId] ?? themes[DEFAULT_THEME_ID]
 
-  // On mount, hydrate from electron-store (async) which is the source of truth
+  // On mount, hydrate from settings (async) which is the source of truth
   useEffect(() => {
     let cancelled = false
-    if (window.electronAPI?.getThemeId) {
-      window.electronAPI.getThemeId().then((storedId) => {
-        if (!cancelled && storedId && themes[storedId]) {
-          setThemeIdState(storedId)
-          // Sync localStorage so next cold render is instant
-          try {
-            localStorage.setItem('theme-id', storedId)
-          } catch {
-            // noop
-          }
+
+    const hydrate = async () => {
+      let storedId: string | undefined
+
+      // Try unified settings API first
+      if (window.electronAPI?.getSettings) {
+        try {
+          const settings = await window.electronAPI.getSettings()
+          storedId = settings?.themeId
+        } catch {
+          // fall through to legacy
         }
-      })
+      }
+
+      // Fallback to legacy theme IPC
+      if (!storedId && window.electronAPI?.getThemeId) {
+        storedId = await window.electronAPI.getThemeId()
+      }
+
+      if (!cancelled && storedId && themes[storedId]) {
+        setThemeIdState(storedId)
+        try {
+          localStorage.setItem('theme-id', storedId)
+        } catch {
+          // noop
+        }
+      }
     }
+
+    hydrate()
+
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  // Listen for settings changes from main process
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onSettingsChanged?.((settings) => {
+      if (settings?.themeId && themes[settings.themeId]) {
+        setThemeIdState(settings.themeId)
+        try {
+          localStorage.setItem('theme-id', settings.themeId)
+        } catch {
+          // noop
+        }
+      }
+    })
+    return () => {
+      unsubscribe?.()
     }
   }, [])
 

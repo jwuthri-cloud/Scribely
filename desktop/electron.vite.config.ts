@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['nswindow-napi'],
+        external: ['nswindow-napi', 'smart-whisper', 'onnxruntime-node'],
       },
     },
   },
