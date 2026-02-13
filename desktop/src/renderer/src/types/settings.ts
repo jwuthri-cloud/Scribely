@@ -27,22 +27,15 @@ export type TranscriptionProvider =
   | 'local-fast'     // whisper small.en (~488MB, Metal)
   | 'local-balanced' // whisper medium.en (~1.5GB, Metal)
   | 'local-accurate' // whisper large-v3-turbo (~1.6GB, Metal, multilingual)
-  | 'groq'           // Groq Whisper large-v3
-  | 'deepgram'       // Deepgram Nova-3
 
 export interface TranscriptionSettings {
   provider: TranscriptionProvider
-  apiKeys: {
-    groq?: string
-    deepgram?: string
-  }
   /** Transcription chunk duration in seconds (1–10). Lower = faster but noisier. */
   chunkDurationSec: number
 }
 
 export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
   provider: 'local-fast',
-  apiKeys: {},
   chunkDurationSec: 2,
 }
 

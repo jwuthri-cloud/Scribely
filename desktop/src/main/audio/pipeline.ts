@@ -11,10 +11,6 @@ import type { NativeHelperBridge } from '../native-bridge'
 
 interface TranscriptionSettings {
   provider: string
-  apiKeys: {
-    groq?: string
-    deepgram?: string
-  }
   chunkDurationSec?: number
 }
 
@@ -92,7 +88,6 @@ export class AudioPipeline {
     this.modelManager = new ModelManager()
     this.transcriber = new Transcriber(this.modelManager, {
       provider: transcriptionSettings.provider as any,
-      apiKeys: transcriptionSettings.apiKeys,
     })
 
     // Apply initial chunk duration from settings
@@ -316,7 +311,7 @@ export class AudioPipeline {
       console.log(`[pipeline] Chunk duration set to ${this._chunkDurationSec}s`)
     }
 
-    await this.transcriber.setProvider(provider, settings.apiKeys)
+    await this.transcriber.setProvider(provider)
 
     // Auto-download whisper model if needed
     const modelId = PROVIDER_MODEL_MAP[provider]

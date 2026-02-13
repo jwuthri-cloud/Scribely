@@ -10,6 +10,7 @@ import { nord } from './nord'
 import { oneDarkPro } from './one-dark-pro'
 import { gruvboxDark } from './gruvbox-dark'
 import { tokyoNight } from './tokyo-night'
+import { cutePink } from './cute-pink'
 
 export const themes: Record<string, Theme> = {
   'atom-dark': atomDark,
@@ -23,6 +24,7 @@ export const themes: Record<string, Theme> = {
   'github-light': githubLight,
   'solarized-dark': solarizedDark,
   'solarized-light': solarizedLight,
+  'cute-pink': cutePink,
 }
 
 export const DEFAULT_THEME_ID = 'atom-dark'

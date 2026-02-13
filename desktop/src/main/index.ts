@@ -30,10 +30,6 @@ interface HotkeyConfig {
 
 interface TranscriptionSettings {
   provider: string
-  apiKeys: {
-    groq?: string
-    deepgram?: string
-  }
   chunkDurationSec: number
 }
 
@@ -63,7 +59,6 @@ const store = new Store<AppSettings>({
     windowOpacity: 0.85,
     transcription: {
       provider: 'local-fast',
-      apiKeys: {},
       chunkDurationSec: 2,
     },
   },
@@ -194,7 +189,6 @@ function registerIpcHandlers(): void {
         store.set('transcription', {
           ...current,
           ...incoming,
-          apiKeys: { ...current.apiKeys, ...incoming.apiKeys },
         })
       } else {
         store.set(key as keyof AppSettings, value as never)

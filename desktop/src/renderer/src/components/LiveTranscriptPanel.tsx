@@ -302,8 +302,6 @@ const MODE_BADGE_MAP: Record<string, { label: string; color: 'success' | 'warnin
   'local-fast': { label: 'SMALL', color: 'success' },
   'local-balanced': { label: 'MED', color: 'success' },
   'local-accurate': { label: 'TURBO', color: 'success' },
-  groq: { label: 'GROQ', color: 'warning' },
-  deepgram: { label: 'DEEPGRAM', color: 'warning' },
   downloading: { label: 'DL...', color: 'accent' },
 }
 

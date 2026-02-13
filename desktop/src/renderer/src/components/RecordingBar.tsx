@@ -103,20 +103,16 @@ export function RecordingBar({
                 className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                 style={{
                   backgroundColor:
-                    transcriptionMode.startsWith('local')
-                      ? 'color-mix(in srgb, var(--success) 15%, transparent)'
-                      : transcriptionMode === 'downloading'
-                        ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
-                        : 'color-mix(in srgb, var(--warning) 15%, transparent)',
+                    transcriptionMode === 'downloading'
+                      ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+                      : 'color-mix(in srgb, var(--success) 15%, transparent)',
                   color:
-                    transcriptionMode.startsWith('local')
-                      ? 'var(--success)'
-                      : transcriptionMode === 'downloading'
-                        ? 'var(--accent)'
-                        : 'var(--warning)',
+                    transcriptionMode === 'downloading'
+                      ? 'var(--accent)'
+                      : 'var(--success)',
                 }}
               >
-                {transcriptionMode === 'local-fast' ? 'SMALL' : transcriptionMode === 'local-balanced' ? 'MED' : transcriptionMode === 'local-accurate' ? 'TURBO' : transcriptionMode === 'groq' ? 'GROQ' : transcriptionMode === 'deepgram' ? 'DEEPGRAM' : transcriptionMode === 'downloading' ? 'DL...' : transcriptionMode.toUpperCase()}
+                {transcriptionMode === 'local-fast' ? 'SMALL' : transcriptionMode === 'local-balanced' ? 'MED' : transcriptionMode === 'local-accurate' ? 'TURBO' : transcriptionMode === 'downloading' ? 'DL...' : transcriptionMode.toUpperCase()}
               </span>
             </div>
           </div>

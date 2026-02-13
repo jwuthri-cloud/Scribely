@@ -16,10 +16,6 @@ interface HotkeyConfig {
 
 interface TranscriptionSettings {
   provider: string
-  apiKeys: {
-    groq?: string
-    deepgram?: string
-  }
   chunkDurationSec: number
 }
 
