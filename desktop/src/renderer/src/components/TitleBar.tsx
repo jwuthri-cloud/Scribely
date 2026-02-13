@@ -8,35 +8,55 @@ interface TitleBarProps {
   onToggleMeeting?: () => void
 }
 
-/** Small icon button used in the title bar */
+/** Small icon button used in the title bar with a custom tooltip */
 function TitleBtn({
   onClick,
   label,
-  title,
+  tooltip,
   active,
   color,
   children,
 }: {
   onClick: () => void
   label: string
-  title: string
+  tooltip: string
   active?: boolean
   color?: string
   children: React.ReactNode
 }) {
+  const [hovered, setHovered] = useState(false)
+
   return (
-    <button
-      className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
-      style={{
-        color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)'),
-        WebkitAppRegion: 'no-drag',
-      } as React.CSSProperties}
-      onClick={onClick}
-      aria-label={label}
-      title={title}
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {children}
-    </button>
+      <button
+        className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+        style={{
+          color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)'),
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties}
+        onClick={onClick}
+        aria-label={label}
+      >
+        {children}
+      </button>
+      {hovered && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-50"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -89,7 +109,7 @@ export function TitleBar({
         />
 
         {view === 'settings' && (
-          <TitleBtn onClick={onToggleView} label="Back to chat" title="Back to chat">
+          <TitleBtn onClick={onToggleView} label="Back to chat" tooltip="Back to chat">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
                 d="M7.5 2L3.5 6L7.5 10"
@@ -117,7 +137,7 @@ export function TitleBar({
           <TitleBtn
             onClick={handleToggleInvisibility}
             label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
-            title={invisible ? 'Hidden from screen share (click to show)' : 'Visible to screen share (click to hide)'}
+            tooltip={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
             active={invisible}
           >
             {invisible ? (
@@ -151,7 +171,7 @@ export function TitleBar({
           <TitleBtn
             onClick={onToggleMeeting}
             label={meetingActive ? 'Stop meeting' : 'Start meeting'}
-            title={meetingActive ? 'Stop meeting capture' : 'Start meeting capture'}
+            tooltip={meetingActive ? 'Stop meeting capture' : 'Start meeting capture'}
             color={meetingActive ? 'var(--error)' : undefined}
           >
             {meetingActive ? (
@@ -172,7 +192,7 @@ export function TitleBar({
           <TitleBtn
             onClick={onReset}
             label="Reset chat"
-            title="Reset chat (⌥R)"
+            tooltip="Reset chat (⌥R)"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
@@ -196,7 +216,7 @@ export function TitleBar({
         <TitleBtn
           onClick={onToggleView}
           label={view === 'settings' ? 'Back to chat' : 'Settings'}
-          title="Settings"
+          tooltip="Settings"
           active={view === 'settings'}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
