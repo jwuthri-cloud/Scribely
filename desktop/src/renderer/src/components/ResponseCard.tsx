@@ -56,6 +56,16 @@ const VISIBLE_HOTKEYS: { key: keyof HotkeyConfig; label: string; icon: React.Rea
       </svg>
     ),
   },
+  {
+    key: 'toggleMeeting',
+    label: 'Toggle meeting',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    ),
+  },  
 ]
 
 interface ResponseCardProps {

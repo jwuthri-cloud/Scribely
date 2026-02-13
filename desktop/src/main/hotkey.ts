@@ -11,6 +11,7 @@ interface HotkeyConfig {
   takeScreenshot: string
   toggleAudio: string
   resetChat: string
+  toggleMeeting: string
 }
 
 interface TranscriptionSettings {
@@ -40,57 +41,70 @@ export function registerAllHotkeys(
   const settings = store.store as AppSettings
   const { hotkeys, moveStepPx } = settings
 
+  // Guard: hotkey callbacks can fire after window is closed (e.g. on macOS when app stays running)
+  const guard = (fn: () => void) => () => {
+    if (win.isDestroyed()) return
+    fn()
+  }
+
   // Toggle overlay visibility
-  tryRegister(hotkeys.toggleOverlay, () => {
+  tryRegister(hotkeys.toggleOverlay, guard(() => {
     if (win.isVisible()) {
       win.webContents.send('toggle-visibility', false)
-      setTimeout(() => win.hide(), 200)
+      setTimeout(() => {
+        if (!win.isDestroyed()) win.hide()
+      }, 200)
     } else {
       win.show()
       win.webContents.send('toggle-visibility', true)
     }
-  })
+  }))
 
   // Move window
-  tryRegister(hotkeys.moveUp, () => {
+  tryRegister(hotkeys.moveUp, guard(() => {
     const [x, y] = win.getPosition()
     win.setPosition(x, y - moveStepPx)
-  })
+  }))
 
-  tryRegister(hotkeys.moveDown, () => {
+  tryRegister(hotkeys.moveDown, guard(() => {
     const [x, y] = win.getPosition()
     win.setPosition(x, y + moveStepPx)
-  })
+  }))
 
-  tryRegister(hotkeys.moveLeft, () => {
+  tryRegister(hotkeys.moveLeft, guard(() => {
     const [x, y] = win.getPosition()
     win.setPosition(x - moveStepPx, y)
-  })
+  }))
 
-  tryRegister(hotkeys.moveRight, () => {
+  tryRegister(hotkeys.moveRight, guard(() => {
     const [x, y] = win.getPosition()
     win.setPosition(x + moveStepPx, y)
-  })
+  }))
 
   // Screenshot
-  tryRegister(hotkeys.takeScreenshot, async () => {
+  tryRegister(hotkeys.takeScreenshot, guard(async () => {
     try {
       const dataUrl = await captureScreen(win)
-      win.webContents.send('screenshot-taken', dataUrl)
+      if (!win.isDestroyed()) win.webContents.send('screenshot-taken', dataUrl)
     } catch (err) {
       console.error('[hotkey] Screenshot failed:', err)
     }
-  })
+  }))
 
   // Toggle audio recording
-  tryRegister(hotkeys.toggleAudio, () => {
+  tryRegister(hotkeys.toggleAudio, guard(() => {
     win.webContents.send('toggle-audio')
-  })
+  }))
 
   // Reset chat
-  tryRegister(hotkeys.resetChat, () => {
+  tryRegister(hotkeys.resetChat, guard(() => {
     win.webContents.send('reset-chat')
-  })
+  }))
+
+  // Toggle meeting recording
+  tryRegister(hotkeys.toggleMeeting, guard(() => {
+    win.webContents.send('toggle-meeting')
+  }))
 }
 
 /**

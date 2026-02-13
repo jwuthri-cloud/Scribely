@@ -25,6 +25,7 @@ interface HotkeyConfig {
   takeScreenshot: string
   toggleAudio: string
   resetChat: string
+  toggleMeeting: string
 }
 
 interface TranscriptionSettings {
@@ -56,6 +57,7 @@ const store = new Store<AppSettings>({
       takeScreenshot: 'Alt+S',
       toggleAudio: 'Alt+A',
       resetChat: 'Alt+R',
+      toggleMeeting: 'Alt+M',
     },
     moveStepPx: 50,
     windowOpacity: 0.85,
@@ -66,6 +68,12 @@ const store = new Store<AppSettings>({
     },
   },
 })
+
+// Migrate: ensure new hotkey defaults exist in stored config
+const storedHotkeys = store.get('hotkeys')
+if (!storedHotkeys.toggleMeeting) {
+  store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
+}
 
 let mainWindow: BrowserWindow | null = null
 let pendingResponseTimer: ReturnType<typeof setTimeout> | null = null
@@ -155,6 +163,11 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // Clear reference when window is closed (prevents "Object has been destroyed" in hotkeys)
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
   // Register all global hotkeys
   registerAllHotkeys(mainWindow, store)
 }
@@ -191,12 +204,12 @@ function registerIpcHandlers(): void {
     const newHotkeys = JSON.stringify(store.get('hotkeys'))
 
     // Re-register hotkeys if hotkeys or moveStepPx changed
-    if ((oldHotkeys !== newHotkeys || partial.moveStepPx !== undefined) && mainWindow) {
+    if ((oldHotkeys !== newHotkeys || partial.moveStepPx !== undefined) && mainWindow && !mainWindow.isDestroyed()) {
       reregisterHotkeys(mainWindow, store)
     }
 
     // Apply window opacity immediately
-    if (partial.windowOpacity !== undefined && mainWindow) {
+    if (partial.windowOpacity !== undefined && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setOpacity(store.get('windowOpacity'))
     }
 
@@ -206,7 +219,7 @@ function registerIpcHandlers(): void {
     }
 
     // Notify renderer that settings changed
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('settings-changed', store.store)
     }
   })
@@ -229,12 +242,14 @@ function registerIpcHandlers(): void {
   // ── Chat ──────────────────────────────────────────
   ipcMain.on('send-message', (_event, message: string) => {
     console.log('[ipc] Received message:', message)
-    if (mainWindow) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       pendingResponseTimer = setTimeout(() => {
-        mainWindow!.webContents.send(
-          'chat-response',
-          `You said: "${message}"\n\n(Placeholder — backend integration coming soon.)`,
-        )
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(
+            'chat-response',
+            `You said: "${message}"\n\n(Placeholder — backend integration coming soon.)`,
+          )
+        }
         pendingResponseTimer = null
       }, 600)
     }

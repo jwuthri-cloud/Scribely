@@ -158,6 +158,9 @@ export interface ElectronAPI {
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean }>
 
+  // Meeting toggle
+  onToggleMeeting: (callback: () => void) => () => void
+
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 

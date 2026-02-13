@@ -144,6 +144,9 @@ export interface ElectronAPI {
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean }>
 
+  // ── Meeting toggle ─────────────────────────────
+  onToggleMeeting: (callback: () => void) => () => void
+
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback: () => void) => () => void
 
@@ -433,6 +436,13 @@ const api: ElectronAPI = {
 
   stopExtensionCapture: () => {
     return ipcRenderer.invoke('extension:stop-capture')
+  },
+
+  // ── Meeting toggle ─────────────────────────────
+  onToggleMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('toggle-meeting', handler)
+    return () => ipcRenderer.removeListener('toggle-meeting', handler)
   },
 
   // ── Reset chat ──────────────────────────────────

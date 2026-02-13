@@ -7,6 +7,7 @@ export interface HotkeyConfig {
   takeScreenshot: string
   toggleAudio: string
   resetChat: string
+  toggleMeeting: string
 }
 
 export const DEFAULT_HOTKEYS: HotkeyConfig = {
@@ -18,6 +19,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
   takeScreenshot: 'Alt+S',
   toggleAudio: 'Alt+A',
   resetChat: 'Alt+R',
+  toggleMeeting: 'Alt+M',
 }
 
 // ── Transcription Provider Settings ─────────────────────
@@ -76,4 +78,5 @@ export const HOTKEY_LABELS: Record<keyof HotkeyConfig, string> = {
   takeScreenshot: 'Take Screenshot',
   toggleAudio: 'Toggle Audio',
   resetChat: 'Reset Chat',
+  toggleMeeting: 'Toggle Meeting',
 }

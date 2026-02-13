@@ -172,6 +172,16 @@ export function Overlay() {
     }
   }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting])
 
+  // Meeting toggle from hotkey
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onToggleMeeting(() => {
+      handleToggleMeeting()
+    })
+    return () => {
+      unsubscribe?.()
+    }
+  }, [handleToggleMeeting])
+
   // ── Auto-start/stop meeting when Chrome extension connects/disconnects ──
   useEffect(() => {
     const unsubStart = window.electronAPI?.onExtensionAutoStartMeeting?.(() => {
