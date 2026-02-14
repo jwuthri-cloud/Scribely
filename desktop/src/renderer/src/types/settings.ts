@@ -140,6 +140,21 @@ export const DEFAULT_SUMMARIZATION: SummarizationSettings = {
   summarizerSystemPrompt: null,
 }
 
+/** Custom quick action (label shown on chip, value sent as user message) */
+export interface QuickAction {
+  label: string
+  value: string
+  /** Icon id from QUICK_ACTION_ICON_IDS. Optional; falls back to value-based default. */
+  icon?: string
+}
+
+export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
+  { label: 'List action items', value: 'List the action items from this meeting', icon: 'checklist' },
+  { label: 'Explain', value: 'Explain this', icon: 'explain' },
+  { label: 'Fix code', value: 'Fix this code', icon: 'wrench' },
+  { label: 'Rewrite', value: 'Rewrite this', icon: 'pencil' },
+]
+
 export interface LLMSettings {
   apiKey: string
   defaultModel: ModelId
@@ -150,6 +165,8 @@ export interface LLMSettings {
   systemPrompts: SystemPrompt[]
   /** Transcript summarization settings (Phase 2) */
   summarization: SummarizationSettings
+  /** Custom quick actions (max 4; Summarize is always first). Empty = use defaults. */
+  quickActions: QuickAction[]
 }
 
 export const DEFAULT_LLM: LLMSettings = {
@@ -159,6 +176,7 @@ export const DEFAULT_LLM: LLMSettings = {
   activeSystemPromptId: null,
   systemPrompts: [],
   summarization: DEFAULT_SUMMARIZATION,
+  quickActions: [],
 }
 
 export interface AppSettings {

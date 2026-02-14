@@ -31,6 +31,8 @@
     "onnxruntime-node": "^1.24.1",
     "openai": "^6.22.0",
     "protobufjs": "^8.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "smart-whisper": "^0.8.1",
     "ws": "^8.19.0"
   },

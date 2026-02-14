@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
 import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
+import { MarkdownContent } from './MarkdownContent'
 
 /** Converts an Electron accelerator to macOS-style symbols */
 function fmtKey(acc: string): string {
@@ -205,7 +206,16 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
             ))}
 
             {/* Message content */}
-            <span className="whitespace-pre-wrap">{displayText}</span>
+            {msg.role === 'assistant' && !msg.isError ? (
+              <div className="max-w-none">
+                <MarkdownContent
+                  content={displayText}
+                  color="var(--text-bright)"
+                />
+              </div>
+            ) : (
+              <span className="whitespace-pre-wrap">{displayText}</span>
+            )}
 
             {/* Streaming cursor */}
             {isStreaming && msg === lastMsg && (

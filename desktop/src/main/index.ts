@@ -45,6 +45,12 @@ interface SummarizationSettings {
   summarizerSystemPrompt: string | null
 }
 
+interface QuickAction {
+  label: string
+  value: string
+  icon?: string
+}
+
 interface LLMSettings {
   apiKey: string
   defaultModel: string
@@ -58,6 +64,7 @@ interface LLMSettings {
     updatedAt: number
   }>
   summarization?: SummarizationSettings
+  quickActions?: QuickAction[]
 }
 
 interface AppSettings {
@@ -102,6 +109,7 @@ const store = new Store<AppSettings>({
         keepRawCount: 5,
         summarizerSystemPrompt: null,
       },
+      quickActions: [],
     },
   },
 })

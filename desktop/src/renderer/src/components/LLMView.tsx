@@ -3,9 +3,12 @@ import type { SystemPrompt } from '../types'
 import {
   type ModelId,
   type SummarizationSettings,
+  type QuickAction,
   DEFAULT_SUMMARIZATION,
   DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
+  DEFAULT_QUICK_ACTIONS,
 } from '../types/settings'
+import { IconPicker, getQuickActionIcon } from './QuickActionIcons'
 
 const MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
   { id: 'gpt5-nano', label: 'Nano', description: 'Fast, low cost' },
@@ -56,6 +59,15 @@ export function LLMView() {
   const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
   const [summarizerPromptDraft, setSummarizerPromptDraft] = useState('')
 
+  // Quick actions (max 4 custom; Summarize is always first)
+  const [quickActions, setQuickActions] = useState<QuickAction[]>([])
+  const [editingQuickAction, setEditingQuickAction] = useState<QuickAction | null>(null)
+  const [editingQuickActionIndex, setEditingQuickActionIndex] = useState(-1)
+  const [newQuickActionLabel, setNewQuickActionLabel] = useState('')
+  const [newQuickActionValue, setNewQuickActionValue] = useState('')
+  const [newQuickActionIcon, setNewQuickActionIcon] = useState<string>('pencil')
+  const [showNewQuickAction, setShowNewQuickAction] = useState(false)
+
   // Usage/cost tracking (Phase 3)
   const [usageStats, setUsageStats] = useState<{
     promptTokens: number
@@ -78,6 +90,7 @@ export function LLMView() {
     api.llmGetActiveSystemPrompt().then(setActivePromptId)
     api.getSettings().then((s) => {
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
+      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
     })
     api.llmGetUsageStats?.().then(setUsageStats)
   }, [])
@@ -173,10 +186,11 @@ export function LLMView() {
     window.electronAPI?.updateSettings({ llm: { summarization: next } } as any)
   }, [summarization])
 
-  // Refresh summarization status when settings change
+  // Refresh summarization and quick actions when settings change
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
+      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
     })
     return () => unsub?.()
   }, [])
@@ -461,6 +475,231 @@ export function LLMView() {
               </p>
             )}
           </div>
+        </div>
+      </Section>
+
+      {/* ── Quick Actions ───────────────────────── */}
+      <Section title="Quick Actions">
+        <div className="space-y-2">
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Customize up to 4 quick action chips (Summarize is always first). Label = button text, Value = message sent.
+          </p>
+          {(quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS).map((a, i) => {
+            const isEditing = editingQuickActionIndex === i
+            const base = quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS
+
+            if (isEditing) {
+              return (
+                <div
+                  key={`edit-${i}`}
+                  className="rounded-lg border p-2.5 space-y-2"
+                  style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--input-bg)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      Icon:
+                    </span>
+                    <IconPicker
+                      value={editingQuickAction?.icon}
+                      onChange={(iconId) =>
+                        setEditingQuickAction((prev) => (prev ? { ...prev, icon: iconId } : null))
+                      }
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={editingQuickAction?.label ?? ''}
+                    onChange={(e) =>
+                      setEditingQuickAction((prev) => (prev ? { ...prev, label: e.target.value } : null))
+                    }
+                    className="w-full bg-transparent outline-none text-xs"
+                    style={{ color: 'var(--text)' }}
+                    placeholder="Label"
+                  />
+                  <input
+                    type="text"
+                    value={editingQuickAction?.value ?? ''}
+                    onChange={(e) =>
+                      setEditingQuickAction((prev) => (prev ? { ...prev, value: e.target.value } : null))
+                    }
+                    className="w-full bg-transparent outline-none text-[11px]"
+                    style={{ color: 'var(--text-muted)' }}
+                    placeholder="Message sent"
+                  />
+                  <div className="flex gap-1.5 justify-end">
+                    <button
+                      onClick={() => {
+                        setEditingQuickAction(null)
+                        setEditingQuickActionIndex(-1)
+                      }}
+                      className="px-2 py-1 rounded-md text-[10px] border"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!editingQuickAction) return
+                        const updated = base.map((q, j) =>
+                          j === i ? { ...editingQuickAction, icon: editingQuickAction.icon || undefined } : q,
+                        )
+                        setQuickActions(updated)
+                        window.electronAPI?.updateSettings({ llm: { quickActions: updated } } as any)
+                        setEditingQuickAction(null)
+                        setEditingQuickActionIndex(-1)
+                      }}
+                      className="px-2 py-1 rounded-md text-[10px] font-medium"
+                      style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div key={`${a.value}-${i}`} className="flex items-center gap-1.5">
+                <div
+                  className="flex-1 flex items-center gap-2 px-2.5 py-2 rounded-lg border min-w-0"
+                  style={{
+                    backgroundColor: 'var(--input-bg)',
+                    borderColor: 'var(--border)',
+                  }}
+                >
+                  <span style={{ opacity: 0.6 }}>{getQuickActionIcon(a.icon, a.value)}</span>
+                  <span className="text-xs font-medium truncate">{a.label}</span>
+                  <span
+                    className="text-[10px] truncate flex-1"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {a.value}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingQuickAction({ ...a })
+                    setEditingQuickActionIndex(i)
+                  }}
+                  className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Edit"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    const updated = base.filter((_, j) => j !== i)
+                    setQuickActions(updated)
+                    window.electronAPI?.updateSettings({ llm: { quickActions: updated } } as any)
+                  }}
+                  className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Remove"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
+                  </svg>
+                </button>
+              </div>
+            )
+          })}
+          {showNewQuickAction ? (
+            <div
+              className="rounded-lg border p-2.5 space-y-2"
+              style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--input-bg)' }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                  Icon:
+                </span>
+                <IconPicker value={newQuickActionIcon} onChange={setNewQuickActionIcon} />
+              </div>
+              <input
+                type="text"
+                value={newQuickActionLabel}
+                onChange={(e) => setNewQuickActionLabel(e.target.value)}
+                className="w-full bg-transparent outline-none text-xs"
+                style={{ color: 'var(--text)' }}
+                placeholder="Label (e.g. Fix code)"
+              />
+              <input
+                type="text"
+                value={newQuickActionValue}
+                onChange={(e) => setNewQuickActionValue(e.target.value)}
+                className="w-full bg-transparent outline-none text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
+                placeholder="Message sent (e.g. Fix this code)"
+              />
+              <div className="flex gap-1.5 justify-end">
+                <button
+                  onClick={() => {
+                    setShowNewQuickAction(false)
+                    setNewQuickActionLabel('')
+                    setNewQuickActionValue('')
+                    setNewQuickActionIcon('pencil')
+                  }}
+                  className="px-2 py-1 rounded-md text-[10px] border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!newQuickActionLabel.trim() || !newQuickActionValue.trim()) return
+                    const newAction: QuickAction = {
+                      label: newQuickActionLabel.trim(),
+                      value: newQuickActionValue.trim(),
+                      icon: newQuickActionIcon,
+                    }
+                    const base = quickActions.length > 0 ? quickActions : []
+                    const updated = [...base, newAction].slice(0, 4)
+                    setQuickActions(updated)
+                    window.electronAPI?.updateSettings({ llm: { quickActions: updated } } as any)
+                    setNewQuickActionLabel('')
+                    setNewQuickActionValue('')
+                    setNewQuickActionIcon('pencil')
+                    setShowNewQuickAction(false)
+                  }}
+                  disabled={!newQuickActionLabel.trim() || !newQuickActionValue.trim()}
+                  className="px-2 py-1 rounded-md text-[10px] font-medium disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-1.5">
+              {quickActions.length < 4 && (
+                <button
+                  onClick={() => setShowNewQuickAction(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] border border-dashed"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  Add quick action
+                </button>
+              )}
+              {quickActions.length > 0 && (
+                <button
+                  onClick={() => {
+                    setQuickActions([])
+                    window.electronAPI?.updateSettings({ llm: { quickActions: [] } } as any)
+                  }}
+                  className="px-2.5 py-2 rounded-lg text-[11px] border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  Reset to defaults
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </Section>
 

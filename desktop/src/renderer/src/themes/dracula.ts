@@ -2,7 +2,7 @@ import type { Theme } from './types'
 
 export const dracula: Theme = {
   id: 'dracula',
-  name: 'Dracula',
+  name: 'Dracula Dark',
   colors: {
     bg: '#282a36',
     surface: '#2d2f3d',

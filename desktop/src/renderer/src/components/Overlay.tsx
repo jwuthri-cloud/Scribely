@@ -34,6 +34,7 @@ export function Overlay() {
   const [hasSummary, setHasSummary] = useState(false)
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryContent, setSummaryContent] = useState<string | null>(null)
+  const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -74,6 +75,19 @@ export function Overlay() {
       if (s) setHasSummary(s.hasSummary)
     })
   }, [summarizeFeedback])
+
+  // ── Load quick actions ──
+  useEffect(() => {
+    window.electronAPI?.getSettings().then((s) => {
+      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+    })
+  }, [])
+  useEffect(() => {
+    const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
+      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+    })
+    return () => unsub?.()
+  }, [])
 
   // ── Listen for background summarization completion (Phase 2) ──
   useEffect(() => {
@@ -474,11 +488,18 @@ export function Overlay() {
               )}
 
               <ActionChips
-                onAction={(action) => handleSend(action)}
+                onAction={(action) => {
+                  const attachments: ChatAttachment[] = []
+                  if (pendingScreenshot) {
+                    attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
+                  }
+                  handleSend(action, attachments.length > 0 ? attachments : undefined)
+                }}
                 onSummarizeTranscript={handleSummarizeTranscript}
                 summarizeInProgress={summarizeInProgress}
                 hasSummary={hasSummary}
                 onViewSummary={handleViewSummary}
+                customActions={quickActions.length > 0 ? quickActions : undefined}
               />
 
               {/* Summary modal */}
