@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
+import { type ModelId, MODEL_CONFIGS } from '../types/settings'
+
+const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
+  { id: 'gpt5-nano', label: 'Nano' },
+  { id: 'gpt5-mini', label: 'Mini' },
+  { id: 'gpt-5.2', label: '5.2' },
+]
 
 interface InputBarProps {
   onSend: (message: string, attachments?: ChatAttachment[]) => void
@@ -17,6 +24,8 @@ interface InputBarProps {
   micLevel?: number
   modelDownloading?: boolean
   modelProgress?: number
+  currentModel?: ModelId
+  onModelChange?: (modelId: ModelId) => void
 }
 
 export function InputBar({
@@ -34,9 +43,25 @@ export function InputBar({
   micLevel = 0,
   modelDownloading,
   modelProgress = 0,
+  currentModel = 'gpt-5.2',
+  onModelChange,
 }: InputBarProps) {
   const [value, setValue] = useState('')
+  const [showModelPicker, setShowModelPicker] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  // Close model picker when clicking outside
+  useEffect(() => {
+    if (!showModelPicker) return
+    const handleClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowModelPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showModelPicker])
 
   // Append STT transcript to input value
   useEffect(() => {
@@ -190,6 +215,57 @@ export function InputBar({
             style={{ color: 'var(--text)', caretColor: 'var(--accent)' }}
             autoFocus
           />
+
+          {/* Model selector chip */}
+          <div className="relative" ref={pickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowModelPicker((prev) => !prev)}
+              className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110"
+              style={{
+                borderColor: 'var(--border)',
+                color: 'var(--text-muted)',
+                backgroundColor: 'transparent',
+              }}
+              title="Switch model"
+            >
+              {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+            </button>
+            {showModelPicker && (
+              <div
+                className="absolute bottom-full mb-1 rounded-lg border py-1 shadow-lg z-50"
+                style={{
+                  backgroundColor: 'var(--surface)',
+                  borderColor: 'var(--border)',
+                  right: 0,
+                  maxWidth: 'calc(100vw - 32px)',
+                }}
+              >
+                {MODEL_OPTIONS.map((opt) => {
+                  const isActive = opt.id === currentModel
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        onModelChange?.(opt.id)
+                        setShowModelPicker(false)
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3"
+                      style={{
+                        color: isActive ? 'var(--accent)' : 'var(--text)',
+                        fontWeight: isActive ? 600 : 400,
+                      }}
+                    >
+                      <span className="shrink-0 w-8">{opt.label}</span>
+                      <span className="text-[9px] truncate" style={{ color: 'var(--text-muted)' }}>
+                        {MODEL_CONFIGS[opt.id]?.description}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Send or Stop button */}
           {isLoading ? (

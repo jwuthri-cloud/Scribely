@@ -124,8 +124,8 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Locked to gpt-5.2 for reliable streaming
-  private readonly currentModel: ModelId = 'gpt-5.2'
+  // Current model (user-switchable, defaults to stored preference or gpt-5.2)
+  private currentModel: ModelId = 'gpt-5.2'
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
@@ -141,6 +141,12 @@ export class LLMService {
     this.assembler = new PromptAssembler(this.tokenCounter)
     this.migrateSettings()
     this.initClient()
+
+    // Restore persisted model preference
+    const llm = this.store.get('llm') as { defaultModel?: ModelId } | undefined
+    if (llm?.defaultModel && MODEL_CONFIGS[llm.defaultModel]) {
+      this.currentModel = llm.defaultModel
+    }
   }
 
   /** Ensure new LLM settings fields exist in stored config */
@@ -188,7 +194,14 @@ export class LLMService {
     // ── Model selection ──
     ipcMain.handle('llm:get-model', () => this.currentModel)
 
-    ipcMain.handle('llm:set-model', () => ({ success: true, model: this.currentModel }))
+    ipcMain.handle('llm:set-model', (_event, modelId: string) => {
+      if (MODEL_CONFIGS[modelId as ModelId]) {
+        this.currentModel = modelId as ModelId
+        this.store.set('llm.defaultModel' as any, modelId)
+        return { success: true, model: this.currentModel }
+      }
+      return { success: false, model: this.currentModel }
+    })
 
     // ── API key ──
     ipcMain.handle('llm:set-api-key', (_event, apiKey: string) => {
@@ -294,6 +307,12 @@ export class LLMService {
     const abortController = new AbortController()
     this.activeRequests.set(request.requestId, abortController)
 
+    // gpt-5.2 supports reasoning_effort: 'none' (disables thinking entirely)
+    // gpt-5-mini / gpt-5-nano support 'low' at minimum (no 'none')
+    const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
+
+    const isGpt52 = this.currentModel === 'gpt-5.2'
+
     const requestParams: Record<string, unknown> = {
       model: modelConfig.apiModel,
       messages: assembled.messages,
@@ -301,8 +320,9 @@ export class LLMService {
       stream: true,
       stream_options: { include_usage: true },
       prompt_cache_key: this.sessionId,
-      prompt_cache_retention: '24h',
-      reasoning_effort: 'none',
+      // prompt_cache_retention is only supported on gpt-5.2
+      ...(isGpt52 && { prompt_cache_retention: '24h' }),
+      reasoning_effort: reasoningEffort,
     }
 
     try {

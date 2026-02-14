@@ -14,6 +14,7 @@ import { useMeetingTranscript } from '../hooks/useMeetingTranscript'
 import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
 import type { ChatAttachment } from '../types'
+import type { ModelId } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
@@ -22,6 +23,7 @@ export function Overlay() {
   const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
+  const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -34,6 +36,18 @@ export function Overlay() {
   const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat({
     transcriptEntries: transcript.entries,
   })
+
+  // ── Load current model ──
+  useEffect(() => {
+    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m as ModelId))
+  }, [])
+
+  const handleModelChange = useCallback(async (modelId: ModelId) => {
+    const result = await window.electronAPI?.llmSetModel(modelId)
+    if (result?.success) {
+      setCurrentModel(modelId)
+    }
+  }, [])
 
   // ── Window opacity (CSS-based since setOpacity is a no-op on transparent windows)
   useEffect(() => {
@@ -333,6 +347,8 @@ export function Overlay() {
                 micLevel={stt.micLevel}
                 modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
                 modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                currentModel={currentModel}
+                onModelChange={handleModelChange}
               />
             </>
           )}

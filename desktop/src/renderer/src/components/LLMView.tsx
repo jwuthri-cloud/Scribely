@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { SystemPrompt } from '../types'
+import { type ModelId, MODEL_CONFIGS } from '../types/settings'
+
+const MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
+  { id: 'gpt5-nano', label: 'Nano', description: 'Fast, low cost' },
+  { id: 'gpt5-mini', label: 'Mini', description: 'Balanced' },
+  { id: 'gpt-5.2', label: '5.2', description: 'High intelligence' },
+]
 
 // ── Section layout helper (matches SettingsView) ─────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -30,6 +37,7 @@ export function LLMView() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [temperature, setTemperature] = useState(0.3)
+  const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([])
   const [activePromptId, setActivePromptId] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null)
@@ -44,11 +52,20 @@ export function LLMView() {
     if (!api) return
 
     api.llmHasApiKey().then(setHasApiKey)
+    api.llmGetModel().then((m) => setCurrentModel(m as ModelId))
     api.getSettings().then((s) => {
       if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
     })
     api.llmGetSystemPrompts().then(setSystemPrompts)
     api.llmGetActiveSystemPrompt().then(setActivePromptId)
+  }, [])
+
+  // ── Model selection ──
+  const handleModelSelect = useCallback(async (modelId: ModelId) => {
+    const result = await window.electronAPI?.llmSetModel(modelId)
+    if (result?.success) {
+      setCurrentModel(modelId)
+    }
   }, [])
 
   // ── API Key ──
@@ -188,6 +205,37 @@ export function LLMView() {
               </p>
             </div>
           )}
+        </div>
+      </Section>
+
+      {/* ── Model Selection ────────────────────────── */}
+      <Section title="Model">
+        <div className="flex gap-1.5">
+          {MODEL_OPTIONS.map((opt) => {
+            const isActive = currentModel === opt.id
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleModelSelect(opt.id)}
+                className="flex-1 px-2 py-2 rounded-lg text-center transition-all duration-150 border"
+                style={{
+                  backgroundColor: isActive ? 'var(--accent)' : 'transparent',
+                  color: isActive ? '#fff' : 'var(--text)',
+                  borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                }}
+              >
+                <div className="text-xs font-medium">{opt.label}</div>
+                <div
+                  className="text-[9px] mt-0.5"
+                  style={{
+                    color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
+                  }}
+                >
+                  {opt.description}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </Section>
 
