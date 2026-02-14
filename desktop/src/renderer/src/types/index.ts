@@ -172,9 +172,18 @@ export interface ElectronAPI {
   llmGetModel: () => Promise<ModelId>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
   onLLMChatDelta: (callback: (data: LLMChatDelta) => void) => () => void
   onLLMChatDone: (callback: (data: LLMChatDone) => void) => () => void
   onLLMChatError: (callback: (data: LLMChatError) => void) => () => void
+
+  // System Prompts
+  llmGetSystemPrompts: () => Promise<import('./settings').SystemPrompt[]>
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => Promise<import('./settings').SystemPrompt>
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => Promise<import('./settings').SystemPrompt>
+  llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
+  llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
+  llmGetActiveSystemPrompt: () => Promise<string | null>
 
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
@@ -213,6 +222,7 @@ export type {
   ModelId,
   ModelConfig,
   LLMSettings,
+  SystemPrompt,
   LLMChatRequest,
   LLMChatDelta,
   LLMChatDone,

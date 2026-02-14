@@ -78,16 +78,31 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
   },
 }
 
+// ── System Prompt ────────────────────────────────────────
+export interface SystemPrompt {
+  id: string
+  name: string
+  content: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface LLMSettings {
   apiKey: string
   defaultModel: ModelId
   temperature: number
+  /** ID of the active system prompt, or null for no system prompt */
+  activeSystemPromptId: string | null
+  /** User-created system prompts */
+  systemPrompts: SystemPrompt[]
 }
 
 export const DEFAULT_LLM: LLMSettings = {
   apiKey: '',
   defaultModel: 'gpt5-mini',
   temperature: 0.3,
+  activeSystemPromptId: null,
+  systemPrompts: [],
 }
 
 export interface AppSettings {
