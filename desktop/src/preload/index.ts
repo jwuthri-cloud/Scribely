@@ -175,6 +175,13 @@ export interface ElectronAPI {
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
 
+  // ── Onboarding ───────────────────────────────────
+  onboardingGetCompleted: () => Promise<boolean>
+  onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
+
+  // ── Open external URL ────────────────────────────
+  openExternalUrl: (url: string) => Promise<{ success: boolean }>
+
   // ── App lifecycle ───────────────────────────────
   quit: () => void
 }
@@ -560,6 +567,19 @@ const api: ElectronAPI = {
 
   getInvisibility: () => {
     return ipcRenderer.invoke('get-invisibility')
+  },
+
+  // ── Onboarding ───────────────────────────────────
+  onboardingGetCompleted: () => {
+    return ipcRenderer.invoke('onboarding:get-completed')
+  },
+
+  onboardingSetCompleted: (completed: boolean) => {
+    return ipcRenderer.invoke('onboarding:set-completed', completed)
+  },
+
+  openExternalUrl: (url: string) => {
+    return ipcRenderer.invoke('open-external-url', url)
   },
 
   // ── App lifecycle ───────────────────────────────

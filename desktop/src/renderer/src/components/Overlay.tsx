@@ -6,6 +6,7 @@ import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
 import { SettingsView } from './SettingsView'
 import { LLMView } from './LLMView'
+import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
@@ -20,6 +21,7 @@ type ViewId = 'chat' | 'llm' | 'settings'
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState(true)
   const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
@@ -36,6 +38,22 @@ export function Overlay() {
   const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat({
     transcriptEntries: transcript.entries,
   })
+
+  // ── Onboarding: show wizard on first run ─────────────────
+  useEffect(() => {
+    window.electronAPI?.onboardingGetCompleted?.().then((completed) => {
+      setShowOnboarding(!completed)
+    })
+  }, [])
+
+  const handleOnboardingComplete = useCallback(() => {
+    setShowOnboarding(false)
+  }, [])
+
+  const handleReRunSetup = useCallback(async () => {
+    await window.electronAPI?.onboardingSetCompleted?.(false)
+    setShowOnboarding(true)
+  }, [])
 
   // ── Load current model ──
   useEffect(() => {
@@ -265,21 +283,25 @@ export function Overlay() {
             opacity: windowOpacity,
           }}
         >
-          <TitleBar
-            view={view}
-            onSetView={handleSetView}
-            onReset={resetChat}
-            meetingActive={meetingActive}
-            onToggleMeeting={handleToggleMeeting}
-          />
+          {showOnboarding ? (
+            <OnboardingView onComplete={handleOnboardingComplete} />
+          ) : (
+            <>
+              <TitleBar
+                view={view}
+                onSetView={handleSetView}
+                onReset={resetChat}
+                meetingActive={meetingActive}
+                onToggleMeeting={handleToggleMeeting}
+              />
 
-          {/* Subtle separator */}
-          <div
-            className="mx-4 h-px shrink-0"
-            style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
-          />
+              {/* Subtle separator */}
+              <div
+                className="mx-4 h-px shrink-0"
+                style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
+              />
 
-          {view === 'chat' && (
+              {view === 'chat' && (
             <>
               {/* Live transcript panel — visible when meeting is active */}
               {meetingActive && (
@@ -352,16 +374,18 @@ export function Overlay() {
               />
             </>
           )}
-          {view === 'llm' && <LLMView />}
-          {view === 'settings' && <SettingsView />}
+              {view === 'llm' && <LLMView />}
+              {view === 'settings' && <SettingsView onReRunSetup={handleReRunSetup} />}
 
-          {/* Source picker overlay */}
-          {recorder.pickerSources && (
-            <SourcePicker
-              sources={recorder.pickerSources}
-              onSelect={recorder.selectSource}
-              onDismiss={recorder.dismissPicker}
-            />
+              {/* Source picker overlay */}
+              {recorder.pickerSources && (
+                <SourcePicker
+                  sources={recorder.pickerSources}
+                  onSelect={recorder.selectSource}
+                  onDismiss={recorder.dismissPicker}
+                />
+              )}
+            </>
           )}
         </motion.div>
       )}

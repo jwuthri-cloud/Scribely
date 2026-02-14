@@ -5,7 +5,11 @@ import { themes as themeMap } from '../themes/registry'
 import type { AppSettings, HotkeyConfig, TranscriptionProvider, TranscriptionSettings } from '../types'
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS, DEFAULT_SETTINGS, DEFAULT_TRANSCRIPTION } from '../types/settings'
 
-export function SettingsView() {
+export interface SettingsViewProps {
+  onReRunSetup?: () => void
+}
+
+export function SettingsView({ onReRunSetup }: SettingsViewProps) {
   const { theme, themeIds, setThemeId } = useTheme()
   const [settings, setSettings] = useState<AppSettings | null>(null)
 
@@ -173,15 +177,24 @@ export function SettingsView() {
         </div>
       </Section>
 
-      {/* ── Reset All ──────────────────────────── */}
-      <div className="pt-2 pb-4">
+      {/* ── Re-run setup / Reset ──────────────────────────── */}
+      <div className="pt-2 pb-4 space-y-2">
+        {onReRunSetup && (
+          <button
+            onClick={onReRunSetup}
+            className="text-xs transition-colors hover:brightness-125 block"
+            style={{ color: 'var(--accent)' }}
+          >
+            Re-run setup wizard
+          </button>
+        )}
         <button
           onClick={() => {
             setSettings(DEFAULT_SETTINGS)
             window.electronAPI?.updateSettings(DEFAULT_SETTINGS)
             setThemeId(DEFAULT_SETTINGS.themeId)
           }}
-          className="text-xs transition-colors hover:brightness-125"
+          className="text-xs transition-colors hover:brightness-125 block"
           style={{ color: 'var(--error)' }}
         >
           Reset all settings to defaults

@@ -189,6 +189,13 @@ export interface ElectronAPI {
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
 
+  // Onboarding
+  onboardingGetCompleted: () => Promise<boolean>
+  onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
+
+  // Open external URL
+  openExternalUrl: (url: string) => Promise<{ success: boolean }>
+
   // App lifecycle
   quit: () => void
 }

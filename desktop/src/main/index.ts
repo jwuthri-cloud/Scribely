@@ -93,6 +93,12 @@ if (!storedHotkeys.toggleMeeting) {
   store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
 }
 
+// ── Onboarding state (separate store) ────────────────────
+const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
+  name: 'onboarding',
+  defaults: { hasCompletedOnboarding: false },
+})
+
 let mainWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
 
@@ -277,6 +283,22 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('get-invisibility', () => {
     return isInvisible
+  })
+
+  // ── Onboarding ─────────────────────────────────────
+  ipcMain.handle('onboarding:get-completed', () => {
+    return onboardingStore.get('hasCompletedOnboarding')
+  })
+
+  ipcMain.handle('onboarding:set-completed', (_event, completed: boolean) => {
+    onboardingStore.set('hasCompletedOnboarding', completed)
+    return { success: true }
+  })
+
+  // ── Open external URL ──────────────────────────────
+  ipcMain.handle('open-external-url', (_event, url: string) => {
+    shell.openExternal(url)
+    return { success: true }
   })
 
   // ── App lifecycle ─────────────────────────────────
