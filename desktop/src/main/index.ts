@@ -1,3 +1,5 @@
+import './instrumentation' // Must be first — Langfuse observability
+
 import {
   app,
   BrowserWindow,
@@ -16,6 +18,7 @@ import { NativeHelperBridge } from './native-bridge'
 import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
+import { flushLangfuse } from './instrumentation'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -534,11 +537,14 @@ app.on('before-quit', () => {
   mainWindow = null
 })
 
-app.on('will-quit', (e) => {
+app.on('will-quit', async (e) => {
   unregisterAllHotkeys()
   extensionWsServer.stop()
   audioPipeline.destroy()
   llmService.destroy()
+
+  // Flush Langfuse traces before exit (Electron is short-lived)
+  await flushLangfuse()
 
   if (nativeBridge) {
     const bridge = nativeBridge

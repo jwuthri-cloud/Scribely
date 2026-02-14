@@ -69,6 +69,10 @@ Themes defined in `src/renderer/src/themes/`, registered in `registry.ts`. All u
 - `src/renderer/src/components/Overlay.tsx` — Main UI container (chat/settings/meeting views)
 - `electron.vite.config.ts` — Build config (externals: nswindow-napi, smart-whisper, onnxruntime-node)
 
+### Langfuse Observability
+
+LLM calls (chat + background summarization) are traced to [Langfuse](https://langfuse.com) when `LANGFUSE_SECRET_KEY` and `LANGFUSE_PUBLIC_KEY` are set in `.env` (see `.env.example`). Instrumentation runs first in `src/main/instrumentation.ts`; the OpenAI client is wrapped with `observeOpenAI` in `LLMService`.
+
 ## Build Notes
 
 - macOS only (depends on native modules: nswindow-napi, ScreenCaptureKit)

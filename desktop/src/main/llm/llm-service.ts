@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { observeOpenAI } from '@langfuse/openai'
 import Store from 'electron-store'
 import { BrowserWindow, ipcMain } from 'electron'
 import { PromptAssembler } from './prompt-assembler'
@@ -201,7 +202,8 @@ export class LLMService {
   private initClient(): void {
     const llm = this.store.get('llm') as { apiKey?: string } | undefined
     if (llm?.apiKey) {
-      this.client = new OpenAI({ apiKey: llm.apiKey })
+      const base = new OpenAI({ apiKey: llm.apiKey })
+      this.client = observeOpenAI(base) as unknown as OpenAI
     }
   }
 
