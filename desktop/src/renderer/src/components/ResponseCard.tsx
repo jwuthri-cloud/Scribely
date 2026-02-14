@@ -1,4 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
+
+async function copyToClipboard(text: string) {
+  await navigator.clipboard.writeText(text)
+}
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
 import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
@@ -84,6 +88,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
     messages: Array<{ role: string; content: string }>
   } | null>(null)
   const [promptExpandedIndices, setPromptExpandedIndices] = useState<Set<number>>(new Set())
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
 
   // Load actual hotkey config
   useEffect(() => {
@@ -272,6 +277,26 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                     ~${estimateMessageCost(msg.usage, msg.model as ModelId).toFixed(4)}
                   </span>
                 )}
+                <button
+                  onClick={async () => {
+                    await copyToClipboard(displayText)
+                    setCopiedMsgId(msg.id)
+                    setTimeout(() => setCopiedMsgId(null), 1500)
+                  }}
+                  className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Copy response"
+                  aria-label="Copy response"
+                >
+                  {copiedMsgId === msg.id ? (
+                    <span className="text-[9px]">Copied!</span>
+                  ) : (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
                 <button
                   onClick={async () => {
                     const prompt = await window.electronAPI?.llmGetPromptForRequest?.(msg.id)

@@ -22,6 +22,7 @@
     "@langfuse/otel": "^4.6.1",
     "@opentelemetry/sdk-node": "^0.212.0",
     "@traceloop/node-server-sdk": "^0.22.7",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
     "framer-motion": "^11.15.0",
@@ -32,6 +33,7 @@
     "openai": "^6.22.0",
     "protobufjs": "^8.0.0",
     "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
     "smart-whisper": "^0.8.1",
     "ws": "^8.19.0"

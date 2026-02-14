@@ -1,6 +1,55 @@
+import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
+import SyntaxHighlighter from 'react-syntax-highlighter'
+import { monokai } from 'react-syntax-highlighter/dist/esm/styles/hljs'
+
+/** Monokai-inspired palette for inline code */
+const INLINE_CODE_BG = '#3e3d32'
+const INLINE_CODE_TEXT = '#f8f8f2'
+
+function CodeBlockWithCopy({ code, lang }: { code: string; lang: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    await navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div className="relative my-1.5">
+      <button
+        onClick={copy}
+        className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity z-10"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--surface) 90%, transparent)',
+          color: 'var(--text-muted)',
+          border: '1px solid var(--border)',
+        }}
+        title="Copy code"
+        aria-label="Copy code"
+      >
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+      <SyntaxHighlighter
+        language={lang}
+        style={monokai}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          padding: '0.5rem 0.75rem',
+          paddingRight: '3rem',
+          borderRadius: '0.5rem',
+          fontSize: '12px',
+        }}
+        codeTagProps={{ style: { fontFamily: 'ui-monospace, monospace' } }}
+        showLineNumbers={false}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
+}
 
 interface MarkdownContentProps {
   content: string
@@ -61,7 +110,8 @@ export function MarkdownContent({
           <code
             className="px-1 py-0.5 rounded text-[12px]"
             style={{
-              backgroundColor: 'color-mix(in srgb, var(--border) 40%, transparent)',
+              backgroundColor: INLINE_CODE_BG,
+              color: INLINE_CODE_TEXT,
               fontFamily: 'ui-monospace, monospace',
             }}
             {...props}
@@ -70,23 +120,13 @@ export function MarkdownContent({
           </code>
         )
       }
+      const match = className?.match(/language-(\w+)/)
+      const lang = match ? match[1] : 'text'
       return (
-        <code
-          className="block p-2 rounded-lg text-[12px] overflow-x-auto my-1.5"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--border) 30%, transparent)',
-            border: '1px solid var(--border)',
-            fontFamily: 'ui-monospace, monospace',
-          }}
-          {...props}
-        >
-          {children}
-        </code>
+        <CodeBlockWithCopy code={String(children)} lang={lang} />
       )
     },
-    pre: ({ children }) => (
-      <pre className="my-1.5 overflow-x-auto">{children}</pre>
-    ),
+    pre: ({ children }) => <>{children}</>,
     h1: ({ children }) => (
       <h1 className="text-base font-semibold mt-3 mb-1 first:mt-0">{children}</h1>
     ),
