@@ -38,6 +38,14 @@ interface LLMSettings {
   apiKey: string
   defaultModel: string
   temperature: number
+  activeSystemPromptId: string | null
+  systemPrompts: Array<{
+    id: string
+    name: string
+    content: string
+    createdAt: number
+    updatedAt: number
+  }>
 }
 
 interface AppSettings {
@@ -73,6 +81,8 @@ const store = new Store<AppSettings>({
       apiKey: '',
       defaultModel: 'gpt5-mini',
       temperature: 0.3,
+      activeSystemPromptId: null,
+      systemPrompts: [],
     },
   },
 })

@@ -5,6 +5,7 @@ import { ResponseCard } from './ResponseCard'
 import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
 import { SettingsView } from './SettingsView'
+import { LLMView } from './LLMView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
@@ -14,12 +15,13 @@ import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
 import type { ChatAttachment } from '../types'
 
+type ViewId = 'chat' | 'llm' | 'settings'
+
 export function Overlay() {
   const [visible, setVisible] = useState(true)
-  const [view, setView] = useState<'chat' | 'settings'>('chat')
+  const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
-  const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat()
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -27,6 +29,11 @@ export function Overlay() {
   const transcript = useMeetingTranscript()
   const recorder = useMeetingRecorder()
   const [meetingError, setMeetingError] = useState<string | null>(null)
+
+  // Pass transcript entries to useChat so it can embed deltas in user messages
+  const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat({
+    transcriptEntries: transcript.entries,
+  })
 
   // ── Window opacity (CSS-based since setOpacity is a no-op on transparent windows)
   useEffect(() => {
@@ -58,7 +65,7 @@ export function Overlay() {
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
       setPendingScreenshot(dataUrl)
-      if (view === 'settings') setView('chat')
+      if (view !== 'chat') setView('chat')
     })
     return () => {
       unsubscribe?.()
@@ -222,8 +229,8 @@ export function Overlay() {
     }
   }, [])
 
-  const toggleView = useCallback(() => {
-    setView((v) => (v === 'chat' ? 'settings' : 'chat'))
+  const handleSetView = useCallback((v: ViewId) => {
+    setView(v)
   }, [])
 
   const meetingActive = transcript.status.isActive
@@ -246,7 +253,7 @@ export function Overlay() {
         >
           <TitleBar
             view={view}
-            onToggleView={toggleView}
+            onSetView={handleSetView}
             onReset={resetChat}
             meetingActive={meetingActive}
             onToggleMeeting={handleToggleMeeting}
@@ -258,7 +265,7 @@ export function Overlay() {
             style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
           />
 
-          {view === 'chat' ? (
+          {view === 'chat' && (
             <>
               {/* Live transcript panel — visible when meeting is active */}
               {meetingActive && (
@@ -328,9 +335,9 @@ export function Overlay() {
                 modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
               />
             </>
-          ) : (
-            <SettingsView />
           )}
+          {view === 'llm' && <LLMView />}
+          {view === 'settings' && <SettingsView />}
 
           {/* Source picker overlay */}
           {recorder.pickerSources && (

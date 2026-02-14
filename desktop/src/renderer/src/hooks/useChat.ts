@@ -75,30 +75,18 @@ export function useChat(options: UseChatOptions = {}) {
     const api = window.electronAPI
     if (!api) return
 
-    // Delta: accumulate streaming content into the assistant message
     const unsubDelta = api.onLLMChatDelta((data: LLMChatDelta) => {
       if (data.requestId !== activeRequestIdRef.current) return
 
       setMessages((prev) => {
         const last = prev[prev.length - 1]
         if (last?.role === 'assistant' && last.id === data.requestId) {
-          // Update existing streaming message
           return [
             ...prev.slice(0, -1),
             { ...last, content: last.content + data.delta },
           ]
-        } else {
-          // First delta: create the assistant message placeholder
-          return [
-            ...prev,
-            {
-              id: data.requestId,
-              role: 'assistant' as const,
-              content: data.delta,
-              timestamp: Date.now(),
-            },
-          ]
         }
+        return prev
       })
     })
 
@@ -191,7 +179,6 @@ export function useChat(options: UseChatOptions = {}) {
       setIsLoading(false)
       lastTranscriptIndexRef.current = 0
       activeRequestIdRef.current = null
-      // Also reset main process conversation state
       window.electronAPI?.llmReset()
     })
     return () => {
@@ -244,17 +231,23 @@ export function useChat(options: UseChatOptions = {}) {
       const requestId = crypto.randomUUID()
       activeRequestIdRef.current = requestId
 
-      // Add user message to local state
-      // UI should display `rawQuery` (the clean question), not the full content
+      // Add user message + empty assistant placeholder immediately
+      // so the response area and cursor appear right away (before first token)
       const userMsg: ChatMessage = {
-        id: requestId,
+        id: crypto.randomUUID(),
         role: 'user',
         content: formattedContent,
         rawQuery: content,
         timestamp: Date.now(),
         attachments,
       }
-      setMessages((prev) => [...prev, userMsg])
+      const assistantPlaceholder: ChatMessage = {
+        id: requestId, // same as delta requestId so we can match streaming updates
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+      }
+      setMessages((prev) => [...prev, userMsg, assistantPlaceholder])
       setIsLoading(true)
 
       // Send to main process via IPC

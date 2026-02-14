@@ -24,9 +24,18 @@ export interface ElectronAPI {
   llmGetModel: () => Promise<string>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
   onLLMChatDelta: (callback: (data: any) => void) => () => void
   onLLMChatDone: (callback: (data: any) => void) => () => void
   onLLMChatError: (callback: (data: any) => void) => () => void
+
+  // ── System Prompts ─────────────────────────────
+  llmGetSystemPrompts: () => Promise<any[]>
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => Promise<any>
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => Promise<any>
+  llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
+  llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
+  llmGetActiveSystemPrompt: () => Promise<string | null>
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -245,6 +254,36 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('llm:chat-error', handler)
     return () => ipcRenderer.removeListener('llm:chat-error', handler)
+  },
+
+  // ── LLM Temperature ─────────────────────────────
+  llmSetTemperature: (temperature: number) => {
+    return ipcRenderer.invoke('llm:set-temperature', temperature)
+  },
+
+  // ── System Prompts ──────────────────────────────
+  llmGetSystemPrompts: () => {
+    return ipcRenderer.invoke('llm:get-system-prompts')
+  },
+
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => {
+    return ipcRenderer.invoke('llm:create-system-prompt', prompt)
+  },
+
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => {
+    return ipcRenderer.invoke('llm:update-system-prompt', prompt)
+  },
+
+  llmDeleteSystemPrompt: (id: string) => {
+    return ipcRenderer.invoke('llm:delete-system-prompt', id)
+  },
+
+  llmSetActiveSystemPrompt: (id: string | null) => {
+    return ipcRenderer.invoke('llm:set-active-system-prompt', id)
+  },
+
+  llmGetActiveSystemPrompt: () => {
+    return ipcRenderer.invoke('llm:get-active-system-prompt')
   },
 
   // ── Settings ────────────────────────────────────

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 
+type ViewId = 'chat' | 'llm' | 'settings'
+
 interface TitleBarProps {
-  view: 'chat' | 'settings'
-  onToggleView: () => void
+  view: ViewId
+  onSetView: (view: ViewId) => void
   onReset?: () => void
   meetingActive?: boolean
   onToggleMeeting?: () => void
@@ -62,7 +64,7 @@ function TitleBtn({
 
 export function TitleBar({
   view,
-  onToggleView,
+  onSetView,
   onReset,
   meetingActive,
   onToggleMeeting,
@@ -88,12 +90,14 @@ export function TitleBar({
     }
   }
 
+  const viewTitle = view === 'settings' ? 'Settings' : view === 'llm' ? 'LLM' : 'AssistMe'
+
   return (
     <div
       className="flex items-center justify-between px-4 py-2 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Left side: close button + back arrow (in settings) */}
+      {/* Left side: close button + back arrow (when not in chat) */}
       <div className="flex items-center gap-2">
         <button
           className="w-3 h-3 rounded-full transition-all duration-150"
@@ -108,8 +112,8 @@ export function TitleBar({
           aria-label="Close"
         />
 
-        {view === 'settings' && (
-          <TitleBtn onClick={onToggleView} label="Back to chat" tooltip="Back to chat">
+        {view !== 'chat' && (
+          <TitleBtn onClick={() => onSetView('chat')} label="Back to chat" tooltip="Back to chat">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
                 d="M7.5 2L3.5 6L7.5 10"
@@ -127,10 +131,10 @@ export function TitleBar({
         className="text-[11px] font-medium tracking-wide uppercase select-none"
         style={{ color: 'var(--text-muted)' }}
       >
-        {view === 'settings' ? 'Settings' : 'AssistMe'}
+        {viewTitle}
       </span>
 
-      {/* Right side: invisibility + meeting toggle + reset + gear */}
+      {/* Right side: invisibility + meeting toggle + reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
         {/* Invisibility toggle — hide/show from screen sharing */}
         {view === 'chat' && (
@@ -212,9 +216,27 @@ export function TitleBar({
           </TitleBtn>
         )}
 
+        {/* LLM tab */}
+        <TitleBtn
+          onClick={() => onSetView(view === 'llm' ? 'chat' : 'llm')}
+          label="LLM settings"
+          tooltip="LLM"
+          active={view === 'llm'}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </TitleBtn>
+
         {/* Settings gear */}
         <TitleBtn
-          onClick={onToggleView}
+          onClick={() => onSetView(view === 'settings' ? 'chat' : 'settings')}
           label={view === 'settings' ? 'Back to chat' : 'Settings'}
           tooltip="Settings"
           active={view === 'settings'}

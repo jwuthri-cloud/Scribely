@@ -147,46 +147,108 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
     )
   }
 
+  // Determine if the last assistant message is still streaming
+  const lastMsg = messages[messages.length - 1]
+  const isStreaming = isLoading && lastMsg?.role === 'assistant' && !lastMsg.isError
+
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-      {messages.map((msg) => (
-        <div
-          key={msg.id}
-          className={`text-sm leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${
-            msg.role === 'user' ? 'ml-auto' : ''
-          }`}
-          style={{
-            color:
-              msg.role === 'assistant' ? 'var(--text-bright)' : 'var(--text)',
-            backgroundColor:
-              msg.role === 'user' ? 'var(--surface-hover)' : 'transparent',
-          }}
-        >
-          {/* Render image attachments */}
-          {msg.attachments?.map((att, idx) => (
-            <div key={idx} className="mb-2">
-              {att.type === 'image' && (
-                <img
-                  src={att.data}
-                  alt={att.label || 'Attachment'}
-                  className="rounded-lg max-h-40 object-cover border"
-                  style={{ borderColor: 'var(--border)' }}
-                />
-              )}
-              {att.label && (
+      {messages.map((msg) => {
+        // For user messages, display rawQuery (the clean question) instead of
+        // the full content that includes transcript deltas
+        const displayText =
+          msg.role === 'user' && msg.rawQuery ? msg.rawQuery : msg.content
+
+        return (
+          <div
+            key={msg.id}
+            className={`text-sm leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${
+              msg.role === 'user' ? 'ml-auto' : ''
+            }`}
+            style={{
+              color: msg.isError
+                ? 'var(--error)'
+                : msg.role === 'assistant'
+                  ? 'var(--text-bright)'
+                  : 'var(--text)',
+              backgroundColor:
+                msg.role === 'user' ? 'var(--surface-hover)' : 'transparent',
+            }}
+          >
+            {/* Render image attachments */}
+            {msg.attachments?.map((att, idx) => (
+              <div key={idx} className="mb-2">
+                {att.type === 'image' && (
+                  <img
+                    src={att.data}
+                    alt={att.label || 'Attachment'}
+                    className="rounded-lg max-h-40 object-cover border"
+                    style={{ borderColor: 'var(--border)' }}
+                  />
+                )}
+                {att.label && (
+                  <span
+                    className="text-[10px] mt-0.5 block"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {att.label}
+                  </span>
+                )}
+              </div>
+            ))}
+
+            {/* Message content */}
+            <span className="whitespace-pre-wrap">{displayText}</span>
+
+            {/* Streaming cursor */}
+            {isStreaming && msg === lastMsg && (
+              <span
+                className="inline-block w-1.5 h-3.5 ml-0.5 -mb-0.5 animate-pulse rounded-sm"
+                style={{ backgroundColor: 'var(--accent)' }}
+              />
+            )}
+
+            {/* Model badge for assistant messages */}
+            {msg.role === 'assistant' && msg.model && !msg.isError && (
+              <div className="mt-1.5 flex items-center gap-2">
                 <span
-                  className="text-[10px] mt-0.5 block"
-                  style={{ color: 'var(--text-muted)' }}
+                  className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    color: 'var(--accent)',
+                  }}
                 >
-                  {att.label}
+                  {msg.model}
                 </span>
-              )}
-            </div>
-          ))}
-          <span className="whitespace-pre-wrap">{msg.content}</span>
-        </div>
-      ))}
-      {isLoading && (
+                {msg.usage && msg.usage.cachedTokens > 0 && (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                      color: 'var(--success)',
+                    }}
+                  >
+                    {Math.round((msg.usage.cachedTokens / msg.usage.promptTokens) * 100)}% cached
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Retry hint for retryable errors */}
+            {msg.isError && msg.retryable && (
+              <div
+                className="text-[10px] mt-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Try again in a moment.
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Loading dots when waiting for first chunk */}
+      {isLoading && (!lastMsg || lastMsg.role !== 'assistant') && (
         <div
           className="flex gap-1.5 items-center px-3 py-2"
           style={{ color: 'var(--text-muted)' }}

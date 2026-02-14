@@ -19,20 +19,20 @@ const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
   'gpt5-nano': {
     id: 'gpt5-nano',
     apiModel: 'gpt-5-nano',
-    contextWindow: 8192,
-    maxResponseTokens: 2000,
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
   },
   'gpt5-mini': {
     id: 'gpt5-mini',
     apiModel: 'gpt-5-mini',
-    contextWindow: 32768,
-    maxResponseTokens: 8000,
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
   },
   'gpt-5.2': {
     id: 'gpt-5.2',
     apiModel: 'gpt-5.2',
-    contextWindow: 131072,
-    maxResponseTokens: 32000,
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
   },
 }
 
@@ -77,6 +77,24 @@ interface ConversationMessage {
   attachments?: ChatAttachment[]
 }
 
+interface SystemPrompt {
+  id: string
+  name: string
+  content: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface PersistedConversation {
+  sessionId: string
+  meetingSessionId: string | null
+  messages: ConversationMessage[]
+  createdAt: number
+  lastMessageAt: number
+  systemPromptId: string | null
+  model: ModelId
+}
+
 // ── Default system prompt ─────────────────────────────────
 
 const DEFAULT_SYSTEM_PROMPT = `You are AssistMe, an AI meeting assistant embedded in a desktop overlay.
@@ -106,13 +124,13 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Current model
-  private currentModel: ModelId = 'gpt5-mini'
+  // Locked to gpt-5.2 for reliable streaming
+  private readonly currentModel: ModelId = 'gpt-5.2'
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
 
-  // Conversation state (in-memory, resets on app restart)
+  // Conversation state (in-memory, also persisted to electron-store)
   // In the append-only strategy, each user message's `content` already contains
   // its transcript delta. The conversation array is strictly append-only.
   private conversationMessages: ConversationMessage[] = []
@@ -121,18 +139,27 @@ export class LLMService {
     this.store = store
     this.tokenCounter = new TokenCounter()
     this.assembler = new PromptAssembler(this.tokenCounter)
+    this.migrateSettings()
     this.initClient()
   }
 
+  /** Ensure new LLM settings fields exist in stored config */
+  private migrateSettings(): void {
+    const llm = this.store.get('llm') as Record<string, unknown> | undefined
+    if (llm) {
+      if (!('activeSystemPromptId' in llm)) {
+        this.store.set('llm.activeSystemPromptId' as any, null)
+      }
+      if (!('systemPrompts' in llm)) {
+        this.store.set('llm.systemPrompts' as any, [])
+      }
+    }
+  }
+
   private initClient(): void {
-    const llm = this.store.get('llm') as
-      | { apiKey?: string; defaultModel?: ModelId; temperature?: number }
-      | undefined
+    const llm = this.store.get('llm') as { apiKey?: string } | undefined
     if (llm?.apiKey) {
       this.client = new OpenAI({ apiKey: llm.apiKey })
-    }
-    if (llm?.defaultModel) {
-      this.currentModel = llm.defaultModel
     }
   }
 
@@ -159,15 +186,9 @@ export class LLMService {
     })
 
     // ── Model selection ──
-    ipcMain.handle('llm:set-model', (_event, modelId: ModelId) => {
-      this.currentModel = modelId
-      this.store.set('llm.defaultModel' as any, modelId)
-      return { success: true, model: modelId }
-    })
+    ipcMain.handle('llm:get-model', () => this.currentModel)
 
-    ipcMain.handle('llm:get-model', () => {
-      return this.currentModel
-    })
+    ipcMain.handle('llm:set-model', () => ({ success: true, model: this.currentModel }))
 
     // ── API key ──
     ipcMain.handle('llm:set-api-key', (_event, apiKey: string) => {
@@ -184,6 +205,44 @@ export class LLMService {
     ipcMain.handle('llm:set-temperature', (_event, temperature: number) => {
       this.store.set('llm.temperature' as any, temperature)
       return { success: true }
+    })
+
+    // ── System Prompts ──
+    ipcMain.handle('llm:get-system-prompts', () => {
+      return this.getSystemPrompts()
+    })
+
+    ipcMain.handle(
+      'llm:create-system-prompt',
+      (_event, data: { name: string; content: string }) => {
+        return this.createSystemPrompt(data.name, data.content)
+      },
+    )
+
+    ipcMain.handle(
+      'llm:update-system-prompt',
+      (_event, data: { id: string; name: string; content: string }) => {
+        return this.updateSystemPrompt(data.id, data.name, data.content)
+      },
+    )
+
+    ipcMain.handle('llm:delete-system-prompt', (_event, id: string) => {
+      return this.deleteSystemPrompt(id)
+    })
+
+    ipcMain.handle(
+      'llm:set-active-system-prompt',
+      (_event, id: string | null) => {
+        this.store.set('llm.activeSystemPromptId' as any, id)
+        return { success: true }
+      },
+    )
+
+    ipcMain.handle('llm:get-active-system-prompt', () => {
+      return (
+        (this.store.get('llm') as { activeSystemPromptId?: string | null } | undefined)
+          ?.activeSystemPromptId ?? null
+      )
     })
   }
 
@@ -211,6 +270,9 @@ export class LLMService {
     }
     this.conversationMessages.push(userMsg)
 
+    // ── Resolve the active system prompt ──
+    const systemPrompt = this.resolveSystemPrompt()
+
     // ── Assemble prompt using append-only strategy ──
     // The assembler receives the full conversation history where each user
     // message's content already includes its transcript delta. No separate
@@ -218,38 +280,34 @@ export class LLMService {
     const modelConfig = MODEL_CONFIGS[this.currentModel]
     const assembled = this.assembler.assemble({
       modelConfig,
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      systemPrompt,
       conversationMessages: this.conversationMessages.map((m) => ({
         role: m.role,
         content: m.content,
       })),
     })
 
+    // Persist user message to disk
+    this.persistConversation()
+
     // Create abort controller
     const abortController = new AbortController()
     this.activeRequests.set(request.requestId, abortController)
 
-    const temperature =
-      (this.store.get('llm') as { temperature?: number } | undefined)?.temperature ?? 0.3
+    const requestParams: Record<string, unknown> = {
+      model: modelConfig.apiModel,
+      messages: assembled.messages,
+      max_completion_tokens: modelConfig.maxResponseTokens,
+      stream: true,
+      stream_options: { include_usage: true },
+      prompt_cache_key: this.sessionId,
+      prompt_cache_retention: '24h',
+      reasoning_effort: 'none',
+    }
 
     try {
       const stream = await this.client.chat.completions.create(
-        {
-          model: modelConfig.apiModel,
-          messages: assembled.messages,
-          max_tokens: modelConfig.maxResponseTokens,
-          temperature,
-          stream: true,
-          stream_options: { include_usage: true },
-          // ── Prefix cache optimization ──
-          // Routes all requests for the same conversation to the same machine,
-          // maximizing cache hit probability for the append-only prefix.
-          prompt_cache_key: this.sessionId,
-          // Extended 24h cache retention for gpt-5.2 (default is ~5-10 min)
-          ...(this.currentModel === 'gpt-5.2'
-            ? { prompt_cache_retention: '24h' }
-            : {}),
-        },
+        requestParams as any,
         { signal: abortController.signal },
       )
 
@@ -284,6 +342,9 @@ export class LLMService {
         model: this.currentModel,
       }
       this.conversationMessages.push(assistantMsg)
+
+      // Persist assistant message to disk
+      this.persistConversation()
 
       this.sendDone(request.requestId, fullContent, usage)
     } catch (err: any) {
@@ -367,7 +428,99 @@ export class LLMService {
     }
   }
 
+  // ── System Prompt CRUD ──
+
+  /**
+   * Resolve the system prompt to use for the current conversation.
+   * Returns the active user system prompt, or the default, or null if none selected.
+   */
+  private resolveSystemPrompt(): string | null {
+    const llm = this.store.get('llm') as {
+      activeSystemPromptId?: string | null
+      systemPrompts?: SystemPrompt[]
+    } | undefined
+
+    const activeId = llm?.activeSystemPromptId
+    if (!activeId) {
+      // No system prompt selected — use default
+      return DEFAULT_SYSTEM_PROMPT
+    }
+
+    const prompts = llm?.systemPrompts ?? []
+    const found = prompts.find((p) => p.id === activeId)
+    return found?.content ?? DEFAULT_SYSTEM_PROMPT
+  }
+
+  private getSystemPrompts(): SystemPrompt[] {
+    const llm = this.store.get('llm') as { systemPrompts?: SystemPrompt[] } | undefined
+    return llm?.systemPrompts ?? []
+  }
+
+  private createSystemPrompt(name: string, content: string): SystemPrompt {
+    const prompt: SystemPrompt = {
+      id: crypto.randomUUID(),
+      name,
+      content,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    const prompts = this.getSystemPrompts()
+    prompts.push(prompt)
+    this.store.set('llm.systemPrompts' as any, prompts)
+    return prompt
+  }
+
+  private updateSystemPrompt(id: string, name: string, content: string): SystemPrompt {
+    const prompts = this.getSystemPrompts()
+    const idx = prompts.findIndex((p) => p.id === id)
+    if (idx === -1) throw new Error(`System prompt not found: ${id}`)
+
+    prompts[idx] = { ...prompts[idx], name, content, updatedAt: Date.now() }
+    this.store.set('llm.systemPrompts' as any, prompts)
+    return prompts[idx]
+  }
+
+  private deleteSystemPrompt(id: string): { success: boolean } {
+    const prompts = this.getSystemPrompts()
+    const filtered = prompts.filter((p) => p.id !== id)
+    this.store.set('llm.systemPrompts' as any, filtered)
+
+    // If the deleted prompt was active, deactivate it
+    const llm = this.store.get('llm') as { activeSystemPromptId?: string | null } | undefined
+    if (llm?.activeSystemPromptId === id) {
+      this.store.set('llm.activeSystemPromptId' as any, null)
+    }
+
+    return { success: true }
+  }
+
+  // ── Conversation Persistence ──
+
+  private persistConversation(): void {
+    try {
+      const llm = this.store.get('llm') as { activeSystemPromptId?: string | null } | undefined
+      const conversation: PersistedConversation = {
+        sessionId: this.sessionId,
+        meetingSessionId: null, // TODO: wire to meeting session
+        messages: this.conversationMessages,
+        createdAt: this.conversationMessages[0]?.timestamp ?? Date.now(),
+        lastMessageAt:
+          this.conversationMessages[this.conversationMessages.length - 1]?.timestamp ?? Date.now(),
+        systemPromptId: llm?.activeSystemPromptId ?? null,
+        model: this.currentModel,
+      }
+      this.store.set(`conversations.${this.sessionId}` as any, conversation)
+    } catch (err) {
+      console.error('[llm-service] Failed to persist conversation:', err)
+    }
+  }
+
   destroy(): void {
+    // Persist final conversation state before shutdown
+    if (this.conversationMessages.length > 0) {
+      this.persistConversation()
+    }
+
     for (const controller of this.activeRequests.values()) {
       controller.abort()
     }

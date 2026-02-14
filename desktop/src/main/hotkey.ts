@@ -19,12 +19,27 @@ interface TranscriptionSettings {
   chunkDurationSec: number
 }
 
+interface LLMSettings {
+  apiKey: string
+  defaultModel: string
+  temperature: number
+  activeSystemPromptId: string | null
+  systemPrompts: Array<{
+    id: string
+    name: string
+    content: string
+    createdAt: number
+    updatedAt: number
+  }>
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
   transcription: TranscriptionSettings
+  llm: LLMSettings
 }
 
 /**
