@@ -15,6 +15,7 @@ import { AudioPipeline } from './audio/pipeline'
 import { NativeHelperBridge } from './native-bridge'
 import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
+import { LLMService } from './llm/llm-service'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -33,12 +34,19 @@ interface TranscriptionSettings {
   chunkDurationSec: number
 }
 
+interface LLMSettings {
+  apiKey: string
+  defaultModel: string
+  temperature: number
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
   transcription: TranscriptionSettings
+  llm: LLMSettings
 }
 
 const store = new Store<AppSettings>({
@@ -61,6 +69,11 @@ const store = new Store<AppSettings>({
       provider: 'local-fast',
       chunkDurationSec: 2,
     },
+    llm: {
+      apiKey: '',
+      defaultModel: 'gpt5-mini',
+      temperature: 0.3,
+    },
   },
 })
 
@@ -71,8 +84,10 @@ if (!storedHotkeys.toggleMeeting) {
 }
 
 let mainWindow: BrowserWindow | null = null
-let pendingResponseTimer: ReturnType<typeof setTimeout> | null = null
 let isInvisible = true // starts invisible (content protection on)
+
+// ── LLM Service ─────────────────────────────────────────
+const llmService = new LLMService(store)
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
@@ -143,9 +158,10 @@ function createWindow(): void {
     return allowed.includes(permission)
   })
 
-  // Connect pipeline and recorder to window
+  // Connect pipeline, recorder, and LLM service to window
   audioPipeline.setWindow(mainWindow)
   screenRecorder.setWindow(mainWindow)
+  llmService.setWindow(mainWindow)
 
   // Install the default display media handler.
   // The ScreenRecorder swaps this to auto-select the user's chosen source when recording.
@@ -233,29 +249,13 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
-  // ── Chat ──────────────────────────────────────────
-  ipcMain.on('send-message', (_event, message: string) => {
-    console.log('[ipc] Received message:', message)
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      pendingResponseTimer = setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(
-            'chat-response',
-            `You said: "${message}"\n\n(Placeholder — backend integration coming soon.)`,
-          )
-        }
-        pendingResponseTimer = null
-      }, 600)
-    }
-  })
-
-  ipcMain.on('cancel-response', () => {
-    if (pendingResponseTimer) {
-      clearTimeout(pendingResponseTimer)
-      pendingResponseTimer = null
-      console.log('[ipc] Response cancelled')
-    }
-  })
+  // ── LLM Service ──────────────────────────────────────
+  // The LLM service registers its own IPC handlers for:
+  //   llm:chat, llm:cancel, llm:reset, llm:set-model, llm:get-model,
+  //   llm:set-api-key, llm:has-api-key, llm:set-temperature
+  // and sends streaming responses via:
+  //   llm:chat-delta, llm:chat-done, llm:chat-error
+  llmService.registerIpcHandlers()
 
   // ── Invisibility toggle ─────────────────────────────
   ipcMain.handle('toggle-invisibility', () => {
@@ -477,6 +477,7 @@ app.on('will-quit', (e) => {
   unregisterAllHotkeys()
   extensionWsServer.stop()
   audioPipeline.destroy()
+  llmService.destroy()
 
   if (nativeBridge) {
     const bridge = nativeBridge

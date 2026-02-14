@@ -39,12 +39,64 @@ export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
   chunkDurationSec: 2,
 }
 
+// ── LLM Settings ────────────────────────────────────────
+export type ModelId = 'gpt5-nano' | 'gpt5-mini' | 'gpt-5.2'
+
+export interface ModelConfig {
+  id: ModelId
+  apiModel: string
+  contextWindow: number
+  maxResponseTokens: number
+  label: string
+  description: string
+}
+
+export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
+  'gpt5-nano': {
+    id: 'gpt5-nano',
+    apiModel: 'gpt-5-nano',
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
+    label: 'Nano',
+    description: 'Fast, low cost',
+  },
+  'gpt5-mini': {
+    id: 'gpt5-mini',
+    apiModel: 'gpt-5-mini',
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
+    label: 'Mini',
+    description: 'Balanced',
+  },
+  'gpt-5.2': {
+    id: 'gpt-5.2',
+    apiModel: 'gpt-5.2',
+    contextWindow: 400000,
+    maxResponseTokens: 128000,
+    label: '5.2',
+    description: 'High intelligence',
+  },
+}
+
+export interface LLMSettings {
+  apiKey: string
+  defaultModel: ModelId
+  temperature: number
+}
+
+export const DEFAULT_LLM: LLMSettings = {
+  apiKey: '',
+  defaultModel: 'gpt5-mini',
+  temperature: 0.3,
+}
+
 export interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
   transcription: TranscriptionSettings
+  llm: LLMSettings
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -53,12 +105,58 @@ export const DEFAULT_SETTINGS: AppSettings = {
   moveStepPx: 50,
   windowOpacity: 0.85,
   transcription: { ...DEFAULT_TRANSCRIPTION },
+  llm: { ...DEFAULT_LLM },
 }
 
 export interface ChatAttachment {
   type: 'image'
   data: string // base64 data URL
   label?: string
+}
+
+// ── LLM IPC Types ───────────────────────────────────────
+export interface LLMChatRequest {
+  requestId: string
+  /** Formatted content: transcript delta (if any) prepended to the user's question */
+  message: string
+  /** The user's original question without transcript prefix */
+  rawQuery: string
+  /** Only the new transcript entries since the last message (for persistence) */
+  transcriptDelta: Array<{
+    id: string
+    speaker: string
+    text: string
+    startTime: number
+    endTime: number
+    source: string
+  }>
+  attachments?: ChatAttachment[]
+}
+
+export interface LLMChatDelta {
+  requestId: string
+  delta: string
+  index: number
+}
+
+export interface LLMUsage {
+  promptTokens: number
+  completionTokens: number
+  cachedTokens: number
+}
+
+export interface LLMChatDone {
+  requestId: string
+  fullContent: string
+  usage: LLMUsage
+  model: ModelId
+}
+
+export interface LLMChatError {
+  requestId: string
+  error: string
+  code: 'NETWORK' | 'RATE_LIMIT' | 'CONTEXT_OVERFLOW' | 'API_ERROR' | 'CANCELLED'
+  retryable: boolean
 }
 
 /** Human-readable labels for each hotkey */

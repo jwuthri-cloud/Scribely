@@ -11,10 +11,22 @@ export interface ElectronAPI {
   // ── Visibility ──────────────────────────────────
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
 
-  // ── Chat ────────────────────────────────────────
+  // ── Chat (legacy) ──────────────────────────────
   sendMessage: (message: string) => void
   onMessage: (callback: (response: string) => void) => () => void
   cancelResponse: () => void
+
+  // ── LLM ────────────────────────────────────────
+  llmChat: (request: any) => void
+  llmCancel: (requestId: string) => void
+  llmReset: () => void
+  llmSetModel: (modelId: string) => Promise<{ success: boolean; model: string }>
+  llmGetModel: () => Promise<string>
+  llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasApiKey: () => Promise<boolean>
+  onLLMChatDelta: (callback: (data: any) => void) => () => void
+  onLLMChatDone: (callback: (data: any) => void) => () => void
+  onLLMChatError: (callback: (data: any) => void) => () => void
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -168,21 +180,71 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener('toggle-visibility', handler)
   },
 
-  // ── Chat ────────────────────────────────────────
-  sendMessage: (message: string) => {
-    ipcRenderer.send('send-message', message)
+  // ── Chat (legacy — kept for backward compat, no-ops) ──
+  sendMessage: (_message: string) => {
+    // Deprecated: use llmChat() instead
   },
 
-  onMessage: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, response: string) => {
-      callback(response)
-    }
-    ipcRenderer.on('chat-response', handler)
-    return () => ipcRenderer.removeListener('chat-response', handler)
+  onMessage: (_callback) => {
+    // Deprecated: use onLLMChatDelta/Done/Error instead
+    return () => {}
   },
 
   cancelResponse: () => {
-    ipcRenderer.send('cancel-response')
+    // Deprecated: use llmCancel() instead
+  },
+
+  // ── LLM ────────────────────────────────────────
+  llmChat: (request) => {
+    ipcRenderer.send('llm:chat', request)
+  },
+
+  llmCancel: (requestId: string) => {
+    ipcRenderer.send('llm:cancel', requestId)
+  },
+
+  llmReset: () => {
+    ipcRenderer.send('llm:reset')
+  },
+
+  llmSetModel: (modelId) => {
+    return ipcRenderer.invoke('llm:set-model', modelId)
+  },
+
+  llmGetModel: () => {
+    return ipcRenderer.invoke('llm:get-model')
+  },
+
+  llmSetApiKey: (apiKey: string) => {
+    return ipcRenderer.invoke('llm:set-api-key', apiKey)
+  },
+
+  llmHasApiKey: () => {
+    return ipcRenderer.invoke('llm:has-api-key')
+  },
+
+  onLLMChatDelta: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-delta', handler)
+    return () => ipcRenderer.removeListener('llm:chat-delta', handler)
+  },
+
+  onLLMChatDone: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-done', handler)
+    return () => ipcRenderer.removeListener('llm:chat-done', handler)
+  },
+
+  onLLMChatError: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-error', handler)
+    return () => ipcRenderer.removeListener('llm:chat-error', handler)
   },
 
   // ── Settings ────────────────────────────────────

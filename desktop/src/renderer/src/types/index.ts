@@ -1,4 +1,4 @@
-import type { ChatAttachment, AppSettings } from './settings'
+import type { ChatAttachment, AppSettings, LLMChatRequest, LLMChatDelta, LLMChatDone, LLMChatError, ModelId } from './settings'
 
 /**
  * ElectronAPI exposed via contextBridge in the preload script.
@@ -164,6 +164,18 @@ export interface ElectronAPI {
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 
+  // LLM
+  llmChat: (request: LLMChatRequest) => void
+  llmCancel: (requestId: string) => void
+  llmReset: () => void
+  llmSetModel: (modelId: ModelId) => Promise<{ success: boolean; model: ModelId }>
+  llmGetModel: () => Promise<ModelId>
+  llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasApiKey: () => Promise<boolean>
+  onLLMChatDelta: (callback: (data: LLMChatDelta) => void) => () => void
+  onLLMChatDone: (callback: (data: LLMChatDone) => void) => () => void
+  onLLMChatError: (callback: (data: LLMChatError) => void) => () => void
+
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
@@ -182,12 +194,39 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  /** User's original question without the transcript prefix (for UI display) */
+  rawQuery?: string
   timestamp: number
   attachments?: ChatAttachment[]
+  model?: string
+  usage?: { promptTokens: number; completionTokens: number; cachedTokens: number }
+  isError?: boolean
+  retryable?: boolean
 }
 
-export type { AppSettings, HotkeyConfig, ChatAttachment, TranscriptionProvider, TranscriptionSettings } from './settings'
-export { HOTKEY_LABELS, DEFAULT_HOTKEYS, DEFAULT_SETTINGS, DEFAULT_TRANSCRIPTION } from './settings'
+export type {
+  AppSettings,
+  HotkeyConfig,
+  ChatAttachment,
+  TranscriptionProvider,
+  TranscriptionSettings,
+  ModelId,
+  ModelConfig,
+  LLMSettings,
+  LLMChatRequest,
+  LLMChatDelta,
+  LLMChatDone,
+  LLMChatError,
+  LLMUsage,
+} from './settings'
+export {
+  HOTKEY_LABELS,
+  DEFAULT_HOTKEYS,
+  DEFAULT_SETTINGS,
+  DEFAULT_TRANSCRIPTION,
+  DEFAULT_LLM,
+  MODEL_CONFIGS,
+} from './settings'
 
 // Transcript types
 export type {
