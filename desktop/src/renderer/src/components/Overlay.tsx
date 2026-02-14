@@ -26,6 +26,14 @@ export function Overlay() {
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
   const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
+  const [summarizeInProgress, setSummarizeInProgress] = useState(false)
+  const [summarizeFeedback, setSummarizeFeedback] = useState<{
+    type: 'success' | 'error'
+    message?: string
+  } | null>(null)
+  const [hasSummary, setHasSummary] = useState(false)
+  const [showSummaryModal, setShowSummaryModal] = useState(false)
+  const [summaryContent, setSummaryContent] = useState<string | null>(null)
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -60,12 +68,55 @@ export function Overlay() {
     window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m as ModelId))
   }, [])
 
+  // ── Load summarization status ──
+  useEffect(() => {
+    window.electronAPI?.llmGetSummarizationStatus?.().then((s) => {
+      if (s) setHasSummary(s.hasSummary)
+    })
+  }, [summarizeFeedback])
+
   const handleModelChange = useCallback(async (modelId: ModelId) => {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {
       setCurrentModel(modelId)
     }
   }, [])
+
+  const handleSummarizeTranscript = useCallback(async () => {
+    setSummarizeInProgress(true)
+    setSummarizeFeedback(null)
+    try {
+      const entries = transcript.entries.map((e) => ({
+        id: e.id,
+        speaker: e.speaker,
+        text: e.text,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        source: e.source,
+      }))
+      const result = await window.electronAPI?.llmTriggerSummarize?.({
+        transcriptEntries: entries,
+      })
+      if (result?.success) {
+        setSummarizeFeedback({ type: 'success' })
+        setHasSummary(true)
+      } else {
+        setSummarizeFeedback({
+          type: 'error',
+          message: result?.error ?? 'Summarization failed',
+        })
+      }
+      setTimeout(() => setSummarizeFeedback(null), 5000)
+    } catch (err: any) {
+      setSummarizeFeedback({
+        type: 'error',
+        message: err?.message ?? 'Summarization failed',
+      })
+      setTimeout(() => setSummarizeFeedback(null), 5000)
+    } finally {
+      setSummarizeInProgress(false)
+    }
+  }, [transcript.entries])
 
   // ── Window opacity (CSS-based since setOpacity is a no-op on transparent windows)
   useEffect(() => {
@@ -265,6 +316,21 @@ export function Overlay() {
     setView(v)
   }, [])
 
+  const handleReset = useCallback(() => {
+    resetChat()
+    setTimeout(() => {
+      window.electronAPI?.llmGetSummarizationStatus?.().then((s) => {
+        if (s) setHasSummary(s.hasSummary)
+      })
+    }, 100)
+  }, [resetChat])
+
+  const handleViewSummary = useCallback(async () => {
+    const summary = await window.electronAPI?.llmGetSummary?.()
+    setSummaryContent(summary ?? null)
+    setShowSummaryModal(true)
+  }, [])
+
   const meetingActive = transcript.status.isActive
 
   return (
@@ -290,7 +356,7 @@ export function Overlay() {
               <TitleBar
                 view={view}
                 onSetView={handleSetView}
-                onReset={resetChat}
+                onReset={handleReset}
                 meetingActive={meetingActive}
                 onToggleMeeting={handleToggleMeeting}
               />
@@ -353,7 +419,99 @@ export function Overlay() {
               )}
 
               <ResponseCard messages={messages} isLoading={isLoading} />
-              <ActionChips onAction={(action) => handleSend(action)} />
+
+              {/* Summarize feedback */}
+              {summarizeFeedback && (
+                <div
+                  className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 ${
+                    summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
+                  }`}
+                  style={{
+                    backgroundColor:
+                      summarizeFeedback.type === 'success'
+                        ? 'color-mix(in srgb, var(--success) 12%, transparent)'
+                        : 'color-mix(in srgb, var(--error) 12%, transparent)',
+                    border: `1px solid color-mix(in srgb, var(--${summarizeFeedback.type}) 25%, transparent)`,
+                    color: summarizeFeedback.type === 'success' ? 'var(--success)' : 'var(--error)',
+                  }}
+                  onClick={
+                    summarizeFeedback.type === 'success' ? handleViewSummary : undefined
+                  }
+                >
+                  {summarizeFeedback.type === 'success' ? (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M20 6L9 17l-5-5"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Summary ready — click to view
+                    </>
+                  ) : (
+                    <>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                        <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      {summarizeFeedback.message}
+                    </>
+                  )}
+                </div>
+              )}
+
+              <ActionChips
+                onAction={(action) => handleSend(action)}
+                onSummarizeTranscript={handleSummarizeTranscript}
+                summarizeInProgress={summarizeInProgress}
+                hasSummary={hasSummary}
+                onViewSummary={handleViewSummary}
+              />
+
+              {/* Summary modal */}
+              {showSummaryModal && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                  style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                  onClick={() => setShowSummaryModal(false)}
+                >
+                  <div
+                    className="rounded-xl border shadow-xl max-w-lg w-full max-h-[70vh] overflow-hidden flex flex-col"
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      borderColor: 'var(--border)',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+                      style={{ borderColor: 'var(--border)' }}
+                    >
+                      <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                        Transcript Summary
+                      </h3>
+                      <button
+                        onClick={() => setShowSummaryModal(false)}
+                        className="p-1 rounded-lg hover:bg-[var(--surface-hover)]"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div
+                      className="flex-1 overflow-y-auto p-4 text-[13px] leading-relaxed whitespace-pre-wrap"
+                      style={{ color: 'var(--text)' }}
+                    >
+                      {summaryContent ?? 'No summary available.'}
+                    </div>
+                  </div>
+                </div>
+              )}
               <InputBar
                 onSend={handleSend}
                 disabled={isLoading}

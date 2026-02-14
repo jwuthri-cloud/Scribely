@@ -36,6 +36,13 @@ export interface ElectronAPI {
   llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
   llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
   llmGetActiveSystemPrompt: () => Promise<string | null>
+  llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => Promise<{ success: boolean; error?: string }>
+  llmGetSummarizationStatus: () => Promise<{
+    hasSummary: boolean
+    inProgress: boolean
+    autoSummarizeEnabled: boolean
+  }>
+  llmGetSummary: () => Promise<string | null>
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -291,6 +298,18 @@ const api: ElectronAPI = {
 
   llmGetActiveSystemPrompt: () => {
     return ipcRenderer.invoke('llm:get-active-system-prompt')
+  },
+
+  llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => {
+    return ipcRenderer.invoke('llm:trigger-summarize', payload)
+  },
+
+  llmGetSummarizationStatus: () => {
+    return ipcRenderer.invoke('llm:get-summarization-status')
+  },
+
+  llmGetSummary: () => {
+    return ipcRenderer.invoke('llm:get-summary')
   },
 
   // ── Settings ────────────────────────────────────

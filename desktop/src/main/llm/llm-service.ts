@@ -3,6 +3,8 @@ import Store from 'electron-store'
 import { BrowserWindow, ipcMain } from 'electron'
 import { PromptAssembler } from './prompt-assembler'
 import { TokenCounter } from './token-counter'
+import { TranscriptMemory } from './transcript-memory'
+import { runBackgroundSummarization } from './background-summarizer'
 
 // ── Types (mirrored from renderer for main process use) ──
 
@@ -120,6 +122,7 @@ export class LLMService {
   private store: Store<any>
   private assembler: PromptAssembler
   private tokenCounter: TokenCounter
+  private transcriptMemory: TranscriptMemory
 
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
@@ -138,6 +141,7 @@ export class LLMService {
   constructor(store: Store<any>) {
     this.store = store
     this.tokenCounter = new TokenCounter()
+    this.transcriptMemory = new TranscriptMemory()
     this.assembler = new PromptAssembler(this.tokenCounter)
     this.migrateSettings()
     this.initClient()
@@ -159,7 +163,39 @@ export class LLMService {
       if (!('systemPrompts' in llm)) {
         this.store.set('llm.systemPrompts' as any, [])
       }
+      if (!('summarization' in llm)) {
+        this.store.set('llm.summarization' as any, {
+          autoSummarizeEnabled: true,
+          stalenessMinutes: 5,
+          thresholdPercent: 40,
+          keepRawCount: 25,
+          summarizerSystemPrompt: null,
+        })
+      } else {
+        const summ = llm.summarization as Record<string, unknown> | undefined
+        if (summ && !('summarizerSystemPrompt' in summ)) {
+          this.store.set('llm.summarization.summarizerSystemPrompt' as any, null)
+        }
+      }
     }
+  }
+
+  private getSummarizationConfig(): {
+    autoSummarizeEnabled: boolean
+    stalenessMinutes: number
+    thresholdPercent: number
+    keepRawCount: number
+    summarizerSystemPrompt: string | null
+  } {
+    const def = {
+      autoSummarizeEnabled: true,
+      stalenessMinutes: 5,
+      thresholdPercent: 40,
+      keepRawCount: 25,
+      summarizerSystemPrompt: null as string | null,
+    }
+    const llm = this.store.get('llm') as { summarization?: typeof def } | undefined
+    return { ...def, ...llm?.summarization }
   }
 
   private initClient(): void {
@@ -187,6 +223,7 @@ export class LLMService {
     // ── Reset ──
     ipcMain.on('llm:reset', () => {
       this.conversationMessages = []
+      this.transcriptMemory.reset()
       // New session ID so cache routing starts fresh
       this.sessionId = crypto.randomUUID()
     })
@@ -257,6 +294,63 @@ export class LLMService {
           ?.activeSystemPromptId ?? null
       )
     })
+
+    // ── Summarization ──
+    ipcMain.handle(
+      'llm:trigger-summarize',
+      async (_event, payload?: { transcriptEntries?: TranscriptEntry[] }) => {
+        console.log('[llm] Summarization triggered (manual)')
+        // Use live transcript from renderer if provided, else from conversation
+        const fromPayload = payload?.transcriptEntries ?? []
+        const fromConversation = this.conversationMessages.flatMap(
+          (m) => m.transcriptDelta ?? [],
+        )
+        const allEntries =
+          fromPayload.length > 0 ? fromPayload : fromConversation
+
+        if (allEntries.length === 0) {
+          return {
+            success: false,
+            error: 'No transcript yet. Start a meeting and wait for transcription.',
+          }
+        }
+        if (!this.client) {
+          return { success: false, error: 'API key not configured' }
+        }
+        if (this.transcriptMemory.isSummarizationInProgress()) {
+          return { success: false, error: 'Summarization already in progress' }
+        }
+        const config = this.getSummarizationConfig()
+        const result = await this.runSummarization(
+          allEntries,
+          config.keepRawCount,
+        )
+        console.log(
+          '[llm] Summarization complete:',
+          result.summary ? 'success' : 'failed',
+          result.summary ? `(${result.summary.length} chars)` : result.error,
+        )
+        return {
+          success: !!result.summary,
+          error: result.summary ? undefined : result.error,
+        }
+      },
+    )
+
+    ipcMain.handle('llm:get-summary', () => {
+      return this.transcriptMemory.getSummary()
+    })
+
+    ipcMain.handle('llm:get-summarization-status', () => {
+      const summary = this.transcriptMemory.getSummary()
+      const inProgress = this.transcriptMemory.isSummarizationInProgress()
+      const config = this.getSummarizationConfig()
+      return {
+        hasSummary: !!summary,
+        inProgress,
+        autoSummarizeEnabled: config.autoSummarizeEnabled,
+      }
+    })
   }
 
   private async handleChat(request: LLMChatRequest): Promise<void> {
@@ -291,6 +385,7 @@ export class LLMService {
     // message's content already includes its transcript delta. No separate
     // transcript block needed.
     const modelConfig = MODEL_CONFIGS[this.currentModel]
+    const transcriptSummary = this.transcriptMemory.getSummary()
     const assembled = this.assembler.assemble({
       modelConfig,
       systemPrompt,
@@ -298,6 +393,7 @@ export class LLMService {
         role: m.role,
         content: m.content,
       })),
+      transcriptSummary,
     })
 
     // Persist user message to disk
@@ -335,7 +431,7 @@ export class LLMService {
       let chunkIndex = 0
       let usage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
 
-      for await (const chunk of stream) {
+      for await (const chunk of stream as any) {
         const delta = chunk.choices[0]?.delta?.content
         if (delta) {
           fullContent += delta
@@ -367,6 +463,9 @@ export class LLMService {
       this.persistConversation()
 
       this.sendDone(request.requestId, fullContent, usage)
+
+      // Phase 2: maybe trigger background summarization (async, non-blocking)
+      this.maybeTriggerSummarization(modelConfig.contextWindow)
     } catch (err: any) {
       // Remove the user message from conversation on error
       // (so the user can retry without duplicates)
@@ -412,6 +511,61 @@ export class LLMService {
       controller.abort()
       this.activeRequests.delete(requestId)
     }
+  }
+
+  /**
+   * Phase 2: Trigger background summarization when transcript volume exceeds
+   * threshold and summary is missing or stale. Runs async, does not block.
+   */
+  private maybeTriggerSummarization(modelBudget: number): void {
+    const config = this.getSummarizationConfig()
+    if (!config.autoSummarizeEnabled || !this.client) return
+
+    const allEntries = this.conversationMessages.flatMap((m) => m.transcriptDelta ?? [])
+    if (allEntries.length === 0) return
+
+    const totalTranscriptTokens = this.tokenCounter.countTranscriptEntries(allEntries)
+    const stalenessMs = config.stalenessMinutes * 60 * 1000
+    if (
+      !this.transcriptMemory.shouldTrigger(totalTranscriptTokens, modelBudget, {
+        stalenessMs,
+        thresholdPercent: config.thresholdPercent,
+      })
+    ) {
+      return
+    }
+
+    console.log(
+      '[llm] Summarization triggered (auto) —',
+      allEntries.length,
+      'entries,',
+      totalTranscriptTokens,
+      'tokens',
+    )
+    this.runSummarization(allEntries, config.keepRawCount).catch((err) => {
+      console.error('[llm-service] Background summarization error:', err)
+    })
+  }
+
+  /**
+   * Run summarization (used by auto-trigger and manual trigger).
+   * Returns { summary, error } — summary is set on success, error on failure.
+   */
+  private async runSummarization(
+    entries: TranscriptEntry[],
+    keepRawCount?: number,
+  ): Promise<{ summary: string | null; error?: string }> {
+    if (!this.client) {
+      return { summary: null, error: 'API key not configured' }
+    }
+    const { summarizerSystemPrompt } = this.getSummarizationConfig()
+    return runBackgroundSummarization({
+      client: this.client,
+      transcriptMemory: this.transcriptMemory,
+      entries,
+      keepRawCount,
+      systemPrompt: summarizerSystemPrompt,
+    })
   }
 
   // ── IPC send helpers ──

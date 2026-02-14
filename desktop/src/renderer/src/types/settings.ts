@@ -87,6 +87,36 @@ export interface SystemPrompt {
   updatedAt: number
 }
 
+/** Summarization settings for Phase 2 transcript scaling */
+export interface SummarizationSettings {
+  /** Enable automatic summarization after chat responses */
+  autoSummarizeEnabled: boolean
+  /** Minutes before summary is considered stale (triggers re-summarization) */
+  stalenessMinutes: number
+  /** Percent of context budget that triggers summarization (e.g. 40 = 40%) */
+  thresholdPercent: number
+  /** Number of most recent transcript entries to keep unsummarized */
+  keepRawCount: number
+  /** Custom system prompt for summarization. Null = use default. */
+  summarizerSystemPrompt: string | null
+}
+
+export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT = `You are a meeting transcript summarizer. Produce a concise summary that captures:
+- Main topics discussed
+- Key decisions or conclusions
+- Action items or follow-ups mentioned
+- Important context for later questions
+
+Keep the summary under 500 words. Use clear paragraphs. Do not include timestamps.`
+
+export const DEFAULT_SUMMARIZATION: SummarizationSettings = {
+  autoSummarizeEnabled: true,
+  stalenessMinutes: 5,
+  thresholdPercent: 40,
+  keepRawCount: 25,
+  summarizerSystemPrompt: null,
+}
+
 export interface LLMSettings {
   apiKey: string
   defaultModel: ModelId
@@ -95,6 +125,8 @@ export interface LLMSettings {
   activeSystemPromptId: string | null
   /** User-created system prompts */
   systemPrompts: SystemPrompt[]
+  /** Transcript summarization settings (Phase 2) */
+  summarization: SummarizationSettings
 }
 
 export const DEFAULT_LLM: LLMSettings = {
@@ -103,6 +135,7 @@ export const DEFAULT_LLM: LLMSettings = {
   temperature: 0.3,
   activeSystemPromptId: null,
   systemPrompts: [],
+  summarization: DEFAULT_SUMMARIZATION,
 }
 
 export interface AppSettings {

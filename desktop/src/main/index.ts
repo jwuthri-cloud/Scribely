@@ -34,6 +34,14 @@ interface TranscriptionSettings {
   chunkDurationSec: number
 }
 
+interface SummarizationSettings {
+  autoSummarizeEnabled: boolean
+  stalenessMinutes: number
+  thresholdPercent: number
+  keepRawCount: number
+  summarizerSystemPrompt: string | null
+}
+
 interface LLMSettings {
   apiKey: string
   defaultModel: string
@@ -46,6 +54,7 @@ interface LLMSettings {
     createdAt: number
     updatedAt: number
   }>
+  summarization?: SummarizationSettings
 }
 
 interface AppSettings {
@@ -83,6 +92,13 @@ const store = new Store<AppSettings>({
       temperature: 0.3,
       activeSystemPromptId: null,
       systemPrompts: [],
+      summarization: {
+        autoSummarizeEnabled: true,
+        stalenessMinutes: 5,
+        thresholdPercent: 40,
+        keepRawCount: 25,
+        summarizerSystemPrompt: null,
+      },
     },
   },
 })
@@ -222,6 +238,19 @@ function registerIpcHandlers(): void {
           ...current,
           ...incoming,
         })
+      } else if (key === 'llm' && typeof value === 'object') {
+        // Deep merge LLM settings (including nested summarization)
+        const current = (store.get('llm') || {}) as unknown as Record<string, unknown>
+        const incoming = value as unknown as Record<string, unknown>
+        const merged: Record<string, unknown> = { ...current }
+        for (const [k, v] of Object.entries(incoming)) {
+          if (k === 'summarization' && typeof v === 'object' && v !== null) {
+            merged[k] = { ...((current.summarization as object) || {}), ...v }
+          } else {
+            merged[k] = v
+          }
+        }
+        store.set('llm', merged as unknown as LLMSettings)
       } else {
         store.set(key as keyof AppSettings, value as never)
       }

@@ -18,6 +18,8 @@ export interface AssembleInput {
   systemPrompt: string | null
   /** Full conversation history -- user messages already contain transcript deltas in their content. */
   conversationMessages: ConversationMessage[]
+  /** Optional transcript summary (Phase 2 safety net). Inserted as messages[1] when present. */
+  transcriptSummary?: string | null
 }
 
 export interface AssembledPrompt {
@@ -50,15 +52,29 @@ export class PromptAssembler {
   }
 
   assemble(input: AssembleInput): AssembledPrompt {
-    const { modelConfig, systemPrompt, conversationMessages } = input
+    const {
+      modelConfig,
+      systemPrompt,
+      conversationMessages,
+      transcriptSummary,
+    } = input
 
     // ── System prompt tokens ──
     const systemTokens = systemPrompt ? this.counter.count(systemPrompt) + 4 : 0
 
+    // ── Transcript summary tokens (Phase 2 safety net) ──
+    const summaryTokens = transcriptSummary
+      ? this.counter.count(transcriptSummary) + 4
+      : 0
+
     // ── Available budget for conversation messages ──
     const margin = 200
     const available =
-      modelConfig.contextWindow - systemTokens - modelConfig.maxResponseTokens - margin
+      modelConfig.contextWindow -
+      systemTokens -
+      summaryTokens -
+      modelConfig.maxResponseTokens -
+      margin
 
     // ── Truncate oldest message pairs if needed ──
     const { messages: fittedMessages, truncatedPairs } = this.fitMessages(
@@ -71,6 +87,13 @@ export class PromptAssembler {
 
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt })
+    }
+
+    if (transcriptSummary) {
+      messages.push({
+        role: 'system',
+        content: `TRANSCRIPT SUMMARY (context for truncated history):\n\n${transcriptSummary}`,
+      })
     }
 
     for (const msg of fittedMessages) {

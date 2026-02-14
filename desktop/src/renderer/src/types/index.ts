@@ -185,6 +185,24 @@ export interface ElectronAPI {
   llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
   llmGetActiveSystemPrompt: () => Promise<string | null>
 
+  // Summarization
+  llmTriggerSummarize: (payload?: {
+    transcriptEntries?: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+  }) => Promise<{ success: boolean; error?: string }>
+  llmGetSummarizationStatus: () => Promise<{
+    hasSummary: boolean
+    inProgress: boolean
+    autoSummarizeEnabled: boolean
+  }>
+  llmGetSummary: () => Promise<string | null>
+
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
@@ -226,6 +244,7 @@ export type {
   ChatAttachment,
   TranscriptionProvider,
   TranscriptionSettings,
+  SummarizationSettings,
   ModelId,
   ModelConfig,
   LLMSettings,
@@ -242,6 +261,8 @@ export {
   DEFAULT_SETTINGS,
   DEFAULT_TRANSCRIPTION,
   DEFAULT_LLM,
+  DEFAULT_SUMMARIZATION,
+  DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
   MODEL_CONFIGS,
 } from './settings'
 

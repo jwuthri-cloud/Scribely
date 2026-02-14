@@ -1,6 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { SystemPrompt } from '../types'
-import { type ModelId, MODEL_CONFIGS } from '../types/settings'
+import {
+  type ModelId,
+  type SummarizationSettings,
+  DEFAULT_SUMMARIZATION,
+  DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
+} from '../types/settings'
 
 const MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
   { id: 'gpt5-nano', label: 'Nano', description: 'Fast, low cost' },
@@ -46,6 +51,11 @@ export function LLMView() {
   const [showNewForm, setShowNewForm] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
+  // Summarization
+  const [summarization, setSummarization] = useState<SummarizationSettings>(DEFAULT_SUMMARIZATION)
+  const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
+  const [summarizerPromptDraft, setSummarizerPromptDraft] = useState('')
+
   // ── Load initial state ──
   useEffect(() => {
     const api = window.electronAPI
@@ -58,6 +68,9 @@ export function LLMView() {
     })
     api.llmGetSystemPrompts().then(setSystemPrompts)
     api.llmGetActiveSystemPrompt().then(setActivePromptId)
+    api.getSettings().then((s) => {
+      if (s?.llm?.summarization) setSummarization(s.llm.summarization)
+    })
   }, [])
 
   // ── Model selection ──
@@ -134,6 +147,21 @@ export function LLMView() {
   const handleSetActivePrompt = useCallback(async (id: string | null) => {
     await window.electronAPI?.llmSetActiveSystemPrompt(id)
     setActivePromptId(id)
+  }, [])
+
+  // ── Summarization ──
+  const handleAutoSummarizeToggle = useCallback((enabled: boolean) => {
+    const next = { ...summarization, autoSummarizeEnabled: enabled }
+    setSummarization(next)
+    window.electronAPI?.updateSettings({ llm: { summarization: next } } as any)
+  }, [summarization])
+
+  // Refresh summarization status when settings change
+  useEffect(() => {
+    const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
+      if (s?.llm?.summarization) setSummarization(s.llm.summarization)
+    })
+    return () => unsub?.()
   }, [])
 
   // Focus name input when form opens
@@ -268,6 +296,118 @@ export function LLMView() {
           >
             <span>Precise</span>
             <span>Creative</span>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Summarization ───────────────────────── */}
+      <Section title="Transcript Summarization">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--text)' }}>
+              Auto-summarize long transcripts
+            </span>
+            <button
+              onClick={() => handleAutoSummarizeToggle(!summarization.autoSummarizeEnabled)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                summarization.autoSummarizeEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  summarization.autoSummarizeEnabled ? 'left-4' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Keeps long meetings from overflowing context. Use the Summarize now button in chat
+            to summarize on demand.
+          </p>
+
+          {/* Summarizer system prompt */}
+          <div className="pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-medium" style={{ color: 'var(--text)' }}>
+                Summarizer prompt
+              </span>
+              {!editingSummarizerPrompt ? (
+                <button
+                  onClick={() => {
+                    setSummarizerPromptDraft(
+                      summarization.summarizerSystemPrompt ?? DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
+                    )
+                    setEditingSummarizerPrompt(true)
+                  }}
+                  className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  {summarization.summarizerSystemPrompt ? 'Edit' : 'Customize'}
+                </button>
+              ) : (
+                <div className="flex gap-1">
+                  {summarization.summarizerSystemPrompt && (
+                    <button
+                      onClick={() => {
+                        handleAutoSummarizeToggle(summarization.autoSummarizeEnabled)
+                        const next = { ...summarization, summarizerSystemPrompt: null }
+                        setSummarization(next)
+                        window.electronAPI?.updateSettings({ llm: { summarization: next } } as any)
+                        setEditingSummarizerPrompt(false)
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      Reset
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingSummarizerPrompt(false)}
+                    className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const trimmed = summarizerPromptDraft.trim()
+                      const value = trimmed === DEFAULT_SUMMARIZER_SYSTEM_PROMPT ? null : trimmed || null
+                      const next = { ...summarization, summarizerSystemPrompt: value }
+                      setSummarization(next)
+                      window.electronAPI?.updateSettings({ llm: { summarization: next } } as any)
+                      setEditingSummarizerPrompt(false)
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--accent)', color: '#fff', borderRadius: '6px' }}
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+            {editingSummarizerPrompt ? (
+              <textarea
+                value={summarizerPromptDraft}
+                onChange={(e) => setSummarizerPromptDraft(e.target.value)}
+                className="w-full bg-transparent outline-none text-[11px] resize-none rounded-lg border p-2 focus:border-[var(--accent)]"
+                style={{
+                  color: 'var(--text)',
+                  borderColor: 'var(--input-border)',
+                  backgroundColor: 'var(--input-bg)',
+                  minHeight: '100px',
+                }}
+                placeholder="System prompt for transcript summarization..."
+              />
+            ) : (
+              <p
+                className="text-[10px] truncate"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {summarization.summarizerSystemPrompt
+                  ? summarization.summarizerSystemPrompt.slice(0, 80) + '…'
+                  : 'Default — meeting topics, decisions, action items'}
+              </p>
+            )}
           </div>
         </div>
       </Section>
