@@ -516,9 +516,14 @@ export class LLMService {
 
     const isGpt52 = this.currentModel === 'gpt-5.2'
 
+    const apiMessages = this.buildApiMessagesWithImages(
+      assembled.messages,
+      request.attachments,
+    )
+
     const requestParams: Record<string, unknown> = {
       model: modelConfig.apiModel,
-      messages: assembled.messages,
+      messages: apiMessages,
       max_completion_tokens: modelConfig.maxResponseTokens,
       stream: true,
       stream_options: { include_usage: true },
@@ -687,6 +692,45 @@ export class LLMService {
 
   private sendDelta(requestId: string, delta: string, index: number): void {
     this.safeSend('llm:chat-delta', { requestId, delta, index })
+  }
+
+  /**
+   * Build API messages, converting the last user message to vision format
+   * when it has image attachments (screenshots).
+   */
+  private buildApiMessagesWithImages(
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    attachments?: ChatAttachment[],
+  ): Array<
+    | { role: 'system' | 'user' | 'assistant'; content: string }
+    | {
+        role: 'user'
+        content: Array<
+          | { type: 'text'; text: string }
+          | { type: 'image_url'; image_url: { url: string } }
+        >
+      }
+  > {
+    const images = attachments?.filter((a) => a.type === 'image') ?? []
+    if (images.length === 0) return messages
+
+    const result = [...messages]
+    const lastUserIdx = result.findLastIndex((m) => m.role === 'user')
+    if (lastUserIdx === -1) return messages
+
+    const lastUser = result[lastUserIdx]
+    const contentParts: Array<
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    > = [{ type: 'text', text: lastUser.content }]
+    for (const img of images) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: img.data },
+      })
+    }
+    result[lastUserIdx] = { role: 'user', content: contentParts }
+    return result
   }
 
   private storePromptForRequest(
