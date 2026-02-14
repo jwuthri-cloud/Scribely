@@ -64,6 +64,10 @@ export function useChat(options: UseChatOptions = {}) {
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [contextUsage, setContextUsage] = useState<{
+    promptTokens: number
+    contextWindow: number
+  } | null>(null)
 
   // Track the index of the last transcript entry that was included in a message.
   // Everything from this index onward is "new" and will be included as a delta
@@ -97,6 +101,13 @@ export function useChat(options: UseChatOptions = {}) {
     const unsubDone = api.onLLMChatDone((data: LLMChatDone) => {
       if (data.requestId !== activeRequestIdRef.current) return
 
+      if (data.usage && data.contextWindow) {
+        setContextUsage({
+          promptTokens: data.usage.promptTokens,
+          contextWindow: data.contextWindow,
+        })
+      }
+
       setMessages((prev) => {
         const last = prev[prev.length - 1]
         if (last?.role === 'assistant' && last.id === data.requestId) {
@@ -106,7 +117,9 @@ export function useChat(options: UseChatOptions = {}) {
               ...last,
               content: data.fullContent,
               model: data.model,
-              usage: data.usage,
+              usage: data.usage
+                ? { ...data.usage, latencyMs: data.latencyMs }
+                : data.usage,
             },
           ]
         }
@@ -180,6 +193,7 @@ export function useChat(options: UseChatOptions = {}) {
     const unsubscribe = window.electronAPI?.onResetChat(() => {
       setMessages([])
       setIsLoading(false)
+      setContextUsage(null)
       lastTranscriptIndexRef.current = 0
       activeRequestIdRef.current = null
       window.electronAPI?.llmReset()
@@ -276,6 +290,7 @@ export function useChat(options: UseChatOptions = {}) {
   const resetChat = useCallback(() => {
     setMessages([])
     setIsLoading(false)
+    setContextUsage(null)
     lastTranscriptIndexRef.current = 0
     activeRequestIdRef.current = null
     window.electronAPI?.llmReset()
@@ -288,5 +303,5 @@ export function useChat(options: UseChatOptions = {}) {
     // Don't set isLoading to false here — the error callback will handle it
   }, [isLoading])
 
-  return { messages, isLoading, sendMessage, resetChat, stopGeneration }
+  return { messages, isLoading, sendMessage, resetChat, stopGeneration, contextUsage }
 }

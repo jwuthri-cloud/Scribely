@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { observeOpenAI } from '@langfuse/openai'
 import Store from 'electron-store'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { PromptAssembler } from './prompt-assembler'
 import { TokenCounter } from './token-counter'
 import { TranscriptMemory } from './transcript-memory'
@@ -37,6 +37,15 @@ const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
     contextWindow: 400000,
     maxResponseTokens: 128000,
   },
+}
+
+const MODEL_PRICING: Record<
+  ModelId,
+  { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
+> = {
+  'gpt5-nano': { inputPer1M: 0.05, outputPer1M: 0.4, cachedPer1M: 0.025 },
+  'gpt5-mini': { inputPer1M: 0.25, outputPer1M: 2.0, cachedPer1M: 0.125 },
+  'gpt-5.2': { inputPer1M: 1.75, outputPer1M: 14.0, cachedPer1M: 0.875 },
 }
 
 interface TranscriptEntry {
@@ -134,6 +143,13 @@ export class LLMService {
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
 
+  // Usage tracking for LLM tab (reset on conversation reset)
+  private sessionUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    cachedTokens: 0,
+  }
+
   // Conversation state (in-memory, also persisted to electron-store)
   // In the append-only strategy, each user message's `content` already contains
   // its transcript delta. The conversation array is strictly append-only.
@@ -200,11 +216,59 @@ export class LLMService {
   }
 
   private initClient(): void {
-    const llm = this.store.get('llm') as { apiKey?: string } | undefined
-    if (llm?.apiKey) {
-      const base = new OpenAI({ apiKey: llm.apiKey })
+    const apiKey = this.getDecryptedApiKey()
+    if (apiKey) {
+      const base = new OpenAI({ apiKey })
       this.client = observeOpenAI(base) as unknown as OpenAI
     }
+  }
+
+  /** Decrypt API key from store. Migrates plain-text keys to encrypted on first read. */
+  private getDecryptedApiKey(): string | null {
+    const llm = this.store.get('llm') as { apiKey?: string; apiKeyEncrypted?: string } | undefined
+    const encrypted = llm?.apiKeyEncrypted
+    const plain = llm?.apiKey
+
+    if (encrypted && safeStorage.isEncryptionAvailable()) {
+      try {
+        const buf = Buffer.from(encrypted, 'base64')
+        return safeStorage.decryptString(buf)
+      } catch {
+        return null
+      }
+    }
+
+    if (plain && plain.trim()) {
+      if (safeStorage.isEncryptionAvailable()) {
+        try {
+          const buf = safeStorage.encryptString(plain)
+          this.store.set('llm.apiKeyEncrypted' as any, buf.toString('base64'))
+          this.store.delete('llm.apiKey' as any)
+        } catch {
+          // Keep using plain if encryption fails
+        }
+      }
+      return plain
+    }
+    return null
+  }
+
+  /** Encrypt and store API key. */
+  private setEncryptedApiKey(apiKey: string): boolean {
+    if (!apiKey.trim()) return false
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const buf = safeStorage.encryptString(apiKey)
+        this.store.set('llm.apiKeyEncrypted' as any, buf.toString('base64'))
+        this.store.delete('llm.apiKey' as any)
+        return true
+      } catch {
+        this.store.set('llm.apiKey' as any, apiKey)
+        return true
+      }
+    }
+    this.store.set('llm.apiKey' as any, apiKey)
+    return true
   }
 
   setWindow(window: BrowserWindow): void {
@@ -226,8 +290,21 @@ export class LLMService {
     ipcMain.on('llm:reset', () => {
       this.conversationMessages = []
       this.transcriptMemory.reset()
-      // New session ID so cache routing starts fresh
+      this.sessionUsage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
       this.sessionId = crypto.randomUUID()
+    })
+
+    // ── Usage stats (for LLM tab) ──
+    ipcMain.handle('llm:get-usage-stats', () => {
+      const pricing = this.getModelPricing(this.currentModel)
+      const uncached = this.sessionUsage.promptTokens - this.sessionUsage.cachedTokens
+      const inputCost = (uncached / 1_000_000) * pricing.inputPer1M
+      const cachedCost = (this.sessionUsage.cachedTokens / 1_000_000) * pricing.cachedPer1M
+      const outputCost = (this.sessionUsage.completionTokens / 1_000_000) * pricing.outputPer1M
+      return {
+        ...this.sessionUsage,
+        estimatedCostUsd: inputCost + cachedCost + outputCost,
+      }
     })
 
     // ── Model selection ──
@@ -242,9 +319,9 @@ export class LLMService {
       return { success: false, model: this.currentModel }
     })
 
-    // ── API key ──
+    // ── API key (encrypted via safeStorage) ──
     ipcMain.handle('llm:set-api-key', (_event, apiKey: string) => {
-      this.store.set('llm.apiKey' as any, apiKey)
+      this.setEncryptedApiKey(apiKey)
       this.initClient()
       return { success: !!this.client }
     })
@@ -433,6 +510,8 @@ export class LLMService {
       reasoning_effort: reasoningEffort,
     }
 
+    const startTime = Date.now()
+
     try {
       const stream = await this.client.chat.completions.create(
         requestParams as any,
@@ -474,7 +553,7 @@ export class LLMService {
       // Persist assistant message to disk
       this.persistConversation()
 
-      this.sendDone(request.requestId, fullContent, usage)
+      this.sendDone(request.requestId, fullContent, usage, startTime)
 
       // Phase 2: maybe trigger background summarization (async, non-blocking)
       this.maybeTriggerSummarization(modelConfig.contextWindow)
@@ -592,16 +671,40 @@ export class LLMService {
     this.safeSend('llm:chat-delta', { requestId, delta, index })
   }
 
+  private getModelPricing(modelId: ModelId): {
+    inputPer1M: number
+    outputPer1M: number
+    cachedPer1M: number
+  } {
+    return MODEL_PRICING[modelId] ?? MODEL_PRICING['gpt-5.2']
+  }
+
   private sendDone(
     requestId: string,
     fullContent: string,
     usage: { promptTokens: number; completionTokens: number; cachedTokens: number },
+    requestStartTime: number,
   ): void {
+    this.sessionUsage.promptTokens += usage.promptTokens
+    this.sessionUsage.completionTokens += usage.completionTokens
+    this.sessionUsage.cachedTokens += usage.cachedTokens
+    this.safeSend('llm:usage-updated', {})
+
+    if (usage.cachedTokens > 0) {
+      const hitRate = Math.round((usage.cachedTokens / usage.promptTokens) * 100)
+      console.log(
+        `[llm] Cache hit: ${usage.cachedTokens} cached / ${usage.promptTokens} prompt tokens (${hitRate}%)`,
+      )
+    }
+    const modelConfig = MODEL_CONFIGS[this.currentModel]
+    const latencyMs = Date.now() - requestStartTime
     this.safeSend('llm:chat-done', {
       requestId,
       fullContent,
       usage,
       model: this.currentModel,
+      contextWindow: modelConfig.contextWindow,
+      latencyMs,
     })
   }
 

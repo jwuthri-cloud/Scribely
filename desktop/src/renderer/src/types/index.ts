@@ -203,6 +203,13 @@ export interface ElectronAPI {
   }>
   llmGetSummary: () => Promise<string | null>
   onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetUsageStats: () => Promise<{
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    estimatedCostUsd: number
+  }>
+  onLLMUsageUpdated: (callback: () => void) => () => void
 
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
@@ -234,7 +241,12 @@ export interface ChatMessage {
   timestamp: number
   attachments?: ChatAttachment[]
   model?: string
-  usage?: { promptTokens: number; completionTokens: number; cachedTokens: number }
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    latencyMs?: number
+  }
   isError?: boolean
   retryable?: boolean
 }
@@ -265,6 +277,8 @@ export {
   DEFAULT_SUMMARIZATION,
   DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
   MODEL_CONFIGS,
+  MODEL_PRICING,
+  estimateMessageCost,
 } from './settings'
 
 // Transcript types

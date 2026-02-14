@@ -78,6 +78,29 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
   },
 }
 
+/** Per-1M-token pricing (USD) for cost display. Cached tokens = 50% of input. */
+export const MODEL_PRICING: Record<
+  ModelId,
+  { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
+> = {
+  'gpt5-nano': { inputPer1M: 0.05, outputPer1M: 0.4, cachedPer1M: 0.025 },
+  'gpt5-mini': { inputPer1M: 0.25, outputPer1M: 2.0, cachedPer1M: 0.125 },
+  'gpt-5.2': { inputPer1M: 1.75, outputPer1M: 14.0, cachedPer1M: 0.875 },
+}
+
+export function estimateMessageCost(
+  usage: { promptTokens: number; completionTokens: number; cachedTokens: number },
+  modelId: ModelId,
+): number {
+  const pricing = MODEL_PRICING[modelId]
+  if (!pricing) return 0
+  const uncachedInput = usage.promptTokens - usage.cachedTokens
+  const inputCost = (uncachedInput / 1_000_000) * pricing.inputPer1M
+  const cachedCost = (usage.cachedTokens / 1_000_000) * pricing.cachedPer1M
+  const outputCost = (usage.completionTokens / 1_000_000) * pricing.outputPer1M
+  return inputCost + cachedCost + outputCost
+}
+
 // ── System Prompt ────────────────────────────────────────
 export interface SystemPrompt {
   id: string
@@ -198,6 +221,10 @@ export interface LLMChatDone {
   fullContent: string
   usage: LLMUsage
   model: ModelId
+  /** Context window size for utilization display */
+  contextWindow?: number
+  /** Response latency in milliseconds */
+  latencyMs?: number
 }
 
 export interface LLMChatError {

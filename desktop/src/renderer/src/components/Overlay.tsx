@@ -43,7 +43,7 @@ export function Overlay() {
   const [meetingError, setMeetingError] = useState<string | null>(null)
 
   // Pass transcript entries to useChat so it can embed deltas in user messages
-  const { messages, isLoading, sendMessage, resetChat, stopGeneration } = useChat({
+  const { messages, isLoading, sendMessage, resetChat, stopGeneration, contextUsage } = useChat({
     transcriptEntries: transcript.entries,
   })
 
@@ -522,6 +522,45 @@ export function Overlay() {
                   </div>
                 </div>
               )}
+              {/* Context utilization indicator */}
+              {contextUsage && contextUsage.contextWindow > 0 && (
+                <div
+                  className="mx-4 mb-1 px-2 py-1 rounded-lg flex items-center justify-between"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                    Context
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-1.5 rounded-full overflow-hidden flex-1 min-w-[60px] max-w-[100px]"
+                      style={{ backgroundColor: 'var(--border)' }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (contextUsage.promptTokens / contextUsage.contextWindow) * 100,
+                          )}%`,
+                          backgroundColor:
+                            contextUsage.promptTokens / contextUsage.contextWindow > 0.8
+                              ? 'var(--error)'
+                              : 'var(--accent)',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                      {(contextUsage.promptTokens / 1000).toFixed(1)}k /{' '}
+                      {(contextUsage.contextWindow / 1000).toFixed(0)}k
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <InputBar
                 onSend={handleSend}
                 disabled={isLoading}

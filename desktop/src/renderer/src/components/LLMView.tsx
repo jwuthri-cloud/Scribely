@@ -56,6 +56,14 @@ export function LLMView() {
   const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
   const [summarizerPromptDraft, setSummarizerPromptDraft] = useState('')
 
+  // Usage/cost tracking (Phase 3)
+  const [usageStats, setUsageStats] = useState<{
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    estimatedCostUsd: number
+  } | null>(null)
+
   // ── Load initial state ──
   useEffect(() => {
     const api = window.electronAPI
@@ -71,6 +79,15 @@ export function LLMView() {
     api.getSettings().then((s) => {
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
     })
+    api.llmGetUsageStats?.().then(setUsageStats)
+  }, [])
+
+  // Refresh usage when it updates (after each chat response)
+  useEffect(() => {
+    const unsub = window.electronAPI?.onLLMUsageUpdated?.(() => {
+      window.electronAPI?.llmGetUsageStats?.().then(setUsageStats)
+    })
+    return () => unsub?.()
   }, [])
 
   // ── Model selection ──
@@ -233,6 +250,41 @@ export function LLMView() {
               </p>
             </div>
           )}
+        </div>
+      </Section>
+
+      {/* ── Usage & Cost (Phase 3) ─────────────────── */}
+      <Section title="Session Usage">
+        <div className="space-y-2">
+          <div className="flex justify-between text-[11px]">
+            <span style={{ color: 'var(--text-muted)' }}>Prompt tokens</span>
+            <span style={{ color: 'var(--text)' }}>
+              {(usageStats?.promptTokens ?? 0).toLocaleString()}
+            </span>
+          </div>
+          <div className="flex justify-between text-[11px]">
+            <span style={{ color: 'var(--text-muted)' }}>Completion tokens</span>
+            <span style={{ color: 'var(--text)' }}>
+              {(usageStats?.completionTokens ?? 0).toLocaleString()}
+            </span>
+          </div>
+          {(usageStats?.cachedTokens ?? 0) > 0 && (
+            <div className="flex justify-between text-[11px]">
+              <span style={{ color: 'var(--text-muted)' }}>Cached (saved 50%)</span>
+              <span style={{ color: 'var(--success)' }}>
+                {(usageStats?.cachedTokens ?? 0).toLocaleString()}
+              </span>
+            </div>
+          )}
+          <div className="flex justify-between text-[11px] font-medium pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Est. cost</span>
+            <span style={{ color: 'var(--text)' }}>
+              ${(usageStats?.estimatedCostUsd ?? 0).toFixed(4)}
+            </span>
+          </div>
+          <p className="text-[9px] pt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Resets when you reset the chat
+          </p>
         </div>
       </Section>
 

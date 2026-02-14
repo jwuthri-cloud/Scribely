@@ -10,12 +10,23 @@ interface ActionChipsProps {
 
 const ACTIONS = [
   {
-    label: 'Summarize now',
+    label: 'Summarize meeting',
     value: 'Summarize this',
     isSummarizeTranscript: true,
     icon: (
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 6h16M4 12h10M4 18h14" />
+      </svg>
+    ),
+  },
+  {
+    label: 'List action items',
+    value: 'List the action items from this meeting',
+    isSummarizeTranscript: false,
+    icon: (
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
   },

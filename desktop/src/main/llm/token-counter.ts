@@ -1,16 +1,17 @@
+import { countTokens, encodeChat } from 'gpt-tokenizer'
+
+/** Model names supported by gpt-tokenizer for chat encoding. */
+const CHAT_MODEL = 'gpt-5-mini' as const
+
 /**
- * Fast token count estimator for prompt budget management.
- *
- * Uses a word-based heuristic (~1.3 tokens per English word) that is
- * ~90% accurate without requiring a WASM tokenizer dependency.
- * For production, swap `count()` to use `gpt-tokenizer` for exact counts.
+ * Precise token counter using gpt-tokenizer (o200k_base encoding for GPT-5 series).
+ * Replaces the word-heuristic for accurate budget management and cost estimation.
  */
 export class TokenCounter {
-  /** Approximate token count for a text string. */
+  /** Precise token count for a text string. */
   count(text: string): number {
     if (!text) return 0
-    const words = text.split(/\s+/).filter(Boolean)
-    return Math.ceil(words.length * 1.3)
+    return countTokens(text)
   }
 
   /** Count tokens for an array of transcript entries (with formatting overhead). */
@@ -19,19 +20,27 @@ export class TokenCounter {
   ): number {
     let total = 0
     for (const entry of entries) {
-      // "[HH:MM] Speaker: text\n" overhead ~= 10 tokens per entry
-      total += this.count(entry.text) + 10
+      const totalSec = Math.floor(entry.startTime / 1000)
+      const min = Math.floor(totalSec / 60)
+      const sec = totalSec % 60
+      const ts = `${min}:${String(sec).padStart(2, '0')}`
+      const formatted = `[${ts}] ${entry.speaker}: ${entry.text}\n`
+      total += this.count(formatted)
     }
     return total
   }
 
-  /** Count tokens for conversation messages (with role overhead). */
+  /**
+   * Count tokens for conversation messages (with role overhead).
+   * Uses encodeChat with model — countTokens(chat) requires a model for chat format.
+   */
   countMessages(messages: Array<{ role: string; content: string }>): number {
-    let total = 0
-    for (const msg of messages) {
-      // role token + content + message overhead ~= 4 tokens
-      total += this.count(msg.content) + 4
-    }
-    return total
+    if (messages.length === 0) return 0
+    const chat = messages.map((m) => ({
+      role: m.role as 'system' | 'user' | 'assistant',
+      content: m.content,
+    }))
+    const tokens = encodeChat(chat, CHAT_MODEL)
+    return tokens.length
   }
 }

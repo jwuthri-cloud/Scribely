@@ -44,6 +44,13 @@ export interface ElectronAPI {
   }>
   llmGetSummary: () => Promise<string | null>
   onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetUsageStats: () => Promise<{
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    estimatedCostUsd: number
+  }>
+  onLLMUsageUpdated: (callback: () => void) => () => void
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -317,6 +324,16 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('llm:summary-updated', handler)
     return () => ipcRenderer.removeListener('llm:summary-updated', handler)
+  },
+
+  llmGetUsageStats: () => {
+    return ipcRenderer.invoke('llm:get-usage-stats')
+  },
+
+  onLLMUsageUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('llm:usage-updated', handler)
+    return () => ipcRenderer.removeListener('llm:usage-updated', handler)
   },
 
   // ── Settings ────────────────────────────────────

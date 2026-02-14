@@ -25,6 +25,7 @@
     "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
     "framer-motion": "^11.15.0",
+    "gpt-tokenizer": "^3.4.0",
     "node-machine-id": "^1.1.12",
     "nswindow-napi": "^0.0.3",
     "onnxruntime-node": "^1.24.1",

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import type { ChatMessage } from '../types'
-import type { HotkeyConfig } from '../types/settings'
-import { DEFAULT_HOTKEYS } from '../types/settings'
+import type { HotkeyConfig, ModelId } from '../types/settings'
+import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
 
 /** Converts an Electron accelerator to macOS-style symbols */
 function fmtKey(acc: string): string {
@@ -208,9 +208,9 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
               />
             )}
 
-            {/* Model badge for assistant messages */}
+            {/* Model badge, latency, and cost for assistant messages */}
             {msg.role === 'assistant' && msg.model && !msg.isError && (
-              <div className="mt-1.5 flex items-center gap-2">
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                 <span
                   className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
                   style={{
@@ -218,8 +218,21 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                     color: 'var(--accent)',
                   }}
                 >
-                  {msg.model}
+                  {MODEL_CONFIGS[msg.model as ModelId]?.label ?? msg.model}
                 </span>
+                {msg.usage?.latencyMs != null && (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    {msg.usage.latencyMs >= 1000
+                      ? `${(msg.usage.latencyMs / 1000).toFixed(1)}s`
+                      : `${msg.usage.latencyMs}ms`}
+                  </span>
+                )}
                 {msg.usage && msg.usage.cachedTokens > 0 && (
                   <span
                     className="text-[9px] px-1.5 py-0.5 rounded-md"
@@ -229,6 +242,17 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                     }}
                   >
                     {Math.round((msg.usage.cachedTokens / msg.usage.promptTokens) * 100)}% cached
+                  </span>
+                )}
+                {msg.usage && (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    ~${estimateMessageCost(msg.usage, msg.model as ModelId).toFixed(4)}
                   </span>
                 )}
               </div>
