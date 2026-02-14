@@ -197,6 +197,9 @@ export interface ElectronAPI {
   onboardingGetCompleted: () => Promise<boolean>
   onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
 
+  // ── Clipboard ────────────────────────────────────
+  clipboardWriteText: (text: string) => Promise<void>
+
   // ── Open external URL ────────────────────────────
   openExternalUrl: (url: string) => Promise<{ success: boolean }>
 
@@ -626,6 +629,10 @@ const api: ElectronAPI = {
 
   onboardingSetCompleted: (completed: boolean) => {
     return ipcRenderer.invoke('onboarding:set-completed', completed)
+  },
+
+  clipboardWriteText: (text: string) => {
+    return ipcRenderer.invoke('clipboard:write-text', text)
   },
 
   openExternalUrl: (url: string) => {

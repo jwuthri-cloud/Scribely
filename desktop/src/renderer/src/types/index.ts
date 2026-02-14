@@ -223,6 +223,7 @@ export interface ElectronAPI {
   onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
 
   // Open external URL
+  clipboardWriteText: (text: string) => Promise<void>
   openExternalUrl: (url: string) => Promise<{ success: boolean }>
 
   // App lifecycle

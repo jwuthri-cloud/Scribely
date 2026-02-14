@@ -12,7 +12,7 @@ const INLINE_CODE_TEXT = '#f8f8f2'
 function CodeBlockWithCopy({ code, lang }: { code: string; lang: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
-    await navigator.clipboard.writeText(code)
+    await window.electronAPI?.clipboardWriteText?.(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

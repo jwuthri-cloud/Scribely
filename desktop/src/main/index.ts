@@ -3,6 +3,7 @@ import './instrumentation' // Must be first — Langfuse observability
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   shell,
   session,
@@ -336,6 +337,10 @@ function registerIpcHandlers(): void {
   })
 
   // ── Open external URL ──────────────────────────────
+  ipcMain.handle('clipboard:write-text', (_event, text: string) => {
+    clipboard.writeText(text)
+  })
+
   ipcMain.handle('open-external-url', (_event, url: string) => {
     shell.openExternal(url)
     return { success: true }

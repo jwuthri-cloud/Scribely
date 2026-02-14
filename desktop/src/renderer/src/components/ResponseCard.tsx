@@ -1,8 +1,4 @@
 import { useRef, useEffect, useState } from 'react'
-
-async function copyToClipboard(text: string) {
-  await navigator.clipboard.writeText(text)
-}
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
 import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
@@ -279,7 +275,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                 )}
                 <button
                   onClick={async () => {
-                    await copyToClipboard(displayText)
+                    await window.electronAPI?.clipboardWriteText?.(displayText)
                     setCopiedMsgId(msg.id)
                     setTimeout(() => setCopiedMsgId(null), 1500)
                   }}

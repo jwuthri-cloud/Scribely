@@ -124,6 +124,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
   // ── Step 4: Permissions ─────────────────────────────────
   const [micGranted, setMicGranted] = useState<boolean | null>(null)
+  const [clipboardTested, setClipboardTested] = useState(false)
 
   const testMicrophone = useCallback(async () => {
     try {
@@ -154,6 +155,13 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
   const openAccessibilitySettings = useCallback(() => {
     openUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+  }, [])
+
+  const testClipboard = useCallback(async () => {
+    const sample = 'AssistMe clipboard test — copy works!'
+    await window.electronAPI?.clipboardWriteText?.(sample)
+    setClipboardTested(true)
+    setTimeout(() => setClipboardTested(false), 2000)
   }, [])
 
   // ── Completion ───────────────────────────────────────────
@@ -453,6 +461,21 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
                       style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
                     >
                       Open Settings
+                    </button>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    {clipboardTested ? (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success)' }} />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
+                    )}
+                    <span style={{ color: 'var(--text)' }}>Clipboard (copy code & responses)</span>
+                    <button
+                      onClick={testClipboard}
+                      className="text-[10px] px-1.5 py-0.5 rounded border"
+                      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                    >
+                      {clipboardTested ? 'Copied!' : 'Test copy'}
                     </button>
                   </li>
                 </ul>
