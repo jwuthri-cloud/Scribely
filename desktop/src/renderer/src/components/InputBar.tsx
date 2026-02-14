@@ -3,6 +3,90 @@ import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
 import { type ModelId, MODEL_CONFIGS } from '../types/settings'
 
+/** Wraps content and shows tooltip on hover (z-[9999] so it appears above overlay) */
+function WithTooltip({
+  tooltip,
+  children,
+}: {
+  tooltip: string
+  children: React.ReactNode
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative inline-flex"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+      {hovered && (
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-[9999]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Icon button with custom tooltip (z-50) so it appears above overlay */
+function IconBtnWithTooltip({
+  tooltip,
+  onClick,
+  active,
+  color,
+  children,
+  ...rest
+}: {
+  tooltip: string
+  onClick: () => void
+  active?: boolean
+  color?: string
+  children: React.ReactNode
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        type="button"
+        className="flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 hover:bg-[var(--surface-hover)]"
+        style={{
+          color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)'),
+        }}
+        onClick={onClick}
+        aria-label={tooltip}
+        {...rest}
+      >
+        {children}
+      </button>
+      {hovered && (
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-[9999]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
   { id: 'gpt5-nano', label: 'Nano' },
   { id: 'gpt5-mini', label: 'Mini' },
@@ -172,36 +256,31 @@ export function InputBar({
           {/* Toolbar buttons */}
           <div className="flex items-center gap-0.5 mr-2">
             {/* Screenshot button */}
-            <button
-              type="button"
-              className="flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 hover:bg-[var(--surface-hover)]"
-              style={{ color: pendingScreenshot ? 'var(--accent)' : 'var(--text-muted)' }}
+            <IconBtnWithTooltip
+              tooltip="Take screenshot (⌥S)"
               onClick={onScreenshot}
-              title="Take screenshot (⌥S)"
-              aria-label="Take screenshot"
+              active={!!pendingScreenshot}
+              color={pendingScreenshot ? 'var(--accent)' : undefined}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
                 <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
                 <path d="M3 8h2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
-            </button>
+            </IconBtnWithTooltip>
 
             {/* Mic button */}
-            <button
-              type="button"
-              className="flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 hover:bg-[var(--surface-hover)]"
-              style={{ color: isRecording ? 'var(--error)' : 'var(--text-muted)' }}
+            <IconBtnWithTooltip
+              tooltip="Toggle recording (⌥A)"
               onClick={onToggleRecording}
-              title="Toggle recording (⌥A)"
-              aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+              color={isRecording ? 'var(--error)' : undefined}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <rect x="9" y="2" width="6" height="12" rx="3" stroke="currentColor" strokeWidth="1.8" />
                 <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                 <path d="M12 19v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
-            </button>
+            </IconBtnWithTooltip>
           </div>
 
           <input
@@ -217,23 +296,24 @@ export function InputBar({
           />
 
           {/* Model selector chip */}
-          <div className="relative" ref={pickerRef}>
-            <button
-              type="button"
-              onClick={() => setShowModelPicker((prev) => !prev)}
-              className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--text-muted)',
-                backgroundColor: 'transparent',
-              }}
-              title="Switch model"
-            >
-              {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
-            </button>
+          <div className="relative flex items-center" ref={pickerRef}>
+            <WithTooltip tooltip="Switch model">
+              <button
+                type="button"
+                onClick={() => setShowModelPicker((prev) => !prev)}
+                className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-muted)',
+                  backgroundColor: 'transparent',
+                }}
+              >
+                {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+              </button>
+            </WithTooltip>
             {showModelPicker && (
               <div
-                className="absolute bottom-full mb-1 rounded-lg border py-1 shadow-lg z-50"
+                className="absolute bottom-full mb-1 rounded-lg border py-1 shadow-lg z-[9999]"
                 style={{
                   backgroundColor: 'var(--surface)',
                   borderColor: 'var(--border)',

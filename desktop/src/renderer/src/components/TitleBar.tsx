@@ -175,7 +175,7 @@ export function TitleBar({
           <TitleBtn
             onClick={onToggleMeeting}
             label={meetingActive ? 'Stop meeting' : 'Start meeting'}
-            tooltip={meetingActive ? 'Stop meeting capture' : 'Start meeting capture'}
+            tooltip={meetingActive ? 'Stop meeting capture' : 'Start meeting capture (⌥M)'}
             color={meetingActive ? 'var(--error)' : undefined}
           >
             {meetingActive ? (
