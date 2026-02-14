@@ -150,6 +150,13 @@ export class LLMService {
     cachedTokens: 0,
   }
 
+  // Stored prompts per request (last 10) for "show full prompt" feature
+  private static readonly MAX_STORED_PROMPTS = 10
+  private storedPrompts = new Map<
+    string,
+    Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  >()
+
   // Conversation state (in-memory, also persisted to electron-store)
   // In the append-only strategy, each user message's `content` already contains
   // its transcript delta. The conversation array is strictly append-only.
@@ -291,8 +298,17 @@ export class LLMService {
       this.conversationMessages = []
       this.transcriptMemory.reset()
       this.sessionUsage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
+      this.storedPrompts.clear()
       this.sessionId = crypto.randomUUID()
     })
+
+    // ── Full prompt (for debugging / transparency) ──
+    ipcMain.handle(
+      'llm:get-prompt-for-request',
+      (_event, requestId: string) => {
+        return this.getStoredPrompt(requestId)
+      },
+    )
 
     // ── Usage stats (for LLM tab) ──
     ipcMain.handle('llm:get-usage-stats', () => {
@@ -478,6 +494,8 @@ export class LLMService {
       })),
       transcriptSummary,
     })
+
+    this.storePromptForRequest(request.requestId, assembled.messages)
 
     const hasSummaryInPrompt = assembled.messages.some(
       (m) => m.role === 'system' && m.content.includes('<transcript_summary>'),
@@ -669,6 +687,24 @@ export class LLMService {
 
   private sendDelta(requestId: string, delta: string, index: number): void {
     this.safeSend('llm:chat-delta', { requestId, delta, index })
+  }
+
+  private storePromptForRequest(
+    requestId: string,
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  ): void {
+    this.storedPrompts.set(requestId, messages)
+    if (this.storedPrompts.size > LLMService.MAX_STORED_PROMPTS) {
+      const oldest = this.storedPrompts.keys().next().value
+      if (oldest) this.storedPrompts.delete(oldest)
+    }
+  }
+
+  private getStoredPrompt(
+    requestId: string,
+  ): Array<{ role: string; content: string }> | null {
+    const messages = this.storedPrompts.get(requestId)
+    return messages ? [...messages] : null
   }
 
   private getModelPricing(modelId: ModelId): {

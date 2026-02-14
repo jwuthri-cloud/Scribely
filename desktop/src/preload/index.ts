@@ -44,6 +44,9 @@ export interface ElectronAPI {
   }>
   llmGetSummary: () => Promise<string | null>
   onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetPromptForRequest: (requestId: string) => Promise<
+    Array<{ role: string; content: string }> | null
+  >
   llmGetUsageStats: () => Promise<{
     promptTokens: number
     completionTokens: number
@@ -324,6 +327,10 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('llm:summary-updated', handler)
     return () => ipcRenderer.removeListener('llm:summary-updated', handler)
+  },
+
+  llmGetPromptForRequest: (requestId: string) => {
+    return ipcRenderer.invoke('llm:get-prompt-for-request', requestId)
   },
 
   llmGetUsageStats: () => {

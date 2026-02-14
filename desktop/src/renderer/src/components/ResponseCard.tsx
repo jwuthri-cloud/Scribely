@@ -73,9 +73,16 @@ interface ResponseCardProps {
   isLoading: boolean
 }
 
+const TRUNCATE_LENGTH = 8000
+
 export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
+  const [promptModal, setPromptModal] = useState<{
+    requestId: string
+    messages: Array<{ role: string; content: string }>
+  } | null>(null)
+  const [promptExpandedIndices, setPromptExpandedIndices] = useState<Set<number>>(new Set())
 
   // Load actual hotkey config
   useEffect(() => {
@@ -255,6 +262,24 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                     ~${estimateMessageCost(msg.usage, msg.model as ModelId).toFixed(4)}
                   </span>
                 )}
+                <button
+                  onClick={async () => {
+                    const prompt = await window.electronAPI?.llmGetPromptForRequest?.(msg.id)
+                    if (prompt) {
+                      setPromptExpandedIndices(new Set())
+                      setPromptModal({ requestId: msg.id, messages: prompt })
+                    }
+                  }}
+                  className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Show full prompt"
+                  aria-label="Show full prompt"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                </button>
               </div>
             )}
 
@@ -270,6 +295,91 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
           </div>
         )
       })}
+
+      {/* Full prompt modal */}
+      {promptModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setPromptModal(null)}
+        >
+          <div
+            className="rounded-xl border shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                Full prompt sent to model
+              </h3>
+              <button
+                onClick={() => setPromptModal(null)}
+                className="p-1 rounded-lg hover:bg-[var(--surface-hover)]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-4 text-[12px]"
+              style={{ color: 'var(--text)' }}
+            >
+              {promptModal.messages.map((m, i) => {
+                const isLong = m.content.length > TRUNCATE_LENGTH
+                const expanded = promptExpandedIndices.has(i)
+                const displayContent = isLong && !expanded
+                  ? m.content.slice(0, TRUNCATE_LENGTH) + '\n\n… truncated'
+                  : m.content
+                return (
+                  <div key={i} className="space-y-1">
+                    <div
+                      className="text-[10px] font-semibold uppercase tracking-wider"
+                      style={{
+                        color:
+                          m.role === 'system'
+                            ? 'var(--accent)'
+                            : m.role === 'user'
+                              ? 'var(--text)'
+                              : 'var(--success)',
+                      }}
+                    >
+                      [{m.role}]
+                    </div>
+                    <pre
+                      className="whitespace-pre-wrap break-words font-sans text-[11px] leading-relaxed rounded-lg p-2 overflow-x-auto"
+                      style={{
+                        backgroundColor: 'var(--input-bg)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {displayContent}
+                    </pre>
+                    {isLong && !expanded && (
+                      <button
+                        onClick={() =>
+                          setPromptExpandedIndices((prev) => new Set(prev).add(i))
+                        }
+                        className="text-[10px] underline"
+                        style={{ color: 'var(--accent)' }}
+                      >
+                        Show full ({m.content.length.toLocaleString()} chars)
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading dots when waiting for first chunk */}
       {isLoading && (!lastMsg || lastMsg.role !== 'assistant') && (

@@ -203,6 +203,9 @@ export interface ElectronAPI {
   }>
   llmGetSummary: () => Promise<string | null>
   onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetPromptForRequest: (requestId: string) => Promise<
+    Array<{ role: string; content: string }> | null
+  >
   llmGetUsageStats: () => Promise<{
     promptTokens: number
     completionTokens: number
