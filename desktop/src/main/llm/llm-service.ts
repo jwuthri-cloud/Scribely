@@ -191,7 +191,7 @@ export class LLMService {
       autoSummarizeEnabled: true,
       stalenessMinutes: 5,
       thresholdPercent: 40,
-      keepRawCount: 25,
+      keepRawCount: 5,
       summarizerSystemPrompt: null as string | null,
     }
     const llm = this.store.get('llm') as { summarization?: typeof def } | undefined
@@ -386,6 +386,10 @@ export class LLMService {
     // transcript block needed.
     const modelConfig = MODEL_CONFIGS[this.currentModel]
     const transcriptSummary = this.transcriptMemory.getSummary()
+    console.log(
+      '[llm] Transcript summary:',
+      transcriptSummary ? `INCLUDED (${transcriptSummary.length} chars)` : 'MISSING — click "Summarize now" first',
+    )
     const assembled = this.assembler.assemble({
       modelConfig,
       systemPrompt,
@@ -395,6 +399,12 @@ export class LLMService {
       })),
       transcriptSummary,
     })
+
+    const hasSummaryInPrompt = assembled.messages.some(
+      (m) => m.role === 'system' && m.content.includes('<transcript_summary>'),
+    )
+    console.log('[llm] Summary in assembled messages:', hasSummaryInPrompt ? 'YES' : 'NO')
+    console.log('[llm] Full prompt:', JSON.stringify(assembled.messages, null, 2))
 
     // Persist user message to disk
     this.persistConversation()
@@ -542,9 +552,15 @@ export class LLMService {
       totalTranscriptTokens,
       'tokens',
     )
-    this.runSummarization(allEntries, config.keepRawCount).catch((err) => {
-      console.error('[llm-service] Background summarization error:', err)
-    })
+    this.runSummarization(allEntries, config.keepRawCount)
+      .then((result) => {
+        if (result.summary) {
+          this.safeSend('llm:summary-updated', {})
+        }
+      })
+      .catch((err) => {
+        console.error('[llm-service] Background summarization error:', err)
+      })
   }
 
   /**

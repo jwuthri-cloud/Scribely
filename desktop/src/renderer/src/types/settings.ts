@@ -113,7 +113,7 @@ export const DEFAULT_SUMMARIZATION: SummarizationSettings = {
   autoSummarizeEnabled: true,
   stalenessMinutes: 5,
   thresholdPercent: 40,
-  keepRawCount: 25,
+  keepRawCount: 5,
   summarizerSystemPrompt: null,
 }
 

@@ -75,6 +75,16 @@ export function Overlay() {
     })
   }, [summarizeFeedback])
 
+  // ── Listen for background summarization completion (Phase 2) ──
+  useEffect(() => {
+    const unsub = window.electronAPI?.onLLMSummaryUpdated?.(() => {
+      setHasSummary(true)
+      setSummarizeFeedback({ type: 'success' })
+      setTimeout(() => setSummarizeFeedback(null), 5000)
+    })
+    return () => unsub?.()
+  }, [])
+
   const handleModelChange = useCallback(async (modelId: ModelId) => {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {

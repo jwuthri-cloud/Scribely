@@ -202,6 +202,7 @@ export interface ElectronAPI {
     autoSummarizeEnabled: boolean
   }>
   llmGetSummary: () => Promise<string | null>
+  onLLMSummaryUpdated: (callback: () => void) => () => void
 
   // Invisibility
   toggleInvisibility: () => Promise<boolean>

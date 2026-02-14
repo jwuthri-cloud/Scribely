@@ -21,17 +21,20 @@ function formatTranscriptDelta(entries: TranscriptEntry[]): string {
 
 /**
  * Build the full message content with transcript delta prepended.
+ * Uses XML tags for modality: <transcript> for transcript, <user_query> for the question.
  * - First message in conversation: "MEETING TRANSCRIPT:" header
  * - Subsequent messages: "NEW TRANSCRIPT SINCE LAST MESSAGE:" header
- * - No transcript entries: just the raw question with no prefix
+ * - No transcript entries: just the raw question in <user_query>
  */
 function buildMessageContent(
   rawQuery: string,
   delta: TranscriptEntry[],
   isFirstMessage: boolean,
 ): string {
+  const queryBlock = `<user_query>\n${rawQuery}\n</user_query>`
+
   if (delta.length === 0) {
-    return rawQuery
+    return queryBlock
   }
 
   const header = isFirstMessage
@@ -39,7 +42,7 @@ function buildMessageContent(
     : 'NEW TRANSCRIPT SINCE LAST MESSAGE:'
   const transcriptText = formatTranscriptDelta(delta)
 
-  return `${header}\n${transcriptText}\n\n---\n${rawQuery}`
+  return `<transcript>\n${header}\n${transcriptText}\n</transcript>\n\n${queryBlock}`
 }
 
 // ── Hook ──────────────────────────────────────────────────

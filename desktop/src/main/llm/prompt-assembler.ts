@@ -18,7 +18,7 @@ export interface AssembleInput {
   systemPrompt: string | null
   /** Full conversation history -- user messages already contain transcript deltas in their content. */
   conversationMessages: ConversationMessage[]
-  /** Optional transcript summary (Phase 2 safety net). Inserted as messages[1] when present. */
+  /** Optional transcript summary (Phase 2 safety net). Prepended to the LAST user message when present. */
   transcriptSummary?: string | null
 }
 
@@ -36,10 +36,16 @@ export interface AssembledPrompt {
 // message. This produces a strictly append-only prefix that is ideal for
 // OpenAI prefix caching:
 //
-//   messages[0]: { system prompt }                         ← STABLE
-//   messages[1]: { user: "TRANSCRIPT:\n...\n---\nQ1" }    ← CACHED after turn 1
-//   messages[2]: { assistant: "A1" }                       ← CACHED after turn 2
-//   messages[3]: { user: "NEW TRANSCRIPT:\n...\n---\nQ2" } ← NEW
+//   messages[0]: { system prompt }                         ← STABLE (never changes)
+//   messages[1]: { user: "<transcript>...</transcript>\n<user_query>Q1</user_query>" }  ← CACHED
+//   messages[2]: { assistant: "A1" }                       ← CACHED
+//   messages[3]: { user: "<transcript_summary>...</transcript_summary>\n<transcript>...</transcript>\n<user_query>Q2</user_query>" } ← NEW
+//
+// The transcript summary (Phase 2) is prepended to the LAST user message only.
+// This way:
+//   - Only ONE system message (stable, never changes) → perfect prefix cache
+//   - Old messages are never modified → append-only
+//   - Summary rides with the new content that's already uncached
 //
 // When context overflows, oldest user+assistant pairs are dropped from the
 // beginning. A note is prepended to the first remaining user message.
@@ -62,9 +68,12 @@ export class PromptAssembler {
     // ── System prompt tokens ──
     const systemTokens = systemPrompt ? this.counter.count(systemPrompt) + 4 : 0
 
-    // ── Transcript summary tokens (Phase 2 safety net) ──
-    const summaryTokens = transcriptSummary
-      ? this.counter.count(transcriptSummary) + 4
+    // ── Transcript summary tokens (reserved from budget even though it goes in the last user msg) ──
+    const summaryBlock = transcriptSummary
+      ? `<transcript_summary>\n${transcriptSummary}\n</transcript_summary>\n\n`
+      : ''
+    const summaryTokens = summaryBlock
+      ? this.counter.count(summaryBlock)
       : 0
 
     // ── Available budget for conversation messages ──
@@ -82,18 +91,25 @@ export class PromptAssembler {
       available,
     )
 
+    // ── Prepend transcript summary to the LAST user message ──
+    if (summaryBlock && fittedMessages.length > 0) {
+      // Find the last user message (should be the final element)
+      for (let i = fittedMessages.length - 1; i >= 0; i--) {
+        if (fittedMessages[i].role === 'user') {
+          fittedMessages[i] = {
+            ...fittedMessages[i],
+            content: summaryBlock + fittedMessages[i].content,
+          }
+          break
+        }
+      }
+    }
+
     // ── Build final messages array ──
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
 
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt })
-    }
-
-    if (transcriptSummary) {
-      messages.push({
-        role: 'system',
-        content: `TRANSCRIPT SUMMARY (context for truncated history):\n\n${transcriptSummary}`,
-      })
     }
 
     for (const msg of fittedMessages) {

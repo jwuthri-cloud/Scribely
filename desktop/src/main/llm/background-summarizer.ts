@@ -19,7 +19,7 @@ interface TranscriptEntry {
 }
 
 const GPT5_NANO_MODEL = 'gpt-5-nano'
-const DEFAULT_KEEP_RAW_COUNT = 25
+const DEFAULT_KEEP_RAW_COUNT = 5
 
 const DEFAULT_SUMMARIZE_SYSTEM = `You are a meeting transcript summarizer. Produce a concise summary that captures:
 - Main topics discussed
@@ -61,16 +61,23 @@ export async function runBackgroundSummarization(
   const { client, transcriptMemory, entries, keepRawCount = DEFAULT_KEEP_RAW_COUNT, systemPrompt } = input
   const summarizeSystem = systemPrompt?.trim() || DEFAULT_SUMMARIZE_SYSTEM
 
-  const toSummarizeEnd = Math.max(0, entries.length - keepRawCount)
+  // Keep a small number of the most recent entries unsummarized so they
+  // remain available verbatim. Use the smaller of keepRawCount or 20% of
+  // entries, with a minimum of 3, so short meetings still get a useful summary.
+  const effectiveKeep = Math.min(keepRawCount, Math.max(3, Math.floor(entries.length * 0.2)))
+  const toSummarizeEnd = Math.max(0, entries.length - effectiveKeep)
   if (toSummarizeEnd === 0) {
     return {
       summary: null,
       error:
         entries.length === 0
           ? 'No transcript to summarize'
-          : `Need more than ${keepRawCount} transcript entries to summarize`,
+          : `Need more than ${effectiveKeep} transcript entries to summarize`,
     }
   }
+  console.log(
+    `[background-summarizer] Summarizing entries 0-${toSummarizeEnd - 1} (${toSummarizeEnd} entries), keeping last ${effectiveKeep} raw`,
+  )
 
   const toSummarize = entries.slice(0, toSummarizeEnd)
   const formatted = toSummarize.map(formatEntry).join('\n')
@@ -135,7 +142,7 @@ export async function runBackgroundSummarization(
     }
 
     // Responses API format: response.output[].content[].text
-    const resp = response as Record<string, unknown>
+    const resp = response as unknown as Record<string, unknown>
     if (!summary && Array.isArray(resp.output)) {
       const text = (resp.output as Array<Record<string, unknown>>)
         .flatMap((o) => {

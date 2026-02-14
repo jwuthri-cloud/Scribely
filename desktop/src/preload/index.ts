@@ -43,6 +43,7 @@ export interface ElectronAPI {
     autoSummarizeEnabled: boolean
   }>
   llmGetSummary: () => Promise<string | null>
+  onLLMSummaryUpdated: (callback: () => void) => () => void
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -310,6 +311,12 @@ const api: ElectronAPI = {
 
   llmGetSummary: () => {
     return ipcRenderer.invoke('llm:get-summary')
+  },
+
+  onLLMSummaryUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('llm:summary-updated', handler)
+    return () => ipcRenderer.removeListener('llm:summary-updated', handler)
   },
 
   // ── Settings ────────────────────────────────────
