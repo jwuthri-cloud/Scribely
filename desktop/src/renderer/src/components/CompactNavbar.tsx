@@ -155,7 +155,7 @@ export function CompactNavbar({
         )}
 
         {/* Blue: hide/show window */}
-        <TooltipWrap tooltip="Hide window (⌥H)">
+        <TooltipWrap tooltip="Hide window (⌥T)">
           <button
             className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
             style={{
@@ -242,7 +242,7 @@ export function CompactNavbar({
           /* Inactive: subtle "Rec" pill */
           <NavBtn
             onClick={onToggleMeeting}
-            tooltip="Start meeting capture"
+            tooltip="Start meeting capture (⌥M)"
             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
             style={{
               color: 'var(--text-muted)',

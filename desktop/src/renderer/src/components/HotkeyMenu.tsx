@@ -36,6 +36,7 @@ interface HotkeyMenuProps {
 
 export function HotkeyMenu({ size = 'md', tooltip = 'Keyboard shortcuts' }: HotkeyMenuProps) {
   const [open, setOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -57,20 +58,38 @@ export function HotkeyMenu({ size = 'md', tooltip = 'Keyboard shortcuts' }: Hotk
   }, [open])
 
   return (
-    <div className="relative" ref={menuRef} style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+    <div
+      className="relative"
+      ref={menuRef}
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <button
         type="button"
         className={`flex items-center justify-center rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)] ${size === 'sm' ? 'w-6 h-6' : 'w-6 h-6'}`}
         style={{ color: 'var(--text-muted)' }}
         onClick={() => setOpen((o) => !o)}
         aria-label={tooltip}
-        title={tooltip}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="4" width="20" height="16" rx="2" />
           <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M6 16h12" />
         </svg>
       </button>
+      {hovered && !open && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-[9999]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
 
       {open && (
         <div

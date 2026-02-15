@@ -174,7 +174,7 @@ export function TitleBar({
             </TooltipWrap>
           )}
           {/* Blue: hide/show window */}
-          <TooltipWrap tooltip="Hide window (⌥H)">
+          <TooltipWrap tooltip="Hide window (⌥T)">
             <button
               className="w-3 h-3 rounded-full transition-all duration-150"
               style={{
