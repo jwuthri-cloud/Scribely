@@ -73,6 +73,7 @@ interface AppSettings {
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  fontSize?: 'small' | 'medium' | 'large'
   transcription: TranscriptionSettings
   llm: LLMSettings
 }

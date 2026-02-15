@@ -5,9 +5,15 @@ import type { Components } from 'react-markdown'
 import SyntaxHighlighter from 'react-syntax-highlighter'
 import { monokai } from 'react-syntax-highlighter/dist/esm/styles/hljs'
 
-/** Monokai-inspired palette for inline code */
-const INLINE_CODE_BG = '#3e3d32'
-const INLINE_CODE_TEXT = '#f8f8f2'
+/** Theme-aware style: base colors from theme, syntax highlighting from Monokai */
+const themeAwareCodeStyle = {
+  ...monokai,
+  hljs: {
+    ...monokai.hljs,
+    background: 'var(--input-bg)',
+    color: 'var(--text-bright)',
+  },
+} as const
 
 function CodeBlockWithCopy({ code, lang }: { code: string; lang: string }) {
   const [copied, setCopied] = useState(false)
@@ -33,14 +39,14 @@ function CodeBlockWithCopy({ code, lang }: { code: string; lang: string }) {
       </button>
       <SyntaxHighlighter
         language={lang}
-        style={monokai}
+        style={themeAwareCodeStyle}
         PreTag="div"
         customStyle={{
           margin: 0,
           padding: '0.5rem 0.75rem',
           paddingRight: '3rem',
           borderRadius: '0.5rem',
-          fontSize: '12px',
+          fontSize: 'var(--font-size-code, 12px)',
         }}
         codeTagProps={{ style: { fontFamily: 'ui-monospace, monospace' } }}
         showLineNumbers={false}
@@ -108,11 +114,12 @@ export function MarkdownContent({
       if (isInline) {
         return (
           <code
-            className="px-1 py-0.5 rounded text-[12px]"
+            className="px-1 py-0.5 rounded"
             style={{
-              backgroundColor: INLINE_CODE_BG,
-              color: INLINE_CODE_TEXT,
+              backgroundColor: 'var(--input-bg)',
+              color: 'var(--text-bright)',
               fontFamily: 'ui-monospace, monospace',
+              fontSize: 'var(--font-size-code, 12px)',
             }}
             {...props}
           >
@@ -152,7 +159,7 @@ export function MarkdownContent({
   return (
     <div
       className={`markdown-content ${className}`}
-      style={{ color }}
+      style={{ color, fontSize: 'var(--font-size-base)' }}
     >
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {content}

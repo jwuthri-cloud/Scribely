@@ -25,6 +25,11 @@
   --chip-bg: #2c313a;
   --chip-text: #abb2bf;
   --overlay: rgba(30, 33, 39, 0.85);
+  /* Font size (overridden by Overlay based on user setting) */
+  --font-size-base: 13px;
+  --font-size-sm: 12px;
+  --font-size-xs: 10px;
+  --font-size-code: 12px;
 }
 
 /* ──────────────────────────────────────────────

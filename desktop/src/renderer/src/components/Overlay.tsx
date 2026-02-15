@@ -16,6 +16,7 @@ import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
 import type { ChatAttachment } from '../types'
 import type { ModelId } from '../types/settings'
+import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
@@ -25,6 +26,7 @@ export function Overlay() {
   const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
+  const [fontSize, setFontSize] = useState<FontSize>('medium')
   const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
   const [summarizeInProgress, setSummarizeInProgress] = useState(false)
   const [summarizeFeedback, setSummarizeFeedback] = useState<{
@@ -142,16 +144,18 @@ export function Overlay() {
     }
   }, [transcript.entries])
 
-  // ── Window opacity (CSS-based since setOpacity is a no-op on transparent windows)
+  // ── Window opacity & font size ──
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
       if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
+      if (s?.fontSize) setFontSize(s.fontSize)
     })
   }, [])
 
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
       if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
+      if (s?.fontSize) setFontSize(s.fontSize)
     })
     return () => {
       unsubscribe?.()
@@ -371,7 +375,13 @@ export function Overlay() {
             backgroundColor: 'var(--overlay)',
             borderColor: 'var(--border)',
             opacity: windowOpacity,
-          }}
+            ...Object.fromEntries(
+              Object.entries(FONT_SIZE_VALUES[fontSize]).map(([k, v]) => [
+                `--font-size-${k}`,
+                v,
+              ]),
+            ),
+          } as React.CSSProperties}
         >
           {showOnboarding ? (
             <OnboardingView onComplete={handleOnboardingComplete} />

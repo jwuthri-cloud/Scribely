@@ -179,11 +179,26 @@ export const DEFAULT_LLM: LLMSettings = {
   quickActions: [],
 }
 
+export type FontSize = 'small' | 'medium' | 'large'
+
+export const FONT_SIZE_LABELS: Record<FontSize, string> = {
+  small: 'Small',
+  medium: 'Medium',
+  large: 'Large',
+}
+
+export const FONT_SIZE_VALUES: Record<FontSize, { base: string; sm: string; xs: string; code: string }> = {
+  small: { base: '12px', sm: '11px', xs: '10px', code: '11px' },
+  medium: { base: '13px', sm: '12px', xs: '10px', code: '12px' },
+  large: { base: '15px', sm: '14px', xs: '12px', code: '14px' },
+}
+
 export interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  fontSize: FontSize
   transcription: TranscriptionSettings
   llm: LLMSettings
 }
@@ -193,6 +208,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hotkeys: { ...DEFAULT_HOTKEYS },
   moveStepPx: 50,
   windowOpacity: 0.85,
+  fontSize: 'medium',
   transcription: { ...DEFAULT_TRANSCRIPTION },
   llm: { ...DEFAULT_LLM },
 }

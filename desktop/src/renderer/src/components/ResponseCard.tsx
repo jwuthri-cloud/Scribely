@@ -107,14 +107,14 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
           {/* Logo / brand */}
           <div className="text-center space-y-1.5">
             <div
-              className="text-lg font-semibold tracking-tight select-none"
-              style={{ color: 'var(--text-bright)' }}
+              className="font-semibold tracking-tight select-none"
+              style={{ color: 'var(--text-bright)', fontSize: 'calc(var(--font-size-base) * 1.2)' }}
             >
               AssistMe
             </div>
             <p
-              className="text-[11px] leading-relaxed"
-              style={{ color: 'var(--text-muted)' }}
+              className="leading-relaxed"
+              style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}
             >
               Type a message, pick an action, or use a shortcut
             </p>
@@ -136,7 +136,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
               >
                 <div className="flex items-center gap-2">
                   <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
-                  <span className="text-[11px]">{label}</span>
+                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{label}</span>
                 </div>
                 <kbd
                   className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
@@ -171,10 +171,11 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
         return (
           <div
             key={msg.id}
-            className={`text-sm leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${
+            className={`leading-relaxed rounded-xl px-3 py-2 max-w-[90%] ${
               msg.role === 'user' ? 'ml-auto' : ''
             }`}
             style={{
+              fontSize: 'var(--font-size-base)',
               color: msg.isError
                 ? 'var(--error)'
                 : msg.role === 'assistant'

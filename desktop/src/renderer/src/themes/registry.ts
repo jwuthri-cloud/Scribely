@@ -37,4 +37,4 @@ export const themes: Record<string, Theme> = {
   
 }
 
-export const DEFAULT_THEME_ID = 'atom-dark'
+export const DEFAULT_THEME_ID = 'nord'

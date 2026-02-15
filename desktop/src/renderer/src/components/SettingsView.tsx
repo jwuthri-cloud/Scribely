@@ -3,7 +3,14 @@ import { HotkeyRecorder } from './HotkeyRecorder'
 import { useTheme } from '../themes/ThemeProvider'
 import { themes as themeMap } from '../themes/registry'
 import type { AppSettings, HotkeyConfig, TranscriptionProvider, TranscriptionSettings } from '../types'
-import { DEFAULT_HOTKEYS, HOTKEY_LABELS, DEFAULT_SETTINGS, DEFAULT_TRANSCRIPTION } from '../types/settings'
+import {
+  DEFAULT_HOTKEYS,
+  HOTKEY_LABELS,
+  DEFAULT_SETTINGS,
+  DEFAULT_TRANSCRIPTION,
+  FONT_SIZE_LABELS,
+  type FontSize,
+} from '../types/settings'
 
 export interface SettingsViewProps {
   onReRunSetup?: () => void
@@ -128,6 +135,32 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
       {/* ── Window ─────────────────────────────── */}
       <Section title="Window">
         <div className="space-y-3">
+          {/* Font size */}
+          <div className="space-y-1">
+            <span className="text-xs" style={{ color: 'var(--text)' }}>
+              Font size
+            </span>
+            <div className="flex gap-1.5">
+              {(['small', 'medium', 'large'] as FontSize[]).map((size) => {
+                const isActive = (settings.fontSize ?? 'medium') === size
+                return (
+                  <button
+                    key={size}
+                    onClick={() => updateSetting('fontSize', size)}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border"
+                    style={{
+                      backgroundColor: isActive ? 'var(--accent)' : 'var(--surface)',
+                      color: isActive ? '#fff' : 'var(--text)',
+                      borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    {FONT_SIZE_LABELS[size]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Opacity */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
@@ -190,9 +223,10 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
         )}
         <button
           onClick={() => {
-            setSettings(DEFAULT_SETTINGS)
-            window.electronAPI?.updateSettings(DEFAULT_SETTINGS)
-            setThemeId(DEFAULT_SETTINGS.themeId)
+            const defaults = { ...DEFAULT_SETTINGS }
+            setSettings(defaults)
+            window.electronAPI?.updateSettings(defaults)
+            setThemeId(defaults.themeId)
           }}
           className="text-xs transition-colors hover:brightness-125 block"
           style={{ color: 'var(--error)' }}
