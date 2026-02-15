@@ -193,6 +193,8 @@ export interface AppSettings {
   moveStepPx: number
   windowOpacity: number
   fontSize: FontSize
+  /** Compact mode: fewer UI elements, no transcript panel, no hotkey hints */
+  compactMode?: boolean
   transcription: TranscriptionSettings
   llm: LLMSettings
 }
@@ -203,6 +205,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   moveStepPx: 50,
   windowOpacity: 0.85,
   fontSize: 'medium',
+  compactMode: false,
   transcription: { ...DEFAULT_TRANSCRIPTION },
   llm: { ...DEFAULT_LLM },
 }

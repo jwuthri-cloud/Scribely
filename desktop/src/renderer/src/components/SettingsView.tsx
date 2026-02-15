@@ -207,6 +207,28 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
               className="w-full accent-[var(--accent)] h-1"
             />
           </div>
+
+          {/* Compact mode */}
+          <div className="flex items-center justify-between pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <span className="text-xs" style={{ color: 'var(--text)' }}>
+              Compact mode
+            </span>
+            <button
+              onClick={() => updateSetting('compactMode', !(settings.compactMode ?? false))}
+              className={`relative w-9 h-5 rounded-full transition-colors ${
+                settings.compactMode ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  settings.compactMode ? 'left-4' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+          <p className="text-[10px] pt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Fewer UI elements, no transcript panel, no hotkey hints
+          </p>
         </div>
       </Section>
 

@@ -4,6 +4,7 @@ import { TitleBar } from './TitleBar'
 import { ResponseCard } from './ResponseCard'
 import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
+import { CompactChatView } from './CompactChatView'
 import { SettingsView } from './SettingsView'
 import { LLMView } from './LLMView'
 import { OnboardingView } from './OnboardingView'
@@ -109,6 +110,7 @@ export function Overlay() {
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
   const [fontSize, setFontSize] = useState<FontSize>('medium')
+  const [compactMode, setCompactMode] = useState(false)
   const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
   const [summarizeInProgress, setSummarizeInProgress] = useState(false)
   const [summarizeFeedback, setSummarizeFeedback] = useState<{
@@ -226,11 +228,12 @@ export function Overlay() {
     }
   }, [transcript.entries])
 
-  // ── Window opacity & font size ──
+  // ── Window opacity, font size, compact mode ──
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
       if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
       if (s?.fontSize) setFontSize(s.fontSize)
+      setCompactMode(s?.compactMode ?? false)
     })
   }, [])
 
@@ -238,11 +241,21 @@ export function Overlay() {
     const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
       if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
       if (s?.fontSize) setFontSize(s.fontSize)
+      setCompactMode(s?.compactMode ?? false)
     })
     return () => {
       unsubscribe?.()
     }
   }, [])
+
+  // ── Resize window when compact mode changes ──
+  useEffect(() => {
+    if (compactMode) {
+      window.electronAPI?.setWindowSize({ width: 600, height: 380 })
+    } else {
+      window.electronAPI?.setWindowSize({ width: 420, height: 600 })
+    }
+  }, [compactMode])
 
   // Toggle visibility from main process
   useEffect(() => {
@@ -477,7 +490,44 @@ export function Overlay() {
         >
           {showOnboarding ? (
             <OnboardingView onComplete={handleOnboardingComplete} />
+          ) : compactMode && view === 'chat' ? (
+            /* ── Compact mode: single CompactChatView replaces the entire advanced layout ── */
+            <>
+              <CompactChatView
+                messages={messages}
+                isLoading={isLoading}
+                onSend={handleSend}
+                onStop={stopGeneration}
+                meetingActive={meetingActive}
+                meetingDuration={recorder.formattedDuration}
+                onToggleMeeting={handleToggleMeeting}
+                onSetView={handleSetView}
+                onReset={handleReset}
+                quickActions={quickActions.length > 0 ? quickActions : undefined}
+              />
+
+              {/* Summary modal (still accessible in compact mode) */}
+              {showSummaryModal && (
+                <SummaryModal
+                  content={summaryContent}
+                  onClose={() => setShowSummaryModal(false)}
+                />
+              )}
+
+              {/* Source picker overlay */}
+              {recorder.pickerSources && (
+                <SourcePicker
+                  sources={recorder.pickerSources}
+                  onSelect={recorder.selectSource}
+                  onDismiss={async () => {
+                    await recorder.dismissPicker()
+                    handleStopMeeting()
+                  }}
+                />
+              )}
+            </>
           ) : (
+            /* ── Advanced mode: full layout with TitleBar, ResponseCard, ActionChips, InputBar ── */
             <>
               <TitleBar
                 view={view}
@@ -494,182 +544,188 @@ export function Overlay() {
               />
 
               {view === 'chat' && (
-            <>
-              {/* Live transcript panel — visible when meeting is active */}
-              {meetingActive && (
-                <LiveTranscriptPanel
-                  entries={transcript.entries}
-                  isActive={meetingActive}
-                  isRecording={recorder.isRecording}
-                  formattedDuration={recorder.formattedDuration}
-                  transcriptionMode={transcript.status.transcriptionMode}
-                  micActive={capture.micActive}
-                  tabActive={capture.tabActive}
-                  onStop={handleStopMeeting}
-                  error={meetingError || capture.error || recorder.error}
-                  modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
-                  modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
-                  captureMode={capture.captureMode}
-                  nativeAvailable={capture.nativeAvailable}
-                  extensionConnected={capture.extensionConnected}
-                />
-              )}
-
-              {/* Save notification after meeting ends */}
-              {savedFiles && (
-                <div
-                  className="mx-3 mb-2 px-3 py-2 rounded-xl text-[11px] space-y-0.5"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--success) 12%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
-                    color: 'var(--text)',
-                  }}
-                >
-                  <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--success)' }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Meeting saved
-                  </div>
-                  {savedFiles.recording && (
-                    <div style={{ color: 'var(--text-muted)' }}>
-                      Recording: {savedFiles.recording.split('/').slice(-2).join('/')}
-                    </div>
+                <>
+                  {/* Live transcript panel — visible when meeting is active */}
+                  {meetingActive && (
+                    <LiveTranscriptPanel
+                      entries={transcript.entries}
+                      isActive={meetingActive}
+                      isRecording={recorder.isRecording}
+                      formattedDuration={recorder.formattedDuration}
+                      transcriptionMode={transcript.status.transcriptionMode}
+                      micActive={capture.micActive}
+                      tabActive={capture.tabActive}
+                      onStop={handleStopMeeting}
+                      error={meetingError || capture.error || recorder.error}
+                      modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                      modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                      captureMode={capture.captureMode}
+                      nativeAvailable={capture.nativeAvailable}
+                      extensionConnected={capture.extensionConnected}
+                    />
                   )}
-                  {savedFiles.transcript && (
-                    <div style={{ color: 'var(--text-muted)' }}>
-                      Transcript: {savedFiles.transcript.split('/').slice(-2).join('/')}
-                    </div>
-                  )}
-                </div>
-              )}
 
-              <ResponseCard messages={messages} isLoading={isLoading} onSend={handleSend} />
-
-              {/* Summarize feedback */}
-              {summarizeFeedback && (
-                <div
-                  className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 ${
-                    summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
-                  }`}
-                  style={{
-                    backgroundColor:
-                      summarizeFeedback.type === 'success'
-                        ? 'color-mix(in srgb, var(--success) 12%, transparent)'
-                        : 'color-mix(in srgb, var(--error) 12%, transparent)',
-                    border: `1px solid color-mix(in srgb, var(--${summarizeFeedback.type}) 25%, transparent)`,
-                    color: summarizeFeedback.type === 'success' ? 'var(--success)' : 'var(--error)',
-                  }}
-                  onClick={
-                    summarizeFeedback.type === 'success' ? handleViewSummary : undefined
-                  }
-                >
-                  {summarizeFeedback.type === 'success' ? (
-                    <>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                        <path
-                          d="M20 6L9 17l-5-5"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      Summary ready — click to view
-                    </>
-                  ) : (
-                    <>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                        <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                      {summarizeFeedback.message}
-                    </>
-                  )}
-                </div>
-              )}
-
-              <ActionChips
-                onAction={(action) => {
-                  const attachments: ChatAttachment[] = []
-                  if (pendingScreenshot) {
-                    attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
-                  }
-                  handleSend(action, attachments.length > 0 ? attachments : undefined)
-                }}
-                customActions={quickActions.length > 0 ? quickActions : undefined}
-              />
-
-              {/* Summary modal */}
-              {showSummaryModal && (
-                <SummaryModal
-                  content={summaryContent}
-                  onClose={() => setShowSummaryModal(false)}
-                />
-              )}
-              {/* Context utilization indicator */}
-              {contextUsage && contextUsage.contextWindow > 0 && (
-                <div
-                  className="mx-4 mb-1 px-2 py-1 rounded-lg flex items-center justify-between"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                    Context
-                  </span>
-                  <div className="flex items-center gap-2">
+                  {/* Save notification after meeting ends */}
+                  {savedFiles && (
                     <div
-                      className="h-1.5 rounded-full overflow-hidden flex-1 min-w-[60px] max-w-[100px]"
-                      style={{ backgroundColor: 'var(--border)' }}
+                      className="mx-3 mb-2 px-3 py-2 rounded-xl text-[11px] space-y-0.5"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--success) 25%, transparent)',
+                        color: 'var(--text)',
+                      }}
                     >
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            (contextUsage.promptTokens / contextUsage.contextWindow) * 100,
-                          )}%`,
-                          backgroundColor:
-                            contextUsage.promptTokens / contextUsage.contextWindow > 0.8
-                              ? 'var(--error)'
-                              : 'var(--accent)',
-                        }}
-                      />
+                      <div className="flex items-center gap-1.5 font-medium" style={{ color: 'var(--success)' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                          <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        Meeting saved
+                      </div>
+                      {savedFiles.recording && (
+                        <div style={{ color: 'var(--text-muted)' }}>
+                          Recording: {savedFiles.recording.split('/').slice(-2).join('/')}
+                        </div>
+                      )}
+                      {savedFiles.transcript && (
+                        <div style={{ color: 'var(--text-muted)' }}>
+                          Transcript: {savedFiles.transcript.split('/').slice(-2).join('/')}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
-                      {(contextUsage.promptTokens / 1000).toFixed(1)}k /{' '}
-                      {(contextUsage.contextWindow / 1000).toFixed(0)}k
-                    </span>
-                  </div>
-                </div>
+                  )}
+
+                  <ResponseCard
+                    messages={messages}
+                    isLoading={isLoading}
+                    onSend={handleSend}
+                  />
+
+                  {/* Summarize feedback */}
+                  {summarizeFeedback && (
+                    <div
+                      className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 ${
+                        summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
+                      }`}
+                      style={{
+                        backgroundColor:
+                          summarizeFeedback.type === 'success'
+                            ? 'color-mix(in srgb, var(--success) 12%, transparent)'
+                            : 'color-mix(in srgb, var(--error) 12%, transparent)',
+                        border: `1px solid color-mix(in srgb, var(--${summarizeFeedback.type}) 25%, transparent)`,
+                        color: summarizeFeedback.type === 'success' ? 'var(--success)' : 'var(--error)',
+                      }}
+                      onClick={
+                        summarizeFeedback.type === 'success' ? handleViewSummary : undefined
+                      }
+                    >
+                      {summarizeFeedback.type === 'success' ? (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                            <path
+                              d="M20 6L9 17l-5-5"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          Summary ready — click to view
+                        </>
+                      ) : (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                            <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          {summarizeFeedback.message}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <ActionChips
+                    onAction={(action) => {
+                      const attachments: ChatAttachment[] = []
+                      if (pendingScreenshot) {
+                        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
+                      }
+                      handleSend(action, attachments.length > 0 ? attachments : undefined)
+                    }}
+                    customActions={quickActions.length > 0 ? quickActions : undefined}
+                  />
+
+                  {/* Summary modal */}
+                  {showSummaryModal && (
+                    <SummaryModal
+                      content={summaryContent}
+                      onClose={() => setShowSummaryModal(false)}
+                    />
+                  )}
+
+                  {/* Context utilization indicator */}
+                  {contextUsage && contextUsage.contextWindow > 0 && (
+                    <div
+                      className="mx-4 mb-1 px-2 py-1 rounded-lg flex items-center justify-between"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                        Context
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-1.5 rounded-full overflow-hidden flex-1 min-w-[60px] max-w-[100px]"
+                          style={{ backgroundColor: 'var(--border)' }}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (contextUsage.promptTokens / contextUsage.contextWindow) * 100,
+                              )}%`,
+                              backgroundColor:
+                                contextUsage.promptTokens / contextUsage.contextWindow > 0.8
+                                  ? 'var(--error)'
+                                  : 'var(--accent)',
+                            }}
+                          />
+                        </div>
+                        <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                          {(contextUsage.promptTokens / 1000).toFixed(1)}k /{' '}
+                          {(contextUsage.contextWindow / 1000).toFixed(0)}k
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <InputBar
+                    onSend={handleSend}
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                    onStop={stopGeneration}
+                    onScreenshot={handleScreenshot}
+                    pendingScreenshot={pendingScreenshot}
+                    onClearScreenshot={() => setPendingScreenshot(null)}
+                    isRecording={stt.isRecording}
+                    onToggleRecording={stt.toggleRecording}
+                    sttTranscript={stt.transcript}
+                    onClearTranscript={stt.clearTranscript}
+                    micLevel={stt.micLevel}
+                    modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                    modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                    currentModel={currentModel}
+                    onModelChange={handleModelChange}
+                    onSummarizeTranscript={handleSummarizeTranscript}
+                    summarizeInProgress={summarizeInProgress}
+                    hasSummary={hasSummary}
+                    onViewSummary={handleViewSummary}
+                  />
+                </>
               )}
 
-              <InputBar
-                onSend={handleSend}
-                disabled={isLoading}
-                isLoading={isLoading}
-                onStop={stopGeneration}
-                onScreenshot={handleScreenshot}
-                pendingScreenshot={pendingScreenshot}
-                onClearScreenshot={() => setPendingScreenshot(null)}
-                isRecording={stt.isRecording}
-                onToggleRecording={stt.toggleRecording}
-                sttTranscript={stt.transcript}
-                onClearTranscript={stt.clearTranscript}
-                micLevel={stt.micLevel}
-                modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
-                modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
-                currentModel={currentModel}
-                onModelChange={handleModelChange}
-                onSummarizeTranscript={handleSummarizeTranscript}
-                summarizeInProgress={summarizeInProgress}
-                hasSummary={hasSummary}
-                onViewSummary={handleViewSummary}
-              />
-            </>
-          )}
               {view === 'llm' && <LLMView />}
               {view === 'settings' && <SettingsView onReRunSetup={handleReRunSetup} />}
 

@@ -203,6 +203,9 @@ export interface ElectronAPI {
   // ── Open external URL ────────────────────────────
   openExternalUrl: (url: string) => Promise<{ success: boolean }>
 
+  // ── Window resize ──────────────────────────────
+  setWindowSize: (size: { width: number; height: number }) => void
+
   // ── App lifecycle ───────────────────────────────
   quit: () => void
 }
@@ -641,6 +644,11 @@ const api: ElectronAPI = {
 
   openExternalUrl: (url: string) => {
     return ipcRenderer.invoke('open-external-url', url)
+  },
+
+  // ── Window resize ──────────────────────────────
+  setWindowSize: (size: { width: number; height: number }) => {
+    ipcRenderer.send('set-window-size', size)
   },
 
   // ── App lifecycle ───────────────────────────────

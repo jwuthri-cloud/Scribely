@@ -347,6 +347,13 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
+  // ── Window resize (compact mode) ───────────────────
+  ipcMain.on('set-window-size', (_event, { width, height }: { width: number; height: number }) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setSize(width, height, true) // true = animate
+    }
+  })
+
   // ── App lifecycle ─────────────────────────────────
   ipcMain.on('app-quit', () => {
     app.quit()

@@ -213,43 +213,43 @@ function EmptyState({
           </motion.div>
         )}
 
-        {/* Hotkey reference with entrance animation */}
+        {/* Hotkey reference */}
         <motion.div
-          className="rounded-xl p-2.5 space-y-0.5"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--surface) 60%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
-          }}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.15 }}
-        >
-          {visibleHotkeys.map(({ key, label, icon }, i) => (
-            <motion.div
-              key={key}
-              className="flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors"
-              style={{ color: 'var(--text-muted)' }}
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.25, delay: 0.2 + i * 0.04 }}
-            >
-              <div className="flex items-center gap-2">
-                <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
-                <span style={{ fontSize: 'var(--font-size-sm)' }}>{label}</span>
-              </div>
-              <kbd
-                className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
-                style={{
-                  backgroundColor: 'var(--chip-bg)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border)',
-                }}
+            className="rounded-xl p-2.5 space-y-0.5"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--surface) 60%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
+            }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: 0.15 }}
+          >
+            {visibleHotkeys.map(({ key, label, icon }, i) => (
+              <motion.div
+                key={key}
+                className="flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors"
+                style={{ color: 'var(--text-muted)' }}
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.25, delay: 0.2 + i * 0.04 }}
               >
-                {fmtKey(hotkeys[key])}
-              </kbd>
-            </motion.div>
-          ))}
-        </motion.div>
+                <div className="flex items-center gap-2">
+                  <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
+                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{label}</span>
+                </div>
+                <kbd
+                  className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
+                  style={{
+                    backgroundColor: 'var(--chip-bg)',
+                    color: 'var(--text)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {fmtKey(hotkeys[key])}
+                </kbd>
+              </motion.div>
+            ))}
+          </motion.div>
 
         {/* Quick start tip on first open */}
         {/* <AnimatePresence>
@@ -322,7 +322,12 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
 
   if (messages.length === 0 && !isLoading) {
     return (
-      <EmptyState onSend={onSend} hotkeys={hotkeys} fmtKey={fmtKey} visibleHotkeys={VISIBLE_HOTKEYS} />
+      <EmptyState
+        onSend={onSend}
+        hotkeys={hotkeys}
+        fmtKey={fmtKey}
+        visibleHotkeys={VISIBLE_HOTKEYS}
+      />
     )
   }
 

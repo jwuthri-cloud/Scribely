@@ -162,9 +162,8 @@ export function InputBar({
 
   // Close model picker when clicking outside
   useEffect(() => {
-    if (!showModelPicker) return
     const handleClick = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+      if (showModelPicker && pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setShowModelPicker(false)
       }
     }
@@ -290,7 +289,6 @@ export function InputBar({
         >
           {/* Toolbar buttons */}
           <div className="flex items-center gap-0.5 mr-2">
-            {/* Screenshot button */}
             <IconBtnWithTooltip
               tooltip="Take screenshot (⌥S)"
               onClick={onScreenshot ?? (() => {})}
@@ -303,8 +301,6 @@ export function InputBar({
                 <path d="M3 8h2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </IconBtnWithTooltip>
-
-            {/* Mic button */}
             <IconBtnWithTooltip
               tooltip="Toggle recording (⌥A)"
               onClick={onToggleRecording ?? (() => {})}
@@ -342,7 +338,7 @@ export function InputBar({
             autoFocus
           />
 
-          {/* Model selector — truncates on narrow; dropdown scrollable */}
+          {/* Model selector */}
           <div className="relative flex items-center shrink-0 min-w-[2.5rem]" ref={pickerRef}>
             <WithTooltip tooltip="Switch model">
               <button

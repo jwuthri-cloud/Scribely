@@ -227,6 +227,9 @@ export interface ElectronAPI {
   clipboardWriteText: (text: string) => Promise<void>
   openExternalUrl: (url: string) => Promise<{ success: boolean }>
 
+  // Window resize
+  setWindowSize: (size: { width: number; height: number }) => void
+
   // App lifecycle
   quit: () => void
 }

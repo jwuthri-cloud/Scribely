@@ -16,7 +16,6 @@ export function ActionChips({
 
   return (
     <div className="flex gap-1.5 px-4 py-2 flex-wrap shrink-0 items-center">
-      {/* Custom or default actions */}
       {actions.map((a) => (
         <button
           key={a.value}
