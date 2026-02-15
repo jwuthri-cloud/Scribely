@@ -100,6 +100,16 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
     }
   }, [messages, isLoading])
 
+  // Close prompt modal on Escape
+  useEffect(() => {
+    if (!promptModal) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPromptModal(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [promptModal])
+
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center px-5">
@@ -334,6 +344,9 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={() => setPromptModal(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prompt-modal-title"
         >
           <div
             className="rounded-xl border shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
@@ -347,7 +360,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
               className="flex items-center justify-between px-4 py-3 border-b shrink-0"
               style={{ borderColor: 'var(--border)' }}
             >
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              <h3 id="prompt-modal-title" className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
                 Full prompt sent to model
               </h3>
               <button

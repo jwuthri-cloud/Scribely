@@ -361,6 +361,16 @@ export function Overlay() {
 
   const meetingActive = transcript.status.isActive
 
+  // Close summary modal on Escape
+  useEffect(() => {
+    if (!showSummaryModal) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSummaryModal(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [showSummaryModal])
+
   return (
     <AnimatePresence mode="wait">
       {visible && (
@@ -518,6 +528,9 @@ export function Overlay() {
                   className="fixed inset-0 z-50 flex items-center justify-center p-4"
                   style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
                   onClick={() => setShowSummaryModal(false)}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="summary-modal-title"
                 >
                   <div
                     className="rounded-xl border shadow-xl max-w-lg w-full max-h-[70vh] overflow-hidden flex flex-col"
@@ -531,7 +544,7 @@ export function Overlay() {
                       className="flex items-center justify-between px-4 py-3 border-b shrink-0"
                       style={{ borderColor: 'var(--border)' }}
                     >
-                      <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                      <h3 id="summary-modal-title" className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
                         Transcript Summary
                       </h3>
                       <button
@@ -620,7 +633,10 @@ export function Overlay() {
                 <SourcePicker
                   sources={recorder.pickerSources}
                   onSelect={recorder.selectSource}
-                  onDismiss={recorder.dismissPicker}
+                  onDismiss={async () => {
+                    await recorder.dismissPicker()
+                    handleStopMeeting()
+                  }}
                 />
               )}
             </>

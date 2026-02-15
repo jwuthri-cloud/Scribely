@@ -105,6 +105,7 @@ export interface ElectronAPI {
   // Screen Recording (main-process driven)
   startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
   stopRecording: () => Promise<{ filepath: string | null }>
+  cancelRecording: () => Promise<void>
   selectRecordingSource: (sourceId: string) => Promise<void>
   onShowPicker: (
     callback: (data: {

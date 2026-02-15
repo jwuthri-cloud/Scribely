@@ -480,6 +480,10 @@ const api: ElectronAPI = {
     return ipcRenderer.invoke('recording:stop')
   },
 
+  cancelRecording: () => {
+    return ipcRenderer.invoke('recording:cancel')
+  },
+
   selectRecordingSource: (sourceId: string) => {
     return ipcRenderer.invoke('recording:select-source', sourceId)
   },

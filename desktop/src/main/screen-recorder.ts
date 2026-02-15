@@ -1,6 +1,6 @@
 import { desktopCapturer, ipcMain, app, BrowserWindow, session } from 'electron'
 import { join } from 'path'
-import { mkdir, writeFile, appendFile } from 'fs/promises'
+import { mkdir, writeFile, appendFile, unlink } from 'fs/promises'
 
 export interface SourceInfo {
   id: string
@@ -92,6 +92,11 @@ export class ScreenRecorder {
 
     ipcMain.handle('recording:stop', async () => {
       return this.stop()
+    })
+
+    // User dismissed the picker (X or Cancel) — cancel recording and clean up
+    ipcMain.handle('recording:cancel', async () => {
+      return this.cancel()
     })
 
     // User picked a source from the custom picker
@@ -200,6 +205,30 @@ export class ScreenRecorder {
 
     const fp = this.filepath
     return { filepath: fp }
+  }
+
+  /**
+   * Cancel recording when user dismisses the picker without selecting.
+   * Deletes the empty file and resets state.
+   */
+  async cancel(): Promise<void> {
+    if (!this.isRecording) return
+
+    console.log(`[screen-recorder] Cancelling recording (picker dismissed)`)
+    this.win?.webContents.send('recording:stop-capture')
+    this.isRecording = false
+    this._installDefaultHandler()
+
+    // Delete empty file if no chunks were written
+    if (this.filepath && this.chunkCount === 0) {
+      try {
+        await unlink(this.filepath)
+        console.log(`[screen-recorder] Deleted empty file: ${this.filepath}`)
+      } catch (err) {
+        console.warn(`[screen-recorder] Failed to delete empty file:`, err)
+      }
+    }
+    this.filepath = null
   }
 
   /**
