@@ -251,7 +251,7 @@ export function Overlay() {
   // ── Resize window when compact mode changes ──
   useEffect(() => {
     if (compactMode) {
-      window.electronAPI?.setWindowSize({ width: 500, height: 250 })
+      window.electronAPI?.setWindowSize({ width: 480, height: 240 })
     } else {
       window.electronAPI?.setWindowSize({ width: 480, height: 640 })
     }
@@ -514,6 +514,8 @@ export function Overlay() {
                 isRecording={stt.isRecording}
                 onToggleRecording={stt.toggleRecording}
                 onToggleCompactMode={handleToggleCompactMode}
+                currentModel={currentModel}
+                onModelChange={handleModelChange}
               />
 
               {/* Summary modal (still accessible in compact mode) */}

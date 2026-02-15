@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { HotkeyMenu } from './HotkeyMenu'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
@@ -134,8 +135,6 @@ export function TitleBar({
     }
   }
 
-  const viewTitle = view === 'settings' ? 'Settings' : view === 'llm' ? 'LLM' : 'Scribely'
-
   return (
     <div
       className="flex items-center justify-between px-4 py-2 shrink-0 select-none"
@@ -145,7 +144,7 @@ export function TitleBar({
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* Red: close */}
-          <TooltipWrap tooltip="Close app">
+          <TooltipWrap tooltip="Close">
             <button
               className="w-3 h-3 rounded-full transition-all duration-150"
               style={{
@@ -175,7 +174,7 @@ export function TitleBar({
             </TooltipWrap>
           )}
           {/* Blue: hide/show window */}
-          <TooltipWrap tooltip="Hide window (use hotkey to show again)">
+          <TooltipWrap tooltip="Hide window (⌥H)">
             <button
               className="w-3 h-3 rounded-full transition-all duration-150"
               style={{
@@ -192,8 +191,8 @@ export function TitleBar({
           <TooltipWrap
             tooltip={
               invisible
-                ? 'Hidden from screen share — click to make visible'
-                : 'Visible in screen share — click to hide'
+                ? 'Hidden from screen share'
+                : 'Visible in screen share'
             }
           >
             <button
@@ -290,33 +289,23 @@ export function TitleBar({
         )}
       </div>
 
-      <span
-        className="text-[11px] font-medium tracking-wide uppercase select-none"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        {viewTitle}
-      </span>
+      <div className="flex-1" />
 
       {/* Right side: reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
-        {/* Reset chat */}
-        {view === 'chat' && onReset && (
+        {/* LLM tab — only visible from settings or when in LLM view */}
+        {view !== 'chat' && (
           <TitleBtn
-            onClick={onReset}
-            label="Reset chat"
-            tooltip="Reset chat (⌥R)"
+            onClick={() => onSetView(view === 'llm' ? 'chat' : 'llm')}
+            label="LLM settings"
+            tooltip="LLM settings"
+            active={view === 'llm'}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
               <path
-                d="M10 3H4.5C3.12 3 2 4.12 2 5.5S3.12 8 4.5 8H8"
+                d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
                 stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-              />
-              <path
-                d="M8.5 1L10.5 3L8.5 5"
-                stroke="currentColor"
-                strokeWidth="1.2"
+                strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -324,23 +313,8 @@ export function TitleBar({
           </TitleBtn>
         )}
 
-        {/* LLM tab */}
-        <TitleBtn
-          onClick={() => onSetView(view === 'llm' ? 'chat' : 'llm')}
-          label="LLM settings"
-          tooltip="LLM settings"
-          active={view === 'llm'}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </TitleBtn>
+        {/* Hotkey shortcuts menu */}
+        <HotkeyMenu tooltip="Keyboard shortcuts" />
 
         {/* Settings gear */}
         <TitleBtn

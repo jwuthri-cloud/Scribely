@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { HotkeyMenu } from './HotkeyMenu'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
@@ -79,7 +80,6 @@ interface CompactNavbarProps {
   meetingActive: boolean
   meetingDuration: string
   onToggleMeeting: () => void
-  onFocusInput: () => void
   onSetView: (view: ViewId) => void
   onClose: () => void
   onToggleCompactMode?: () => void
@@ -93,7 +93,6 @@ export function CompactNavbar({
   meetingActive,
   meetingDuration,
   onToggleMeeting,
-  onFocusInput,
   onSetView,
   onClose,
   onToggleCompactMode,
@@ -117,7 +116,7 @@ export function CompactNavbar({
 
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1.5 shrink-0 select-none"
+      className="flex items-center gap-1.5 px-4 py-2 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* ── Left: traffic-light buttons (red close, green compact) + Meeting button ── */}
@@ -128,7 +127,7 @@ export function CompactNavbar({
         {/* Red: close */}
         <NavBtn
           onClick={onClose}
-          tooltip="Close app"
+          tooltip="Close"
           className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150 hover:brightness-110"
           style={{ backgroundColor: 'var(--error)' }}
           aria-label="Close"
@@ -138,7 +137,7 @@ export function CompactNavbar({
 
         {/* Green: compact mode toggle (expand back to full view) */}
         {onToggleCompactMode && (
-          <TooltipWrap tooltip="Expand to full view">
+          <TooltipWrap tooltip="Advanced mode">
             <button
               className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
               style={{
@@ -156,7 +155,7 @@ export function CompactNavbar({
         )}
 
         {/* Blue: hide/show window */}
-        <TooltipWrap tooltip="Hide window (use hotkey to show again)">
+        <TooltipWrap tooltip="Hide window (⌥H)">
           <button
             className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
             style={{
@@ -176,8 +175,8 @@ export function CompactNavbar({
         <TooltipWrap
           tooltip={
             invisible
-              ? 'Hidden from screen share — click to make visible'
-              : 'Visible in screen share — click to hide'
+              ? 'Hidden from screen share'
+              : 'Visible in screen share'
           }
         >
           <button
@@ -269,28 +268,8 @@ export function CompactNavbar({
         className="flex items-center gap-0.5"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {/* Ask AI button with visible hotkey badge */}
-        <NavBtn
-          onClick={onFocusInput}
-          tooltip="Focus the input field"
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
-          style={{ color: 'var(--accent)' }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>Ask AI</span>
-          <kbd
-            className="px-1 py-px rounded text-[9px] font-mono leading-none"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)',
-              color: 'var(--accent)',
-              border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
-            }}
-          >
-            ⌘⏎
-          </kbd>
-        </NavBtn>
+        {/* Hotkey shortcuts menu */}
+        <HotkeyMenu size="sm" tooltip="Keyboard shortcuts" />
 
         {/* Settings gear */}
         <NavBtn

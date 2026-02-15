@@ -2,12 +2,19 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { ChatMessage, ChatAttachment } from '../types'
 import type { QuickAction } from '../types/settings'
-import { DEFAULT_QUICK_ACTIONS } from '../types/settings'
+import { DEFAULT_QUICK_ACTIONS, MODEL_CONFIGS } from '../types/settings'
+import type { ModelId } from '../types/settings'
 import { getQuickActionIcon } from './QuickActionIcons'
 import { MarkdownContent } from './MarkdownContent'
 import { CompactNavbar } from './CompactNavbar'
 
 type ViewId = 'chat' | 'llm' | 'settings'
+
+const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
+  { id: 'gpt5-nano', label: 'Nano' },
+  { id: 'gpt5-mini', label: 'Mini' },
+  { id: 'gpt-5.2', label: '5.2' },
+]
 
 /** Import empty-state illustration assets (same as ResponseCard) */
 const emptyStateGif = import.meta.glob('../assets/empty-state.gif', {
@@ -90,6 +97,8 @@ interface CompactChatViewProps {
   isRecording?: boolean
   onToggleRecording?: () => void
   onToggleCompactMode?: () => void
+  currentModel?: ModelId
+  onModelChange?: (modelId: ModelId) => void
 }
 
 /**
@@ -116,9 +125,23 @@ export function CompactChatView({
   isRecording = false,
   onToggleRecording,
   onToggleCompactMode,
+  currentModel = 'gpt-5.2',
+  onModelChange,
 }: CompactChatViewProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const modelPickerRef = useRef<HTMLDivElement>(null)
   const [inputValue, setInputValue] = useState('')
+  const [showModelPicker, setShowModelPicker] = useState(false)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (showModelPicker && modelPickerRef.current && !modelPickerRef.current.contains(e.target as Node)) {
+        setShowModelPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showModelPicker])
 
   // Extract the last user message and last assistant message
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
@@ -129,10 +152,6 @@ export function CompactChatView({
   const isStreaming = isLoading && lastMsg?.role === 'assistant' && !lastMsg.isError
 
   const hasMessages = messages.length > 0
-
-  const handleFocusInput = useCallback(() => {
-    inputRef.current?.focus()
-  }, [])
 
   const handleClose = useCallback(() => {
     if (window.electronAPI?.quit) {
@@ -186,7 +205,6 @@ export function CompactChatView({
         meetingActive={meetingActive}
         meetingDuration={meetingDuration}
         onToggleMeeting={onToggleMeeting}
-        onFocusInput={handleFocusInput}
         onSetView={onSetView}
         onClose={handleClose}
         onToggleCompactMode={onToggleCompactMode}
@@ -194,8 +212,8 @@ export function CompactChatView({
 
       {/* ── Thin separator ── */}
       <div
-        className="mx-3 h-px shrink-0"
-        style={{ backgroundColor: 'var(--border)', opacity: 0.4 }}
+        className="mx-4 h-px shrink-0"
+        style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
       />
 
       {/* ── Response Area ── */}
@@ -420,6 +438,60 @@ export function CompactChatView({
               } as React.CSSProperties}
               autoFocus
             />
+
+            {/* Model selector */}
+            <div className="relative flex items-center shrink-0 min-w-[2.5rem]" ref={modelPickerRef}>
+              <button
+                type="button"
+                onClick={() => setShowModelPicker((prev) => !prev)}
+                className="px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110 max-w-[3.5rem] overflow-hidden truncate"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-muted)',
+                  backgroundColor: 'transparent',
+                }}
+                title="Switch model"
+              >
+                <span className="block truncate">
+                  {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+                </span>
+              </button>
+              {showModelPicker && (
+                <div
+                  className="absolute bottom-full mb-1 right-0 rounded-lg border py-1 shadow-lg z-[9999] max-h-48 overflow-y-auto overflow-x-hidden"
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    borderColor: 'var(--border)',
+                    minWidth: '10rem',
+                    maxWidth: 'min(calc(100vw - 32px), 18rem)',
+                  }}
+                >
+                  {MODEL_OPTIONS.map((opt) => {
+                    const isActive = opt.id === currentModel
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          onModelChange?.(opt.id)
+                          setShowModelPicker(false)
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3 shrink-0"
+                        style={{
+                          color: isActive ? 'var(--accent)' : 'var(--text)',
+                          fontWeight: isActive ? 600 : 400,
+                        }}
+                      >
+                        <span className="shrink-0 w-8">{opt.label}</span>
+                        <span className="text-[9px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
+                          {MODEL_CONFIGS[opt.id]?.description}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Send or Stop */}
             {isLoading ? (
