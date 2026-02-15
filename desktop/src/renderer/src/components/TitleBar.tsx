@@ -7,6 +7,7 @@ interface TitleBarProps {
   onSetView: (view: ViewId) => void
   onReset?: () => void
   meetingActive?: boolean
+  meetingDuration?: string
   onToggleMeeting?: () => void
 }
 
@@ -67,6 +68,7 @@ export function TitleBar({
   onSetView,
   onReset,
   meetingActive,
+  meetingDuration = '00:00',
   onToggleMeeting,
 }: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
@@ -170,25 +172,63 @@ export function TitleBar({
           </TitleBtn>
         )}
 
-        {/* Meeting toggle */}
+        {/* Meeting toggle — pill-style Rec button */}
         {view === 'chat' && onToggleMeeting && (
-          <TitleBtn
-            onClick={onToggleMeeting}
-            label={meetingActive ? 'Stop meeting' : 'Start meeting'}
-            tooltip={meetingActive ? 'Stop meeting capture' : 'Start meeting capture (⌥M)'}
-            color={meetingActive ? 'var(--error)' : undefined}
-          >
+          <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             {meetingActive ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-              </svg>
+              <button
+                onClick={onToggleMeeting}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:brightness-110"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--error) 18%, transparent)',
+                  color: 'var(--error)',
+                  border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
+                }}
+                aria-label="Stop meeting"
+                title="Stop meeting capture"
+              >
+                {/* Stop square */}
+                <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor">
+                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
+                </svg>
+                {/* Animated waveform bars */}
+                <div className="flex items-center gap-[2px] h-3">
+                  {[1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className="w-[2px] rounded-full animate-pulse"
+                      style={{
+                        backgroundColor: 'var(--error)',
+                        height: `${5 + (i % 3) * 2}px`,
+                        animationDelay: `${i * 150}ms`,
+                        animationDuration: '1s',
+                      }}
+                    />
+                  ))}
+                </div>
+                {/* Timer */}
+                <span className="font-mono tabular-nums">{meetingDuration}</span>
+              </button>
             ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M8 12h8M8 9h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
+              <button
+                onClick={onToggleMeeting}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
+                style={{
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                }}
+                aria-label="Start meeting"
+                title="Start meeting capture (⌥M)"
+              >
+                {/* Record circle */}
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: 'var(--error)', opacity: 0.7 }}
+                />
+                Rec
+              </button>
             )}
-          </TitleBtn>
+          </div>
         )}
 
         {/* Reset chat */}

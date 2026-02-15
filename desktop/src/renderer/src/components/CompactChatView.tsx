@@ -36,6 +36,9 @@ interface CompactChatViewProps {
   onSetView: (view: ViewId) => void
   onReset: () => void
   quickActions?: QuickAction[]
+  pendingScreenshot?: string | null
+  onClearScreenshot?: () => void
+  onScreenshot?: () => void
 }
 
 /**
@@ -56,6 +59,9 @@ export function CompactChatView({
   onSetView,
   onReset,
   quickActions,
+  pendingScreenshot,
+  onClearScreenshot,
+  onScreenshot,
 }: CompactChatViewProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -87,18 +93,26 @@ export function CompactChatView({
       e.preventDefault()
       const trimmed = inputValue.trim()
       if (!trimmed) return
-      onSend(trimmed)
+      const attachments: ChatAttachment[] = []
+      if (pendingScreenshot) {
+        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
+      }
+      onSend(trimmed, attachments.length > 0 ? attachments : undefined)
       setInputValue('')
       inputRef.current?.focus()
     },
-    [inputValue, onSend],
+    [inputValue, onSend, pendingScreenshot],
   )
 
   const handleActionClick = useCallback(
     (actionValue: string) => {
-      onSend(actionValue)
+      const attachments: ChatAttachment[] = []
+      if (pendingScreenshot) {
+        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
+      }
+      onSend(actionValue, attachments.length > 0 ? attachments : undefined)
     },
-    [onSend],
+    [onSend, pendingScreenshot],
   )
 
   // Auto-scroll response area when streaming
@@ -169,11 +183,24 @@ export function CompactChatView({
             {/* Last user message as blue pill (right-aligned) */}
             {lastUserMsg && (
               <motion.div
-                className="flex justify-end"
+                className="flex flex-col items-end gap-1"
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
               >
+                {/* Image attachments from the last user message */}
+                {lastUserMsg.attachments?.map((att, idx) => (
+                  <div key={idx}>
+                    {att.type === 'image' && (
+                      <img
+                        src={att.data}
+                        alt={att.label || 'Attachment'}
+                        className="rounded-lg max-h-24 object-cover border"
+                        style={{ borderColor: 'var(--border)' }}
+                      />
+                    )}
+                  </div>
+                ))}
                 <div
                   className="inline-block max-w-[85%] px-3 py-1.5 rounded-2xl text-[12px] leading-relaxed"
                   style={{
@@ -264,6 +291,29 @@ export function CompactChatView({
 
       {/* ── Compact Input ── */}
       <div className="px-4 pb-3 pt-1 shrink-0">
+        {/* Pending screenshot preview */}
+        {pendingScreenshot && (
+          <div className="relative inline-block mb-2">
+            <img
+              src={pendingScreenshot}
+              alt="Screenshot preview"
+              className="h-14 rounded-lg border object-cover"
+              style={{ borderColor: 'var(--border)' }}
+            />
+            <button
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
+              style={{
+                backgroundColor: 'var(--error)',
+                color: '#fff',
+              }}
+              onClick={onClearScreenshot}
+              aria-label="Remove screenshot"
+            >
+              x
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div
             className="flex items-center gap-2 rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"

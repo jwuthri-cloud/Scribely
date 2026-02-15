@@ -251,9 +251,9 @@ export function Overlay() {
   // ── Resize window when compact mode changes ──
   useEffect(() => {
     if (compactMode) {
-      window.electronAPI?.setWindowSize({ width: 600, height: 380 })
+      window.electronAPI?.setWindowSize({ width: 500, height: 250 })
     } else {
-      window.electronAPI?.setWindowSize({ width: 420, height: 600 })
+      window.electronAPI?.setWindowSize({ width: 480, height: 640 })
     }
   }, [compactMode])
 
@@ -504,6 +504,9 @@ export function Overlay() {
                 onSetView={handleSetView}
                 onReset={handleReset}
                 quickActions={quickActions.length > 0 ? quickActions : undefined}
+                pendingScreenshot={pendingScreenshot}
+                onClearScreenshot={() => setPendingScreenshot(null)}
+                onScreenshot={handleScreenshot}
               />
 
               {/* Summary modal (still accessible in compact mode) */}
@@ -534,6 +537,7 @@ export function Overlay() {
                 onSetView={handleSetView}
                 onReset={handleReset}
                 meetingActive={meetingActive}
+                meetingDuration={recorder.formattedDuration}
                 onToggleMeeting={handleToggleMeeting}
               />
 
@@ -566,7 +570,7 @@ export function Overlay() {
                   )}
 
                   {/* Save notification after meeting ends */}
-                  {savedFiles && (
+                  {/* {savedFiles && (
                     <div
                       className="mx-3 mb-2 px-3 py-2 rounded-xl text-[11px] space-y-0.5"
                       style={{
@@ -592,7 +596,7 @@ export function Overlay() {
                         </div>
                       )}
                     </div>
-                  )}
+                  )} */}
 
                   <ResponseCard
                     messages={messages}

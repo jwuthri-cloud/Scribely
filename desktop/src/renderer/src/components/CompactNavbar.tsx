@@ -1,6 +1,58 @@
 import { useState, useEffect, useCallback } from 'react'
+import type { HotkeyConfig } from '../types/settings'
+import { DEFAULT_HOTKEYS } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings'
+
+/** Converts an Electron accelerator to macOS-style symbols */
+function fmtKey(acc: string): string {
+  return acc
+    .replace(/CommandOrControl|Command/g, '⌘')
+    .replace(/Control/g, '⌃')
+    .replace(/Alt/g, '⌥')
+    .replace(/Shift/g, '⇧')
+    .replace(/\+/g, '')
+}
+
+/** Small button with a custom tooltip that renders above everything (z-[9999]) */
+function NavBtn({
+  onClick,
+  tooltip,
+  children,
+  ...rest
+}: {
+  onClick: () => void
+  tooltip: string
+  children: React.ReactNode
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children && (
+        <button type="button" onClick={onClick} {...rest}>
+          {children}
+        </button>
+      )}
+      {hovered && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap pointer-events-none z-[9999]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface CompactNavbarProps {
   meetingActive: boolean
@@ -13,9 +65,7 @@ interface CompactNavbarProps {
 
 /**
  * Slim pill-shaped navbar for compact mode.
- * Always shows: Settings gear, Close (X).
- * When meeting is active: adds Pause/Stop, waveform, timer.
- * "Ask AI" focuses the input bar.
+ * Layout: [X close] ... [meeting toggle] [waveform+timer] ... [Ask AI ⌘⏎] [Hidden ⌥T] [Settings]
  */
 export function CompactNavbar({
   meetingActive,
@@ -26,10 +76,14 @@ export function CompactNavbar({
   onClose,
 }: CompactNavbarProps) {
   const [invisible, setInvisible] = useState(true)
+  const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
 
-  // Load initial invisibility state
+  // Load initial invisibility state + hotkeys
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
+    window.electronAPI?.getSettings().then((s) => {
+      if (s?.hotkeys) setHotkeys(s.hotkeys)
+    })
   }, [])
 
   const handleToggleInvisibility = useCallback(async () => {
@@ -37,43 +91,46 @@ export function CompactNavbar({
     if (newState !== undefined) setInvisible(newState)
   }, [])
 
+  const toggleOverlayHint = fmtKey(hotkeys.toggleOverlay)
+
   return (
     <div
-      className="flex items-center gap-1 px-3 py-1.5 shrink-0 select-none"
+      className="flex items-center gap-1.5 px-3 py-1.5 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Left: meeting controls */}
+      {/* ── Left: Close dot + Meeting button ── */}
       <div
-        className="flex items-center gap-1"
+        className="flex items-center gap-2"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {/* Stop/Start meeting */}
-        <button
-          onClick={onToggleMeeting}
-          className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
-          style={{
-            color: meetingActive ? 'var(--error)' : 'var(--text-muted)',
-          }}
-          aria-label={meetingActive ? 'Stop meeting' : 'Start meeting'}
-          title={meetingActive ? 'Stop meeting' : 'Start meeting'}
+        <NavBtn
+          onClick={onClose}
+          tooltip="Close"
+          className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150 hover:brightness-110"
+          style={{ backgroundColor: 'var(--error)' }}
+          aria-label="Close"
         >
-          {meetingActive ? (
-            /* Stop square */
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
-            </svg>
-          ) : (
-            /* Play/start */
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-              <path d="M8 12h8M8 9h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          )}
-        </button>
+          <span />
+        </NavBtn>
 
-        {/* Waveform + timer when meeting active */}
-        {meetingActive && (
-          <div className="flex items-center gap-1.5">
+        {/* Meeting button — pill-shaped, labeled, clear state */}
+        {meetingActive ? (
+          /* Active: red pill with stop icon + waveform + timer */
+          <NavBtn
+            onClick={onToggleMeeting}
+            tooltip="Stop meeting capture"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:brightness-110"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--error) 18%, transparent)',
+              color: 'var(--error)',
+              border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
+            }}
+            aria-label="Stop meeting"
+          >
+            {/* Stop square */}
+            <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor">
+              <rect x="1" y="1" width="10" height="10" rx="1.5" />
+            </svg>
             {/* Animated waveform bars */}
             <div className="flex items-center gap-[2px] h-3">
               {[1, 2, 3].map((i) => (
@@ -82,7 +139,7 @@ export function CompactNavbar({
                   className="w-[2px] rounded-full animate-pulse"
                   style={{
                     backgroundColor: 'var(--error)',
-                    height: `${6 + (i % 3) * 3}px`,
+                    height: `${5 + (i % 3) * 2}px`,
                     animationDelay: `${i * 150}ms`,
                     animationDuration: '1s',
                   }}
@@ -90,43 +147,67 @@ export function CompactNavbar({
               ))}
             </div>
             {/* Timer */}
+            <span className="font-mono tabular-nums">{meetingDuration}</span>
+          </NavBtn>
+        ) : (
+          /* Inactive: subtle "Rec" pill */
+          <NavBtn
+            onClick={onToggleMeeting}
+            tooltip="Start meeting capture"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
+            style={{
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
+            }}
+            aria-label="Start meeting"
+          >
+            {/* Record circle */}
             <span
-              className="text-[10px] font-mono tabular-nums"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              {meetingDuration}
-            </span>
-          </div>
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: 'var(--error)', opacity: 0.7 }}
+            />
+            Rec
+          </NavBtn>
         )}
       </div>
 
-      {/* Spacer */}
+      {/* ── Spacer ── */}
       <div className="flex-1" />
 
-      {/* Right: actions */}
+      {/* ── Right: actions ── */}
       <div
         className="flex items-center gap-0.5"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {/* Ask AI button */}
-        <button
+        {/* Ask AI button with visible hotkey badge */}
+        <NavBtn
           onClick={onFocusInput}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
+          tooltip="Focus the input field"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
           style={{ color: 'var(--accent)' }}
-          title="Focus input (⌘⏎)"
         >
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          Ask AI
-        </button>
+          <span>Ask AI</span>
+          <kbd
+            className="px-1 py-px rounded text-[9px] font-mono leading-none"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)',
+              color: 'var(--accent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+            }}
+          >
+            ⌘⏎
+          </kbd>
+        </NavBtn>
 
-        {/* Show/Hide (invisibility toggle) */}
-        <button
+        {/* Show/Hide (invisibility toggle) with visible hotkey badge */}
+        <NavBtn
           onClick={handleToggleInvisibility}
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
+          tooltip={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
           style={{ color: invisible ? 'var(--text-muted)' : 'var(--accent)' }}
-          title={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
         >
           {invisible ? (
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
@@ -151,16 +232,26 @@ export function CompactNavbar({
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
             </svg>
           )}
-          {invisible ? 'Hidden' : 'Visible'}
-        </button>
+          <span>{invisible ? 'Hidden' : 'Visible'}</span>
+          <kbd
+            className="px-1 py-px rounded text-[9px] font-mono leading-none"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--text-muted) 20%, transparent)',
+              color: 'var(--text)',
+              border: '1px solid color-mix(in srgb, var(--text-muted) 35%, transparent)',
+            }}
+          >
+            {toggleOverlayHint}
+          </kbd>
+        </NavBtn>
 
         {/* Settings gear */}
-        <button
+        <NavBtn
           onClick={() => onSetView('settings')}
+          tooltip="Settings"
           className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
           style={{ color: 'var(--text-muted)' }}
           aria-label="Settings"
-          title="Settings"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
             <path
@@ -174,20 +265,7 @@ export function CompactNavbar({
               strokeWidth="1.8"
             />
           </svg>
-        </button>
-
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="flex items-center justify-center w-5 h-5 rounded-md transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--error)_20%,transparent)]"
-          style={{ color: 'var(--text-muted)' }}
-          aria-label="Close"
-          title="Close"
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        </NavBtn>
       </div>
     </div>
   )
