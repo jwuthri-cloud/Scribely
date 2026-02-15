@@ -134,7 +134,7 @@ export function InputBar({
   const [value, setValue] = useState('')
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [justSent, setJustSent] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
 
   // Close model picker when clicking outside
@@ -156,6 +156,14 @@ export function InputBar({
       onClearTranscript?.()
     }
   }, [sttTranscript, onClearTranscript])
+
+  // Auto-resize textarea as user types
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = '24px'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [value])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -287,15 +295,27 @@ export function InputBar({
             </IconBtnWithTooltip>
           </div>
 
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e as unknown as FormEvent)
+              }
+              // Shift+Enter: default behavior inserts newline
+            }}
             placeholder="Ask anything..."
             disabled={disabled}
-            className="flex-1 min-w-0 bg-transparent outline-none text-[13px]"
-            style={{ color: 'var(--text)', caretColor: 'var(--accent)' }}
+            rows={1}
+            className="flex-1 min-w-0 bg-transparent outline-none text-[13px] resize-none py-1"
+            style={{
+              color: 'var(--text)',
+              caretColor: 'var(--accent)',
+              minHeight: '24px',
+              maxHeight: '120px',
+            }}
             autoFocus
           />
 
@@ -414,6 +434,12 @@ export function InputBar({
           )}
         </div>
       </form>
+      <p
+        className="text-[9px] mt-1 px-1"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        Enter to send · Shift+Enter for new line
+      </p>
     </div>
   )
 }

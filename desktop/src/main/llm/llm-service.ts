@@ -605,11 +605,16 @@ export class LLMService {
             }
 
             if (chunk.usage) {
+              const u = chunk.usage as any
+              // Support both prompt_tokens_details (Chat) and input_tokens_details (Responses API)
+              const cached =
+                u.prompt_tokens_details?.cached_tokens ??
+                u.input_tokens_details?.cached_tokens ??
+                0
               usage = {
                 promptTokens: chunk.usage.prompt_tokens,
                 completionTokens: chunk.usage.completion_tokens,
-                cachedTokens:
-                  (chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
+                cachedTokens: cached,
               }
             }
           }
@@ -834,6 +839,17 @@ export class LLMService {
     }
     const modelConfig = MODEL_CONFIGS[this.currentModel]
     const latencyMs = Date.now() - requestStartTime
+    // OpenAI prompt caching requires 1024+ tokens; cached_tokens is 0 below that
+    if (
+      usage.cachedTokens === 0 &&
+      usage.promptTokens > 0 &&
+      usage.promptTokens < 1024
+    ) {
+      console.log(
+        `[llm] No cache: ${usage.promptTokens} prompt tokens (OpenAI caching needs 1024+)`,
+      )
+    }
+
     this.safeSend('llm:chat-done', {
       requestId,
       fullContent,
