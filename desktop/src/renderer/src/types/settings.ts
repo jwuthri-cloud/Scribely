@@ -159,7 +159,7 @@ export interface LLMSettings {
   systemPrompts: SystemPrompt[]
   /** Transcript summarization settings (Phase 2) */
   summarization: SummarizationSettings
-  /** Custom quick actions (max 4; Summarize is always first). Empty = use defaults. */
+  /** Custom quick actions (max 4). Empty = use defaults. */
   quickActions: QuickAction[]
 }
 

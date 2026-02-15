@@ -94,6 +94,19 @@ const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
   { id: 'gpt-5.2', label: '5.2' },
 ]
 
+const SUMMARIZE_ICON = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h16M4 12h10M4 18h14" />
+  </svg>
+)
+
+const VIEW_SUMMARY_ICON = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+  </svg>
+)
+
 interface InputBarProps {
   onSend: (message: string, attachments?: ChatAttachment[]) => void
   disabled?: boolean
@@ -111,6 +124,12 @@ interface InputBarProps {
   modelProgress?: number
   currentModel?: ModelId
   onModelChange?: (modelId: ModelId) => void
+  /** When provided, shows a small Summarize button at bottom right */
+  onSummarizeTranscript?: () => Promise<void>
+  summarizeInProgress?: boolean
+  /** When true, shows a small View summary button at bottom right */
+  hasSummary?: boolean
+  onViewSummary?: () => void
 }
 
 export function InputBar({
@@ -130,6 +149,10 @@ export function InputBar({
   modelProgress = 0,
   currentModel = 'gpt-5.2',
   onModelChange,
+  onSummarizeTranscript,
+  summarizeInProgress = false,
+  hasSummary = false,
+  onViewSummary,
 }: InputBarProps) {
   const [value, setValue] = useState('')
   const [showModelPicker, setShowModelPicker] = useState(false)
@@ -309,7 +332,7 @@ export function InputBar({
             placeholder="Ask anything..."
             disabled={disabled}
             rows={1}
-            className="flex-1 min-w-0 bg-transparent outline-none text-[13px] resize-none py-1"
+            className="flex-1 min-w-0 bg-transparent outline-none focus:outline-none focus:ring-0 text-[13px] resize-none py-1"
             style={{
               color: 'var(--text)',
               caretColor: 'var(--accent)',
@@ -434,12 +457,55 @@ export function InputBar({
           )}
         </div>
       </form>
-      <p
-        className="text-[9px] mt-1 px-1"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        Enter to send · Shift+Enter for new line
-      </p>
+      <div className="flex items-center justify-between mt-1 px-1">
+        <p
+          className="text-[9px]"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Enter to send · Shift+Enter for new line
+        </p>
+        <div className="flex items-center gap-1">
+          {hasSummary && onViewSummary && (
+            <WithTooltip tooltip="View transcript summary">
+              <button
+                type="button"
+                onClick={onViewSummary}
+                className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:brightness-110 active:scale-95"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                  color: 'var(--accent)',
+                  border: '1px dashed var(--accent)',
+                }}
+                aria-label="View summary"
+              >
+                {VIEW_SUMMARY_ICON}
+              </button>
+            </WithTooltip>
+          )}
+          {onSummarizeTranscript && (
+            <WithTooltip tooltip="Summarize transcript — Compresses long meeting transcripts into a concise summary to save context space">
+              <button
+                type="button"
+                onClick={onSummarizeTranscript}
+                disabled={summarizeInProgress}
+                className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:brightness-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  backgroundColor: 'var(--chip-bg)',
+                  color: 'var(--chip-text)',
+                  border: '1px solid var(--border)',
+                }}
+                aria-label="Summarize transcript"
+              >
+                {summarizeInProgress ? (
+                  <span className="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                ) : (
+                  SUMMARIZE_ICON
+                )}
+              </button>
+            </WithTooltip>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -597,10 +597,6 @@ export function Overlay() {
                   }
                   handleSend(action, attachments.length > 0 ? attachments : undefined)
                 }}
-                onSummarizeTranscript={handleSummarizeTranscript}
-                summarizeInProgress={summarizeInProgress}
-                hasSummary={hasSummary}
-                onViewSummary={handleViewSummary}
                 customActions={quickActions.length > 0 ? quickActions : undefined}
               />
 
@@ -667,6 +663,10 @@ export function Overlay() {
                 modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
                 currentModel={currentModel}
                 onModelChange={handleModelChange}
+                onSummarizeTranscript={handleSummarizeTranscript}
+                summarizeInProgress={summarizeInProgress}
+                hasSummary={hasSummary}
+                onViewSummary={handleViewSummary}
               />
             </>
           )}

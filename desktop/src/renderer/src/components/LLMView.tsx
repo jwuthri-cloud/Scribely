@@ -59,7 +59,7 @@ export function LLMView() {
   const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
   const [summarizerPromptDraft, setSummarizerPromptDraft] = useState('')
 
-  // Quick actions (max 4 custom; Summarize is always first)
+  // Quick actions (max 4 custom)
   const [quickActions, setQuickActions] = useState<QuickAction[]>([])
   const [editingQuickAction, setEditingQuickAction] = useState<QuickAction | null>(null)
   const [editingQuickActionIndex, setEditingQuickActionIndex] = useState(-1)
@@ -482,7 +482,7 @@ export function LLMView() {
       <Section title="Quick Actions">
         <div className="space-y-2">
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Customize up to 4 quick action chips (Summarize is always first). Label = button text, Value = message sent.
+            Customize up to 4 quick action chips. Label = button text, Value = message sent.
           </p>
           {(quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS).map((a, i) => {
             const isEditing = editingQuickActionIndex === i
