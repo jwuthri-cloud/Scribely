@@ -1,3 +1,3 @@
 """
-API layer for AssistMe.
+API layer for Scribely.
 """

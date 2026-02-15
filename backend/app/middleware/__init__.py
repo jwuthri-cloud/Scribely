@@ -1,5 +1,5 @@
 """
-Middleware package for AssistMe.
+Middleware package for Scribely.
 """
 
 import time

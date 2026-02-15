@@ -1,5 +1,5 @@
 """
-Agent registry for AssistMe.
+Agent registry for Scribely.
 
 Provides dynamic agent registration, discovery, and instantiation.
 """

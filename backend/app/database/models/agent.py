@@ -1,5 +1,5 @@
 """
-Agent model for AssistMe.
+Agent model for Scribely.
 """
 
 import uuid

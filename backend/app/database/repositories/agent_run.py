@@ -1,5 +1,5 @@
 """
-AgentRun repository for AssistMe.
+AgentRun repository for Scribely.
 """
 
 from datetime import datetime, timedelta

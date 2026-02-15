@@ -1,5 +1,5 @@
 """
-Agent repository for AssistMe.
+Agent repository for Scribely.
 """
 
 from datetime import datetime

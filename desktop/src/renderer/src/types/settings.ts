@@ -124,13 +124,7 @@ export interface SummarizationSettings {
   summarizerSystemPrompt: string | null
 }
 
-export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT = `You are a meeting transcript summarizer. Produce a concise summary that captures:
-- Main topics discussed
-- Key decisions or conclusions
-- Action items or follow-ups mentioned
-- Important context for later questions
-
-Keep the summary under 500 words. Use clear paragraphs. Do not include timestamps.`
+export { DEFAULT_SUMMARIZER_SYSTEM_PROMPT } from '../../../shared/summarizer-defaults'
 
 export const DEFAULT_SUMMARIZATION: SummarizationSettings = {
   autoSummarizeEnabled: true,

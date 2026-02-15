@@ -1,7 +1,7 @@
 {
-  "name": "assistme-desktop",
+  "name": "scribely-desktop",
   "version": "0.1.0",
-  "description": "AssistMe desktop overlay – invisible to screen sharing",
+  "description": "Scribely desktop overlay – invisible to screen sharing",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -39,8 +39,8 @@
     "ws": "^8.19.0"
   },
   "build": {
-    "appId": "com.assistme.desktop",
-    "productName": "AssistMe",
+    "appId": "com.scribely.desktop",
+    "productName": "Scribely",
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity"

@@ -1,5 +1,5 @@
 """
-Infrastructure layer for AssistMe.
+Infrastructure layer for Scribely.
 """
 
 from .langfuse_handler import (

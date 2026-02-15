@@ -9,8 +9,8 @@ This is a cookiecutter template for building FastAPI + Next.js applications with
 ## Project Structure
 The project follows a monorepo structure with clear separation:
 
-- `assistme/backend/` - FastAPI backend application
-- `assistme/frontend/` - Next.js frontend application
+- `scribely/backend/` - FastAPI backend application
+- `scribely/frontend/` - Next.js frontend application
 - `docker-compose.yml` - Service orchestration
 
 ## Backend Architecture (FastAPI)
@@ -26,11 +26,11 @@ The project follows a monorepo structure with clear separation:
 - `app/utils/` - Shared utilities
 
 ### Key Patterns
-1. **CQRS Architecture**: Commands and Queries are separated with dedicated buses in [app/core/cqrs/](mdc:assistme/backend/app/core/cqrs/)
+1. **CQRS Architecture**: Commands and Queries are separated with dedicated buses in [app/core/cqrs/](mdc:scribely/backend/app/core/cqrs/)
 2. **Dependency Injection**: Services are injected via FastAPI's dependency system
 3. **Repository Pattern**: Database access is abstracted through repositories
 4. **Service Layer**: Business logic is encapsulated in services
-5. **Environment Configuration**: Settings managed via Pydantic settings in [app/core/config/](mdc:assistme/backend/app/core/config/)
+5. **Environment Configuration**: Settings managed via Pydantic settings in [app/core/config/](mdc:scribely/backend/app/core/config/)
 
 ## Frontend Architecture (Next.js)
 

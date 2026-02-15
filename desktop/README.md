@@ -1,4 +1,4 @@
-# AssistMe Desktop Overlay
+# Scribely Desktop Overlay
 
 A Cluely-style Electron overlay app that floats above all windows and is **invisible to screen sharing** on macOS.
 
@@ -10,7 +10,7 @@ A Cluely-style Electron overlay app that floats above all windows and is **invis
 ## Getting Started
 
 ```bash
-cd assistme/desktop
+cd scribely/desktop
 
 # Install dependencies
 npm install

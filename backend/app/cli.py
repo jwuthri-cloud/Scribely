@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI entry point for AssistMe.
+CLI entry point for Scribely.
 This allows running the CLI with: python -m app.cli
 """
 

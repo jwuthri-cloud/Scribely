@@ -1,5 +1,5 @@
 """
-Helper utilities for AssistMe.
+Helper utilities for Scribely.
 """
 
 import hashlib

@@ -1,5 +1,5 @@
 """
-Custom exceptions for AssistMe.
+Custom exceptions for Scribely.
 """
 
 from fastapi import FastAPI, Request, status

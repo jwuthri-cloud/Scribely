@@ -13,7 +13,7 @@ import { EventEmitter } from 'events'
 import { ChildProcess, spawn, execSync } from 'child_process'
 import net from 'net'
 import path from 'path'
-import { existsSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import {
   loadProtoSchema,
@@ -58,9 +58,9 @@ export interface NativeBridgeEvents {
 
 const SOCKET_DIR = path.join(
   app.getPath('appData'),
-  'AssistMe',
+  'Scribely',
 )
-const DEFAULT_SOCKET_PATH = path.join(SOCKET_DIR, 'assistme.sock')
+const DEFAULT_SOCKET_PATH = path.join(SOCKET_DIR, 'scribely.sock')
 
 /** Delay between reconnection attempts (ms) */
 const RECONNECT_DELAY_MS = 1000
@@ -259,6 +259,18 @@ export class NativeHelperBridge extends EventEmitter {
 
     // Clean up any leftover processes/sockets from previous runs
     this._cleanupStaleProcesses()
+
+    // Ensure socket directory exists (NativeHelper bind fails with ENOENT otherwise)
+    try {
+      const dir = path.dirname(this.socketPath)
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+        console.log(`[native-bridge] Created socket directory: ${dir}`)
+      }
+    } catch (err) {
+      console.error(`[native-bridge] Failed to create socket directory: ${err}`)
+      throw err
+    }
 
     console.log(`[native-bridge] Spawning NativeHelper: ${this.binaryPath}`)
 

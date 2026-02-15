@@ -50,25 +50,41 @@ export function ActionChips({
         </button>
       )}
       {/* Summarize (always first, fixed) */}
-      <button
-        onClick={() => {
-          if (onSummarizeTranscript) {
-            onSummarizeTranscript()
-          } else {
-            onAction('Summarize this')
-          }
-        }}
-        disabled={!!onSummarizeTranscript && summarizeInProgress}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 hover:brightness-125 active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{
-          backgroundColor: 'var(--chip-bg)',
-          color: 'var(--chip-text)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <span style={{ opacity: 0.6 }}>{SUMMARIZE_ICON}</span>
-        {summarizeInProgress ? 'Summarizing…' : 'Summarize'}
-      </button>
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <button
+          onClick={() => {
+            if (onSummarizeTranscript) {
+              onSummarizeTranscript()
+            } else {
+              onAction('Summarize this')
+            }
+          }}
+          disabled={!!onSummarizeTranscript && summarizeInProgress}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 hover:brightness-125 active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: 'var(--chip-bg)',
+            color: 'var(--chip-text)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <span style={{ opacity: 0.6 }}>{SUMMARIZE_ICON}</span>
+          {summarizeInProgress ? 'Summarizing…' : 'Summarize'}
+        </button>
+        {summarizeInProgress && (
+          <div
+            className="h-0.5 rounded-full overflow-hidden"
+            style={{ backgroundColor: 'var(--border)' }}
+          >
+            <div
+              className="h-full rounded-full w-1/3 animate-progress-shimmer"
+              style={{
+                backgroundColor: 'var(--accent)',
+                opacity: 0.7,
+              }}
+            />
+          </div>
+        )}
+      </div>
       {/* Custom or default actions */}
       {actions.map((a) => (
         <button

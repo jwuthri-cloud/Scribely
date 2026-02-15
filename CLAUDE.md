@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AssistMe is a multi-component AI application: a FastAPI backend, a Next.js frontend, an Electron desktop overlay (macOS-only, invisible to screen sharing), and a Chrome extension for audio capture. The backend provides chat via OpenRouter (500+ LLMs) with LangChain, authenticated by Clerk.
+Scribely is a multi-component AI application: a FastAPI backend, a Next.js frontend, an Electron desktop overlay (macOS-only, invisible to screen sharing), and a Chrome extension for audio capture. The backend provides chat via OpenRouter (500+ LLMs) with LangChain, authenticated by Clerk.
 
 ## Repository Layout
 

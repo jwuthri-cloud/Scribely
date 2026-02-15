@@ -1,5 +1,5 @@
 """
-Database models for AssistMe.
+Database models for Scribely.
 """
 
 from .agent import Agent

@@ -37,7 +37,7 @@ export class Transcriber {
   constructor(modelManager: ModelManager, config: TranscriptionConfig) {
     this.modelManager = modelManager
     this.config = { ...config }
-    this.tmpDir = mkdtempSync(join(tmpdir(), 'assistme-audio-'))
+    this.tmpDir = mkdtempSync(join(tmpdir(), 'scribely-audio-'))
   }
 
   get mode(): string {

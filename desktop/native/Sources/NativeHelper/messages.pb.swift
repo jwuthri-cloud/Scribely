@@ -21,49 +21,49 @@ fileprivate struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobuf.ProtobufAP
   typealias Version = _2
 }
 
-struct Assistme_ControlMessage: Sendable {
+struct Scribely_ControlMessage: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var command: Assistme_ControlMessage.OneOf_Command? = nil
+  var command: Scribely_ControlMessage.OneOf_Command? = nil
 
-  var startCapture: Assistme_StartCapture {
+  var startCapture: Scribely_StartCapture {
     get {
       if case .startCapture(let v)? = command {return v}
-      return Assistme_StartCapture()
+      return Scribely_StartCapture()
     }
     set {command = .startCapture(newValue)}
   }
 
-  var stopCapture: Assistme_StopCapture {
+  var stopCapture: Scribely_StopCapture {
     get {
       if case .stopCapture(let v)? = command {return v}
-      return Assistme_StopCapture()
+      return Scribely_StopCapture()
     }
     set {command = .stopCapture(newValue)}
   }
 
-  var pauseCapture: Assistme_PauseCapture {
+  var pauseCapture: Scribely_PauseCapture {
     get {
       if case .pauseCapture(let v)? = command {return v}
-      return Assistme_PauseCapture()
+      return Scribely_PauseCapture()
     }
     set {command = .pauseCapture(newValue)}
   }
 
-  var resumeCapture: Assistme_ResumeCapture {
+  var resumeCapture: Scribely_ResumeCapture {
     get {
       if case .resumeCapture(let v)? = command {return v}
-      return Assistme_ResumeCapture()
+      return Scribely_ResumeCapture()
     }
     set {command = .resumeCapture(newValue)}
   }
 
-  var getStatus: Assistme_GetStatus {
+  var getStatus: Scribely_GetStatus {
     get {
       if case .getStatus(let v)? = command {return v}
-      return Assistme_GetStatus()
+      return Scribely_GetStatus()
     }
     set {command = .getStatus(newValue)}
   }
@@ -71,18 +71,18 @@ struct Assistme_ControlMessage: Sendable {
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum OneOf_Command: Equatable, Sendable {
-    case startCapture(Assistme_StartCapture)
-    case stopCapture(Assistme_StopCapture)
-    case pauseCapture(Assistme_PauseCapture)
-    case resumeCapture(Assistme_ResumeCapture)
-    case getStatus(Assistme_GetStatus)
+    case startCapture(Scribely_StartCapture)
+    case stopCapture(Scribely_StopCapture)
+    case pauseCapture(Scribely_PauseCapture)
+    case resumeCapture(Scribely_ResumeCapture)
+    case getStatus(Scribely_GetStatus)
 
   }
 
   init() {}
 }
 
-struct Assistme_StartCapture: Sendable {
+struct Scribely_StartCapture: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -96,7 +96,7 @@ struct Assistme_StartCapture: Sendable {
   init() {}
 }
 
-struct Assistme_StopCapture: Sendable {
+struct Scribely_StopCapture: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -106,7 +106,7 @@ struct Assistme_StopCapture: Sendable {
   init() {}
 }
 
-struct Assistme_PauseCapture: Sendable {
+struct Scribely_PauseCapture: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -116,7 +116,7 @@ struct Assistme_PauseCapture: Sendable {
   init() {}
 }
 
-struct Assistme_ResumeCapture: Sendable {
+struct Scribely_ResumeCapture: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -126,7 +126,7 @@ struct Assistme_ResumeCapture: Sendable {
   init() {}
 }
 
-struct Assistme_GetStatus: Sendable {
+struct Scribely_GetStatus: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -136,49 +136,49 @@ struct Assistme_GetStatus: Sendable {
   init() {}
 }
 
-struct Assistme_NativeMessage: Sendable {
+struct Scribely_NativeMessage: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var payload: Assistme_NativeMessage.OneOf_Payload? = nil
+  var payload: Scribely_NativeMessage.OneOf_Payload? = nil
 
-  var audioFrame: Assistme_AudioFrame {
+  var audioFrame: Scribely_AudioFrame {
     get {
       if case .audioFrame(let v)? = payload {return v}
-      return Assistme_AudioFrame()
+      return Scribely_AudioFrame()
     }
     set {payload = .audioFrame(newValue)}
   }
 
-  var status: Assistme_StatusUpdate {
+  var status: Scribely_StatusUpdate {
     get {
       if case .status(let v)? = payload {return v}
-      return Assistme_StatusUpdate()
+      return Scribely_StatusUpdate()
     }
     set {payload = .status(newValue)}
   }
 
-  var meetingEvent: Assistme_MeetingEvent {
+  var meetingEvent: Scribely_MeetingEvent {
     get {
       if case .meetingEvent(let v)? = payload {return v}
-      return Assistme_MeetingEvent()
+      return Scribely_MeetingEvent()
     }
     set {payload = .meetingEvent(newValue)}
   }
 
-  var metrics: Assistme_MetricsUpdate {
+  var metrics: Scribely_MetricsUpdate {
     get {
       if case .metrics(let v)? = payload {return v}
-      return Assistme_MetricsUpdate()
+      return Scribely_MetricsUpdate()
     }
     set {payload = .metrics(newValue)}
   }
 
-  var error: Assistme_ErrorEvent {
+  var error: Scribely_ErrorEvent {
     get {
       if case .error(let v)? = payload {return v}
-      return Assistme_ErrorEvent()
+      return Scribely_ErrorEvent()
     }
     set {payload = .error(newValue)}
   }
@@ -186,18 +186,18 @@ struct Assistme_NativeMessage: Sendable {
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
   enum OneOf_Payload: Equatable, Sendable {
-    case audioFrame(Assistme_AudioFrame)
-    case status(Assistme_StatusUpdate)
-    case meetingEvent(Assistme_MeetingEvent)
-    case metrics(Assistme_MetricsUpdate)
-    case error(Assistme_ErrorEvent)
+    case audioFrame(Scribely_AudioFrame)
+    case status(Scribely_StatusUpdate)
+    case meetingEvent(Scribely_MeetingEvent)
+    case metrics(Scribely_MetricsUpdate)
+    case error(Scribely_ErrorEvent)
 
   }
 
   init() {}
 }
 
-struct Assistme_AudioFrame: Sendable {
+struct Scribely_AudioFrame: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -219,7 +219,7 @@ struct Assistme_AudioFrame: Sendable {
   init() {}
 }
 
-struct Assistme_StatusUpdate: Sendable {
+struct Scribely_StatusUpdate: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -236,7 +236,7 @@ struct Assistme_StatusUpdate: Sendable {
   init() {}
 }
 
-struct Assistme_MeetingEvent: Sendable {
+struct Scribely_MeetingEvent: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -253,7 +253,7 @@ struct Assistme_MeetingEvent: Sendable {
   init() {}
 }
 
-struct Assistme_MetricsUpdate: Sendable {
+struct Scribely_MetricsUpdate: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -269,7 +269,7 @@ struct Assistme_MetricsUpdate: Sendable {
   init() {}
 }
 
-struct Assistme_ErrorEvent: Sendable {
+struct Scribely_ErrorEvent: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -285,9 +285,9 @@ struct Assistme_ErrorEvent: Sendable {
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
-fileprivate let _protobuf_package = "assistme"
+fileprivate let _protobuf_package = "scribely"
 
-extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ControlMessage"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}start_capture\0\u{3}stop_capture\0\u{3}pause_capture\0\u{3}resume_capture\0\u{3}get_status\0")
 
@@ -298,7 +298,7 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try {
-        var v: Assistme_StartCapture?
+        var v: Scribely_StartCapture?
         var hadOneofValue = false
         if let current = self.command {
           hadOneofValue = true
@@ -311,7 +311,7 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
         }
       }()
       case 2: try {
-        var v: Assistme_StopCapture?
+        var v: Scribely_StopCapture?
         var hadOneofValue = false
         if let current = self.command {
           hadOneofValue = true
@@ -324,7 +324,7 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
         }
       }()
       case 3: try {
-        var v: Assistme_PauseCapture?
+        var v: Scribely_PauseCapture?
         var hadOneofValue = false
         if let current = self.command {
           hadOneofValue = true
@@ -337,7 +337,7 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
         }
       }()
       case 4: try {
-        var v: Assistme_ResumeCapture?
+        var v: Scribely_ResumeCapture?
         var hadOneofValue = false
         if let current = self.command {
           hadOneofValue = true
@@ -350,7 +350,7 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
         }
       }()
       case 5: try {
-        var v: Assistme_GetStatus?
+        var v: Scribely_GetStatus?
         var hadOneofValue = false
         if let current = self.command {
           hadOneofValue = true
@@ -398,14 +398,14 @@ extension Assistme_ControlMessage: SwiftProtobuf.Message, SwiftProtobuf._Message
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_ControlMessage, rhs: Assistme_ControlMessage) -> Bool {
+  static func ==(lhs: Scribely_ControlMessage, rhs: Scribely_ControlMessage) -> Bool {
     if lhs.command != rhs.command {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_StartCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_StartCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".StartCapture"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}capture_mic\0\u{3}capture_system\0")
 
@@ -432,7 +432,7 @@ extension Assistme_StartCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_StartCapture, rhs: Assistme_StartCapture) -> Bool {
+  static func ==(lhs: Scribely_StartCapture, rhs: Scribely_StartCapture) -> Bool {
     if lhs.captureMic != rhs.captureMic {return false}
     if lhs.captureSystem != rhs.captureSystem {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -440,7 +440,7 @@ extension Assistme_StartCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
   }
 }
 
-extension Assistme_StopCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_StopCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".StopCapture"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap()
 
@@ -453,13 +453,13 @@ extension Assistme_StopCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_StopCapture, rhs: Assistme_StopCapture) -> Bool {
+  static func ==(lhs: Scribely_StopCapture, rhs: Scribely_StopCapture) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_PauseCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_PauseCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".PauseCapture"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap()
 
@@ -472,13 +472,13 @@ extension Assistme_PauseCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_PauseCapture, rhs: Assistme_PauseCapture) -> Bool {
+  static func ==(lhs: Scribely_PauseCapture, rhs: Scribely_PauseCapture) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_ResumeCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_ResumeCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ResumeCapture"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap()
 
@@ -491,13 +491,13 @@ extension Assistme_ResumeCapture: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_ResumeCapture, rhs: Assistme_ResumeCapture) -> Bool {
+  static func ==(lhs: Scribely_ResumeCapture, rhs: Scribely_ResumeCapture) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_GetStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_GetStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".GetStatus"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap()
 
@@ -510,13 +510,13 @@ extension Assistme_GetStatus: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_GetStatus, rhs: Assistme_GetStatus) -> Bool {
+  static func ==(lhs: Scribely_GetStatus, rhs: Scribely_GetStatus) -> Bool {
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".NativeMessage"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}audio_frame\0\u{1}status\0\u{3}meeting_event\0\u{1}metrics\0\u{1}error\0")
 
@@ -527,7 +527,7 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try {
-        var v: Assistme_AudioFrame?
+        var v: Scribely_AudioFrame?
         var hadOneofValue = false
         if let current = self.payload {
           hadOneofValue = true
@@ -540,7 +540,7 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         }
       }()
       case 2: try {
-        var v: Assistme_StatusUpdate?
+        var v: Scribely_StatusUpdate?
         var hadOneofValue = false
         if let current = self.payload {
           hadOneofValue = true
@@ -553,7 +553,7 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         }
       }()
       case 3: try {
-        var v: Assistme_MeetingEvent?
+        var v: Scribely_MeetingEvent?
         var hadOneofValue = false
         if let current = self.payload {
           hadOneofValue = true
@@ -566,7 +566,7 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         }
       }()
       case 4: try {
-        var v: Assistme_MetricsUpdate?
+        var v: Scribely_MetricsUpdate?
         var hadOneofValue = false
         if let current = self.payload {
           hadOneofValue = true
@@ -579,7 +579,7 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         }
       }()
       case 5: try {
-        var v: Assistme_ErrorEvent?
+        var v: Scribely_ErrorEvent?
         var hadOneofValue = false
         if let current = self.payload {
           hadOneofValue = true
@@ -627,14 +627,14 @@ extension Assistme_NativeMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_NativeMessage, rhs: Assistme_NativeMessage) -> Bool {
+  static func ==(lhs: Scribely_NativeMessage, rhs: Scribely_NativeMessage) -> Bool {
     if lhs.payload != rhs.payload {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
 }
 
-extension Assistme_AudioFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_AudioFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".AudioFrame"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}source\0\u{3}pcm_data\0\u{3}sample_rate\0\u{3}timestamp_ms\0\u{3}num_samples\0")
 
@@ -673,7 +673,7 @@ extension Assistme_AudioFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_AudioFrame, rhs: Assistme_AudioFrame) -> Bool {
+  static func ==(lhs: Scribely_AudioFrame, rhs: Scribely_AudioFrame) -> Bool {
     if lhs.source != rhs.source {return false}
     if lhs.pcmData != rhs.pcmData {return false}
     if lhs.sampleRate != rhs.sampleRate {return false}
@@ -684,7 +684,7 @@ extension Assistme_AudioFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
   }
 }
 
-extension Assistme_StatusUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_StatusUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".StatusUpdate"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}state\0\u{3}mic_active\0\u{3}system_audio_active\0")
 
@@ -715,7 +715,7 @@ extension Assistme_StatusUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_StatusUpdate, rhs: Assistme_StatusUpdate) -> Bool {
+  static func ==(lhs: Scribely_StatusUpdate, rhs: Scribely_StatusUpdate) -> Bool {
     if lhs.state != rhs.state {return false}
     if lhs.micActive != rhs.micActive {return false}
     if lhs.systemAudioActive != rhs.systemAudioActive {return false}
@@ -724,7 +724,7 @@ extension Assistme_StatusUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
   }
 }
 
-extension Assistme_MeetingEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_MeetingEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".MeetingEvent"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}event_type\0\u{1}confidence\0\u{3}source_app\0")
 
@@ -755,7 +755,7 @@ extension Assistme_MeetingEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_MeetingEvent, rhs: Assistme_MeetingEvent) -> Bool {
+  static func ==(lhs: Scribely_MeetingEvent, rhs: Scribely_MeetingEvent) -> Bool {
     if lhs.eventType != rhs.eventType {return false}
     if lhs.confidence != rhs.confidence {return false}
     if lhs.sourceApp != rhs.sourceApp {return false}
@@ -764,7 +764,7 @@ extension Assistme_MeetingEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
   }
 }
 
-extension Assistme_MetricsUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_MetricsUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".MetricsUpdate"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}cpu_percent\0\u{3}memory_bytes\0\u{3}dropped_frames\0")
 
@@ -795,7 +795,7 @@ extension Assistme_MetricsUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_MetricsUpdate, rhs: Assistme_MetricsUpdate) -> Bool {
+  static func ==(lhs: Scribely_MetricsUpdate, rhs: Scribely_MetricsUpdate) -> Bool {
     if lhs.cpuPercent != rhs.cpuPercent {return false}
     if lhs.memoryBytes != rhs.memoryBytes {return false}
     if lhs.droppedFrames != rhs.droppedFrames {return false}
@@ -804,7 +804,7 @@ extension Assistme_MetricsUpdate: SwiftProtobuf.Message, SwiftProtobuf._MessageI
   }
 }
 
-extension Assistme_ErrorEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+extension Scribely_ErrorEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   static let protoMessageName: String = _protobuf_package + ".ErrorEvent"
   static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}code\0\u{1}message\0")
 
@@ -831,7 +831,7 @@ extension Assistme_ErrorEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  static func ==(lhs: Assistme_ErrorEvent, rhs: Assistme_ErrorEvent) -> Bool {
+  static func ==(lhs: Scribely_ErrorEvent, rhs: Scribely_ErrorEvent) -> Bool {
     if lhs.code != rhs.code {return false}
     if lhs.message != rhs.message {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}

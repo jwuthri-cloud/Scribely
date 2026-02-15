@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
 import { type ModelId, MODEL_CONFIGS } from '../types/settings'
@@ -132,6 +133,7 @@ export function InputBar({
 }: InputBarProps) {
   const [value, setValue] = useState('')
   const [showModelPicker, setShowModelPicker] = useState(false)
+  const [justSent, setJustSent] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -167,6 +169,8 @@ export function InputBar({
 
     onSend(trimmed, attachments.length > 0 ? attachments : undefined)
     setValue('')
+    setJustSent(true)
+    setTimeout(() => setJustSent(false), 1500)
     inputRef.current?.focus()
   }
 
@@ -247,7 +251,7 @@ export function InputBar({
 
       <form onSubmit={handleSubmit}>
         <div
-          className="flex items-center rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
+          className="flex items-center gap-1 rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)] min-w-0"
           style={{
             backgroundColor: 'var(--input-bg)',
             borderColor: 'var(--input-border)',
@@ -258,7 +262,7 @@ export function InputBar({
             {/* Screenshot button */}
             <IconBtnWithTooltip
               tooltip="Take screenshot (⌥S)"
-              onClick={onScreenshot}
+              onClick={onScreenshot ?? (() => {})}
               active={!!pendingScreenshot}
               color={pendingScreenshot ? 'var(--accent)' : undefined}
             >
@@ -272,7 +276,7 @@ export function InputBar({
             {/* Mic button */}
             <IconBtnWithTooltip
               tooltip="Toggle recording (⌥A)"
-              onClick={onToggleRecording}
+              onClick={onToggleRecording ?? (() => {})}
               color={isRecording ? 'var(--error)' : undefined}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -290,35 +294,38 @@ export function InputBar({
             onChange={(e) => setValue(e.target.value)}
             placeholder="Ask anything..."
             disabled={disabled}
-            className="flex-1 bg-transparent outline-none text-[13px]"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[13px]"
             style={{ color: 'var(--text)', caretColor: 'var(--accent)' }}
             autoFocus
           />
 
-          {/* Model selector chip */}
-          <div className="relative flex items-center" ref={pickerRef}>
+          {/* Model selector — truncates on narrow; dropdown scrollable */}
+          <div className="relative flex items-center shrink-0 min-w-[2.5rem]" ref={pickerRef}>
             <WithTooltip tooltip="Switch model">
               <button
                 type="button"
                 onClick={() => setShowModelPicker((prev) => !prev)}
-                className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110"
+                className="w-full px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110 max-w-[3.5rem] sm:max-w-none overflow-hidden"
                 style={{
                   borderColor: 'var(--border)',
                   color: 'var(--text-muted)',
                   backgroundColor: 'transparent',
                 }}
               >
-                {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+                <span className="block truncate">
+                  {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+                </span>
               </button>
             </WithTooltip>
             {showModelPicker && (
               <div
-                className="absolute bottom-full mb-1 rounded-lg border py-1 shadow-lg z-[9999]"
+                className="absolute bottom-full mb-1 rounded-lg border py-1 shadow-lg z-[9999] max-h-48 overflow-y-auto overflow-x-hidden"
                 style={{
                   backgroundColor: 'var(--surface)',
                   borderColor: 'var(--border)',
                   right: 0,
-                  maxWidth: 'calc(100vw - 32px)',
+                  minWidth: '10rem',
+                  maxWidth: 'min(calc(100vw - 32px), 18rem)',
                 }}
               >
                 {MODEL_OPTIONS.map((opt) => {
@@ -330,14 +337,14 @@ export function InputBar({
                         onModelChange?.(opt.id)
                         setShowModelPicker(false)
                       }}
-                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3"
+                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3 shrink-0"
                       style={{
                         color: isActive ? 'var(--accent)' : 'var(--text)',
                         fontWeight: isActive ? 600 : 400,
                       }}
                     >
                       <span className="shrink-0 w-8">{opt.label}</span>
-                      <span className="text-[9px] truncate" style={{ color: 'var(--text-muted)' }}>
+                      <span className="text-[9px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
                         {MODEL_CONFIGS[opt.id]?.description}
                       </span>
                     </button>
@@ -367,16 +374,42 @@ export function InputBar({
             <button
               type="submit"
               disabled={disabled || !value.trim()}
-              className="ml-2 flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 disabled:opacity-25 hover:brightness-110 active:scale-95"
+              className="ml-2 flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-150 disabled:opacity-25 hover:brightness-110 active:scale-95 min-w-[28px]"
               style={{
-                backgroundColor: 'var(--accent)',
+                backgroundColor: justSent ? 'var(--success)' : 'var(--accent)',
                 color: '#fff',
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 19V5" />
-                <path d="M5 12l7-7 7 7" />
-              </svg>
+              <AnimatePresence mode="wait">
+                {justSent ? (
+                  <motion.span
+                    key="sent"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    className="flex items-center justify-center"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="send"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.8, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex items-center justify-center"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 19V5" />
+                      <path d="M5 12l7-7 7 7" />
+                    </svg>
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           )}
         </div>

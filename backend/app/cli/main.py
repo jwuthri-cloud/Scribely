@@ -1,5 +1,5 @@
 """
-Main CLI entry point for AssistMe.
+Main CLI entry point for Scribely.
 """
 
 import click
@@ -25,7 +25,7 @@ console = Console()
 )
 @click.pass_context
 def cli(ctx, verbose, log_level):
-    """AssistMe CLI - Manage your AI-powered backend."""
+    """Scribely CLI - Manage your AI-powered backend."""
 
     # Ensure context object exists
     ctx.ensure_object(dict)
@@ -36,7 +36,7 @@ def cli(ctx, verbose, log_level):
     setup_cli_logging(log_level, verbose)
 
     if verbose:
-        console.print(f"[bold green]AssistMe CLI initialized[/bold green]")
+        console.print(f"[bold green]Scribely CLI initialized[/bold green]")
 
 
 # Setup all commands

@@ -1,5 +1,5 @@
 {
-  "name": "assistme-frontend",
+  "name": "scribely-frontend",
   "version": "0.1.0",
   "description": "A FastAPI + Next.js AI agent application with OpenRouter - Frontend",
   "private": true,

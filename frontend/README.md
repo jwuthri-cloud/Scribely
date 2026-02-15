@@ -1,4 +1,4 @@
-# AssistMe Frontend
+# Scribely Frontend
 
 A FastAPI + Next.js AI agent application with OpenRouter
 
@@ -58,7 +58,7 @@ src/
 
 - **Node.js**: 18.0+
 - **npm/yarn/pnpm**: Latest version
-- **Backend API**: AssistMe Backend running on port 8000
+- **Backend API**: Scribely Backend running on port 8000
 
 ### 1. Installation
 
@@ -83,7 +83,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 # NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your-clerk-publishable-key-here
 
 # App Configuration
-NEXT_PUBLIC_APP_NAME=AssistMe
+NEXT_PUBLIC_APP_NAME=Scribely
 NEXT_PUBLIC_APP_VERSION=0.1.0
 ```
 
@@ -221,8 +221,8 @@ CMD ["npm", "run", "dev"]
 
 ```bash
 # Build and run
-docker build -t assistme-frontend .
-docker run -p 3000:3000 assistme-frontend
+docker build -t scribely-frontend .
+docker run -p 3000:3000 scribely-frontend
 ```
 
 ## 🚀 Deployment

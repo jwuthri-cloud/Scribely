@@ -1,5 +1,5 @@
 """
-Health check endpoints for AssistMe.
+Health check endpoints for Scribely.
 """
 
 from datetime import datetime

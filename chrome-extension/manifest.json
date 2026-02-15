@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AssistMe Tab Capture",
+  "name": "Scribely Tab Capture",
   "version": "1.0.0",
-  "description": "Captures tab audio and video for AssistMe desktop transcription",
+  "description": "Captures tab audio and video for Scribely desktop transcription",
   "permissions": [
     "tabCapture",
     "offscreen",

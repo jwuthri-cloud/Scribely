@@ -1,5 +1,5 @@
 """
-User model for AssistMe.
+User model for Scribely.
 """
 
 import enum

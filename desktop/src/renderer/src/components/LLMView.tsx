@@ -471,7 +471,7 @@ export function LLMView() {
               >
                 {summarization.summarizerSystemPrompt
                   ? summarization.summarizerSystemPrompt.slice(0, 80) + '…'
-                  : 'Default — meeting topics, decisions, action items'}
+                  : 'Default — topic clusters, timestamps, summary'}
               </p>
             )}
           </div>

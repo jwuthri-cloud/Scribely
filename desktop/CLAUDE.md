@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AssistMe Desktop is a macOS Electron overlay app that floats above all windows and is **invisible to screen sharing**. It provides AI chat, meeting transcription (local Whisper), and screen recording via a glassmorphism UI. No dock icon — runs silently in the background.
+Scribely Desktop is a macOS Electron overlay app that floats above all windows and is **invisible to screen sharing**. It provides AI chat, meeting transcription (local Whisper), and screen recording via a glassmorphism UI. No dock icon — runs silently in the background.
 
 ## Commands
 

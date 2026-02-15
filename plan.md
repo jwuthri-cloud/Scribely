@@ -1,6 +1,6 @@
-LLM Integration Architecture — AssistMe Desktop
+LLM Integration Architecture — Scribely Desktop
 Context
-AssistMe is an Electron overlay app that captures meeting audio, transcribes it locally via Whisper, and is invisible to screen sharing. The chat system is currently a placeholder (send-message IPC returns a hardcoded string). We need to integrate OpenAI models (gpt5-nano, gpt5-mini, gpt-5.2) with real conversation memory, transcript-aware prompting, and streaming responses.
+Scribely is an Electron overlay app that captures meeting audio, transcribes it locally via Whisper, and is invisible to screen sharing. The chat system is currently a placeholder (send-message IPC returns a hardcoded string). We need to integrate OpenAI models (gpt5-nano, gpt5-mini, gpt-5.2) with real conversation memory, transcript-aware prompting, and streaming responses.
 
 The core tension: transcripts can be massive (2-hour meeting = ~48K tokens), the overlay demands low latency (user is in a live meeting), and we need the LLM to be aware of the full meeting context without blowing up cost or response time.
 
@@ -129,7 +129,7 @@ messages[3..N-1]: conversation history (user/assistant pairs)     ◄── APPE
 messages[N]: { role: 'user', content: CURRENT_QUERY }             ◄── VOLATILE
 System Prompt Template
 
-You are AssistMe, an AI meeting assistant embedded in a desktop overlay.
+You are Scribely, an AI meeting assistant embedded in a desktop overlay.
 You help users understand, navigate, and act on their meeting conversations in real time.
 
 CAPABILITIES:

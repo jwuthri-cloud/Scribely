@@ -1,5 +1,5 @@
 """
-API v1 endpoints for AssistMe.
+API v1 endpoints for Scribely.
 """
 
 from . import auth, chat, health, metrics

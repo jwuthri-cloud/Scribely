@@ -23,7 +23,7 @@ def setup():
 def init():
     """Initialize the application with all necessary setup."""
     console.print(Panel.fit(
-        "[bold blue]Initializing AssistMe[/bold blue]\n"
+        "[bold blue]Initializing Scribely[/bold blue]\n"
         "This will set up the application with default configuration.",
         title="Application Setup"
     ))
@@ -65,7 +65,7 @@ def env():
             console.print("[yellow]Environment setup cancelled[/yellow]")
             return
 
-    env_content = """# AssistMe Configuration
+    env_content = """# Scribely Configuration
 # Environment
 ENVIRONMENT=development
 DEBUG=true
@@ -73,7 +73,7 @@ LOG_LEVEL=INFO
 
 # API Configuration
 API_V1_STR=/api/v1
-PROJECT_NAME=AssistMe
+PROJECT_NAME=Scribely
 VERSION=0.1.0
 
 # Server Configuration
@@ -106,7 +106,7 @@ ENABLE_METRICS=true
 METRICS_PORT=8001
 
 # DataDog Configuration (for production JSON logging)
-DD_SERVICE=AssistMe
+DD_SERVICE=Scribely
 DD_ENV=production
 DD_VERSION=0.1.0
 """

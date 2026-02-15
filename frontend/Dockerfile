@@ -1,4 +1,4 @@
-# Frontend Dockerfile for AssistMe
+# Frontend Dockerfile for Scribely
 FROM node:18-alpine AS base
 
 # Install dependencies only when needed

@@ -1,5 +1,5 @@
 """
-Utility functions for AssistMe.
+Utility functions for Scribely.
 """
 
 from app.utils.structured_streaming import (

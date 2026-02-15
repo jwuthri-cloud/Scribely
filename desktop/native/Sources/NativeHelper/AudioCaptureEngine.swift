@@ -14,7 +14,7 @@ import ScreenCaptureKit
 ///   2. Opening a mic on Bluetooth devices (AirPods) forces HFP mode,
 ///      degrading audio output quality. Browser getUserMedia handles this properly.
 ///
-/// Emits `Assistme_AudioFrame` protobuf messages via the `onAudioFrame` callback,
+/// Emits `Scribely_AudioFrame` protobuf messages via the `onAudioFrame` callback,
 /// chunked at `Config.chunkDurationSeconds` intervals.
 final class AudioCaptureEngine {
 
@@ -31,7 +31,7 @@ final class AudioCaptureEngine {
     // ── Callbacks ───────────────────────────────────────────
 
     /// Called when an audio frame chunk is ready to send over IPC
-    var onAudioFrame: ((Assistme_AudioFrame) -> Void)?
+    var onAudioFrame: ((Scribely_AudioFrame) -> Void)?
 
     /// Called on capture errors
     var onError: ((_ code: String, _ message: String) -> Void)?
@@ -200,7 +200,7 @@ final class AudioCaptureEngine {
     // MARK: - Shared
 
     private func emitAudioFrame(source: String, samples: [Float], sampleRate: UInt32) {
-        var frame = Assistme_AudioFrame()
+        var frame = Scribely_AudioFrame()
         frame.source = source
         frame.sampleRate = sampleRate
         frame.timestampMs = UInt64(Date().timeIntervalSince1970 * 1000)

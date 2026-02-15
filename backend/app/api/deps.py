@@ -1,5 +1,5 @@
 """
-API-specific dependencies for AssistMe.
+API-specific dependencies for Scribely.
 """
 
 from typing import Optional

@@ -318,7 +318,7 @@ jobs:
         with:
           projectBaseDir: backend
           args: >
-            -Dsonar.projectKey=assistme-backend
+            -Dsonar.projectKey=scribely-backend
             -Dsonar.organization=Jwuthri
             -Dsonar.python.coverage.reportPaths=coverage.xml
             -Dsonar.python.xunit.reportPath=pytest-unit.xml
@@ -336,14 +336,14 @@ jobs:
       - name: Build Docker image
         run: |
           cd backend
-          docker build -t assistme-backend:test .
+          docker build -t scribely-backend:test .
 
       - name: Test Docker image
         run: |
           docker run --rm \
             -e DATABASE_URL=sqlite:///test.db \
             -e REDIS_URL=redis://localhost:6379 \
-            assistme-backend:test \
+            scribely-backend:test \
             python -c "import app; print('Import successful')"
 
       - name: Run container health check
@@ -352,7 +352,7 @@ jobs:
           docker run -d --name test-container \
             -p 8000:8000 \
             -e DATABASE_URL=sqlite:///test.db \
-            assistme-backend:test
+            scribely-backend:test
 
           # Wait for container to start
           sleep 10

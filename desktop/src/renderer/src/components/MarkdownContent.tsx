@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
@@ -26,16 +27,30 @@ function CodeBlockWithCopy({ code, lang }: { code: string; lang: string }) {
     <div className="relative my-1.5">
       <button
         onClick={copy}
-        className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity z-10"
+        className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity z-10 flex items-center gap-1"
         style={{
           backgroundColor: 'color-mix(in srgb, var(--surface) 90%, transparent)',
-          color: 'var(--text-muted)',
+          color: copied ? 'var(--success)' : 'var(--text-muted)',
           border: '1px solid var(--border)',
         }}
         title="Copy code"
         aria-label="Copy code"
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {copied ? (
+          <motion.span
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+            className="inline-flex items-center gap-1"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+            Copied!
+          </motion.span>
+        ) : (
+          'Copy'
+        )}
       </button>
       <SyntaxHighlighter
         language={lang}

@@ -142,7 +142,7 @@ export class ScreenRecorder {
     }
 
     try {
-      const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+      const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
       await mkdir(dir, { recursive: true })
 
       const timestamp = new Date()
@@ -242,7 +242,7 @@ export class ScreenRecorder {
     }
 
     try {
-      const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+      const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
       await mkdir(dir, { recursive: true })
 
       const timestamp = new Date()

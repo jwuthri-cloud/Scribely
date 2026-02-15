@@ -35,14 +35,14 @@ let meetingDetector = MeetingDetector()
 // ── Wire audio callbacks → IPC ──────────────────────────────
 
 audioEngine.onAudioFrame = { frame in
-    var msg = Assistme_NativeMessage()
+    var msg = Scribely_NativeMessage()
     msg.audioFrame = frame
     ipcServer.send(msg)
 }
 
 audioEngine.onError = { code, message in
-    var msg = Assistme_NativeMessage()
-    var err = Assistme_ErrorEvent()
+    var msg = Scribely_NativeMessage()
+    var err = Scribely_ErrorEvent()
     err.code = code
     err.message = message
     msg.error = err
@@ -52,7 +52,7 @@ audioEngine.onError = { code, message in
 // ── Wire meeting detector → IPC ─────────────────────────────
 
 meetingDetector.onMeetingEvent = { event in
-    var msg = Assistme_NativeMessage()
+    var msg = Scribely_NativeMessage()
     msg.meetingEvent = event
     ipcServer.send(msg)
 }
@@ -66,11 +66,11 @@ ipcServer.onControlMessage = { controlMsg in
         audioEngine.start(captureMic: start.captureMic, captureSystem: start.captureSystem)
 
         // Send status update — use actual engine state (mic may have failed to start)
-        var status = Assistme_StatusUpdate()
+        var status = Scribely_StatusUpdate()
         status.state = audioEngine.currentState.rawValue
         status.micActive = audioEngine.isMicActive
         status.systemAudioActive = start.captureSystem  // async, will update via separate status
-        var msg = Assistme_NativeMessage()
+        var msg = Scribely_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
 
@@ -81,11 +81,11 @@ ipcServer.onControlMessage = { controlMsg in
         log(.info, "StopCapture")
         audioEngine.stop()
 
-        var status = Assistme_StatusUpdate()
+        var status = Scribely_StatusUpdate()
         status.state = "idle"
         status.micActive = false
         status.systemAudioActive = false
-        var msg = Assistme_NativeMessage()
+        var msg = Scribely_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
 
@@ -95,9 +95,9 @@ ipcServer.onControlMessage = { controlMsg in
         log(.info, "PauseCapture")
         audioEngine.pause()
 
-        var status = Assistme_StatusUpdate()
+        var status = Scribely_StatusUpdate()
         status.state = "paused"
-        var msg = Assistme_NativeMessage()
+        var msg = Scribely_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
 
@@ -105,19 +105,19 @@ ipcServer.onControlMessage = { controlMsg in
         log(.info, "ResumeCapture")
         audioEngine.resume()
 
-        var status = Assistme_StatusUpdate()
+        var status = Scribely_StatusUpdate()
         status.state = "capturing"
-        var msg = Assistme_NativeMessage()
+        var msg = Scribely_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
 
     case .getStatus:
         let engineState = audioEngine.currentState
-        var status = Assistme_StatusUpdate()
+        var status = Scribely_StatusUpdate()
         status.state = engineState.rawValue
         status.micActive = audioEngine.isMicActive
         status.systemAudioActive = audioEngine.isSystemAudioActive
-        var msg = Assistme_NativeMessage()
+        var msg = Scribely_NativeMessage()
         msg.status = status
         ipcServer.send(msg)
 

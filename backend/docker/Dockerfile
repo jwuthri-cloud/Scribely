@@ -1,4 +1,4 @@
-# Backend Dockerfile for AssistMe
+# Backend Dockerfile for Scribely
 # Multi-stage build for optimal production image
 
 # Build stage

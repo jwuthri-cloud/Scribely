@@ -1,3 +1,3 @@
 """
-Background tasks for AssistMe.
+Background tasks for Scribely.
 """

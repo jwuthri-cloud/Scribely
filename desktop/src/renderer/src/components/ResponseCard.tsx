@@ -1,8 +1,15 @@
 import { useRef, useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
 import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
 import { MarkdownContent } from './MarkdownContent'
+
+/** Example prompts shown in the empty state */
+const EXAMPLE_PROMPTS = [
+  // 'Explain this in simple terms',
+  // 'Summarize the key points',
+]
 
 /** Converts an Electron accelerator to macOS-style symbols */
 function fmtKey(acc: string): string {
@@ -72,11 +79,182 @@ const VISIBLE_HOTKEYS: { key: keyof HotkeyConfig; label: string; icon: React.Rea
 interface ResponseCardProps {
   messages: ChatMessage[]
   isLoading: boolean
+  /** Called when user clicks an example prompt in the empty state */
+  onSend?: (message: string) => void
 }
 
 const TRUNCATE_LENGTH = 8000
 
-export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
+const QUICK_START_STORAGE_KEY = 'scribely-desktop-quick-start-seen'
+
+/** Simple chat bubble illustration for empty state */
+function EmptyStateIllustration() {
+  return (
+    <div className="flex justify-center gap-0.5" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+      <svg width="32" height="28" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 4h18a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8l-4 4V4z" />
+        <path d="M20 12h-4M20 16h-2" strokeWidth="1.2" />
+      </svg>
+    </div>
+  )
+}
+
+function EmptyState({
+  onSend,
+  hotkeys,
+  fmtKey,
+  visibleHotkeys,
+}: {
+  onSend?: (message: string) => void
+  hotkeys: HotkeyConfig
+  fmtKey: (acc: string) => string
+  visibleHotkeys: typeof VISIBLE_HOTKEYS
+}) {
+  const [showQuickStart, setShowQuickStart] = useState(() => {
+    try {
+      return !localStorage.getItem(QUICK_START_STORAGE_KEY)
+    } catch {
+      return false
+    }
+  })
+
+  const dismissQuickStart = () => {
+    try {
+      localStorage.setItem(QUICK_START_STORAGE_KEY, '1')
+      setShowQuickStart(false)
+    } catch {
+      setShowQuickStart(false)
+    }
+  }
+
+  const toggleKey = hotkeys.toggleOverlay ? fmtKey(hotkeys.toggleOverlay) : '⌥T'
+
+  return (
+    <div className="flex-1 flex items-center justify-center px-5">
+      <div className="w-full max-w-[280px] space-y-4">
+        {/* Logo, tagline, illustration */}
+        <motion.div
+          className="text-center space-y-2"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <EmptyStateIllustration />
+          <div className="space-y-0.5">
+            <div
+              className="font-semibold tracking-tight select-none"
+              style={{ color: 'var(--text-bright)', fontSize: 'calc(var(--font-size-base) * 1.2)' }}
+            >
+              Scribely
+            </div>
+            {/* <p
+              className="leading-relaxed"
+              style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}
+            >
+              Your AI assistant, always on top
+            </p> */}
+          </div>
+        </motion.div>
+
+        {/* Example prompts */}
+        {onSend && (
+          <motion.div
+            className="flex flex-wrap gap-1.5 justify-center"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+          >
+            {EXAMPLE_PROMPTS.map((prompt, i) => (
+              <button
+                key={prompt}
+                onClick={() => onSend(prompt)}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] transition-all duration-150 hover:brightness-110 active:scale-[0.98]"
+                style={{
+                  backgroundColor: 'var(--chip-bg)',
+                  color: 'var(--chip-text)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {prompt}
+              </button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Hotkey reference with entrance animation */}
+        <motion.div
+          className="rounded-xl p-2.5 space-y-0.5"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--surface) 60%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
+          }}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.15 }}
+        >
+          {visibleHotkeys.map(({ key, label, icon }, i) => (
+            <motion.div
+              key={key}
+              className="flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, delay: 0.2 + i * 0.04 }}
+            >
+              <div className="flex items-center gap-2">
+                <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
+                <span style={{ fontSize: 'var(--font-size-sm)' }}>{label}</span>
+              </div>
+              <kbd
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
+                style={{
+                  backgroundColor: 'var(--chip-bg)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {fmtKey(hotkeys[key])}
+              </kbd>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Quick start tip on first open */}
+        {/* <AnimatePresence>
+          {showQuickStart && (
+            <motion.div
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, delay: 0.4 }}
+            >
+              <span className="text-[10px]" style={{ color: 'var(--accent)' }}>
+                Quick start: {toggleKey} toggles overlay from anywhere
+              </span>
+              <button
+                onClick={dismissQuickStart}
+                className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Dismiss tip"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence> */}
+      </div>
+    </div>
+  )
+}
+
+export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
   const [promptModal, setPromptModal] = useState<{
@@ -112,57 +290,7 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
 
   if (messages.length === 0 && !isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center px-5">
-        <div className="w-full max-w-[260px] space-y-4">
-          {/* Logo / brand */}
-          <div className="text-center space-y-1.5">
-            <div
-              className="font-semibold tracking-tight select-none"
-              style={{ color: 'var(--text-bright)', fontSize: 'calc(var(--font-size-base) * 1.2)' }}
-            >
-              AssistMe
-            </div>
-            <p
-              className="leading-relaxed"
-              style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}
-            >
-              Type a message, pick an action, or use a shortcut
-            </p>
-          </div>
-
-          {/* Hotkey reference */}
-          <div
-            className="rounded-xl p-2.5 space-y-0.5"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--surface) 60%, transparent)',
-              border: '1px solid color-mix(in srgb, var(--border) 40%, transparent)',
-            }}
-          >
-            {VISIBLE_HOTKEYS.map(({ key, label, icon }) => (
-              <div
-                key={key}
-                className="flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>
-                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{label}</span>
-                </div>
-                <kbd
-                  className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wide"
-                  style={{
-                    backgroundColor: 'var(--chip-bg)',
-                    color: 'var(--text)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  {fmtKey(hotkeys[key])}
-                </kbd>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <EmptyState onSend={onSend} hotkeys={hotkeys} fmtKey={fmtKey} visibleHotkeys={VISIBLE_HOTKEYS} />
     )
   }
 
@@ -291,12 +419,21 @@ export function ResponseCard({ messages, isLoading }: ResponseCardProps) {
                     setTimeout(() => setCopiedMsgId(null), 1500)
                   }}
                   className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
-                  style={{ color: 'var(--text-muted)' }}
+                  style={{ color: copiedMsgId === msg.id ? 'var(--success)' : 'var(--text-muted)' }}
                   title="Copy response"
                   aria-label="Copy response"
                 >
                   {copiedMsgId === msg.id ? (
-                    <span className="text-[9px]">Copied!</span>
+                    <motion.span
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                      className="inline-flex"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                    </motion.span>
                   ) : (
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />

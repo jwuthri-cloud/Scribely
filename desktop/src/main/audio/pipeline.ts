@@ -790,7 +790,7 @@ export class AudioPipeline {
           mimeType: string
         },
       ) => {
-        const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+        const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
         await mkdir(dir, { recursive: true })
 
         const ext = payload.mimeType.includes('webm') ? 'webm' : 'mp4'
@@ -815,7 +815,7 @@ export class AudioPipeline {
         _event,
         payload: { mimeType: string },
       ) => {
-        const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+        const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
         await mkdir(dir, { recursive: true })
 
         const ext = payload.mimeType.includes('webm') ? 'webm' : 'mp4'
@@ -865,7 +865,7 @@ export class AudioPipeline {
           recordingFilepath?: string
         },
       ) => {
-        const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+        const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
         await mkdir(dir, { recursive: true })
 
         const timestamp = new Date()

@@ -158,7 +158,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
   }, [])
 
   const testClipboard = useCallback(async () => {
-    const sample = 'AssistMe clipboard test — copy works!'
+    const sample = 'Scribely clipboard test — copy works!'
     await window.electronAPI?.clipboardWriteText?.(sample)
     setClipboardTested(true)
     setTimeout(() => setClipboardTested(false), 2000)
@@ -361,7 +361,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
             <Section title="Chrome Extension">
               <div className="space-y-3">
                 <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  For meeting transcription from Google Meet, Zoom, etc., install the AssistMe Tab
+                  For meeting transcription from Google Meet, Zoom, etc., install the Scribely Tab
                   Capture extension. It streams tab audio to the desktop app.
                 </p>
                 <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
@@ -399,7 +399,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
                   <button
                     onClick={() =>
                       openUrl(
-                        'https://github.com/julienwuthrich/assistme/tree/main/chrome-extension',
+                        'https://github.com/julienwuthrich/scribely/tree/main/chrome-extension',
                       )
                     }
                     className="text-[10px] px-2 py-1 rounded-md border transition-colors hover:brightness-110"

@@ -1,5 +1,5 @@
 """
-Pydantic models for AssistMe.
+Pydantic models for Scribely.
 """
 
 from .base import *

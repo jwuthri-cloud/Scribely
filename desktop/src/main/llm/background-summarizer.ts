@@ -7,6 +7,7 @@
  */
 
 import type OpenAI from 'openai'
+import { DEFAULT_SUMMARIZER_SYSTEM_PROMPT } from '../../shared/summarizer-defaults'
 import { TranscriptMemory } from './transcript-memory'
 
 interface TranscriptEntry {
@@ -20,14 +21,6 @@ interface TranscriptEntry {
 
 const GPT5_NANO_MODEL = 'gpt-5-nano'
 const DEFAULT_KEEP_RAW_COUNT = 5
-
-const DEFAULT_SUMMARIZE_SYSTEM = `You are a meeting transcript summarizer. Produce a concise summary that captures:
-- Main topics discussed
-- Key decisions or conclusions
-- Action items or follow-ups mentioned
-- Important context for later questions
-
-Keep the summary under 500 words. Use clear paragraphs. Do not include timestamps.`
 
 function formatEntry(entry: TranscriptEntry): string {
   const min = Math.floor(entry.startTime / 60000)
@@ -59,7 +52,7 @@ export async function runBackgroundSummarization(
   input: SummarizerInput,
 ): Promise<SummarizerResult> {
   const { client, transcriptMemory, entries, keepRawCount = DEFAULT_KEEP_RAW_COUNT, systemPrompt } = input
-  const summarizeSystem = systemPrompt?.trim() || DEFAULT_SUMMARIZE_SYSTEM
+  const summarizeSystem = systemPrompt?.trim() || DEFAULT_SUMMARIZER_SYSTEM_PROMPT
 
   // Keep a small number of the most recent entries unsummarized so they
   // remain available verbatim. Use the smaller of keepRawCount or 20% of

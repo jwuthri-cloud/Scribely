@@ -1,5 +1,5 @@
 """
-AssistMe - FastAPI Backend
+Scribely - FastAPI Backend
 A FastAPI + Next.js AI agent application with OpenRouter
 """
 

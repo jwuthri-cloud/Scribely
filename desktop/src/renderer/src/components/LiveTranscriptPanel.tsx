@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { SpeakerLabel } from './SpeakerLabel'
 import { AudioWaveform } from './AudioWaveform'
 import type { TranscriptEntry } from '../types/transcript'
@@ -27,6 +27,21 @@ function formatTime(ms: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+function formatTranscriptForCopy(entries: TranscriptEntry[]): string {
+  const grouped: { speaker: string; entries: TranscriptEntry[] }[] = []
+  for (const entry of entries) {
+    const last = grouped[grouped.length - 1]
+    if (last && last.speaker === entry.speaker) {
+      last.entries.push(entry)
+    } else {
+      grouped.push({ speaker: entry.speaker, entries: [entry] })
+    }
+  }
+  return grouped
+    .map((g) => `[${formatTime(g.entries[0].startTime)}] ${g.speaker}: ${g.entries.map((e) => e.text).join(' ')}`)
+    .join('\n\n')
+}
+
 export function LiveTranscriptPanel({
   entries,
   isActive,
@@ -43,9 +58,15 @@ export function LiveTranscriptPanel({
   nativeAvailable = false,
   extensionConnected = false,
 }: LiveTranscriptPanelProps) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
+  const handleCopy = useCallback(async () => {
+    await window.electronAPI?.clipboardWriteText?.(formatTranscriptForCopy(entries))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [entries])
 
   // Auto-scroll transcript when expanded
   useEffect(() => {
@@ -120,6 +141,35 @@ export function LiveTranscriptPanel({
           >
             Live Transcript
           </span>
+        )}
+
+        {/* Copy transcript button (when expanded and has entries) */}
+        {expanded && entries.length > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleCopy()
+            }}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium hover:bg-[var(--surface-hover)] flex items-center gap-1 shrink-0"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {copied ? (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+                Copied!
+              </>
+            ) : (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                Copy
+              </>
+            )}
+          </button>
         )}
 
         {/* Badges */}

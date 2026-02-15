@@ -14,11 +14,93 @@ import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useMeetingTranscript } from '../hooks/useMeetingTranscript'
 import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
+import { MarkdownContent } from './MarkdownContent'
 import type { ChatAttachment } from '../types'
 import type { ModelId } from '../types/settings'
 import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings'
+
+function SummaryModal({ content, onClose }: { content: string | null; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(async () => {
+    const text = content ?? 'No summary available.'
+    await window.electronAPI?.clipboardWriteText?.(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }, [content])
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="summary-modal-title"
+    >
+      <div
+        className="rounded-xl border shadow-xl max-w-lg w-full max-h-[70vh] overflow-hidden flex flex-col"
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <h3 id="summary-modal-title" className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+            Transcript Summary
+          </h3>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleCopy}
+              className="px-2 py-1 rounded-lg text-xs font-medium hover:bg-[var(--surface-hover)] flex items-center gap-1.5"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              {copied ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  Copy summary
+                </>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg hover:bg-[var(--surface-hover)]"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div
+          className="flex-1 overflow-y-auto p-4 text-[13px] leading-relaxed"
+          style={{ color: 'var(--text)' }}
+        >
+          {content ? (
+            <MarkdownContent content={content} />
+          ) : (
+            <span className="whitespace-pre-wrap">No summary available.</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
@@ -462,7 +544,7 @@ export function Overlay() {
                 </div>
               )}
 
-              <ResponseCard messages={messages} isLoading={isLoading} />
+              <ResponseCard messages={messages} isLoading={isLoading} onSend={handleSend} />
 
               {/* Summarize feedback */}
               {summarizeFeedback && (
@@ -524,47 +606,10 @@ export function Overlay() {
 
               {/* Summary modal */}
               {showSummaryModal && (
-                <div
-                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                  style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-                  onClick={() => setShowSummaryModal(false)}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="summary-modal-title"
-                >
-                  <div
-                    className="rounded-xl border shadow-xl max-w-lg w-full max-h-[70vh] overflow-hidden flex flex-col"
-                    style={{
-                      backgroundColor: 'var(--surface)',
-                      borderColor: 'var(--border)',
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div
-                      className="flex items-center justify-between px-4 py-3 border-b shrink-0"
-                      style={{ borderColor: 'var(--border)' }}
-                    >
-                      <h3 id="summary-modal-title" className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                        Transcript Summary
-                      </h3>
-                      <button
-                        onClick={() => setShowSummaryModal(false)}
-                        className="p-1 rounded-lg hover:bg-[var(--surface-hover)]"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div
-                      className="flex-1 overflow-y-auto p-4 text-[13px] leading-relaxed whitespace-pre-wrap"
-                      style={{ color: 'var(--text)' }}
-                    >
-                      {summaryContent ?? 'No summary available.'}
-                    </div>
-                  </div>
-                </div>
+                <SummaryModal
+                  content={summaryContent}
+                  onClose={() => setShowSummaryModal(false)}
+                />
               )}
               {/* Context utilization indicator */}
               {contextUsage && contextUsage.contextWindow > 0 && (

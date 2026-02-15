@@ -1,6 +1,6 @@
-# 🚀 Contributing to AssistMe
+# 🚀 Contributing to Scribely
 
-Welcome to the AssistMe contribution hub! This directory contains templates and workflows to help make contributing smooth and efficient.
+Welcome to the Scribely contribution hub! This directory contains templates and workflows to help make contributing smooth and efficient.
 
 ## 📝 Issue Templates
 
@@ -105,7 +105,7 @@ Our CI/CD pipelines automatically:
 ## 💡 Tips for Contributors
 
 ### Getting Help
-- 💬 Use [Discussions](https://github.com/Jwuthri/assistme/discussions) for questions
+- 💬 Use [Discussions](https://github.com/Jwuthri/scribely/discussions) for questions
 - 🏷️ Look for `good first issue` labels
 - 📖 Check our guides in `/backend/guides/`
 - 🤝 Don't hesitate to ask for help in issues/PRs
@@ -124,7 +124,7 @@ Our CI/CD pipelines automatically:
 
 ## 🙏 Thank You!
 
-Every contribution makes AssistMe better. Whether it's:
+Every contribution makes Scribely better. Whether it's:
 - 🐛 Reporting bugs
 - ✨ Adding features
 - 📚 Improving docs

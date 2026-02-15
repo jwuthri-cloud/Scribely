@@ -109,7 +109,7 @@ interface PersistedConversation {
 
 // ── Default system prompt ─────────────────────────────────
 
-const DEFAULT_SYSTEM_PROMPT = `You are AssistMe, an AI meeting assistant embedded in a desktop overlay.
+const DEFAULT_SYSTEM_PROMPT = `You are Scribely, an AI meeting assistant embedded in a desktop overlay.
 You help users understand, navigate, and act on their meeting conversations in real time.
 
 CAPABILITIES:

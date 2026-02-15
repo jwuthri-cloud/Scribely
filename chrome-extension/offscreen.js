@@ -1,5 +1,5 @@
 /**
- * Offscreen document for AssistMe Tab Capture.
+ * Offscreen document for Scribely Tab Capture.
  *
  * This document runs in a hidden context and has access to:
  * - navigator.mediaDevices.getUserMedia (with tab capture stream ID)
@@ -48,7 +48,7 @@ function connectWebSocket(port) {
 
     socket.onerror = (err) => {
       console.error('[offscreen] WebSocket error:', err)
-      reject(new Error('WebSocket connection failed — is AssistMe running?'))
+      reject(new Error('WebSocket connection failed — is Scribely running?'))
     }
 
     socket.onmessage = (event) => {

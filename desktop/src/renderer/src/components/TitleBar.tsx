@@ -90,7 +90,7 @@ export function TitleBar({
     }
   }
 
-  const viewTitle = view === 'settings' ? 'Settings' : view === 'llm' ? 'LLM' : 'AssistMe'
+  const viewTitle = view === 'settings' ? 'Settings' : view === 'llm' ? 'LLM' : 'Scribely'
 
   return (
     <div

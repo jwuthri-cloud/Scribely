@@ -1,3 +1,3 @@
 """
-Business services for AssistMe.
+Business services for Scribely.
 """

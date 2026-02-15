@@ -1,6 +1,6 @@
 # Testing Guide
 
-Comprehensive testing setup for AssistMe backend.
+Comprehensive testing setup for Scribely backend.
 
 ## 🚀 Quick Start
 

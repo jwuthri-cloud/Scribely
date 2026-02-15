@@ -1,5 +1,5 @@
 """
-Security utilities for AssistMe.
+Security utilities for Scribely.
 """
 
 from app.security.clerk_auth import (
