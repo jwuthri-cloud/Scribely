@@ -187,3 +187,21 @@ kbd {
 .no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* ──────────────────────────────────────────────
+   Empty state illustration animation
+   ────────────────────────────────────────────── */
+@keyframes empty-state-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.empty-state-illustration {
+  animation: empty-state-pulse 2.5s ease-in-out infinite;
+}

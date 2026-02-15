@@ -7,6 +7,7 @@
  */
 
 import type OpenAI from 'openai'
+import { propagateAttributes } from '@langfuse/tracing'
 import { DEFAULT_SUMMARIZER_SYSTEM_PROMPT } from '../../shared/summarizer-defaults'
 import { TranscriptMemory } from './transcript-memory'
 
@@ -37,6 +38,10 @@ export interface SummarizerInput {
   keepRawCount?: number
   /** Custom system prompt. Null/undefined = use default. */
   systemPrompt?: string | null
+  /** Langfuse userId for trace filtering (e.g. device ID) */
+  userId?: string
+  /** Langfuse sessionId for trace grouping */
+  sessionId?: string
 }
 
 export interface SummarizerResult {
@@ -51,7 +56,15 @@ export interface SummarizerResult {
 export async function runBackgroundSummarization(
   input: SummarizerInput,
 ): Promise<SummarizerResult> {
-  const { client, transcriptMemory, entries, keepRawCount = DEFAULT_KEEP_RAW_COUNT, systemPrompt } = input
+  const {
+    client,
+    transcriptMemory,
+    entries,
+    keepRawCount = DEFAULT_KEEP_RAW_COUNT,
+    systemPrompt,
+    userId,
+    sessionId,
+  } = input
   const summarizeSystem = systemPrompt?.trim() || DEFAULT_SUMMARIZER_SYSTEM_PROMPT
 
   // Keep a small number of the most recent entries unsummarized so they
@@ -97,18 +110,26 @@ export async function runBackgroundSummarization(
       ? `PREVIOUS SUMMARY (for context — extend/update with new content):\n${previousSummary}\n\n---\n\nNEW TRANSCRIPT TO SUMMARIZE:\n${formatted}`
       : `TRANSCRIPT TO SUMMARIZE:\n${formatted}`
 
-    const response = await client.chat.completions.create({
-      model: GPT5_NANO_MODEL,
-      messages: [
-        { role: 'system', content: summarizeSystem },
-        { role: 'user', content: userContent },
-      ],
-      // gpt-5-nano is a reasoning model — reasoning tokens + output tokens
-      // must both fit within max_completion_tokens. 1024 was entirely consumed
-      // by reasoning, leaving 0 for output. 4096 gives plenty of room.
-      max_completion_tokens: 4096,
-      reasoning_effort: 'low',
-    })
+    const doSummarize = async () =>
+      client.chat.completions.create({
+        model: GPT5_NANO_MODEL,
+        messages: [
+          { role: 'system', content: summarizeSystem },
+          { role: 'user', content: userContent },
+        ],
+        // gpt-5-nano is a reasoning model — reasoning tokens + output tokens
+        // must both fit within max_completion_tokens. 1024 was entirely consumed
+        // by reasoning, leaving 0 for output. 4096 gives plenty of room.
+        max_completion_tokens: 4096,
+        reasoning_effort: 'low',
+      })
+
+    const response = await (userId || sessionId
+      ? propagateAttributes(
+          { ...(userId && { userId }), ...(sessionId && { sessionId }) },
+          doSummarize,
+        )
+      : doSummarize())
 
     // Log the full response structure for debugging
     console.log(

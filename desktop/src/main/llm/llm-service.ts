@@ -1,5 +1,7 @@
 import OpenAI from 'openai'
 import { observeOpenAI } from '@langfuse/openai'
+import { propagateAttributes } from '@langfuse/tracing'
+import { machineIdSync } from 'node-machine-id'
 import Store from 'electron-store'
 import { BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { PromptAssembler } from './prompt-assembler'
@@ -109,6 +111,21 @@ interface PersistedConversation {
 
 // ── Default system prompt ─────────────────────────────────
 
+// const DEFAULT_SYSTEM_PROMPT = `You are Scribely, an AI meeting assistant embedded in a desktop overlay.
+// You help users understand, navigate, and act on their meeting conversations in real time.
+
+// CAPABILITIES:
+// - You have access to the live meeting transcript (embedded chronologically in the conversation)
+// - You can summarize discussions, explain topics, draft follow-ups, and answer questions
+// - You can see screenshots the user attaches
+
+// BEHAVIOR:
+// - Be concise. The user is in a live meeting and needs quick answers.
+// - Default to 2-3 sentence responses unless asked for detail.
+// - When referencing the transcript, cite the speaker name and approximate time.
+// - If the transcript doesn't contain enough information to answer, say so clearly.
+// - Format with markdown when helpful (lists, bold for emphasis).`
+
 const DEFAULT_SYSTEM_PROMPT = `You are Scribely, an AI meeting assistant embedded in a desktop overlay.
 You help users understand, navigate, and act on their meeting conversations in real time.
 
@@ -117,12 +134,26 @@ CAPABILITIES:
 - You can summarize discussions, explain topics, draft follow-ups, and answer questions
 - You can see screenshots the user attaches
 
-BEHAVIOR:
-- Be concise. The user is in a live meeting and needs quick answers.
-- Default to 2-3 sentence responses unless asked for detail.
-- When referencing the transcript, cite the speaker name and approximate time.
-- If the transcript doesn't contain enough information to answer, say so clearly.
-- Format with markdown when helpful (lists, bold for emphasis).`
+PRIMARY GOAL:
+Deliver fast, high-signal responses suitable for live meetings.
+
+RESPONSE STYLE:
+- Default to the shortest answer that fully addresses the request.
+- Target 1 - 2 short sentences unless the user explicitly asks for more detail.
+- Prefer clarity over completeness when time pressure is implied.
+- Avoid filler, hedging, repetition, or background explanation unless requested.
+- Expand only when the user signals they want deeper detail.
+
+TRANSCRIPT USAGE:
+- When referencing transcript content, cite speaker name and approximate time.
+- If the transcript lacks enough information, say so clearly and briefly.
+- Do not speculate or invent context.
+
+FORMAT:
+- Use lightweight markdown only when it improves scan speed or asking for coding help.
+- Prioritize readability and quick comprehension.
+
+Your responses should feel immediate, focused, and optimized for real-time use.`;
 
 // ── LLMService ────────────────────────────────────────────
 
@@ -142,6 +173,9 @@ export class LLMService {
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
+
+  // Cached device ID for Langfuse userId (stable per machine)
+  private deviceUserId: string | null = null
 
   // Usage tracking for LLM tab (reset on conversation reset)
   private sessionUsage = {
@@ -228,6 +262,18 @@ export class LLMService {
       const base = new OpenAI({ apiKey })
       this.client = observeOpenAI(base) as unknown as OpenAI
     }
+  }
+
+  /** Stable device ID for Langfuse userId (enables filtering by user in Langfuse). */
+  private getDeviceUserId(): string {
+    if (!this.deviceUserId) {
+      try {
+        this.deviceUserId = machineIdSync()
+      } catch {
+        this.deviceUserId = `desktop-${crypto.randomUUID()}`
+      }
+    }
+    return this.deviceUserId
   }
 
   /** Decrypt API key from store. Migrates plain-text keys to encrypted on first read. */
@@ -536,50 +582,58 @@ export class LLMService {
     const startTime = Date.now()
 
     try {
-      const stream = await this.client.chat.completions.create(
-        requestParams as any,
-        { signal: abortController.signal },
-      )
+      await propagateAttributes(
+        {
+          userId: this.getDeviceUserId(),
+          sessionId: this.sessionId,
+        },
+        async () => {
+          const stream = await this.client!.chat.completions.create(
+            requestParams as any,
+            { signal: abortController.signal },
+          )
 
-      let fullContent = ''
-      let chunkIndex = 0
-      let usage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
+          let fullContent = ''
+          let chunkIndex = 0
+          let usage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
 
-      for await (const chunk of stream as any) {
-        const delta = chunk.choices[0]?.delta?.content
-        if (delta) {
-          fullContent += delta
-          this.sendDelta(request.requestId, delta, chunkIndex++)
-        }
+          for await (const chunk of stream as any) {
+            const delta = chunk.choices[0]?.delta?.content
+            if (delta) {
+              fullContent += delta
+              this.sendDelta(request.requestId, delta, chunkIndex++)
+            }
 
-        if (chunk.usage) {
-          usage = {
-            promptTokens: chunk.usage.prompt_tokens,
-            completionTokens: chunk.usage.completion_tokens,
-            cachedTokens:
-              (chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
+            if (chunk.usage) {
+              usage = {
+                promptTokens: chunk.usage.prompt_tokens,
+                completionTokens: chunk.usage.completion_tokens,
+                cachedTokens:
+                  (chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0,
+              }
+            }
           }
-        }
-      }
 
-      // Store assistant message
-      const assistantMsg: ConversationMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: fullContent,
-        timestamp: Date.now(),
-        tokenCount: this.tokenCounter.count(fullContent),
-        model: this.currentModel,
-      }
-      this.conversationMessages.push(assistantMsg)
+          // Store assistant message
+          const assistantMsg: ConversationMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: fullContent,
+            timestamp: Date.now(),
+            tokenCount: this.tokenCounter.count(fullContent),
+            model: this.currentModel,
+          }
+          this.conversationMessages.push(assistantMsg)
 
-      // Persist assistant message to disk
-      this.persistConversation()
+          // Persist assistant message to disk
+          this.persistConversation()
 
-      this.sendDone(request.requestId, fullContent, usage, startTime)
+          this.sendDone(request.requestId, fullContent, usage, startTime)
 
-      // Phase 2: maybe trigger background summarization (async, non-blocking)
-      this.maybeTriggerSummarization(modelConfig.contextWindow)
+          // Phase 2: maybe trigger background summarization (async, non-blocking)
+          this.maybeTriggerSummarization(modelConfig.contextWindow)
+        },
+      )
     } catch (err: any) {
       // Remove the user message from conversation on error
       // (so the user can retry without duplicates)
@@ -685,6 +739,8 @@ export class LLMService {
       entries,
       keepRawCount,
       systemPrompt: summarizerSystemPrompt,
+      userId: this.getDeviceUserId(),
+      sessionId: this.sessionId,
     })
   }
 

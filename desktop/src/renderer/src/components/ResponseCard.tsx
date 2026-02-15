@@ -87,10 +87,42 @@ const TRUNCATE_LENGTH = 8000
 
 const QUICK_START_STORAGE_KEY = 'scribely-desktop-quick-start-seen'
 
-/** Simple chat bubble illustration for empty state */
+/** Optional image for empty state. Prefer empty-state.gif (animated) or use scribely-empty-state.svg. */
+const emptyStateGif = import.meta.glob('../assets/empty-state.gif', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+const emptyStateSvg = import.meta.glob('../assets/scribely-empty-state.svg', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+const EMPTY_STATE_IMAGE_URL =
+  (Object.values(emptyStateGif)[0] as string | undefined) ??
+  (Object.values(emptyStateSvg)[0] as string | undefined) ??
+  null
+
+/** Small animated illustration for empty state — uses GIF/image if present, else inline SVG */
 function EmptyStateIllustration() {
+  if (EMPTY_STATE_IMAGE_URL) {
+    return (
+      <div className="flex justify-center empty-state-illustration">
+        <img
+          src={EMPTY_STATE_IMAGE_URL}
+          alt=""
+          className="w-8 h-7 object-contain"
+          width={32}
+          height={28}
+        />
+      </div>
+    )
+  }
   return (
-    <div className="flex justify-center gap-0.5" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>
+    <div
+      className="flex justify-center gap-0.5 empty-state-illustration"
+      style={{ color: 'var(--text-muted)' }}
+    >
       <svg width="32" height="28" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 4h18a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8l-4 4V4z" />
         <path d="M20 12h-4M20 16h-2" strokeWidth="1.2" />
