@@ -25,6 +25,54 @@ const EMPTY_STATE_IMAGE_URL =
   (Object.values(emptyStateSvg)[0] as string | undefined) ??
   null
 
+/** Small icon button with tooltip for compact input toolbar */
+function IconBtn({
+  tooltip,
+  onClick,
+  active,
+  color,
+  children,
+}: {
+  tooltip: string
+  onClick: () => void
+  active?: boolean
+  color?: string
+  children: React.ReactNode
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button
+        type="button"
+        className="flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-150 hover:bg-[var(--surface-hover)]"
+        style={{ color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)') }}
+        onClick={onClick}
+        aria-label={tooltip}
+        title={tooltip}
+      >
+        {children}
+      </button>
+      {hovered && (
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-50"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface CompactChatViewProps {
   messages: ChatMessage[]
   isLoading: boolean
@@ -39,6 +87,9 @@ interface CompactChatViewProps {
   pendingScreenshot?: string | null
   onClearScreenshot?: () => void
   onScreenshot?: () => void
+  isRecording?: boolean
+  onToggleRecording?: () => void
+  onToggleCompactMode?: () => void
 }
 
 /**
@@ -62,6 +113,9 @@ export function CompactChatView({
   pendingScreenshot,
   onClearScreenshot,
   onScreenshot,
+  isRecording = false,
+  onToggleRecording,
+  onToggleCompactMode,
 }: CompactChatViewProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -135,6 +189,7 @@ export function CompactChatView({
         onFocusInput={handleFocusInput}
         onSetView={onSetView}
         onClose={handleClose}
+        onToggleCompactMode={onToggleCompactMode}
       />
 
       {/* ── Thin separator ── */}
@@ -316,23 +371,53 @@ export function CompactChatView({
 
         <form onSubmit={handleSubmit}>
           <div
-            className="flex items-center gap-2 rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
+            className="flex items-center gap-1 rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
             style={{
               backgroundColor: 'var(--input-bg)',
               borderColor: 'var(--input-border)',
             }}
           >
+            {/* Toolbar: screenshot + voice */}
+            <div className="flex items-center gap-0.5 mr-2 shrink-0">
+              <IconBtn
+                tooltip="Screenshot (⌥S)"
+                onClick={onScreenshot ?? (() => {})}
+                active={!!pendingScreenshot}
+                color={pendingScreenshot ? 'var(--accent)' : undefined}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M3 8h2" strokeLinecap="round" />
+                </svg>
+              </IconBtn>
+              <IconBtn
+                tooltip="Toggle recording (⌥A)"
+                onClick={onToggleRecording ?? (() => {})}
+                color={isRecording ? 'var(--error)' : undefined}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 11a7 7 0 0 0 14 0" strokeLinecap="round" />
+                  <path d="M12 19v3" strokeLinecap="round" />
+                </svg>
+              </IconBtn>
+            </div>
+
             <input
               ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Ask anything about the screen or conversation"
-              className="flex-1 min-w-0 bg-transparent outline-none text-[12px]"
+              className="flex-1 min-w-0 bg-transparent text-[12px]"
               style={{
                 color: 'var(--text)',
                 caretColor: 'var(--accent)',
-              }}
+                border: 'none',
+                outline: 'none',
+                boxShadow: 'none',
+              } as React.CSSProperties}
               autoFocus
             />
 

@@ -219,6 +219,9 @@ export interface ElectronAPI {
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
 
+  // Window hide/show
+  toggleWindowVisibility: () => Promise<void>
+
   // Onboarding
   onboardingGetCompleted: () => Promise<boolean>
   onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>

@@ -193,6 +193,9 @@ export interface ElectronAPI {
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
 
+  // ── Window hide/show ─────────────────────────────
+  toggleWindowVisibility: () => Promise<void>
+
   // ── Onboarding ───────────────────────────────────
   onboardingGetCompleted: () => Promise<boolean>
   onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
@@ -627,6 +630,11 @@ const api: ElectronAPI = {
 
   getInvisibility: () => {
     return ipcRenderer.invoke('get-invisibility')
+  },
+
+  // ── Window hide/show ─────────────────────────────
+  toggleWindowVisibility: () => {
+    return ipcRenderer.invoke('toggle-window-visibility')
   },
 
   // ── Onboarding ───────────────────────────────────

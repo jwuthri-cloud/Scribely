@@ -1,17 +1,38 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { HotkeyConfig } from '../types/settings'
-import { DEFAULT_HOTKEYS } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
-/** Converts an Electron accelerator to macOS-style symbols */
-function fmtKey(acc: string): string {
-  return acc
-    .replace(/CommandOrControl|Command/g, '⌘')
-    .replace(/Control/g, '⌃')
-    .replace(/Alt/g, '⌥')
-    .replace(/Shift/g, '⇧')
-    .replace(/\+/g, '')
+/** Wraps content with a hover tooltip */
+function TooltipWrap({
+  tooltip,
+  children,
+}: {
+  tooltip: string
+  children: React.ReactNode
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+      {hovered && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[9px] whitespace-nowrap pointer-events-none z-[9999]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Small button with a custom tooltip that renders above everything (z-[9999]) */
@@ -61,6 +82,7 @@ interface CompactNavbarProps {
   onFocusInput: () => void
   onSetView: (view: ViewId) => void
   onClose: () => void
+  onToggleCompactMode?: () => void
 }
 
 /**
@@ -74,16 +96,18 @@ export function CompactNavbar({
   onFocusInput,
   onSetView,
   onClose,
+  onToggleCompactMode,
 }: CompactNavbarProps) {
+  const [compactHovered, setCompactHovered] = useState(false)
+  const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
-  const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
 
-  // Load initial invisibility state + hotkeys
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
-    window.electronAPI?.getSettings().then((s) => {
-      if (s?.hotkeys) setHotkeys(s.hotkeys)
-    })
+  }, [])
+
+  const handleHideWindow = useCallback(() => {
+    window.electronAPI?.toggleWindowVisibility?.()
   }, [])
 
   const handleToggleInvisibility = useCallback(async () => {
@@ -91,27 +115,93 @@ export function CompactNavbar({
     if (newState !== undefined) setInvisible(newState)
   }, [])
 
-  const toggleOverlayHint = fmtKey(hotkeys.toggleOverlay)
-
   return (
     <div
       className="flex items-center gap-1.5 px-3 py-1.5 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* ── Left: Close dot + Meeting button ── */}
+      {/* ── Left: traffic-light buttons (red close, green compact) + Meeting button ── */}
       <div
         className="flex items-center gap-2"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        {/* Red: close */}
         <NavBtn
           onClick={onClose}
-          tooltip="Close"
+          tooltip="Close app"
           className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150 hover:brightness-110"
           style={{ backgroundColor: 'var(--error)' }}
           aria-label="Close"
         >
           <span />
         </NavBtn>
+
+        {/* Green: compact mode toggle (expand back to full view) */}
+        {onToggleCompactMode && (
+          <TooltipWrap tooltip="Expand to full view">
+            <button
+              className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
+              style={{
+                backgroundColor: 'var(--success)',
+                boxShadow: compactHovered ? '0 0 6px var(--success)' : 'none',
+              } as React.CSSProperties}
+              onMouseEnter={() => setCompactHovered(true)}
+              onMouseLeave={() => setCompactHovered(false)}
+              onClick={onToggleCompactMode}
+              aria-label="Expand"
+            >
+              <span />
+            </button>
+          </TooltipWrap>
+        )}
+
+        {/* Blue: hide/show window */}
+        <TooltipWrap tooltip="Hide window (use hotkey to show again)">
+          <button
+            className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
+            style={{
+              backgroundColor: 'var(--accent)',
+              boxShadow: hiddenHovered ? '0 0 6px var(--accent)' : 'none',
+            } as React.CSSProperties}
+            onMouseEnter={() => setHiddenHovered(true)}
+            onMouseLeave={() => setHiddenHovered(false)}
+            onClick={handleHideWindow}
+            aria-label="Hide window"
+          >
+            <span />
+          </button>
+        </TooltipWrap>
+
+        {/* Invisible/show: screen share visibility */}
+        <TooltipWrap
+          tooltip={
+            invisible
+              ? 'Hidden from screen share — click to make visible'
+              : 'Visible in screen share — click to hide'
+          }
+        >
+          <button
+            className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+            style={{
+              color: invisible ? 'var(--text-muted)' : 'var(--accent)',
+              WebkitAppRegion: 'no-drag',
+            } as React.CSSProperties}
+            onClick={handleToggleInvisibility}
+            aria-label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
+          >
+            {invisible ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                <line x1="1" y1="1" x2="23" y2="23" strokeWidth="1.8" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </TooltipWrap>
 
         {/* Meeting button — pill-shaped, labeled, clear state */}
         {meetingActive ? (
@@ -199,49 +289,6 @@ export function CompactNavbar({
             }}
           >
             ⌘⏎
-          </kbd>
-        </NavBtn>
-
-        {/* Show/Hide (invisibility toggle) with visible hotkey badge */}
-        <NavBtn
-          onClick={handleToggleInvisibility}
-          tooltip={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
-          style={{ color: invisible ? 'var(--text-muted)' : 'var(--accent)' }}
-        >
-          {invisible ? (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
-            </svg>
-          )}
-          <span>{invisible ? 'Hidden' : 'Visible'}</span>
-          <kbd
-            className="px-1 py-px rounded text-[9px] font-mono leading-none"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--text-muted) 20%, transparent)',
-              color: 'var(--text)',
-              border: '1px solid color-mix(in srgb, var(--text-muted) 35%, transparent)',
-            }}
-          >
-            {toggleOverlayHint}
           </kbd>
         </NavBtn>
 

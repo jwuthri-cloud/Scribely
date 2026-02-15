@@ -290,7 +290,7 @@ export function InputBar({
           {/* Toolbar buttons */}
           <div className="flex items-center gap-0.5 mr-2">
             <IconBtnWithTooltip
-              tooltip="Take screenshot (⌥S)"
+              tooltip="Screenshot (⌥S)"
               onClick={onScreenshot ?? (() => {})}
               active={!!pendingScreenshot}
               color={pendingScreenshot ? 'var(--accent)' : undefined}

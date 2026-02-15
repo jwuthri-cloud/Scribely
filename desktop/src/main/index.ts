@@ -354,6 +354,20 @@ function registerIpcHandlers(): void {
     }
   })
 
+  // ── Window hide/show (blue button) ─────────────────
+  ipcMain.handle('toggle-window-visibility', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isVisible()) {
+      mainWindow.webContents.send('toggle-visibility', false)
+      setTimeout(() => {
+        if (!mainWindow?.isDestroyed()) mainWindow.hide()
+      }, 200)
+    } else {
+      mainWindow.show()
+      mainWindow.webContents.send('toggle-visibility', true)
+    }
+  })
+
   // ── App lifecycle ─────────────────────────────────
   ipcMain.on('app-quit', () => {
     app.quit()

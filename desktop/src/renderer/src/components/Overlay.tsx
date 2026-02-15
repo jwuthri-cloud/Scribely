@@ -439,6 +439,10 @@ export function Overlay() {
     setView(v)
   }, [])
 
+  const handleToggleCompactMode = useCallback(() => {
+    window.electronAPI?.updateSettings?.({ compactMode: !compactMode })
+  }, [compactMode])
+
   const handleReset = useCallback(() => {
     resetChat()
     setTimeout(() => {
@@ -507,6 +511,9 @@ export function Overlay() {
                 pendingScreenshot={pendingScreenshot}
                 onClearScreenshot={() => setPendingScreenshot(null)}
                 onScreenshot={handleScreenshot}
+                isRecording={stt.isRecording}
+                onToggleRecording={stt.toggleRecording}
+                onToggleCompactMode={handleToggleCompactMode}
               />
 
               {/* Summary modal (still accessible in compact mode) */}
@@ -539,6 +546,8 @@ export function Overlay() {
                 meetingActive={meetingActive}
                 meetingDuration={recorder.formattedDuration}
                 onToggleMeeting={handleToggleMeeting}
+                compactMode={compactMode}
+                onToggleCompactMode={handleToggleCompactMode}
               />
 
               {/* Subtle separator */}

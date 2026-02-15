@@ -2,6 +2,39 @@ import { useState, useEffect, useCallback } from 'react'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
+/** Wraps content with a hover tooltip */
+function TooltipWrap({
+  tooltip,
+  children,
+}: {
+  tooltip: string
+  children: React.ReactNode
+}) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+      {hovered && (
+        <div
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-50"
+          style={{
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          {tooltip}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface TitleBarProps {
   view: ViewId
   onSetView: (view: ViewId) => void
@@ -9,6 +42,8 @@ interface TitleBarProps {
   meetingActive?: boolean
   meetingDuration?: string
   onToggleMeeting?: () => void
+  compactMode?: boolean
+  onToggleCompactMode?: () => void
 }
 
 /** Small icon button used in the title bar with a custom tooltip */
@@ -70,13 +105,20 @@ export function TitleBar({
   meetingActive,
   meetingDuration = '00:00',
   onToggleMeeting,
+  compactMode = false,
+  onToggleCompactMode,
 }: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
+  const [compactHovered, setCompactHovered] = useState(false)
+  const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
 
-  // Load initial invisibility state
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
+  }, [])
+
+  const handleHideWindow = useCallback(() => {
+    window.electronAPI?.toggleWindowVisibility?.()
   }, [])
 
   const handleToggleInvisibility = useCallback(async () => {
@@ -99,20 +141,139 @@ export function TitleBar({
       className="flex items-center justify-between px-4 py-2 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      {/* Left side: close button + back arrow (when not in chat) */}
+      {/* Left side: traffic-light buttons (red close, green compact) + back arrow (when not in chat) */}
       <div className="flex items-center gap-2">
-        <button
-          className="w-3 h-3 rounded-full transition-all duration-150"
-          style={{
-            backgroundColor: closeHovered ? 'var(--error)' : 'var(--border)',
-            boxShadow: closeHovered ? '0 0 6px var(--error)' : 'none',
-            WebkitAppRegion: 'no-drag',
-          } as React.CSSProperties}
-          onMouseEnter={() => setCloseHovered(true)}
-          onMouseLeave={() => setCloseHovered(false)}
-          onClick={handleClose}
-          aria-label="Close"
-        />
+        <div className="flex items-center gap-1.5" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Red: close */}
+          <TooltipWrap tooltip="Close app">
+            <button
+              className="w-3 h-3 rounded-full transition-all duration-150"
+              style={{
+                backgroundColor: 'var(--error)',
+                boxShadow: closeHovered ? '0 0 6px var(--error)' : 'none',
+              } as React.CSSProperties}
+              onMouseEnter={() => setCloseHovered(true)}
+              onMouseLeave={() => setCloseHovered(false)}
+              onClick={handleClose}
+              aria-label="Close"
+            />
+          </TooltipWrap>
+          {/* Green: compact mode toggle */}
+          {onToggleCompactMode && (
+            <TooltipWrap tooltip={compactMode ? 'Expand to full view' : 'Compact mode'}>
+              <button
+                className="w-3 h-3 rounded-full transition-all duration-150"
+                style={{
+                  backgroundColor: 'var(--success)',
+                  boxShadow: compactHovered ? '0 0 6px var(--success)' : 'none',
+                } as React.CSSProperties}
+                onMouseEnter={() => setCompactHovered(true)}
+                onMouseLeave={() => setCompactHovered(false)}
+                onClick={onToggleCompactMode}
+                aria-label={compactMode ? 'Expand' : 'Compact mode'}
+              />
+            </TooltipWrap>
+          )}
+          {/* Blue: hide/show window */}
+          <TooltipWrap tooltip="Hide window (use hotkey to show again)">
+            <button
+              className="w-3 h-3 rounded-full transition-all duration-150"
+              style={{
+                backgroundColor: 'var(--accent)',
+                boxShadow: hiddenHovered ? '0 0 6px var(--accent)' : 'none',
+              } as React.CSSProperties}
+              onMouseEnter={() => setHiddenHovered(true)}
+              onMouseLeave={() => setHiddenHovered(false)}
+              onClick={handleHideWindow}
+              aria-label="Hide window"
+            />
+          </TooltipWrap>
+          {/* Invisible/show: screen share visibility */}
+          <TooltipWrap
+            tooltip={
+              invisible
+                ? 'Hidden from screen share — click to make visible'
+                : 'Visible in screen share — click to hide'
+            }
+          >
+            <button
+              className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+              style={{
+                color: invisible ? 'var(--text-muted)' : 'var(--accent)',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties}
+              onClick={handleToggleInvisibility}
+              aria-label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
+            >
+              {invisible ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                  <line x1="1" y1="1" x2="23" y2="23" strokeWidth="1.8" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
+            </button>
+          </TooltipWrap>
+        </div>
+
+        {/* Meeting toggle — pill-style Rec button */}
+        {view === 'chat' && onToggleMeeting && (
+          <TooltipWrap tooltip={meetingActive ? 'Stop meeting capture' : 'Start meeting capture (⌥M)'}>
+            <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              {meetingActive ? (
+                <button
+                onClick={onToggleMeeting}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:brightness-110"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--error) 18%, transparent)',
+                  color: 'var(--error)',
+                  border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
+                }}
+                aria-label="Stop meeting"
+              >
+                <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor">
+                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
+                </svg>
+                <div className="flex items-center gap-[2px] h-3">
+                  {[1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className="w-[2px] rounded-full animate-pulse"
+                      style={{
+                        backgroundColor: 'var(--error)',
+                        height: `${5 + (i % 3) * 2}px`,
+                        animationDelay: `${i * 150}ms`,
+                        animationDuration: '1s',
+                      }}
+                    />
+                  ))}
+                </div>
+                <span className="font-mono tabular-nums">{meetingDuration}</span>
+              </button>
+            ) : (
+              <button
+                onClick={onToggleMeeting}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
+                style={{
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                }}
+                aria-label="Start meeting"
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: 'var(--error)', opacity: 0.7 }}
+                />
+                Rec
+              </button>
+            )}
+            </div>
+          </TooltipWrap>
+        )}
 
         {view !== 'chat' && (
           <TitleBtn onClick={() => onSetView('chat')} label="Back to chat" tooltip="Back to chat">
@@ -136,101 +297,8 @@ export function TitleBar({
         {viewTitle}
       </span>
 
-      {/* Right side: invisibility + meeting toggle + reset + LLM + gear */}
+      {/* Right side: reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
-        {/* Invisibility toggle — hide/show from screen sharing */}
-        {view === 'chat' && (
-          <TitleBtn
-            onClick={handleToggleInvisibility}
-            label={invisible ? 'Make visible to screen share' : 'Hide from screen share'}
-            tooltip={invisible ? 'Hidden from screen share' : 'Visible to screen share'}
-            active={invisible}
-          >
-            {invisible ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
-              </svg>
-            )}
-          </TitleBtn>
-        )}
-
-        {/* Meeting toggle — pill-style Rec button */}
-        {view === 'chat' && onToggleMeeting && (
-          <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            {meetingActive ? (
-              <button
-                onClick={onToggleMeeting}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:brightness-110"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--error) 18%, transparent)',
-                  color: 'var(--error)',
-                  border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
-                }}
-                aria-label="Stop meeting"
-                title="Stop meeting capture"
-              >
-                {/* Stop square */}
-                <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor">
-                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
-                </svg>
-                {/* Animated waveform bars */}
-                <div className="flex items-center gap-[2px] h-3">
-                  {[1, 2, 3].map((i) => (
-                    <span
-                      key={i}
-                      className="w-[2px] rounded-full animate-pulse"
-                      style={{
-                        backgroundColor: 'var(--error)',
-                        height: `${5 + (i % 3) * 2}px`,
-                        animationDelay: `${i * 150}ms`,
-                        animationDuration: '1s',
-                      }}
-                    />
-                  ))}
-                </div>
-                {/* Timer */}
-                <span className="font-mono tabular-nums">{meetingDuration}</span>
-              </button>
-            ) : (
-              <button
-                onClick={onToggleMeeting}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-150 hover:bg-[var(--surface-hover)]"
-                style={{
-                  color: 'var(--text-muted)',
-                  border: '1px solid var(--border)',
-                }}
-                aria-label="Start meeting"
-                title="Start meeting capture (⌥M)"
-              >
-                {/* Record circle */}
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: 'var(--error)', opacity: 0.7 }}
-                />
-                Rec
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Reset chat */}
         {view === 'chat' && onReset && (
           <TitleBtn
@@ -260,7 +328,7 @@ export function TitleBar({
         <TitleBtn
           onClick={() => onSetView(view === 'llm' ? 'chat' : 'llm')}
           label="LLM settings"
-          tooltip="LLM"
+          tooltip="LLM settings"
           active={view === 'llm'}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -278,7 +346,7 @@ export function TitleBar({
         <TitleBtn
           onClick={() => onSetView(view === 'settings' ? 'chat' : 'settings')}
           label={view === 'settings' ? 'Back to chat' : 'Settings'}
-          tooltip="Settings"
+          tooltip={view === 'settings' ? 'Back to chat' : 'Settings'}
           active={view === 'settings'}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
