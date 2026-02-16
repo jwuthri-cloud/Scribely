@@ -149,6 +149,33 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Rewrite', value: 'Rewrite this', icon: 'pencil' },
 ]
 
+/** Live Insights settings */
+export interface InsightsSettings {
+  /** Enable live insights during meetings */
+  enabled: boolean
+  /** Enable LLM enrichment of detected events */
+  enrichmentEnabled: boolean
+  /** Per-detector toggles */
+  detectQuestions: boolean
+  detectTopicChanges: boolean
+  detectActionItems: boolean
+  detectKeyMentions: boolean
+  detectDecisions: boolean
+  /** Custom keywords for question detection (comma-separated in UI) */
+  extraQuestionKeywords: string[]
+}
+
+export const DEFAULT_INSIGHTS: InsightsSettings = {
+  enabled: true,
+  enrichmentEnabled: true,
+  detectQuestions: true,
+  detectTopicChanges: true,
+  detectActionItems: true,
+  detectKeyMentions: true,
+  detectDecisions: true,
+  extraQuestionKeywords: [],
+}
+
 export interface LLMSettings {
   apiKey: string
   defaultModel: ModelId
@@ -161,6 +188,8 @@ export interface LLMSettings {
   summarization: SummarizationSettings
   /** Custom quick actions (max 4). Empty = use defaults. */
   quickActions: QuickAction[]
+  /** Live Insights settings */
+  insights?: InsightsSettings
 }
 
 export const DEFAULT_LLM: LLMSettings = {
@@ -171,6 +200,7 @@ export const DEFAULT_LLM: LLMSettings = {
   systemPrompts: [],
   summarization: DEFAULT_SUMMARIZATION,
   quickActions: [],
+  insights: DEFAULT_INSIGHTS,
 }
 
 export type FontSize = 'small' | 'medium' | 'large'

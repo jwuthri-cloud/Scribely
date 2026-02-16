@@ -100,9 +100,16 @@ export function CompactNavbar({
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
+  const [insightsWindowOpen, setInsightsWindowOpen] = useState(false)
 
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
+  }, [])
+
+  useEffect(() => {
+    window.electronAPI?.insightsWindowVisible?.().then(setInsightsWindowOpen)
+    const unsub = window.electronAPI?.onInsightsWindowChanged?.(setInsightsWindowOpen)
+    return () => unsub?.()
   }, [])
 
   const handleHideWindow = useCallback(() => {
@@ -268,6 +275,24 @@ export function CompactNavbar({
         className="flex items-center gap-0.5"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        {/* Live Insights toggle — only when meeting active */}
+        {meetingActive && (
+          <TooltipWrap tooltip={insightsWindowOpen ? 'Hide insights' : 'Show live insights'}>
+            <button
+              onClick={() => window.electronAPI?.toggleInsightsWindow?.()}
+              className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+              style={{
+                color: insightsWindowOpen ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+              aria-label="Toggle live insights"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+              </svg>
+            </button>
+          </TooltipWrap>
+        )}
+
         {/* Hotkey shortcuts menu */}
         <HotkeyMenu size="sm" tooltip="Keyboard shortcuts" />
 

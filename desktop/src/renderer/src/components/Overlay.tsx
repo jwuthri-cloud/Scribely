@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { TitleBar } from './TitleBar'
 import { ResponseCard } from './ResponseCard'
@@ -424,6 +424,15 @@ export function Overlay() {
     [sendMessage],
   )
 
+  // Receive messages from insights window (e.g. "Suggest follow-up questions")
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onChatMessageFromInsights?.((text) => {
+      setView('chat')
+      handleSend(text)
+    })
+    return () => unsubscribe?.()
+  }, [handleSend])
+
   const handleScreenshot = useCallback(async () => {
     try {
       const dataUrl = await window.electronAPI?.takeScreenshot()
@@ -562,6 +571,7 @@ export function Overlay() {
                 <>
                   {/* Live transcript panel — visible when meeting is active */}
                   {meetingActive && (
+                    <>
                     <LiveTranscriptPanel
                       entries={transcript.entries}
                       isActive={meetingActive}
@@ -578,6 +588,8 @@ export function Overlay() {
                       nativeAvailable={capture.nativeAvailable}
                       extensionConnected={capture.extensionConnected}
                     />
+
+                    </>
                   )}
 
                   {/* Save notification after meeting ends */}

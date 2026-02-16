@@ -1,7 +1,6 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Project Architecture & Structure
 
 This is a cookiecutter template for building FastAPI + Next.js applications with LLM integration. Follow these architectural principles:

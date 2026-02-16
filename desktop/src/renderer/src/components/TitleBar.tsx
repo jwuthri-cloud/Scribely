@@ -113,9 +113,16 @@ export function TitleBar({
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
+  const [insightsWindowOpen, setInsightsWindowOpen] = useState(false)
 
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
+  }, [])
+
+  useEffect(() => {
+    window.electronAPI?.insightsWindowVisible?.().then(setInsightsWindowOpen)
+    const unsub = window.electronAPI?.onInsightsWindowChanged?.(setInsightsWindowOpen)
+    return () => unsub?.()
   }, [])
 
   const handleHideWindow = useCallback(() => {
@@ -291,8 +298,22 @@ export function TitleBar({
 
       <div className="flex-1" />
 
-      {/* Right side: reset + LLM + gear */}
+      {/* Right side: insights + reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
+        {/* Live Insights toggle — only when meeting active */}
+        {meetingActive && (
+          <TitleBtn
+            onClick={() => window.electronAPI?.toggleInsightsWindow?.()}
+            label="Toggle live insights"
+            tooltip={insightsWindowOpen ? 'Hide insights' : 'Show live insights'}
+            active={insightsWindowOpen}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+            </svg>
+          </TitleBtn>
+        )}
+
         {/* LLM tab — only visible from settings or when in LLM view */}
         {view !== 'chat' && (
           <TitleBtn

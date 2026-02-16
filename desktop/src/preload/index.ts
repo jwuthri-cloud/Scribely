@@ -55,6 +55,16 @@ export interface ElectronAPI {
   }>
   onLLMUsageUpdated: (callback: () => void) => () => void
 
+  // ── Live Insights ───────────────────────────────
+  onInsightNew: (callback: (insight: unknown) => void) => () => void
+  llmWebSearch: (query: string) => Promise<unknown>
+  toggleInsightsWindow: () => Promise<void>
+  insightsWindowVisible: () => Promise<boolean>
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
+  closeInsightsWindow: () => void
+  sendToChat: (text: string) => void
+  onChatMessageFromInsights: (callback: (text: string) => void) => () => void
+
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
   updateSettings: (partial: Partial<AppSettings>) => void
@@ -130,6 +140,7 @@ export interface ElectronAPI {
   // ── Screen Recording (main-process driven) ─────
   startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
   stopRecording: () => Promise<{ filepath: string | null }>
+  cancelRecording: () => Promise<void>
   selectRecordingSource: (sourceId: string) => Promise<void>
   onShowPicker: (
     callback: (data: {
@@ -350,6 +361,32 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('llm:usage-updated', handler)
     return () => ipcRenderer.removeListener('llm:usage-updated', handler)
+  },
+
+  onInsightNew: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, insight: unknown) => {
+      callback(insight)
+    }
+    ipcRenderer.on('insight:new', handler)
+    return () => ipcRenderer.removeListener('insight:new', handler)
+  },
+
+  llmWebSearch: (query: string) => {
+    return ipcRenderer.invoke('llm:web-search', query)
+  },
+  toggleInsightsWindow: () => ipcRenderer.invoke('insights:toggle-window'),
+  insightsWindowVisible: () => ipcRenderer.invoke('insights:window-visible'),
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, visible: boolean) => callback(visible)
+    ipcRenderer.on('insights:window-changed', handler)
+    return () => ipcRenderer.removeListener('insights:window-changed', handler)
+  },
+  closeInsightsWindow: () => ipcRenderer.invoke('insights:close-window'),
+  sendToChat: (text: string) => ipcRenderer.invoke('insights:send-to-chat', text),
+  onChatMessageFromInsights: (callback: (text: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text)
+    ipcRenderer.on('chat:message-from-insights', handler)
+    return () => ipcRenderer.removeListener('chat:message-from-insights', handler)
   },
 
   // ── Settings ────────────────────────────────────

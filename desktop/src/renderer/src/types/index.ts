@@ -215,6 +215,16 @@ export interface ElectronAPI {
   }>
   onLLMUsageUpdated: (callback: () => void) => () => void
 
+  // Live Insights
+  onInsightNew: (callback: (insight: import('./insights').Insight) => void) => () => void
+  llmWebSearch: (query: string) => Promise<import('./insights').WebSearchResult>
+  toggleInsightsWindow: () => Promise<void>
+  insightsWindowVisible: () => Promise<boolean>
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
+  closeInsightsWindow: () => void
+  sendToChat: (text: string) => void
+  onChatMessageFromInsights: (callback: (text: string) => void) => () => void
+
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
@@ -291,6 +301,16 @@ export {
   MODEL_PRICING,
   estimateMessageCost,
 } from './settings'
+
+// Insight types (Live Insights feature)
+export type {
+  DetectedEventType,
+  DetectedEvent,
+  InsightActionType,
+  InsightAction,
+  Insight,
+  WebSearchResult,
+} from './insights'
 
 // Transcript types
 export type {

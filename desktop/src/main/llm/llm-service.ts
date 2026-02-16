@@ -8,6 +8,7 @@ import { PromptAssembler } from './prompt-assembler'
 import { TokenCounter } from './token-counter'
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
+import { runWebSearch } from './web-search'
 
 // ── Types (mirrored from renderer for main process use) ──
 
@@ -482,6 +483,20 @@ export class LLMService {
       return this.transcriptMemory.getSummary()
     })
 
+    // ── Web search (Live Insights) ──
+    ipcMain.handle(
+      'llm:web-search',
+      async (_event, query: string) => {
+        if (!this.client) {
+          return { content: '', error: 'API key not configured' }
+        }
+        if (!query?.trim()) {
+          return { content: '', error: 'Empty query' }
+        }
+        return runWebSearch(this.client, query.trim())
+      },
+    )
+
     ipcMain.handle('llm:get-summarization-status', () => {
       const summary = this.transcriptMemory.getSummary()
       const inProgress = this.transcriptMemory.isSummarizationInProgress()
@@ -678,6 +693,104 @@ export class LLMService {
     }
   }
 
+  /**
+   * Validate whether a candidate utterance is a genuine question from another person.
+   * Uses gpt5-nano with last ~500 tokens of transcript context.
+   * Returns the extracted question string, or null if "na" (no real question).
+   */
+  async validateQuestion(
+    transcriptContext: string,
+    candidateText: string,
+    speaker: string,
+  ): Promise<string | null> {
+    if (!this.client) return null
+
+    const systemPrompt = `You are a meeting transcript analyzer. Given recent transcript context and a candidate utterance, determine if a genuine question was asked by the other person (not the user). Respond ONLY with JSON: {"question": "<the actual question>"} or {"question": "na"} if no real question.`
+
+    const userContent = `Recent transcript:\n${transcriptContext}\n\nCandidate utterance (speaker: ${speaker}): "${candidateText}"`
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-5-nano',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+        max_completion_tokens: 128,
+        reasoning_effort: 'low',
+      })
+
+      const content = response.choices?.[0]?.message?.content
+      if (!content?.trim()) return null
+
+      const jsonStr = content.trim().replace(/^```json?\s*|\s*```$/g, '')
+      const parsed = JSON.parse(jsonStr) as { question?: string }
+      const q = parsed.question?.trim()
+      if (!q || q.toLowerCase() === 'na') return null
+      return q
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * One-shot completion for Live Insights enrichment.
+   * Uses gpt5-nano. Returns parsed JSON or null on failure.
+   */
+  async enrichForInsight(
+    eventType: string,
+    text: string,
+    speaker: string,
+  ): Promise<{ title?: string; description?: string; suggestedActions?: Array<{ label: string; type: string; payload: string; icon: string }> } | null> {
+    if (!this.client) return null
+
+    const systemPrompt = `You are a meeting assistant. Given a detected event from a live transcript, respond with a JSON object only (no markdown, no explanation):
+{
+  "title": "Short title (e.g. 'Question from Neel')",
+  "description": "One sentence description",
+  "suggestedActions": [
+    { "label": "Search the web", "type": "search", "payload": "search query", "icon": "search" },
+    { "label": "Suggest follow-up questions", "type": "follow_up", "payload": "prompt", "icon": "chat" }
+  ]
+}
+For questions: include a "Search the web" action with the question as payload.
+Keep title under 40 chars, description under 100 chars.`
+
+    const userContent = `Event type: ${eventType}\nSpeaker: ${speaker}\nText: "${text}"`
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-5-nano',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+        max_completion_tokens: 256,
+        reasoning_effort: 'low',
+      })
+
+      const content = response.choices?.[0]?.message?.content
+      if (!content?.trim()) return null
+
+      const jsonStr = content.trim().replace(/^```json?\s*|\s*```$/g, '')
+      const parsed = JSON.parse(jsonStr) as {
+        title?: string
+        description?: string
+        suggestedActions?: Array<{ label: string; type: string; payload: string; icon: string }>
+      }
+
+      if (parsed.suggestedActions) {
+        parsed.suggestedActions = parsed.suggestedActions.map((a) => ({
+          ...a,
+          id: crypto.randomUUID(),
+        }))
+      }
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
   private cancelRequest(requestId: string): void {
     const controller = this.activeRequests.get(requestId)
     if (controller) {
@@ -790,7 +903,7 @@ export class LLMService {
         image_url: { url: img.data },
       })
     }
-    result[lastUserIdx] = { role: 'user', content: contentParts }
+    result[lastUserIdx] = { role: 'user', content: contentParts } as unknown as (typeof result)[number]
     return result
   }
 

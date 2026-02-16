@@ -32,13 +32,8 @@ export function MeetingView() {
     // 2. Start transcription session in main process
     await transcript.startSession()
 
-    // 3. Start video recording if we have a tab stream
-    if (tabStream) {
-      await recorder.startRecording(tabStream, micStream)
-    } else if (micStream) {
-      // Audio-only recording
-      await recorder.startRecording(micStream)
-    }
+    // 3. Start recording (main process handles screen/tab capture)
+    await recorder.startRecording()
   }, [capture, transcript, recorder])
 
   const handleStop = useCallback(async () => {

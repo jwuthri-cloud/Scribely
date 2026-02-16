@@ -6,7 +6,7 @@ import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/se
 import { MarkdownContent } from './MarkdownContent'
 
 /** Example prompts shown in the empty state */
-const EXAMPLE_PROMPTS = [
+const EXAMPLE_PROMPTS: string[] = [
   // 'Explain this in simple terms',
   // 'Summarize the key points',
 ]

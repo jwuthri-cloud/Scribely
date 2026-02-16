@@ -19,6 +19,7 @@ import { NativeHelperBridge } from './native-bridge'
 import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
+import { InsightEngine } from './insights/insight-engine'
 import { flushLangfuse } from './instrumentation'
 
 interface HotkeyConfig {
@@ -52,6 +53,17 @@ interface QuickAction {
   icon?: string
 }
 
+interface InsightsSettings {
+  enabled?: boolean
+  enrichmentEnabled?: boolean
+  detectQuestions?: boolean
+  detectTopicChanges?: boolean
+  detectActionItems?: boolean
+  detectKeyMentions?: boolean
+  detectDecisions?: boolean
+  extraQuestionKeywords?: string[]
+}
+
 interface LLMSettings {
   apiKey: string
   defaultModel: string
@@ -66,6 +78,7 @@ interface LLMSettings {
   }>
   summarization?: SummarizationSettings
   quickActions?: QuickAction[]
+  insights?: InsightsSettings
 }
 
 interface AppSettings {
@@ -112,6 +125,16 @@ const store = new Store<AppSettings>({
         summarizerSystemPrompt: null,
       },
       quickActions: [],
+      insights: {
+        enabled: true,
+        enrichmentEnabled: true,
+        detectQuestions: true,
+        detectTopicChanges: true,
+        detectActionItems: true,
+        detectKeyMentions: true,
+        detectDecisions: true,
+        extraQuestionKeywords: [],
+      },
     },
   },
 })
@@ -129,10 +152,60 @@ const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
 })
 
 let mainWindow: BrowserWindow | null = null
+let insightsWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
 
 // ── LLM Service ─────────────────────────────────────────
 const llmService = new LLMService(store)
+
+// ── Live Insights Engine ───────────────────────────────
+function getInsightsConfig() {
+  const llm = store.get('llm') as { insights?: { enabled?: boolean; enrichmentEnabled?: boolean } } | undefined
+  const insights = llm?.insights ?? {}
+  return {
+    enabled: insights.enabled !== false,
+    enrichmentEnabled: insights.enrichmentEnabled !== false,
+  }
+}
+
+const insightEngine = new InsightEngine({
+  sendToRenderer: (channel, data) => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.webContents.send(channel, data)
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data)
+    }
+  },
+  validate: async (event, transcriptContext) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return null
+    return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
+  },
+  enrich: async (event) => {
+    const config = getInsightsConfig()
+    if (!config.enrichmentEnabled) return null
+    const result = await llmService.enrichForInsight(
+      event.type,
+      event.text,
+      event.speaker,
+    )
+    if (!result) return null
+    return {
+      title: result.title,
+      description: result.description,
+      suggestedActions: result.suggestedActions?.map((a) => ({
+        id: crypto.randomUUID(),
+        label: a.label,
+        type: a.type as import('./insights/types').InsightActionType,
+        payload: a.payload,
+        icon: a.icon,
+      })),
+    }
+  },
+  enrichmentEnabled: getInsightsConfig().enrichmentEnabled,
+  debounceMs: 10_000,
+})
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
@@ -228,6 +301,58 @@ function createWindow(): void {
   registerAllHotkeys(mainWindow, store)
 }
 
+function createInsightsWindow(): void {
+  if (insightsWindow && !insightsWindow.isDestroyed()) {
+    insightsWindow.focus()
+    return
+  }
+
+  insightsWindow = new BrowserWindow({
+    width: 340,
+    height: 500,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: true,
+    hasShadow: false,
+    visualEffectState: 'active',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+
+  insightsWindow.setOpacity(store.get('windowOpacity'))
+  applyInvisibility(insightsWindow)
+
+  insightsWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    insightsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '?view=insights')
+  } else {
+    insightsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { view: 'insights' },
+    })
+  }
+
+  insightsWindow.on('closed', () => {
+    insightsWindow = null
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('insights:window-changed', false)
+    }
+  })
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('insights:window-changed', true)
+  }
+}
+
 function registerIpcHandlers(): void {
   // ── Settings ──────────────────────────────────────
   ipcMain.handle('get-settings', () => {
@@ -252,13 +377,15 @@ function registerIpcHandlers(): void {
           ...incoming,
         })
       } else if (key === 'llm' && typeof value === 'object') {
-        // Deep merge LLM settings (including nested summarization)
+        // Deep merge LLM settings (including nested summarization, insights)
         const current = (store.get('llm') || {}) as unknown as Record<string, unknown>
         const incoming = value as unknown as Record<string, unknown>
         const merged: Record<string, unknown> = { ...current }
         for (const [k, v] of Object.entries(incoming)) {
           if (k === 'summarization' && typeof v === 'object' && v !== null) {
             merged[k] = { ...((current.summarization as object) || {}), ...v }
+          } else if (k === 'insights' && typeof v === 'object' && v !== null) {
+            merged[k] = { ...((current.insights as object) || {}), ...v }
           } else {
             merged[k] = v
           }
@@ -286,6 +413,23 @@ function registerIpcHandlers(): void {
       audioPipeline.onSettingsChanged(store.get('transcription'))
     }
 
+    // Update insight engine detector config when llm.insights changed
+    if (partial.llm && typeof partial.llm === 'object' && 'insights' in partial.llm) {
+      const insights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
+      const disabled = new Set<import('./insights/types').DetectedEventType>()
+      if (insights.detectQuestions === false) disabled.add('question')
+      if (insights.detectTopicChanges === false) disabled.add('topic_change')
+      if (insights.detectActionItems === false) disabled.add('action_item')
+      if (insights.detectKeyMentions === false) disabled.add('key_mention')
+      if (insights.detectDecisions === false) disabled.add('decision')
+      insightEngine.updateSettings({
+        disabledTypes: disabled,
+        extraQuestionKeywords: Array.isArray(insights.extraQuestionKeywords)
+          ? insights.extraQuestionKeywords.filter((k): k is string => typeof k === 'string')
+          : [],
+      })
+    }
+
     // Notify renderer that settings changed
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('settings-changed', store.store)
@@ -305,6 +449,31 @@ function registerIpcHandlers(): void {
   ipcMain.handle('take-screenshot', async () => {
     if (!mainWindow) throw new Error('No window')
     return captureScreen(mainWindow)
+  })
+
+  // ── Insights window ─────────────────────────────────
+  ipcMain.handle('insights:toggle-window', () => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.close()
+    } else {
+      createInsightsWindow()
+    }
+  })
+
+  ipcMain.handle('insights:window-visible', () => {
+    return !!(insightsWindow && !insightsWindow.isDestroyed())
+  })
+
+  ipcMain.handle('insights:close-window', () => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.close()
+    }
+  })
+
+  ipcMain.handle('insights:send-to-chat', (_event, text: string) => {
+    if (mainWindow && !mainWindow.isDestroyed() && typeof text === 'string') {
+      mainWindow.webContents.send('chat:message-from-insights', text)
+    }
   })
 
   // ── LLM Service ──────────────────────────────────────
@@ -356,15 +525,16 @@ function registerIpcHandlers(): void {
 
   // ── Window hide/show (blue button) ─────────────────
   ipcMain.handle('toggle-window-visibility', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return
-    if (mainWindow.isVisible()) {
-      mainWindow.webContents.send('toggle-visibility', false)
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return
+    if (win.isVisible()) {
+      win.webContents.send('toggle-visibility', false)
       setTimeout(() => {
-        if (!mainWindow?.isDestroyed()) mainWindow.hide()
+        if (!win.isDestroyed()) win.hide()
       }, 200)
     } else {
-      mainWindow.show()
-      mainWindow.webContents.send('toggle-visibility', true)
+      win.show()
+      win.webContents.send('toggle-visibility', true)
     }
   })
 
@@ -546,6 +716,31 @@ app.whenReady().then(async () => {
   audioPipeline.registerIpcHandlers()
   await audioPipeline.init()
 
+  // Wire Live Insights to pipeline
+  audioPipeline.setOnTranscriptEntry((entry) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return
+    insightEngine.onTranscriptEntry(entry)
+  })
+  audioPipeline.setOnSessionStop(() => {
+    insightEngine.reset()
+  })
+
+  // Apply initial insights detector config from store
+  const initialInsights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
+  const initialDisabled = new Set<import('./insights/types').DetectedEventType>()
+  if (initialInsights.detectQuestions === false) initialDisabled.add('question')
+  if (initialInsights.detectTopicChanges === false) initialDisabled.add('topic_change')
+  if (initialInsights.detectActionItems === false) initialDisabled.add('action_item')
+  if (initialInsights.detectKeyMentions === false) initialDisabled.add('key_mention')
+  if (initialInsights.detectDecisions === false) initialDisabled.add('decision')
+  insightEngine.updateSettings({
+    disabledTypes: initialDisabled,
+    extraQuestionKeywords: Array.isArray(initialInsights.extraQuestionKeywords)
+      ? initialInsights.extraQuestionKeywords.filter((k): k is string => typeof k === 'string')
+      : [],
+  })
+
   // Start Chrome extension WebSocket server
   initExtensionWsServer()
 
@@ -568,8 +763,9 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  // Null out mainWindow early so async callbacks don't touch a destroyed object
+  // Null out windows early so async callbacks don't touch destroyed objects
   mainWindow = null
+  insightsWindow = null
 })
 
 app.on('will-quit', async (e) => {

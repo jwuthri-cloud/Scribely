@@ -74,6 +74,17 @@ export class AudioPipeline {
   private _micLevel = 0
   private _systemLevel = 0
 
+  // ── Live Insights callbacks (optional) ────────────────
+  private _onSessionStop: (() => void) | null = null
+  private _onTranscriptEntry: ((entry: {
+    id: string
+    speaker: string
+    text: string
+    startTime: number
+    endTime: number
+    source: string
+  }) => void) | null = null
+
   // ── Native capture bridge ─────────────────────────────
   private nativeBridge: NativeHelperBridge | null = null
   private nativeAudioHandler: ((data: {
@@ -388,6 +399,7 @@ export class AudioPipeline {
       }
 
       this.sendToRenderer('meeting:transcript-entry', entry)
+      this._onTranscriptEntry?.(entry)
     } catch (err) {
       console.error('[pipeline] Transcription of speech segment failed:', err)
     }
@@ -482,6 +494,7 @@ export class AudioPipeline {
 
           if (this.isActive) {
             this.sendToRenderer('meeting:transcript-entry', entry)
+            this._onTranscriptEntry?.(entry)
           }
         } else {
           console.log(`[pipeline] ${item.source} chunk: silence (${elapsed}ms)`)
@@ -567,6 +580,7 @@ export class AudioPipeline {
       this.segmentQueue = []
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
+      this._onSessionStop?.()
 
       console.log('[pipeline] Meeting session stopped')
       return { success: true }
@@ -665,6 +679,7 @@ export class AudioPipeline {
 
           if (this.isActive) {
             this.sendToRenderer('meeting:transcript-entry', entry)
+            this._onTranscriptEntry?.(entry)
           }
           return entry
         }
@@ -896,6 +911,25 @@ export class AudioPipeline {
         return { filepath, filename }
       },
     )
+  }
+
+  /** Set optional callback when meeting session stops (used by Live Insights) */
+  setOnSessionStop(cb: (() => void) | null): void {
+    this._onSessionStop = cb
+  }
+
+  /** Set optional callback for transcript entries (used by Live Insights) */
+  setOnTranscriptEntry(
+    cb: ((entry: {
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }) => void) | null,
+  ): void {
+    this._onTranscriptEntry = cb
   }
 
   // ── Helpers ────────────────────────────────────────────
