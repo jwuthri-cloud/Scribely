@@ -76,6 +76,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   // Track the active request ID so we can match incoming stream events
   const activeRequestIdRef = useRef<string | null>(null)
+  const activeWebSearchRequestIdRef = useRef<string | null>(null)
 
   // ── Streaming listeners (llm:chat-delta / done / error) ──
   useEffect(() => {
@@ -188,6 +189,69 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [])
 
+  // ── Web search streaming listeners ──
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api?.onLLMWebSearchDelta) return
+
+    const unsubDelta = api.onLLMWebSearchDelta((data) => {
+      if (data.requestId !== activeWebSearchRequestIdRef.current) return
+      setMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role === 'assistant' && last.id === data.requestId) {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: last.content + data.delta },
+          ]
+        }
+        return prev
+      })
+    })
+
+    const unsubDone = api.onLLMWebSearchDone((data) => {
+      if (data.requestId !== activeWebSearchRequestIdRef.current) return
+      setMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role === 'assistant' && last.id === data.requestId) {
+          return [
+            ...prev.slice(0, -1),
+            {
+              ...last,
+              content: data.content,
+              isWebSearch: true,
+              webSources: data.sources,
+            },
+          ]
+        }
+        return prev
+      })
+      setIsLoading(false)
+      activeWebSearchRequestIdRef.current = null
+    })
+
+    const unsubError = api.onLLMWebSearchError((data) => {
+      if (data.requestId !== activeWebSearchRequestIdRef.current) return
+      setMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role === 'assistant' && last.id === data.requestId) {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: data.error, isError: true },
+          ]
+        }
+        return prev
+      })
+      setIsLoading(false)
+      activeWebSearchRequestIdRef.current = null
+    })
+
+    return () => {
+      unsubDelta?.()
+      unsubDone?.()
+      unsubError?.()
+    }
+  }, [])
+
   // ── Listen for reset-chat IPC (from hotkey) ──
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onResetChat(() => {
@@ -196,6 +260,7 @@ export function useChat(options: UseChatOptions = {}) {
       setContextUsage(null)
       lastTranscriptIndexRef.current = 0
       activeRequestIdRef.current = null
+      activeWebSearchRequestIdRef.current = null
       window.electronAPI?.llmReset()
     })
     return () => {
@@ -286,6 +351,37 @@ export function useChat(options: UseChatOptions = {}) {
     [transcriptEntries, messages.length],
   )
 
+  // ── Web search (streaming) ──
+  const sendWebSearch = useCallback((query: string) => {
+    const trimmed = query.trim()
+    if (!trimmed) return
+
+    const api = window.electronAPI
+    if (!api?.llmWebSearchStream) return
+
+    const requestId = crypto.randomUUID()
+    activeWebSearchRequestIdRef.current = requestId
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: trimmed,
+      rawQuery: trimmed,
+      timestamp: Date.now(),
+    }
+    const assistantPlaceholder: ChatMessage = {
+      id: requestId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      isWebSearch: true,
+    }
+    setMessages((prev) => [...prev, userMsg, assistantPlaceholder])
+    setIsLoading(true)
+
+    api.llmWebSearchStream({ requestId, query: trimmed })
+  }, [])
+
   // ── Reset chat ──
   const resetChat = useCallback(() => {
     setMessages([])
@@ -293,6 +389,7 @@ export function useChat(options: UseChatOptions = {}) {
     setContextUsage(null)
     lastTranscriptIndexRef.current = 0
     activeRequestIdRef.current = null
+    activeWebSearchRequestIdRef.current = null
     window.electronAPI?.llmReset()
   }, [])
 
@@ -303,5 +400,5 @@ export function useChat(options: UseChatOptions = {}) {
     // Don't set isLoading to false here — the error callback will handle it
   }, [isLoading])
 
-  return { messages, isLoading, sendMessage, resetChat, stopGeneration, contextUsage }
+  return { messages, isLoading, sendMessage, sendWebSearch, resetChat, stopGeneration, contextUsage }
 }

@@ -1,20 +1,14 @@
-import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useRef, useEffect, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import type { ChatMessage, ChatAttachment } from '../types'
 import type { QuickAction } from '../types/settings'
-import { DEFAULT_QUICK_ACTIONS, MODEL_CONFIGS } from '../types/settings'
 import type { ModelId } from '../types/settings'
-import { getQuickActionIcon } from './QuickActionIcons'
 import { MarkdownContent } from './MarkdownContent'
 import { CompactNavbar } from './CompactNavbar'
+import { InputBar } from './InputBar'
+import { ActionChips } from './ActionChips'
 
 type ViewId = 'chat' | 'llm' | 'settings'
-
-const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
-  { id: 'gpt5-nano', label: 'Nano' },
-  { id: 'gpt5-mini', label: 'Mini' },
-  { id: 'gpt-5.2', label: '5.2' },
-]
 
 /** Import empty-state illustration assets (same as ResponseCard) */
 const emptyStateGif = import.meta.glob('../assets/empty-state.gif', {
@@ -32,58 +26,11 @@ const EMPTY_STATE_IMAGE_URL =
   (Object.values(emptyStateSvg)[0] as string | undefined) ??
   null
 
-/** Small icon button with tooltip for compact input toolbar */
-function IconBtn({
-  tooltip,
-  onClick,
-  active,
-  color,
-  children,
-}: {
-  tooltip: string
-  onClick: () => void
-  active?: boolean
-  color?: string
-  children: React.ReactNode
-}) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <button
-        type="button"
-        className="flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-150 hover:bg-[var(--surface-hover)]"
-        style={{ color: color ?? (active ? 'var(--accent)' : 'var(--text-muted)') }}
-        onClick={onClick}
-        aria-label={tooltip}
-        title={tooltip}
-      >
-        {children}
-      </button>
-      {hovered && (
-        <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap pointer-events-none z-50"
-          style={{
-            backgroundColor: 'var(--surface)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-          }}
-        >
-          {tooltip}
-        </div>
-      )}
-    </div>
-  )
-}
-
 interface CompactChatViewProps {
   messages: ChatMessage[]
   isLoading: boolean
   onSend: (content: string, attachments?: ChatAttachment[]) => void
+  onWebSearch?: (query: string) => void
   onStop: () => void
   meetingActive: boolean
   meetingDuration: string
@@ -99,6 +46,19 @@ interface CompactChatViewProps {
   onToggleCompactMode?: () => void
   currentModel?: ModelId
   onModelChange?: (modelId: ModelId) => void
+  /** Footer props (shared with advanced mode) */
+  sttTranscript?: string
+  onClearTranscript?: () => void
+  micLevel?: number
+  modelDownloading?: boolean
+  modelProgress?: number
+  onSummarizeTranscript?: () => Promise<void>
+  summarizeInProgress?: boolean
+  hasSummary?: boolean
+  onViewSummary?: () => void
+  /** Summarize feedback toast (success/error) */
+  summarizeFeedback?: { type: 'success' | 'error'; message?: string } | null
+  onViewSummaryClick?: () => void
 }
 
 /**
@@ -112,6 +72,7 @@ export function CompactChatView({
   messages,
   isLoading,
   onSend,
+  onWebSearch,
   onStop,
   meetingActive,
   meetingDuration,
@@ -127,21 +88,18 @@ export function CompactChatView({
   onToggleCompactMode,
   currentModel = 'gpt-5.2',
   onModelChange,
+  sttTranscript,
+  onClearTranscript,
+  micLevel = 0,
+  modelDownloading,
+  modelProgress = 0,
+  onSummarizeTranscript,
+  summarizeInProgress = false,
+  hasSummary = false,
+  onViewSummary,
+  summarizeFeedback,
+  onViewSummaryClick,
 }: CompactChatViewProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const modelPickerRef = useRef<HTMLDivElement>(null)
-  const [inputValue, setInputValue] = useState('')
-  const [showModelPicker, setShowModelPicker] = useState(false)
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (showModelPicker && modelPickerRef.current && !modelPickerRef.current.contains(e.target as Node)) {
-        setShowModelPicker(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showModelPicker])
 
   // Extract the last user message and last assistant message
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
@@ -161,22 +119,6 @@ export function CompactChatView({
     }
   }, [])
 
-  const handleSubmit = useCallback(
-    (e: FormEvent) => {
-      e.preventDefault()
-      const trimmed = inputValue.trim()
-      if (!trimmed) return
-      const attachments: ChatAttachment[] = []
-      if (pendingScreenshot) {
-        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
-      }
-      onSend(trimmed, attachments.length > 0 ? attachments : undefined)
-      setInputValue('')
-      inputRef.current?.focus()
-    },
-    [inputValue, onSend, pendingScreenshot],
-  )
-
   const handleActionClick = useCallback(
     (actionValue: string) => {
       const attachments: ChatAttachment[] = []
@@ -195,8 +137,6 @@ export function CompactChatView({
       responseRef.current.scrollTop = responseRef.current.scrollHeight
     }
   }, [lastAssistantMsg?.content, isLoading])
-
-  const actions = (quickActions?.length ? quickActions : DEFAULT_QUICK_ACTIONS).slice(0, 3)
 
   return (
     <div className="flex flex-col h-full">
@@ -309,6 +249,49 @@ export function CompactChatView({
                   </div>
                 )}
 
+                {/* Web Search badge + sources */}
+                {lastAssistantMsg.isWebSearch && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span
+                      className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, #3b82f6 18%, transparent)',
+                        color: '#60a5fa',
+                      }}
+                    >
+                      Web Search
+                    </span>
+                    {lastAssistantMsg.webSources && lastAssistantMsg.webSources.length > 0 ? (
+                      lastAssistantMsg.webSources.map((s, i) => (
+                        <a
+                          key={i}
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] px-1.5 py-0.5 rounded-md truncate max-w-[140px] hover:underline block"
+                          style={{
+                            backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                            color: 'var(--accent)',
+                          }}
+                          title={s.title}
+                        >
+                          {s.title}
+                        </a>
+                      ))
+                    ) : (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded-md"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        No sources
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Streaming cursor */}
                 {isStreaming && lastAssistantMsg === lastMsg && (
                   <span
@@ -338,209 +321,77 @@ export function CompactChatView({
         )}
       </div>
 
-      {/* ── Inline Action Links ── */}
-      {hasMessages && !isLoading && (
-        <div className="flex items-center gap-3 px-4 py-1.5 shrink-0 flex-wrap">
-          {actions.map((action, i) => (
-            <button
-              key={action.value}
-              onClick={() => handleActionClick(action.value)}
-              className="flex items-center gap-1 text-[11px] transition-all duration-150 hover:brightness-125"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <span style={{ opacity: 0.6 }}>
-                {getQuickActionIcon(action.icon, action.value)}
-              </span>
-              <span className="hover:underline">{action.label}</span>
-              {i < actions.length - 1 && (
-                <span className="ml-2" style={{ color: 'var(--border)', opacity: 0.8 }}>
-                  ·
-                </span>
-              )}
-            </button>
-          ))}
+      {/* Summarize feedback */}
+      {summarizeFeedback && (
+        <div
+          className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 shrink-0 ${
+            summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
+          }`}
+          style={{
+            backgroundColor:
+              summarizeFeedback.type === 'success'
+                ? 'color-mix(in srgb, var(--success) 12%, transparent)'
+                : 'color-mix(in srgb, var(--error) 12%, transparent)',
+            border: `1px solid color-mix(in srgb, var(--${summarizeFeedback.type}) 25%, transparent)`,
+            color: summarizeFeedback.type === 'success' ? 'var(--success)' : 'var(--error)',
+          }}
+          onClick={summarizeFeedback.type === 'success' ? onViewSummaryClick : undefined}
+        >
+          {summarizeFeedback.type === 'success' ? (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M20 6L9 17l-5-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Summary ready — click to view
+            </>
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              {summarizeFeedback.message}
+            </>
+          )}
         </div>
       )}
 
-      {/* ── Compact Input ── */}
-      <div className="px-4 pb-3 pt-1 shrink-0">
-        {/* Pending screenshot preview */}
-        {pendingScreenshot && (
-          <div className="relative inline-block mb-2">
-            <img
-              src={pendingScreenshot}
-              alt="Screenshot preview"
-              className="h-14 rounded-lg border object-cover"
-              style={{ borderColor: 'var(--border)' }}
-            />
-            <button
-              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
-              style={{
-                backgroundColor: 'var(--error)',
-                color: '#fff',
-              }}
-              onClick={onClearScreenshot}
-              aria-label="Remove screenshot"
-            >
-              x
-            </button>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div
-            className="flex items-center gap-1 rounded-xl px-3 py-2 border transition-all duration-150 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_1px_var(--accent)]"
-            style={{
-              backgroundColor: 'var(--input-bg)',
-              borderColor: 'var(--input-border)',
-            }}
-          >
-            {/* Toolbar: screenshot + voice */}
-            <div className="flex items-center gap-0.5 mr-2 shrink-0">
-              <IconBtn
-                tooltip="Screenshot (⌥S)"
-                onClick={onScreenshot ?? (() => {})}
-                active={!!pendingScreenshot}
-                color={pendingScreenshot ? 'var(--accent)' : undefined}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <rect x="3" y="5" width="18" height="14" rx="2" />
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M3 8h2" strokeLinecap="round" />
-                </svg>
-              </IconBtn>
-              <IconBtn
-                tooltip="Toggle recording (⌥A)"
-                onClick={onToggleRecording ?? (() => {})}
-                color={isRecording ? 'var(--error)' : undefined}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <rect x="9" y="2" width="6" height="12" rx="3" />
-                  <path d="M5 11a7 7 0 0 0 14 0" strokeLinecap="round" />
-                  <path d="M12 19v3" strokeLinecap="round" />
-                </svg>
-              </IconBtn>
-            </div>
-
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask anything about the screen or conversation"
-              className="flex-1 min-w-0 bg-transparent text-[12px]"
-              style={{
-                color: 'var(--text)',
-                caretColor: 'var(--accent)',
-                border: 'none',
-                outline: 'none',
-                boxShadow: 'none',
-              } as React.CSSProperties}
-              autoFocus
-            />
-
-            {/* Model selector */}
-            <div className="relative flex items-center shrink-0 min-w-[2.5rem]" ref={modelPickerRef}>
-              <button
-                type="button"
-                onClick={() => setShowModelPicker((prev) => !prev)}
-                className="px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110 max-w-[3.5rem] overflow-hidden truncate"
-                style={{
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-muted)',
-                  backgroundColor: 'transparent',
-                }}
-                title="Switch model"
-              >
-                <span className="block truncate">
-                  {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
-                </span>
-              </button>
-              {showModelPicker && (
-                <div
-                  className="absolute bottom-full mb-1 right-0 rounded-lg border py-1 shadow-lg z-[9999] max-h-48 overflow-y-auto overflow-x-hidden"
-                  style={{
-                    backgroundColor: 'var(--surface)',
-                    borderColor: 'var(--border)',
-                    minWidth: '10rem',
-                    maxWidth: 'min(calc(100vw - 32px), 18rem)',
-                  }}
-                >
-                  {MODEL_OPTIONS.map((opt) => {
-                    const isActive = opt.id === currentModel
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => {
-                          onModelChange?.(opt.id)
-                          setShowModelPicker(false)
-                        }}
-                        className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3 shrink-0"
-                        style={{
-                          color: isActive ? 'var(--accent)' : 'var(--text)',
-                          fontWeight: isActive ? 600 : 400,
-                        }}
-                      >
-                        <span className="shrink-0 w-8">{opt.label}</span>
-                        <span className="text-[9px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
-                          {MODEL_CONFIGS[opt.id]?.description}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Send or Stop */}
-            {isLoading ? (
-              <button
-                type="button"
-                onClick={onStop}
-                className="flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-150 hover:brightness-110 active:scale-95 shrink-0"
-                style={{
-                  backgroundColor: 'var(--error)',
-                  color: '#fff',
-                }}
-                title="Stop generation"
-              >
-                <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor">
-                  <rect x="1" y="1" width="10" height="10" rx="1.5" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!inputValue.trim()}
-                className="flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-150 disabled:opacity-25 hover:brightness-110 active:scale-95 shrink-0"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: '#fff',
-                }}
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 19V5" />
-                  <path d="M5 12l7-7 7 7" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </form>
-
-        {/* Reset link */}
-        {hasMessages && (
-          <div className="flex justify-end mt-1">
-            <button
-              onClick={onReset}
-              className="text-[9px] transition-colors hover:underline"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Reset chat
-            </button>
-          </div>
-        )}
-      </div>
+      {/* ── Shared footer (same as advanced mode): ActionChips + InputBar ── */}
+      <ActionChips
+        onAction={handleActionClick}
+        customActions={quickActions?.length ? quickActions : undefined}
+      />
+      <InputBar
+        onSend={onSend}
+        onWebSearch={onWebSearch}
+        disabled={isLoading}
+        isLoading={isLoading}
+        onStop={onStop}
+        onScreenshot={onScreenshot}
+        pendingScreenshot={pendingScreenshot}
+        onClearScreenshot={onClearScreenshot}
+        isRecording={isRecording}
+        onToggleRecording={onToggleRecording}
+        sttTranscript={sttTranscript}
+        onClearTranscript={onClearTranscript}
+        micLevel={micLevel}
+        modelDownloading={modelDownloading}
+        modelProgress={modelProgress}
+        currentModel={currentModel}
+        onModelChange={onModelChange}
+        onSummarizeTranscript={onSummarizeTranscript}
+        summarizeInProgress={summarizeInProgress}
+        hasSummary={hasSummary}
+        onViewSummary={onViewSummary}
+        onReset={onReset}
+        hasMessages={hasMessages}
+      />
     </div>
   )
 }

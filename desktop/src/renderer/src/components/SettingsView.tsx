@@ -8,10 +8,8 @@ import {
   HOTKEY_LABELS,
   DEFAULT_SETTINGS,
   DEFAULT_TRANSCRIPTION,
-  DEFAULT_INSIGHTS,
   FONT_SIZE_LABELS,
   type FontSize,
-  type InsightsSettings,
 } from '../types/settings'
 
 export interface SettingsViewProps {
@@ -56,21 +54,6 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
       const updated = { ...settings, hotkeys: newHotkeys }
       setSettings(updated)
       window.electronAPI?.updateSettings({ hotkeys: newHotkeys })
-    },
-    [settings],
-  )
-
-  const updateInsights = useCallback(
-    (insights: Partial<InsightsSettings>) => {
-      if (!settings) return
-      const current = settings.llm?.insights ?? DEFAULT_INSIGHTS
-      const next = { ...current, ...insights }
-      const updated = {
-        ...settings,
-        llm: { ...settings.llm, insights: next },
-      }
-      setSettings(updated)
-      window.electronAPI?.updateSettings({ llm: { insights: next } } as Partial<AppSettings>)
     },
     [settings],
   )
@@ -147,12 +130,6 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
       <TranscriptionSection
         transcription={settings.transcription || DEFAULT_TRANSCRIPTION}
         onUpdate={(t) => updateSetting('transcription', t)}
-      />
-
-      {/* ── Insights ───────────────────────────── */}
-      <InsightsSection
-        insights={settings.llm?.insights ?? DEFAULT_INSIGHTS}
-        onUpdate={updateInsights}
       />
 
       {/* ── Window ─────────────────────────────── */}
@@ -280,127 +257,6 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
         </button>
       </div>
     </div>
-  )
-}
-
-// ── Insights section ───────────────────────────────────────
-const DETECTOR_LABELS: Record<keyof Pick<InsightsSettings, 'detectQuestions' | 'detectTopicChanges' | 'detectActionItems' | 'detectKeyMentions' | 'detectDecisions'>, string> = {
-  detectQuestions: 'Questions',
-  detectTopicChanges: 'Topic changes',
-  detectActionItems: 'Action items',
-  detectKeyMentions: 'Key mentions',
-  detectDecisions: 'Decisions',
-}
-
-function InsightsSection({
-  insights,
-  onUpdate,
-}: {
-  insights: InsightsSettings
-  onUpdate: (insights: Partial<InsightsSettings>) => void
-}) {
-  const toggle = (key: keyof InsightsSettings, value: boolean) => {
-    onUpdate({ [key]: value })
-  }
-
-  const extraKeywordsText = (insights.extraQuestionKeywords ?? []).join(', ')
-  const setExtraKeywords = (text: string) => {
-    const keywords = text
-      .split(',')
-      .map((k) => k.trim())
-      .filter(Boolean)
-    onUpdate({ extraQuestionKeywords: keywords })
-  }
-
-  return (
-    <Section title="Insights">
-      <div className="space-y-3">
-        {/* Master toggle */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--text)' }}>
-            Enable live insights
-          </span>
-          <button
-            onClick={() => toggle('enabled', !insights.enabled)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${
-              insights.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                insights.enabled ? 'left-4' : 'left-0.5'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* LLM enrichment */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--text)' }}>
-            LLM enrichment
-          </span>
-          <button
-            onClick={() => toggle('enrichmentEnabled', !insights.enrichmentEnabled)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${
-              insights.enrichmentEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                insights.enrichmentEnabled ? 'left-4' : 'left-0.5'
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* Per-detector toggles */}
-        <div className="pt-1 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
-          <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Event detectors
-          </span>
-          {(Object.keys(DETECTOR_LABELS) as (keyof typeof DETECTOR_LABELS)[]).map((key) => (
-            <div key={key} className="flex items-center justify-between">
-              <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-                {DETECTOR_LABELS[key]}
-              </span>
-              <button
-                onClick={() => toggle(key, !(insights[key] ?? true))}
-                className={`relative w-9 h-5 rounded-full transition-colors ${
-                  insights[key] !== false ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    insights[key] !== false ? 'left-4' : 'left-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Extra question keywords */}
-        <div className="space-y-1 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
-          <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-            Extra question keywords
-          </span>
-          <input
-            type="text"
-            value={extraKeywordsText}
-            onChange={(e) => setExtraKeywords(e.target.value)}
-            placeholder="e.g. clarify, explain, tell me"
-            className="w-full px-2 py-1.5 rounded-lg text-[11px] border bg-transparent"
-            style={{
-              borderColor: 'var(--border)',
-              color: 'var(--text)',
-            }}
-          />
-          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Comma-separated. Adds to question detection.
-          </p>
-        </div>
-      </div>
-    </Section>
   )
 }
 

@@ -6,6 +6,7 @@ import { ActionChips } from './ActionChips'
 import { InputBar } from './InputBar'
 import { CompactChatView } from './CompactChatView'
 import { SettingsView } from './SettingsView'
+import { InsightsView } from './InsightsView'
 import { LLMView } from './LLMView'
 import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
@@ -20,7 +21,7 @@ import type { ChatAttachment } from '../types'
 import type { ModelId } from '../types/settings'
 import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
 
-type ViewId = 'chat' | 'llm' | 'settings'
+type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
 
 function SummaryModal({ content, onClose }: { content: string | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
@@ -129,8 +130,45 @@ export function Overlay() {
   const recorder = useMeetingRecorder()
   const [meetingError, setMeetingError] = useState<string | null>(null)
 
+  // ── Meeting session duration timer (independent of screen recording) ──
+  const meetingStartRef = useRef<number>(0)
+  const meetingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [meetingDurationSec, setMeetingDurationSec] = useState(0)
+
+  const meetingActive = transcript.status.isActive
+
+  useEffect(() => {
+    if (meetingActive) {
+      meetingStartRef.current = Date.now()
+      setMeetingDurationSec(0)
+      meetingTimerRef.current = setInterval(() => {
+        setMeetingDurationSec(Math.floor((Date.now() - meetingStartRef.current) / 1000))
+      }, 1000)
+    } else {
+      if (meetingTimerRef.current) {
+        clearInterval(meetingTimerRef.current)
+        meetingTimerRef.current = null
+      }
+      setMeetingDurationSec(0)
+    }
+    return () => {
+      if (meetingTimerRef.current) {
+        clearInterval(meetingTimerRef.current)
+        meetingTimerRef.current = null
+      }
+    }
+  }, [meetingActive])
+
+  const formattedMeetingDuration = (() => {
+    const h = Math.floor(meetingDurationSec / 3600)
+    const m = Math.floor((meetingDurationSec % 3600) / 60)
+    const s = meetingDurationSec % 60
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    return `${m}:${String(s).padStart(2, '0')}`
+  })()
+
   // Pass transcript entries to useChat so it can embed deltas in user messages
-  const { messages, isLoading, sendMessage, resetChat, stopGeneration, contextUsage } = useChat({
+  const { messages, isLoading, sendMessage, sendWebSearch, resetChat, stopGeneration, contextUsage } = useChat({
     transcriptEntries: transcript.entries,
   })
 
@@ -467,8 +505,6 @@ export function Overlay() {
     setShowSummaryModal(true)
   }, [])
 
-  const meetingActive = transcript.status.isActive
-
   // Close summary modal on Escape
   useEffect(() => {
     if (!showSummaryModal) return
@@ -510,9 +546,10 @@ export function Overlay() {
                 messages={messages}
                 isLoading={isLoading}
                 onSend={handleSend}
+                onWebSearch={sendWebSearch}
                 onStop={stopGeneration}
                 meetingActive={meetingActive}
-                meetingDuration={recorder.formattedDuration}
+                meetingDuration={formattedMeetingDuration}
                 onToggleMeeting={handleToggleMeeting}
                 onSetView={handleSetView}
                 onReset={handleReset}
@@ -525,6 +562,17 @@ export function Overlay() {
                 onToggleCompactMode={handleToggleCompactMode}
                 currentModel={currentModel}
                 onModelChange={handleModelChange}
+                sttTranscript={stt.transcript}
+                onClearTranscript={stt.clearTranscript}
+                micLevel={stt.micLevel}
+                modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                onSummarizeTranscript={handleSummarizeTranscript}
+                summarizeInProgress={summarizeInProgress}
+                hasSummary={hasSummary}
+                onViewSummary={handleViewSummary}
+                summarizeFeedback={summarizeFeedback}
+                onViewSummaryClick={handleViewSummary}
               />
 
               {/* Summary modal (still accessible in compact mode) */}
@@ -555,7 +603,7 @@ export function Overlay() {
                 onSetView={handleSetView}
                 onReset={handleReset}
                 meetingActive={meetingActive}
-                meetingDuration={recorder.formattedDuration}
+                meetingDuration={formattedMeetingDuration}
                 onToggleMeeting={handleToggleMeeting}
                 compactMode={compactMode}
                 onToggleCompactMode={handleToggleCompactMode}
@@ -576,7 +624,7 @@ export function Overlay() {
                       entries={transcript.entries}
                       isActive={meetingActive}
                       isRecording={recorder.isRecording}
-                      formattedDuration={recorder.formattedDuration}
+                      formattedDuration={formattedMeetingDuration}
                       transcriptionMode={transcript.status.transcriptionMode}
                       micActive={capture.micActive}
                       tabActive={capture.tabActive}
@@ -689,47 +737,9 @@ export function Overlay() {
                     />
                   )}
 
-                  {/* Context utilization indicator */}
-                  {contextUsage && contextUsage.contextWindow > 0 && (
-                    <div
-                      className="mx-4 mb-1 px-2 py-1 rounded-lg flex items-center justify-between"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
-                        border: '1px solid var(--border)',
-                      }}
-                    >
-                      <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                        Context
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-1.5 rounded-full overflow-hidden flex-1 min-w-[60px] max-w-[100px]"
-                          style={{ backgroundColor: 'var(--border)' }}
-                        >
-                          <div
-                            className="h-full rounded-full transition-all duration-300"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                (contextUsage.promptTokens / contextUsage.contextWindow) * 100,
-                              )}%`,
-                              backgroundColor:
-                                contextUsage.promptTokens / contextUsage.contextWindow > 0.8
-                                  ? 'var(--error)'
-                                  : 'var(--accent)',
-                            }}
-                          />
-                        </div>
-                        <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
-                          {(contextUsage.promptTokens / 1000).toFixed(1)}k /{' '}
-                          {(contextUsage.contextWindow / 1000).toFixed(0)}k
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
                   <InputBar
                     onSend={handleSend}
+                    onWebSearch={sendWebSearch}
                     disabled={isLoading}
                     isLoading={isLoading}
                     onStop={stopGeneration}
@@ -749,12 +759,16 @@ export function Overlay() {
                     summarizeInProgress={summarizeInProgress}
                     hasSummary={hasSummary}
                     onViewSummary={handleViewSummary}
+                    onReset={handleReset}
+                    hasMessages={messages.length > 0}
+                    contextUsage={contextUsage ?? undefined}
                   />
                 </>
               )}
 
               {view === 'llm' && <LLMView />}
               {view === 'settings' && <SettingsView onReRunSetup={handleReRunSetup} />}
+              {view === 'insights' && <InsightsView />}
 
               {/* Source picker overlay */}
               {recorder.pickerSources && (

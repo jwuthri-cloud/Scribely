@@ -8,7 +8,7 @@ import { PromptAssembler } from './prompt-assembler'
 import { TokenCounter } from './token-counter'
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
-import { runWebSearch } from './web-search'
+import { runWebSearch, runWebSearchStreaming } from './web-search'
 
 // ── Types (mirrored from renderer for main process use) ──
 
@@ -483,7 +483,7 @@ export class LLMService {
       return this.transcriptMemory.getSummary()
     })
 
-    // ── Web search (Live Insights) ──
+    // ── Web search (streaming for chat, non-streaming for Live Insights) ──
     ipcMain.handle(
       'llm:web-search',
       async (_event, query: string) => {
@@ -494,6 +494,42 @@ export class LLMService {
           return { content: '', error: 'Empty query' }
         }
         return runWebSearch(this.client, query.trim())
+      },
+    )
+
+    // Web search streaming (chat only): fire-and-forget, emits delta/done/error
+    ipcMain.on(
+      'llm:web-search-stream',
+      (event, payload: { requestId: string; query: string }) => {
+        const { requestId, query } = payload ?? {}
+        const sender = event.sender
+        const send = (channel: string, data: unknown) => {
+          if (!sender.isDestroyed()) sender.send(channel, data)
+        }
+
+        if (!this.client) {
+          send('llm:web-search-error', { requestId, error: 'API key not configured' })
+          return
+        }
+        if (!query?.trim()) {
+          send('llm:web-search-error', { requestId, error: 'Empty query' })
+          return
+        }
+
+        runWebSearchStreaming(this.client, query.trim(), {
+          onDelta: (delta) => send('llm:web-search-delta', { requestId, delta }),
+          onDone: (result) => {
+            send('llm:web-search-done', {
+              requestId,
+              content: result.content,
+              sources: result.sources,
+            })
+            // Add web search exchange to conversation so it's included in the next prompt
+            this.addWebSearchToConversation(query.trim(), result.content, result.sources ?? [])
+          },
+          onError: (error) =>
+            send('llm:web-search-error', { requestId, error }),
+        })
       },
     )
 
@@ -749,11 +785,12 @@ export class LLMService {
   "title": "Short title (e.g. 'Question from Neel')",
   "description": "One sentence description",
   "suggestedActions": [
+    { "label": "Answer now", "type": "answer", "payload": "question text", "icon": "sparkle" },
     { "label": "Search the web", "type": "search", "payload": "search query", "icon": "search" },
     { "label": "Suggest follow-up questions", "type": "follow_up", "payload": "prompt", "icon": "chat" }
   ]
 }
-For questions: include a "Search the web" action with the question as payload.
+For questions: include "Answer now" (payload=question), "Search the web" (payload=question), and "Suggest follow-up questions".
 Keep title under 40 chars, description under 100 chars.`
 
     const userContent = `Event type: ${eventType}\nSpeaker: ${speaker}\nText: "${text}"`
@@ -986,6 +1023,40 @@ Keep title under 40 chars, description under 100 chars.`
     if (this.window && !this.window.isDestroyed()) {
       this.window.webContents.send(channel, data)
     }
+  }
+
+  /**
+   * Add a web search exchange to the conversation so it's included in the next prompt.
+   * Format: user (query) -> assistant (content + sources).
+   */
+  private addWebSearchToConversation(
+    query: string,
+    content: string,
+    sources: Array<{ title: string; url: string }>,
+  ): void {
+    const sourcesBlock =
+      sources.length > 0
+        ? `\n\nSources:\n${sources.map((s) => `- ${s.title}: ${s.url}`).join('\n')}`
+        : ''
+    const assistantContent = content + sourcesBlock
+
+    const userMsg: ConversationMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: query,
+      rawQuery: query,
+      timestamp: Date.now(),
+      tokenCount: this.tokenCounter.count(query),
+    }
+    const assistantMsg: ConversationMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: assistantContent,
+      timestamp: Date.now(),
+      tokenCount: this.tokenCounter.count(assistantContent),
+    }
+    this.conversationMessages.push(userMsg, assistantMsg)
+    this.persistConversation()
   }
 
   // ── System Prompt CRUD ──

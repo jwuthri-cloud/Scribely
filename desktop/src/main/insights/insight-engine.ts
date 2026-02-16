@@ -53,6 +53,13 @@ function buildDefaultActions(event: DetectedEvent): InsightAction[] {
     case 'question':
       actions.push({
         id: randomUUID(),
+        label: 'Answer now',
+        type: 'answer',
+        payload: event.text,
+        icon: 'sparkle',
+      })
+      actions.push({
+        id: randomUUID(),
         label: 'Search the web',
         type: 'search',
         payload: event.text,

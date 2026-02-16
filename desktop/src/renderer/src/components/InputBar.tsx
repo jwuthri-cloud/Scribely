@@ -109,6 +109,8 @@ const VIEW_SUMMARY_ICON = (
 
 interface InputBarProps {
   onSend: (message: string, attachments?: ChatAttachment[]) => void
+  /** Run web search with current input (shows result + sources in chat) */
+  onWebSearch?: (query: string) => void
   disabled?: boolean
   isLoading?: boolean
   onStop?: () => void
@@ -130,10 +132,16 @@ interface InputBarProps {
   /** When true, shows a small View summary button at bottom right */
   hasSummary?: boolean
   onViewSummary?: () => void
+  /** When provided with hasMessages, shows Reset chat link */
+  onReset?: () => void
+  hasMessages?: boolean
+  /** Context usage for token display (promptTokens, contextWindow) */
+  contextUsage?: { promptTokens: number; contextWindow: number } | null
 }
 
 export function InputBar({
   onSend,
+  onWebSearch,
   disabled,
   isLoading,
   onStop,
@@ -153,6 +161,9 @@ export function InputBar({
   summarizeInProgress = false,
   hasSummary = false,
   onViewSummary,
+  onReset,
+  hasMessages = false,
+  contextUsage,
 }: InputBarProps) {
   const [value, setValue] = useState('')
   const [showModelPicker, setShowModelPicker] = useState(false)
@@ -206,6 +217,45 @@ export function InputBar({
 
   return (
     <div className="px-4 pb-4 pt-2 shrink-0 space-y-2">
+      {/* Context utilization indicator */}
+      {contextUsage && contextUsage.contextWindow > 0 && (
+        <div
+          className="px-2 py-1 rounded-lg flex items-center justify-between"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--surface) 80%, transparent)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+            Context
+          </span>
+          <div className="flex items-center gap-2">
+            <div
+              className="h-1.5 rounded-full overflow-hidden flex-1 min-w-[60px] max-w-[100px]"
+              style={{ backgroundColor: 'var(--border)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    (contextUsage.promptTokens / contextUsage.contextWindow) * 100,
+                  )}%`,
+                  backgroundColor:
+                    contextUsage.promptTokens / contextUsage.contextWindow > 0.8
+                      ? 'var(--error)'
+                      : 'var(--accent)',
+                }}
+              />
+            </div>
+            <span className="text-[9px] font-mono" style={{ color: 'var(--text-muted)' }}>
+              {(contextUsage.promptTokens / 1000).toFixed(1)}k /{' '}
+              {(contextUsage.contextWindow / 1000).toFixed(0)}k
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Screenshot preview */}
       {pendingScreenshot && (
         <div className="relative inline-block">
@@ -312,6 +362,31 @@ export function InputBar({
                 <path d="M12 19v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </IconBtnWithTooltip>
+            {onWebSearch && (
+              <IconBtnWithTooltip
+                tooltip={value.trim() ? `Search: "${value.trim().slice(0, 30)}${value.trim().length > 30 ? '...' : ''}"` : 'Search the web (type a query first)'}
+                onClick={() => {
+                  const q = value.trim()
+                  if (q && !disabled) {
+                    onWebSearch(q)
+                    setValue('')
+                  }
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  style={{ opacity: !value.trim() || disabled ? 0.5 : 1 }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+              </IconBtnWithTooltip>
+            )}
           </div>
 
           <textarea
@@ -454,12 +529,23 @@ export function InputBar({
         </div>
       </form>
       <div className="flex items-center justify-between mt-1 px-1">
-        <p
-          className="text-[9px]"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          Enter to send · Shift+Enter for new line
-        </p>
+        <div className="flex items-center gap-2">
+          <p
+            className="text-[9px]"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Enter to send · Shift+Enter for new line
+          </p>
+          {hasMessages && onReset && (
+            <button
+              onClick={onReset}
+              className="text-[9px] transition-colors hover:underline"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Reset chat
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {hasSummary && onViewSummary && (
             <WithTooltip tooltip="View transcript summary">

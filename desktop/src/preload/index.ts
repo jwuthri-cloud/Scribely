@@ -58,6 +58,16 @@ export interface ElectronAPI {
   // ── Live Insights ───────────────────────────────
   onInsightNew: (callback: (insight: unknown) => void) => () => void
   llmWebSearch: (query: string) => Promise<unknown>
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => void
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => () => void
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
   toggleInsightsWindow: () => Promise<void>
   insightsWindowVisible: () => Promise<boolean>
   onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
@@ -373,6 +383,35 @@ const api: ElectronAPI = {
 
   llmWebSearch: (query: string) => {
     return ipcRenderer.invoke('llm:web-search', query)
+  },
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => {
+    ipcRenderer.send('llm:web-search-stream', payload)
+  },
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; delta: string }) =>
+      callback(data)
+    ipcRenderer.on('llm:web-search-delta', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-delta', handler)
+  },
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { requestId: string; content: string; sources?: Array<{ title: string; url: string }> },
+    ) => callback(data)
+    ipcRenderer.on('llm:web-search-done', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-done', handler)
+  },
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; error: string }) =>
+      callback(data)
+    ipcRenderer.on('llm:web-search-error', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-error', handler)
   },
   toggleInsightsWindow: () => ipcRenderer.invoke('insights:toggle-window'),
   insightsWindowVisible: () => ipcRenderer.invoke('insights:window-visible'),

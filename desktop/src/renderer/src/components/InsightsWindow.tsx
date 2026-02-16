@@ -136,6 +136,7 @@ function InsightCard({
             key={action.id}
             onClick={() => onExecuteAction(insight.id, action)}
             disabled={isLoading}
+            title={action.type === 'search' ? `Search: "${action.payload}"` : undefined}
             className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-50"
             style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
           >
@@ -220,8 +221,8 @@ export function InsightsWindow() {
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',
-        }}
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+          WebkitAppRegion: 'drag',
+        } as React.CSSProperties}
       >
         <div className="flex items-center gap-2">
           <span

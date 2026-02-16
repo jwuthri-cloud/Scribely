@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { HotkeyMenu } from './HotkeyMenu'
 
-type ViewId = 'chat' | 'llm' | 'settings'
+type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
 
 /** Wraps content with a hover tooltip */
 function TooltipWrap({
@@ -282,7 +282,11 @@ export function TitleBar({
         )}
 
         {view !== 'chat' && (
-          <TitleBtn onClick={() => onSetView('chat')} label="Back to chat" tooltip="Back to chat">
+          <TitleBtn
+            onClick={() => onSetView('chat')}
+            label="Back to chat"
+            tooltip="Back to chat"
+          >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path
                 d="M7.5 2L3.5 6L7.5 10"
@@ -314,8 +318,8 @@ export function TitleBar({
           </TitleBtn>
         )}
 
-        {/* LLM tab — only visible from settings or when in LLM view */}
-        {view !== 'chat' && (
+        {/* LLM tab — visible when not in chat */}
+        {(view === 'llm' || view === 'settings' || view === 'insights') && (
           <TitleBtn
             onClick={() => onSetView(view === 'llm' ? 'chat' : 'llm')}
             label="LLM settings"
@@ -330,6 +334,20 @@ export function TitleBar({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
+            </svg>
+          </TitleBtn>
+        )}
+
+        {/* Insights tab — visible when not in chat (like LLM) */}
+        {(view === 'llm' || view === 'settings' || view === 'insights') && (
+          <TitleBtn
+            onClick={() => onSetView(view === 'insights' ? 'chat' : 'insights')}
+            label="Insights settings"
+            tooltip="Insights settings"
+            active={view === 'insights'}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
             </svg>
           </TitleBtn>
         )}

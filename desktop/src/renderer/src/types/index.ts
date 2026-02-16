@@ -218,6 +218,16 @@ export interface ElectronAPI {
   // Live Insights
   onInsightNew: (callback: (insight: import('./insights').Insight) => void) => () => void
   llmWebSearch: (query: string) => Promise<import('./insights').WebSearchResult>
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => void
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => () => void
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
   toggleInsightsWindow: () => Promise<void>
   insightsWindowVisible: () => Promise<boolean>
   onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
@@ -261,6 +271,10 @@ export interface ChatMessage {
   rawQuery?: string
   timestamp: number
   attachments?: ChatAttachment[]
+  /** True when this assistant message is from a web search (vs regular chat) */
+  isWebSearch?: boolean
+  /** Sources from web search (when message is a web search result) */
+  webSources?: Array<{ title: string; url: string }>
   model?: string
   usage?: {
     promptTokens: number

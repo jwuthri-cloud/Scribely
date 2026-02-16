@@ -1,13 +1,58 @@
 /**
  * OpenAI web search via Responses API.
  * Uses the web_search tool for real-time internet lookups.
+ *
+ * Query: The search query is the action.payload from the insight:
+ *   - For questions: the detected question text (e.g. "Who acquired Windsurf?")
+ *   - For key_mention: entity + amount (e.g. "Windsurf $82M")
+ *
+ * Flow: User clicks "Search the web" -> payload sent as `input` to OpenAI
+ * Responses API -> OpenAI runs web search and returns synthesized answer + citations.
  */
 
 import type OpenAI from 'openai'
 import type { WebSearchResult } from '../insights/types'
 
-/** Model for web search — gpt-4o-mini is well-supported per OpenAI docs */
-const WEB_SEARCH_MODEL = 'gpt-4o-mini'
+/** Model for web search — gpt-5-nano is well-supported per OpenAI docs */
+const WEB_SEARCH_MODEL = 'gpt-5-nano'
+
+export interface WebSearchStreamCallbacks {
+  onDelta: (delta: string) => void
+  onDone: (result: WebSearchResult) => void
+  onError: (error: string) => void
+}
+
+type UrlCitation = { type?: string; url?: string; title?: string; url_citation?: { url?: string; title?: string } }
+
+function extractSourceFromAnnotation(ann: UrlCitation): { title: string; url: string } | null {
+  if (!ann || ann.type !== 'url_citation') return null
+  const url = ann.url ?? ann.url_citation?.url
+  const title = ann.title ?? ann.url_citation?.title ?? url ?? 'Source'
+  if (!url) return null
+  return { url, title }
+}
+
+function extractSourcesFromOutput(output: unknown): Array<{ title: string; url: string }> {
+  const sources: Array<{ title: string; url: string }> = []
+  const seenUrls = new Set<string>()
+  const items = (output as Array<{ type: string; content?: Array<{ type: string; annotations?: UrlCitation[] }> }>) ?? []
+  for (const item of items) {
+    if (item.type === 'message' && item.content) {
+      for (const block of item.content) {
+        if (block.annotations) {
+          for (const ann of block.annotations) {
+            const src = extractSourceFromAnnotation(ann)
+            if (src && !seenUrls.has(src.url)) {
+              seenUrls.add(src.url)
+              sources.push(src)
+            }
+          }
+        }
+      }
+    }
+  }
+  return sources
+}
 
 /**
  * Run a web search query using OpenAI's Responses API with web_search tool.
@@ -30,22 +75,13 @@ export async function runWebSearch(
     }>
 
     let content = ''
-    const sources: Array<{ title: string; url: string }> = []
-    const seenUrls = new Set<string>()
+    const sources = extractSourcesFromOutput(output)
 
     for (const item of output ?? []) {
       if (item.type === 'message' && item.content) {
         for (const block of item.content) {
           if (block.type === 'output_text' && block.text) {
             content = block.text
-          }
-          if (block.annotations) {
-            for (const ann of block.annotations) {
-              if (ann.type === 'url_citation' && ann.url && ann.title && !seenUrls.has(ann.url)) {
-                seenUrls.add(ann.url)
-                sources.push({ title: ann.title, url: ann.url })
-              }
-            }
           }
         }
       }
@@ -58,5 +94,58 @@ export async function runWebSearch(
       content: '',
       error: err?.message ?? 'Web search failed',
     }
+  }
+}
+
+/**
+ * Run web search with streaming. Emits text deltas as they arrive,
+ * then calls onDone with full content and sources.
+ *
+ * Sources are collected from:
+ * 1. response.output_text.annotation.added events (streamed as they arrive)
+ * 2. response.completed event (fallback from full response)
+ */
+export async function runWebSearchStreaming(
+  client: OpenAI,
+  query: string,
+  callbacks: WebSearchStreamCallbacks,
+): Promise<void> {
+  try {
+    const stream = (client as any).responses.stream({
+      model: WEB_SEARCH_MODEL,
+      input: query,
+      tools: [{ type: 'web_search' }],
+    })
+
+    let fullContent = ''
+    const sourcesMap = new Map<string, { title: string; url: string }>()
+    let finalResponse: { output?: unknown } | null = null
+
+    for await (const event of stream) {
+      if (event.type === 'response.output_text.delta' && event.delta) {
+        fullContent += event.delta
+        callbacks.onDelta(event.delta)
+      }
+      if (event.type === 'response.output_text.annotation.added' && event.annotation) {
+        const src = extractSourceFromAnnotation(event.annotation as UrlCitation)
+        if (src && !sourcesMap.has(src.url)) {
+          sourcesMap.set(src.url, src)
+        }
+      }
+      if (event.type === 'response.completed' && event.response) {
+        finalResponse = event.response
+      }
+    }
+
+    // Prefer annotation.added sources; fallback to response.completed output
+    let sources = Array.from(sourcesMap.values())
+    if (sources.length === 0 && finalResponse?.output) {
+      sources = extractSourcesFromOutput(finalResponse.output)
+    }
+    const content = fullContent.trim() || 'No results found.'
+    callbacks.onDone({ content, sources })
+  } catch (err: any) {
+    console.error('[web-search] Streaming error:', err)
+    callbacks.onError(err?.message ?? 'Web search failed')
   }
 }

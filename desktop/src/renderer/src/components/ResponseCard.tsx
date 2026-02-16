@@ -394,6 +394,50 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
               <span className="whitespace-pre-wrap">{displayText}</span>
             )}
 
+            {/* Web Search badge + sources (same row as model/latency) */}
+            {msg.role === 'assistant' && msg.isWebSearch && (
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                <span
+                  className="text-[9px] px-1.5 py-0.5 rounded-md font-medium"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, #3b82f6 18%, transparent)',
+                    color: '#60a5fa',
+                  }}
+                >
+                  Web Search
+                </span>
+                {msg.webSources && msg.webSources.length > 0 ? (
+                  msg.webSources.map((s, i) => (
+                    <a
+                      key={i}
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9px] px-1.5 py-0.5 rounded-md truncate max-w-[140px] hover:underline block"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                        color: 'var(--accent)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      title={s.title}
+                    >
+                      {s.title}
+                    </a>
+                  ))
+                ) : (
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    No sources
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Streaming cursor */}
             {isStreaming && msg === lastMsg && (
               <span
