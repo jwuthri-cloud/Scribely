@@ -14,7 +14,7 @@ import type OpenAI from 'openai'
 import type { WebSearchResult } from '../insights/types'
 
 /** Model for web search — gpt-5-nano is well-supported per OpenAI docs */
-const WEB_SEARCH_MODEL = 'gpt-5-nano'
+const WEB_SEARCH_MODEL = 'gpt-4.1-mini'
 
 export interface WebSearchStreamCallbacks {
   onDelta: (delta: string) => void
@@ -98,12 +98,35 @@ export async function runWebSearch(
 }
 
 /**
+ * Extract citations from an output item (message with content).
+ * Mirrors the Python approach: item.content[].annotations -> url_citation.
+ */
+function extractSourcesFromItem(item: { type?: string; content?: Array<{ annotations?: UrlCitation[] }> }): Array<{ title: string; url: string }> {
+  const sources: Array<{ title: string; url: string }> = []
+  const seenUrls = new Set<string>()
+  if (item.type !== 'message' || !item.content) return sources
+  for (const block of item.content) {
+    if (block.annotations) {
+      for (const ann of block.annotations) {
+        const src = extractSourceFromAnnotation(ann)
+        if (src && !seenUrls.has(src.url)) {
+          seenUrls.add(src.url)
+          sources.push(src)
+        }
+      }
+    }
+  }
+  return sources
+}
+
+/**
  * Run web search with streaming. Emits text deltas as they arrive,
  * then calls onDone with full content and sources.
  *
- * Sources are collected from:
- * 1. response.output_text.annotation.added events (streamed as they arrive)
- * 2. response.completed event (fallback from full response)
+ * Sources are collected from (in order of preference):
+ * 1. response.output_item.done events — when each message item is done, extract citations from item.content[].annotations (matches Python)
+ * 2. response.output_text.annotation.added events (streamed as they arrive)
+ * 3. response.completed / response.done event (fallback from full response)
  */
 export async function runWebSearchStreaming(
   client: OpenAI,
@@ -126,18 +149,27 @@ export async function runWebSearchStreaming(
         fullContent += event.delta
         callbacks.onDelta(event.delta)
       }
+      // Primary: Python uses response.output_item.done — item has full content with annotations
+      if (event.type === 'response.output_item.done' && event.item) {
+        const item = event.item as { type?: string; content?: Array<{ annotations?: UrlCitation[] }> }
+        for (const src of extractSourcesFromItem(item)) {
+          if (!sourcesMap.has(src.url)) {
+            sourcesMap.set(src.url, src)
+          }
+        }
+      }
       if (event.type === 'response.output_text.annotation.added' && event.annotation) {
         const src = extractSourceFromAnnotation(event.annotation as UrlCitation)
         if (src && !sourcesMap.has(src.url)) {
           sourcesMap.set(src.url, src)
         }
       }
-      if (event.type === 'response.completed' && event.response) {
+      if ((event.type === 'response.completed' || event.type === 'response.done') && event.response) {
         finalResponse = event.response
       }
     }
 
-    // Prefer annotation.added sources; fallback to response.completed output
+    // Prefer annotation.added / output_item.done sources; fallback to final response output
     let sources = Array.from(sourcesMap.values())
     if (sources.length === 0 && finalResponse?.output) {
       sources = extractSourcesFromOutput(finalResponse.output)
