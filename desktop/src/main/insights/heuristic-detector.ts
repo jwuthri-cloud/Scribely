@@ -3,6 +3,15 @@
  * Runs synchronously on each transcript entry — zero-cost pattern matching.
  */
 
+import nlp from 'compromise'
+import { createLogger } from '../logger'
+
+const log = createLogger('heuristic')
+import {
+  DEFAULT_DECISION_KEYWORDS,
+  DEFAULT_QUESTION_VERBS,
+  DEFAULT_QUESTION_WORDS,
+} from '../../shared/insight-defaults'
 import type { DetectedEvent, DetectedEventType } from './types'
 
 export interface TranscriptEntryLike {
@@ -15,31 +24,39 @@ export interface TranscriptEntryLike {
 }
 
 // ── Question detection ────────────────────────────────────
-const QUESTION_WORDS =
-  /\b(who|what|when|where|why|how|which|whose|whom)\b/i
-const QUESTION_VERBS = /\b(can|could|would|should|do|does|did|is|are|was|were|has|have|had|will|shall)\s+\w+/i
 const QUESTION_END = /\?$/
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function buildQuestionWordsRegex(words: string[]): RegExp {
+  if (words.length === 0) return /^\b$/
+  const escaped = words.map(escapeRegex).join('|')
+  return new RegExp(`\\b(${escaped})\\b`, 'i')
+}
+
+function buildQuestionVerbsRegex(verbs: string[]): RegExp {
+  if (verbs.length === 0) return /^\b$/
+  const escaped = verbs.map(escapeRegex).join('|')
+  return new RegExp(`\\b(${escaped})\\s+\\w+`, 'i')
+}
 
 function detectQuestion(
   entry: TranscriptEntryLike,
-  extraQuestionKeywords: string[] = [],
+  questionWords: string[],
+  questionVerbs: string[],
 ): DetectedEvent | null {
   const text = entry.text.trim()
   if (text.length < 5) return null
 
+  const wordsRe = buildQuestionWordsRegex(questionWords)
+  const verbsRe = buildQuestionVerbsRegex(questionVerbs)
+
   let confidence = 0
   if (QUESTION_END.test(text)) confidence += 0.5
-  if (QUESTION_WORDS.test(text)) confidence += 0.35
-  if (QUESTION_VERBS.test(text)) confidence += 0.2
-  if (extraQuestionKeywords.length > 0) {
-    const lower = text.toLowerCase()
-    for (const kw of extraQuestionKeywords) {
-      if (kw && lower.includes(kw.toLowerCase())) {
-        confidence += 0.3
-        break
-      }
-    }
-  }
+  if (wordsRe.test(text)) confidence += 0.4
+  if (verbsRe.test(text)) confidence += 0.2
 
   if (confidence < 0.4) return null
 
@@ -53,117 +70,68 @@ function detectQuestion(
   }
 }
 
-// ── Topic change detection ─────────────────────────────────
-const JACCARD_THRESHOLD = 0.15
-const MIN_ENTRIES_FOR_TOPIC = 3
+// Action item detection moved to insight-engine (embedding similarity vs seed phrases)
 
-function tokenize(s: string): Set<string> {
-  return new Set(
-    s
-      .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w.length > 2),
-  )
+// ── Decision detection (heuristic keywords) ────────────────
+function buildDecisionRegex(keywords: readonly string[]): RegExp {
+  if (keywords.length === 0) return /^\b$/
+  const escaped = keywords.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return new RegExp(`\\b(${escaped})\\b`, 'i')
 }
 
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 && b.size === 0) return 1
-  const inter = [...a].filter((x) => b.has(x)).length
-  const union = new Set([...a, ...b]).size
-  return union === 0 ? 1 : inter / union
-}
-
-function detectTopicChange(
+function detectDecision(
   entry: TranscriptEntryLike,
-  recentEntries: TranscriptEntryLike[],
+  decisionKeywords: readonly string[],
 ): DetectedEvent | null {
-  if (recentEntries.length < MIN_ENTRIES_FOR_TOPIC) return null
+  const text = entry.text.trim()
+  if (text.length < 6) return null
 
-  const recentText = recentEntries.map((e) => e.text).join(' ')
-  const recentTokens = tokenize(recentText)
-  const newTokens = tokenize(entry.text)
-
-  if (newTokens.size === 0) return null
-
-  const similarity = jaccard(recentTokens, newTokens)
-  if (similarity > JACCARD_THRESHOLD) return null
+  const re = buildDecisionRegex(decisionKeywords)
+  if (!re.test(text)) return null
 
   return {
-    type: 'topic_change',
+    type: 'decision',
     confidence: 0.6,
     sourceEntryId: entry.id,
     speaker: entry.speaker,
-    text: entry.text,
+    text,
     timestamp: entry.startTime,
   }
 }
 
-// ── Action item detection ──────────────────────────────────
-const ACTION_PHRASES = [
-  /\blet's\b/i,
-  /\bwe should\b/i,
-  /\bI'll\b/i,
-  /\byou need to\b/i,
-  /\bcan you\b/i,
-  /\bmake sure to\b/i,
-  /\bfollow up on\b/i,
-  /\bfollow up with\b/i,
-  /\bplease\s+\w+/i,
-  /\bwe need to\b/i,
-  /\bsend (me|them|us)\b/i,
-  /\bschedule\s+(a|an)\b/i,
-  /\bset up\s+(a|an)\b/i,
-]
-
-function detectActionItem(entry: TranscriptEntryLike): DetectedEvent | null {
-  const text = entry.text.trim()
-  if (text.length < 8) return null
-
-  for (const re of ACTION_PHRASES) {
-    if (re.test(text)) {
-      return {
-        type: 'action_item',
-        confidence: 0.7,
-        sourceEntryId: entry.id,
-        speaker: entry.speaker,
-        text,
-        timestamp: entry.startTime,
-      }
-    }
-  }
-  return null
-}
-
-// ── Key mention detection ───────────────────────────────────
-const DOLLAR_AMOUNT = /\$[\d,]+(?:\.\d+)?\s*(?:M|B|K|million|billion|k)?/i
+// ── Key mention detection (compromise NER) ───────────────────
+const URL_PATTERN = /https?:\/\/[^\s]+/i
 const DATE_PATTERN =
   /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/i
-const URL_PATTERN = /https?:\/\/[^\s]+/i
-const CAPITALIZED_ENTITY = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/
 
 function detectKeyMention(entry: TranscriptEntryLike): DetectedEvent | null {
   const text = entry.text.trim()
   if (text.length < 4) return null
 
   const metadata: Record<string, unknown> = {}
+  const doc = nlp(text)
 
-  if (DOLLAR_AMOUNT.test(text)) {
-    const m = text.match(DOLLAR_AMOUNT)
-    if (m) metadata.amount = m[0]
-  }
+  const money = doc.money().first()
+  if (money.found) metadata.amount = money.text()
+
   if (DATE_PATTERN.test(text)) {
     const m = text.match(DATE_PATTERN)
     if (m) metadata.date = m[0]
   }
+
   if (URL_PATTERN.test(text)) {
     const m = text.match(URL_PATTERN)
     if (m) metadata.url = m[0]
   }
-  if (CAPITALIZED_ENTITY.test(text)) {
-    const m = text.match(CAPITALIZED_ENTITY)
-    if (m) metadata.entity = m[0]
-  }
+
+  const person = doc.people().first()
+  const place = doc.places().first()
+  const org = doc.organizations().first()
+  const entity =
+    (person.found && person.text()) ||
+    (place.found && place.text()) ||
+    (org.found && org.text())
+  if (entity) metadata.entity = entity
 
   if (Object.keys(metadata).length === 0) return null
 
@@ -178,49 +146,17 @@ function detectKeyMention(entry: TranscriptEntryLike): DetectedEvent | null {
   }
 }
 
-// ── Decision detection ─────────────────────────────────────
-const DECISION_PHRASES = [
-  /\bagreed\b/i,
-  /\bdecided\b/i,
-  /\blet's go with\b/i,
-  /\bwe'll do\b/i,
-  /\bsounds good\b/i,
-  /\bthat works\b/i,
-  /\bdeal\b/i,
-  /\bconfirmed\b/i,
-  /\bwe're going with\b/i,
-  /\bthat's the plan\b/i,
-]
-
-function detectDecision(entry: TranscriptEntryLike): DetectedEvent | null {
-  const text = entry.text.trim()
-  if (text.length < 4) return null
-
-  for (const re of DECISION_PHRASES) {
-    if (re.test(text)) {
-      return {
-        type: 'decision',
-        confidence: 0.7,
-        sourceEntryId: entry.id,
-        speaker: entry.speaker,
-        text,
-        timestamp: entry.startTime,
-      }
-    }
-  }
-  return null
-}
-
 // ── HeuristicDetector ──────────────────────────────────────
 
 export interface HeuristicDetectorConfig {
   disabledTypes?: Set<DetectedEventType>
-  extraQuestionKeywords?: string[]
+  /** User-added question words (merged with defaults at runtime) */
+  extraQuestionWords?: string[]
+  /** User-added question verbs (merged with defaults at runtime) */
+  extraQuestionVerbs?: string[]
 }
 
 export class HeuristicDetector {
-  private recentEntries: TranscriptEntryLike[] = []
-  private static readonly RECENT_WINDOW = 5
   private config: HeuristicDetectorConfig = {}
 
   constructor(config: HeuristicDetectorConfig = {}) {
@@ -237,23 +173,33 @@ export class HeuristicDetector {
    * Returns the highest-confidence detected event, or null.
    */
   detect(entry: TranscriptEntryLike): DetectedEvent | null {
+    const all = this.detectAll(entry)
+    if (all.length === 0) return null
+    return all.reduce((best, c) =>
+      c.confidence > best.confidence ? c : best,
+    )
+  }
+
+  /**
+   * Run all detectors and return all matching events (for unified LLM validation).
+   */
+  detectAll(entry: TranscriptEntryLike): DetectedEvent[] {
     const disabled = this.config.disabledTypes ?? new Set<DetectedEventType>()
-    const extraKeywords = this.config.extraQuestionKeywords ?? []
+    const questionWords = [
+      ...DEFAULT_QUESTION_WORDS,
+      ...(this.config.extraQuestionWords ?? []),
+    ]
+    const questionVerbs = [
+      ...DEFAULT_QUESTION_VERBS,
+      ...(this.config.extraQuestionVerbs ?? []),
+    ]
     const candidates: DetectedEvent[] = []
 
     if (!disabled.has('question')) {
-      const q = detectQuestion(entry, extraKeywords)
+      const q = detectQuestion(entry, questionWords, questionVerbs)
       if (q) candidates.push(q)
-    }
-
-    if (!disabled.has('topic_change')) {
-      const tc = detectTopicChange(entry, this.recentEntries)
-      if (tc) candidates.push(tc)
-    }
-
-    if (!disabled.has('action_item')) {
-      const ai = detectActionItem(entry)
-      if (ai) candidates.push(ai)
+    } else {
+      log.debug('question detection disabled')
     }
 
     if (!disabled.has('key_mention')) {
@@ -262,25 +208,13 @@ export class HeuristicDetector {
     }
 
     if (!disabled.has('decision')) {
-      const d = detectDecision(entry)
+      const d = detectDecision(entry, DEFAULT_DECISION_KEYWORDS)
       if (d) candidates.push(d)
     }
 
-    // Update sliding window
-    this.recentEntries.push(entry)
-    if (this.recentEntries.length > HeuristicDetector.RECENT_WINDOW) {
-      this.recentEntries.shift()
-    }
-
-    if (candidates.length === 0) return null
-
-    return candidates.reduce((best, c) =>
-      c.confidence > best.confidence ? c : best,
-    )
+    return candidates
   }
 
   /** Reset state when meeting session ends */
-  reset(): void {
-    this.recentEntries = []
-  }
+  reset(): void {}
 }

@@ -1,0 +1,76 @@
+/**
+ * Default phrase lists for Live Insights heuristic detection.
+ * Used by main (heuristic-detector) and renderer (InsightsView settings).
+ */
+
+export const DEFAULT_QUESTION_WORDS = [
+  'who',
+  'what',
+  'when',
+  'where',
+  'why',
+  'how',
+  'which',
+  'whose',
+  'whom',
+  'tell me',
+  'explain',
+  'clarify',
+  'describe',
+  'show me',
+  'give me',
+  'walk me through',
+] as const
+
+/** Keywords that suggest a decision was made (heuristic trigger for LLM validation) */
+export const DEFAULT_DECISION_KEYWORDS = [
+  'agreed',
+  "we've agreed",
+  "we agreed",
+  "i've agreed",
+  "i agreed",
+  "let's go with",
+  "lets go with",
+  'we decided',
+  "we've decided",
+  "i've decided",
+  "i decided",
+  'decision:',
+  'decided to',
+  'so we are going with',
+  'sounds good',
+  'that works',
+  'approved',
+  'approved it',
+] as const
+
+export const DEFAULT_QUESTION_VERBS = [
+  'can',
+  'could',
+  'would',
+  'should',
+  'do',
+  'does',
+  'did',
+  'is',
+  'are',
+  'was',
+  'were',
+  'has',
+  'have',
+  'had',
+  'will',
+  'shall',
+  "isn't",
+  "aren't",
+  "wasn't",
+  "weren't",
+  "doesn't",
+  "didn't",
+  "haven't",
+  "hasn't",
+  "won't",
+  "wouldn't",
+  "couldn't",
+  "shouldn't",
+] as const

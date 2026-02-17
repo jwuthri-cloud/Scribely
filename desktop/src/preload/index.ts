@@ -57,6 +57,7 @@ export interface ElectronAPI {
 
   // ── Live Insights ───────────────────────────────
   onInsightNew: (callback: (insight: unknown) => void) => () => void
+  onInsightUpdate: (callback: (update: unknown) => void) => () => void
   llmWebSearch: (query: string) => Promise<unknown>
   llmWebSearchStream: (payload: { requestId: string; query: string }) => void
   onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
@@ -379,6 +380,13 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('insight:new', handler)
     return () => ipcRenderer.removeListener('insight:new', handler)
+  },
+  onInsightUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: unknown) => {
+      callback(update)
+    }
+    ipcRenderer.on('insight:update', handler)
+    return () => ipcRenderer.removeListener('insight:update', handler)
   },
 
   llmWebSearch: (query: string) => {

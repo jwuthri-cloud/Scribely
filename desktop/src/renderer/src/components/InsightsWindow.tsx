@@ -113,7 +113,9 @@ function InsightCard({
             {insight.title}
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {insight.description}
+            {insight.type === 'question' && insight.questionWithContext
+              ? insight.questionWithContext
+              : insight.description}
           </div>
         </div>
         {onDismiss && (

@@ -7,6 +7,7 @@
  */
 
 import type OpenAI from 'openai'
+import { createLogger } from '../logger'
 import { propagateAttributes } from '@langfuse/tracing'
 import { DEFAULT_SUMMARIZER_SYSTEM_PROMPT } from '../../shared/summarizer-defaults'
 import { TranscriptMemory } from './transcript-memory'
@@ -20,6 +21,7 @@ interface TranscriptEntry {
   source: string
 }
 
+const log = createLogger('background-summarizer')
 const GPT5_NANO_MODEL = 'gpt-5-nano'
 const DEFAULT_KEEP_RAW_COUNT = 5
 
@@ -81,8 +83,8 @@ export async function runBackgroundSummarization(
           : `Need more than ${effectiveKeep} transcript entries to summarize`,
     }
   }
-  console.log(
-    `[background-summarizer] Summarizing entries 0-${toSummarizeEnd - 1} (${toSummarizeEnd} entries), keeping last ${effectiveKeep} raw`,
+  log.info(
+    `Summarizing entries 0-${toSummarizeEnd - 1} (${toSummarizeEnd} entries), keeping last ${effectiveKeep} raw`,
   )
 
   const toSummarize = entries.slice(0, toSummarizeEnd)
@@ -93,11 +95,7 @@ export async function runBackgroundSummarization(
   }
 
   transcriptMemory.setSummarizationInProgress(true)
-  console.log(
-    '[background-summarizer] Starting —',
-    toSummarizeEnd,
-    'entries to summarize',
-  )
+  log.info('Starting —', toSummarizeEnd, 'entries to summarize')
 
   const resetInProgress = (): void => {
     transcriptMemory.setSummarizationInProgress(false)
@@ -132,10 +130,7 @@ export async function runBackgroundSummarization(
       : doSummarize())
 
     // Log the full response structure for debugging
-    console.log(
-      '[background-summarizer] API response:',
-      JSON.stringify(response, null, 2).slice(0, 2000),
-    )
+    log.debug('API response:', JSON.stringify(response, null, 2).slice(0, 2000))
 
     // Extract summary from response — try multiple formats
     let summary: string | null = null
@@ -180,14 +175,14 @@ export async function runBackgroundSummarization(
 
     if (summary) {
       transcriptMemory.updateSummary(summary, toSummarizeEnd - 1)
-      console.log('[background-summarizer] Done —', summary.length, 'chars')
+      log.success('Done —', summary.length, 'chars')
       return { summary }
     }
 
     resetInProgress()
     return { summary: null, error: 'Summarization produced no output' }
   } catch (err: any) {
-    console.error('[background-summarizer] Summarization failed:', err)
+    log.error('Summarization failed:', err)
     resetInProgress()
     return { summary: null, error: err?.message ?? 'Summarization failed' }
   }

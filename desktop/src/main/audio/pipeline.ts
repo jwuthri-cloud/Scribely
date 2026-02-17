@@ -2,10 +2,13 @@ import { BrowserWindow, ipcMain, app } from 'electron'
 import { join } from 'path'
 import { mkdir, writeFile, appendFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
+import { createLogger } from '../logger'
 import { ModelManager } from './model-manager'
 import { Transcriber } from './transcriber'
 import { VoiceActivityDetector, type SpeechSegment } from './vad'
 import type { NativeHelperBridge } from '../native-bridge'
+
+const log = createLogger('pipeline')
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -140,8 +143,8 @@ export class AudioPipeline {
     // Uncomment the line below to re-enable VAD segmentation:
     // await this._initVad()
     this.vadReady = false
-    console.log(
-      `[pipeline] Initialized — transcription: ${this.transcriber.mode}, VAD: disabled (chunk-based)`,
+    log.success(
+      `Initialized — transcription: ${this.transcriber.mode}, VAD: disabled (chunk-based)`,
     )
   }
 
@@ -149,7 +152,7 @@ export class AudioPipeline {
   private async _initVad(): Promise<void> {
     const modelPath = this.modelManager.getModelPath(VAD_MODEL_ID)
     if (!modelPath) {
-      console.log('[pipeline] VAD model not downloaded yet — streaming without VAD')
+      log.info('VAD model not downloaded yet — streaming without VAD')
       this.vadReady = false
       return
     }
@@ -168,9 +171,9 @@ export class AudioPipeline {
       // Wire up speech-segment events → transcription queue
       this.micVad.on('speech-segment', (seg: SpeechSegment) => this._enqueueSpeech(seg))
       this.tabVad.on('speech-segment', (seg: SpeechSegment) => this._enqueueSpeech(seg))
-      console.log('[pipeline] Per-stream VAD ready (mic + tab)')
+      log.success('Per-stream VAD ready (mic + tab)')
     } else {
-      console.warn('[pipeline] VAD init failed — falling back to chunk-based pipeline')
+      log.warn('VAD init failed — falling back to chunk-based pipeline')
       this.micVad?.destroy()
       this.tabVad?.destroy()
       this.micVad = null
@@ -199,7 +202,7 @@ export class AudioPipeline {
     }
     this.nativeBridge.on('audio-frame', this.nativeAudioHandler)
 
-    console.log('[pipeline] NativeHelperBridge connected')
+    log.success('NativeHelperBridge connected')
   }
 
   /** Detach the native bridge and remove listeners */
@@ -236,8 +239,8 @@ export class AudioPipeline {
     else this._nativeSystemFrameCount++
 
     if (this._nativeFrameCount <= 5 || this._nativeFrameCount % 50 === 0) {
-      console.log(
-        `[pipeline] Native frame #${this._nativeFrameCount} (mic=${this._nativeMicFrameCount}, sys=${this._nativeSystemFrameCount}): source=${source}, samples=${pcm.length}→${resampled.length}, rate=${sampleRate}→${effectiveRate}`,
+      log.debug(
+        `Native frame #${this._nativeFrameCount} (mic=${this._nativeMicFrameCount}, sys=${this._nativeSystemFrameCount}): source=${source}, samples=${pcm.length}→${resampled.length}, rate=${sampleRate}→${effectiveRate}`,
       )
     }
 
@@ -248,11 +251,11 @@ export class AudioPipeline {
 
     if (vad && this.vadReady) {
       vad.processChunk(resampled, effectiveRate).catch((err) => {
-        console.error(`[pipeline] VAD processing error (native/${source}):`, err)
+        log.error(`VAD processing error (native/${source}):`, err)
       })
     } else {
       this._handleFallbackFrame(source, resampled, effectiveRate, timestamp).catch((err) => {
-        console.error(`[pipeline] Fallback transcription error (native):`, err)
+        log.error('Fallback transcription error (native):', err)
       })
     }
   }
@@ -314,12 +317,12 @@ export class AudioPipeline {
 
   async onSettingsChanged(settings: TranscriptionSettings): Promise<void> {
     const provider = settings.provider as any
-    console.log(`[pipeline] Transcription provider changed to: ${provider}`)
+    log.info(`Transcription provider changed to: ${provider}`)
 
     // Update chunk duration
     if (settings.chunkDurationSec != null) {
       this._chunkDurationSec = Math.max(1, Math.min(10, settings.chunkDurationSec))
-      console.log(`[pipeline] Chunk duration set to ${this._chunkDurationSec}s`)
+      log.info(`Chunk duration set to ${this._chunkDurationSec}s`)
     }
 
     await this.transcriber.setProvider(provider)
@@ -341,7 +344,7 @@ export class AudioPipeline {
       !this.modelManager.isModelAvailable(modelId as any) &&
       !this.modelManager.isDownloading(modelId as any)
     ) {
-      console.log(`[pipeline] Model ${modelId} not found — starting auto-download`)
+      log.info(`Model ${modelId} not found — starting auto-download`)
       this.sendToRenderer('meeting:status-update', {
         transcriptionMode: modelId === VAD_MODEL_ID ? this.transcriber.mode : 'downloading',
       })
@@ -351,10 +354,10 @@ export class AudioPipeline {
           if (modelId !== VAD_MODEL_ID) {
             await this.transcriber.reinit()
           }
-          console.log(`[pipeline] Model ${modelId} ready`)
+          log.success(`Model ${modelId} ready`)
         })
         .catch((err) => {
-          console.error(`[pipeline] Auto-download of ${modelId} failed:`, err)
+          log.error(`Auto-download of ${modelId} failed:`, err)
         })
     }
   }
@@ -401,7 +404,7 @@ export class AudioPipeline {
       this.sendToRenderer('meeting:transcript-entry', entry)
       this._onTranscriptEntry?.(entry)
     } catch (err) {
-      console.error('[pipeline] Transcription of speech segment failed:', err)
+      log.error('Transcription of speech segment failed:', err)
     }
   }
 
@@ -451,7 +454,7 @@ export class AudioPipeline {
       while (this._transcribeQueue.length > AudioPipeline.MAX_QUEUE_SIZE) {
         const dropIdx = this._transcribeQueue.findIndex((item, i) => i > 0 && item.source === 'system')
         if (dropIdx >= 0) {
-          console.log(`[pipeline] Dropping stale system chunk (queue=${this._transcribeQueue.length})`)
+          log.debug(`Dropping stale system chunk (queue=${this._transcribeQueue.length})`)
           this._transcribeQueue.splice(dropIdx, 1)
         } else {
           break
@@ -490,17 +493,17 @@ export class AudioPipeline {
             isEdited: false,
           }
 
-          console.log(`[pipeline] → ${entry.speaker} (${elapsed}ms, q=${this._transcribeQueue.length}): "${entry.text}"`)
+          log.debug(`→ ${entry.speaker} (${elapsed}ms, q=${this._transcribeQueue.length}): "${entry.text}"`)
 
           if (this.isActive) {
             this.sendToRenderer('meeting:transcript-entry', entry)
             this._onTranscriptEntry?.(entry)
           }
         } else {
-          console.log(`[pipeline] ${item.source} chunk: silence (${elapsed}ms)`)
+          log.debug(`${item.source} chunk: silence (${elapsed}ms)`)
         }
       } catch (err) {
-        console.error(`[pipeline] Transcription error (${item.source}):`, err)
+        log.error(`Transcription error (${item.source}):`, err)
       }
     }
 
@@ -553,8 +556,8 @@ export class AudioPipeline {
       this.micVad?.flush()
       this.tabVad?.flush()
 
-      console.log(
-        `[pipeline] Meeting session started (VAD: ${this.vadReady ? 'enabled' : 'fallback-chunk'})`,
+      log.success(
+        `Meeting session started (VAD: ${this.vadReady ? 'enabled' : 'fallback-chunk'})`,
       )
 
       return {
@@ -582,7 +585,7 @@ export class AudioPipeline {
       this._transcribeQueue = []
       this._onSessionStop?.()
 
-      console.log('[pipeline] Meeting session stopped')
+      log.info('Meeting session stopped')
       return { success: true }
     })
 
@@ -624,7 +627,7 @@ export class AudioPipeline {
         if (vad && this.vadReady) {
           // VAD-gated path: feed to per-stream VAD
           vad.processChunk(pcm, payload.sampleRate).catch((err) => {
-            console.error(`[pipeline] VAD processing error (${payload.source}):`, err)
+            log.error(`VAD processing error (${payload.source}):`, err)
           })
         } else {
           // Fallback: accumulate into 3-second chunks and transcribe directly
@@ -634,7 +637,7 @@ export class AudioPipeline {
             payload.sampleRate,
             payload.timestamp,
           ).catch((err) => {
-            console.error(`[pipeline] Fallback transcription error:`, err)
+            log.error('Fallback transcription error:', err)
           })
         }
       },
@@ -725,7 +728,7 @@ export class AudioPipeline {
         await this.transcriber.reinit()
         return { success: true, path, mode: this.transcriber.mode }
       } catch (err) {
-        console.error('[pipeline] Model download failed:', err)
+        log.error('Model download failed:', err)
         return { success: false, error: String(err) }
       }
     })
@@ -737,9 +740,9 @@ export class AudioPipeline {
         _event,
         options: { mic: boolean; system: boolean },
       ) => {
-        console.log('[pipeline] start-native-capture called:', JSON.stringify(options))
-        console.log('[pipeline] nativeBridge exists:', !!this.nativeBridge)
-        console.log('[pipeline] nativeBridge status:', this.nativeBridge ? JSON.stringify(this.nativeBridge.status) : 'N/A')
+        log.debug('start-native-capture called:', options)
+        log.debug('nativeBridge exists:', !!this.nativeBridge)
+        log.debug('nativeBridge status:', this.nativeBridge ? this.nativeBridge.status : 'N/A')
 
         if (!this.nativeBridge) {
           return { success: false, error: 'Native helper not connected' }
@@ -753,10 +756,10 @@ export class AudioPipeline {
             mic: options.mic,
             system: options.system,
           })
-          console.log('[pipeline] Native capture command sent successfully')
+          log.success('Native capture command sent successfully')
           return { success: true }
         } catch (err) {
-          console.error('[pipeline] Native capture start failed:', err)
+          log.error('Native capture start failed:', err)
           return { success: false, error: String(err) }
         }
       },
@@ -771,7 +774,7 @@ export class AudioPipeline {
         await this.nativeBridge.stopCapture()
         return { success: true }
       } catch (err) {
-        console.error('[pipeline] Native capture stop failed:', err)
+        log.error('Native capture stop failed:', err)
         return { success: false, error: String(err) }
       }
     })
@@ -791,7 +794,7 @@ export class AudioPipeline {
             available: true,
             ...this.nativeBridge.status,
           }
-      console.log('[pipeline] get-native-status:', JSON.stringify(status))
+      log.debug('get-native-status:', status)
       return status
     })
 
@@ -818,7 +821,7 @@ export class AudioPipeline {
         const filepath = join(dir, filename)
 
         await writeFile(filepath, Buffer.from(payload.data))
-        console.log(`[pipeline] Recording saved: ${filepath}`)
+        log.success(`Recording saved: ${filepath}`)
         return { filepath, filename }
       },
     )
@@ -844,7 +847,7 @@ export class AudioPipeline {
 
         // Create empty file
         await writeFile(filepath, Buffer.alloc(0))
-        console.log(`[pipeline] Recording file initialized: ${filepath}`)
+        log.info(`Recording file initialized: ${filepath}`)
         return { filepath, filename }
       },
     )
@@ -858,7 +861,7 @@ export class AudioPipeline {
       ) => {
         const size = payload.data.byteLength
         await appendFile(payload.filepath, Buffer.from(payload.data))
-        console.log(`[pipeline] Recording chunk appended: ${(size / 1024).toFixed(1)}KB → ${payload.filepath.split('/').pop()}`)
+        log.debug(`Recording chunk appended: ${(size / 1024).toFixed(1)}KB → ${payload.filepath.split('/').pop()}`)
       },
     )
 
@@ -907,7 +910,7 @@ export class AudioPipeline {
         }
 
         await writeFile(filepath, JSON.stringify(data, null, 2))
-        console.log(`[pipeline] Transcript saved: ${filepath} (${payload.entries.length} entries)`)
+        log.success(`Transcript saved: ${filepath} (${payload.entries.length} entries)`)
         return { filepath, filename }
       },
     )

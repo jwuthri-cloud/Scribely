@@ -45,10 +45,28 @@ export interface Insight {
   suggestedActions: InsightAction[]
   sourceEntryId: string
   enriched: boolean
+  /** Self-contained contextual question rewrite (only set for question insights) */
+  questionWithContext?: string
 }
 
 export interface WebSearchResult {
   content: string
   sources?: Array<{ title: string; url: string }>
   error?: string
+}
+
+/** Output from unified LLM validation for non-question insights */
+export interface UnifiedInsightEntity {
+  type: string
+  text: string
+  metadata?: Record<string, unknown>
+}
+
+export interface UnifiedInsightOutput {
+  entities: UnifiedInsightEntity[]
+  /** Topic label when utterance starts a new topic; "N/A" when same topic */
+  topic: string
+  action_item: string | null
+  decision: string | null
+  key_mention: string | null
 }

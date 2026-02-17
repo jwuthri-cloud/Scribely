@@ -11,6 +11,9 @@
  */
 
 import type OpenAI from 'openai'
+import { createLogger } from '../logger'
+
+const log = createLogger('web-search')
 import type { WebSearchResult } from '../insights/types'
 
 /** Model for web search — gpt-5-nano is well-supported per OpenAI docs */
@@ -89,7 +92,7 @@ export async function runWebSearch(
 
     return { content: content.trim() || 'No results found.', sources }
   } catch (err: any) {
-    console.error('[web-search] Error:', err)
+    log.error('Error:', err)
     return {
       content: '',
       error: err?.message ?? 'Web search failed',
@@ -177,7 +180,7 @@ export async function runWebSearchStreaming(
     const content = fullContent.trim() || 'No results found.'
     callbacks.onDone({ content, sources })
   } catch (err: any) {
-    console.error('[web-search] Streaming error:', err)
+    log.error('Streaming error:', err)
     callbacks.onError(err?.message ?? 'Web search failed')
   }
 }

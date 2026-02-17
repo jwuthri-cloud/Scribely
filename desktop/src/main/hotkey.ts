@@ -1,6 +1,9 @@
 import { globalShortcut, BrowserWindow } from 'electron'
 import type Store from 'electron-store'
+import { createLogger } from './logger'
 import { captureScreen } from './screenshot'
+
+const log = createLogger('hotkey')
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -98,7 +101,7 @@ export function registerAllHotkeys(
       const dataUrl = await captureScreen(win)
       if (!win.isDestroyed()) win.webContents.send('screenshot-taken', dataUrl)
     } catch (err) {
-      console.error('[hotkey] Screenshot failed:', err)
+      log.error('Screenshot failed:', err)
     }
   }))
 
@@ -140,8 +143,8 @@ function tryRegister(accelerator: string, callback: () => void): void {
   if (!accelerator) return
   const ok = globalShortcut.register(accelerator, callback)
   if (!ok) {
-    console.error(`[hotkey] Failed to register: ${accelerator}`)
+    log.error(`Failed to register: ${accelerator}`)
   } else {
-    console.log(`[hotkey] Registered: ${accelerator}`)
+    log.success(`Registered: ${accelerator}`)
   }
 }

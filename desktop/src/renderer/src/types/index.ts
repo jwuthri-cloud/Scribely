@@ -217,6 +217,14 @@ export interface ElectronAPI {
 
   // Live Insights
   onInsightNew: (callback: (insight: import('./insights').Insight) => void) => () => void
+  onInsightUpdate: (
+    callback: (update: {
+      id: string
+      title?: string
+      description?: string
+      suggestedActions?: import('./insights').InsightAction[]
+    }) => void,
+  ) => () => void
   llmWebSearch: (query: string) => Promise<import('./insights').WebSearchResult>
   llmWebSearchStream: (payload: { requestId: string; query: string }) => void
   onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void

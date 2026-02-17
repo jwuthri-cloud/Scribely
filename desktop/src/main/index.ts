@@ -1,5 +1,12 @@
 import './instrumentation' // Must be first — Langfuse observability
 
+import { createLogger } from './logger'
+
+const permissionsLog = createLogger('permissions')
+const extensionWsLog = createLogger('extension-ws')
+const nativeBridgeLog = createLogger('native-bridge')
+const appLog = createLogger('app')
+
 import {
   app,
   BrowserWindow,
@@ -60,8 +67,9 @@ interface InsightsSettings {
   detectTopicChanges?: boolean
   detectActionItems?: boolean
   detectKeyMentions?: boolean
-  detectDecisions?: boolean
-  extraQuestionKeywords?: string[]
+  extraQuestionWords?: string[]
+  extraQuestionVerbs?: string[]
+  questionMlEnabled?: boolean
 }
 
 interface LLMSettings {
@@ -132,8 +140,9 @@ const store = new Store<AppSettings>({
         detectTopicChanges: true,
         detectActionItems: true,
         detectKeyMentions: true,
-        detectDecisions: true,
-        extraQuestionKeywords: [],
+        extraQuestionWords: [],
+        extraQuestionVerbs: [],
+        questionMlEnabled: true,
       },
     },
   },
@@ -181,6 +190,11 @@ const insightEngine = new InsightEngine({
     const config = getInsightsConfig()
     if (!config.enabled) return null
     return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
+  },
+  validateInsights: async (transcriptDelta, entry, triggeredTypes) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return null
+    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes)
   },
   enrich: async (event) => {
     const config = getInsightsConfig()
@@ -267,7 +281,7 @@ function createWindow(): void {
   // Without this, getUserMedia() for microphone is silently denied by Electron.
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     const allowed = ['media', 'display-capture', 'mediaKeySystem']
-    console.log(`[permissions] Permission request: ${permission} → ${allowed.includes(permission) ? 'granted' : 'denied'}`)
+    permissionsLog.info(`Permission request: ${permission} → ${allowed.includes(permission) ? 'granted' : 'denied'}`)
     callback(allowed.includes(permission))
   })
 
@@ -421,12 +435,15 @@ function registerIpcHandlers(): void {
       if (insights.detectTopicChanges === false) disabled.add('topic_change')
       if (insights.detectActionItems === false) disabled.add('action_item')
       if (insights.detectKeyMentions === false) disabled.add('key_mention')
-      if (insights.detectDecisions === false) disabled.add('decision')
       insightEngine.updateSettings({
         disabledTypes: disabled,
-        extraQuestionKeywords: Array.isArray(insights.extraQuestionKeywords)
-          ? insights.extraQuestionKeywords.filter((k): k is string => typeof k === 'string')
+        extraQuestionWords: Array.isArray(insights.extraQuestionWords)
+          ? insights.extraQuestionWords.filter((k): k is string => typeof k === 'string')
           : [],
+        extraQuestionVerbs: Array.isArray(insights.extraQuestionVerbs)
+          ? insights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
+          : [],
+        questionMlEnabled: insights.questionMlEnabled !== false,
       })
     }
 
@@ -558,7 +575,7 @@ function initExtensionWsServer(): void {
   }
 
   extensionWsServer.on('connected', () => {
-    console.log('[extension-ws] Chrome extension connected')
+    extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
     // Start external recording so video chunks are saved to disk
     screenRecorder.startExternalRecording()
@@ -567,7 +584,7 @@ function initExtensionWsServer(): void {
   })
 
   extensionWsServer.on('disconnected', () => {
-    console.log('[extension-ws] Chrome extension disconnected')
+    extensionWsLog.info('Chrome extension disconnected')
     safeSend('extension:status-changed', { connected: false })
     // Stop external recording
     screenRecorder.stopExternalRecording()
@@ -603,7 +620,7 @@ function initExtensionWsServer(): void {
   )
 
   extensionWsServer.on('error', (err: Error) => {
-    console.error('[extension-ws] Error:', err)
+    extensionWsLog.error(err)
   })
 
   // IPC handler so renderer can query extension connection status
@@ -625,7 +642,7 @@ function initExtensionWsServer(): void {
 // ── Native Helper Bridge Lifecycle ─────────────────────
 async function initNativeBridge(): Promise<void> {
   if (process.platform !== 'darwin') {
-    console.log('[native-bridge] Skipping — not on macOS')
+    nativeBridgeLog.info('Skipping — not on macOS')
     return
   }
 
@@ -644,7 +661,6 @@ async function initNativeBridge(): Promise<void> {
 
   // Forward native bridge events to renderer
   nativeBridge.on('connected', () => {
-    console.log('[native-bridge] Connected to NativeHelper')
     safeSend('native:status-changed', {
       available: true,
       ...nativeBridge!.status,
@@ -652,7 +668,7 @@ async function initNativeBridge(): Promise<void> {
   })
 
   nativeBridge.on('disconnected', () => {
-    console.log('[native-bridge] Disconnected from NativeHelper')
+    nativeBridgeLog.info('Disconnected from NativeHelper')
     safeSend('native:status-changed', {
       available: false,
       connected: false,
@@ -671,7 +687,7 @@ async function initNativeBridge(): Promise<void> {
   })
 
   nativeBridge.on('error', (err) => {
-    console.error('[native-bridge] Error:', err)
+    nativeBridgeLog.error(err)
     safeSend('native:error', err)
   })
 
@@ -681,12 +697,12 @@ async function initNativeBridge(): Promise<void> {
   // Start the native helper process
   try {
     await nativeBridge.start()
-    console.log('[native-bridge] ✓ NativeHelper started and connected — native audio capture AVAILABLE')
-    console.log('[native-bridge]   Status:', JSON.stringify(nativeBridge.status))
+    nativeBridgeLog.success('NativeHelper started and connected — native audio capture AVAILABLE')
+    nativeBridgeLog.debug('Status:', nativeBridge.status)
   } catch (err) {
-    console.warn('[native-bridge] ✗ Failed to start NativeHelper — falling back to browser-only capture')
-    console.warn('[native-bridge]   Error:', err)
-    console.warn('[native-bridge]   Build it with: cd desktop && npm run build:native')
+    nativeBridgeLog.warn('Failed to start NativeHelper — falling back to browser-only capture')
+    nativeBridgeLog.warn('Error:', err)
+    nativeBridgeLog.warn('Build it with: cd desktop && npm run build:native')
   }
 }
 
@@ -699,15 +715,16 @@ app.whenReady().then(async () => {
     // on first run so getUserMedia won't fail with "access denied" later.
     const micStatus = systemPreferences.getMediaAccessStatus('microphone')
     if (micStatus !== 'granted') {
-      console.log(`[permissions] Microphone status: ${micStatus} — requesting access…`)
+      permissionsLog.info(`Microphone status: ${micStatus} — requesting access…`)
       const granted = await systemPreferences.askForMediaAccess('microphone')
-      console.log(`[permissions] Microphone access ${granted ? 'granted' : 'denied'}`)
+      if (granted) permissionsLog.success('Microphone access granted')
+      else permissionsLog.warn('Microphone access denied')
     }
 
     // Screen recording permission is handled by the system picker
     // (useSystemPicker: true) — macOS shows the permission flow automatically.
     const screenStatus = systemPreferences.getMediaAccessStatus('screen')
-    console.log(`[permissions] Screen recording status: ${screenStatus}`)
+    permissionsLog.info(`Screen recording status: ${screenStatus}`)
   }
 
   registerIpcHandlers()
@@ -719,11 +736,15 @@ app.whenReady().then(async () => {
   // Wire Live Insights to pipeline
   audioPipeline.setOnTranscriptEntry((entry) => {
     const config = getInsightsConfig()
-    if (!config.enabled) return
+    if (!config.enabled) {
+      appLog.debug('Insights disabled — skipping entry')
+      return
+    }
     insightEngine.onTranscriptEntry(entry)
   })
   audioPipeline.setOnSessionStop(() => {
     insightEngine.reset()
+    llmService.resetInsightsValidation()
   })
 
   // Apply initial insights detector config from store
@@ -733,12 +754,15 @@ app.whenReady().then(async () => {
   if (initialInsights.detectTopicChanges === false) initialDisabled.add('topic_change')
   if (initialInsights.detectActionItems === false) initialDisabled.add('action_item')
   if (initialInsights.detectKeyMentions === false) initialDisabled.add('key_mention')
-  if (initialInsights.detectDecisions === false) initialDisabled.add('decision')
   insightEngine.updateSettings({
     disabledTypes: initialDisabled,
-    extraQuestionKeywords: Array.isArray(initialInsights.extraQuestionKeywords)
-      ? initialInsights.extraQuestionKeywords.filter((k): k is string => typeof k === 'string')
+    extraQuestionWords: Array.isArray(initialInsights.extraQuestionWords)
+      ? initialInsights.extraQuestionWords.filter((k): k is string => typeof k === 'string')
       : [],
+    extraQuestionVerbs: Array.isArray(initialInsights.extraQuestionVerbs)
+      ? initialInsights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
+      : [],
+    questionMlEnabled: initialInsights.questionMlEnabled !== false,
   })
 
   // Start Chrome extension WebSocket server
@@ -785,7 +809,7 @@ app.on('will-quit', async (e) => {
 
     // Give the bridge 2s to stop gracefully, then force quit
     const forceQuitTimer = setTimeout(() => {
-      console.log('[app] Force quitting (native bridge stop timed out)')
+      appLog.warn('Force quitting (native bridge stop timed out)')
       app.exit(0)
     }, 2000)
 

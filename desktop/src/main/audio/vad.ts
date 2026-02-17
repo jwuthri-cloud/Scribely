@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { createLogger } from '../logger'
 
 // ── Constants ──────────────────────────────────────────────
 // Silero VAD v5 expects 512-sample frames at 16kHz (= 32ms per frame)
@@ -93,10 +94,10 @@ export class VoiceActivityDetector extends EventEmitter {
         executionProviders: ['cpu'],
       })
       this._resetState()
-      console.log(`[vad:${this.source}] Silero VAD v5 initialized (${modelPath})`)
+      createLogger('vad').success(`[${this.source}] Silero VAD v5 initialized (${modelPath})`)
       return true
     } catch (err) {
-      console.warn(`[vad:${this.source}] Init failed — VAD disabled:`, err)
+      createLogger('vad').warn(`[${this.source}] Init failed — VAD disabled:`, err)
       this.session = null
       return false
     }
@@ -277,7 +278,7 @@ export class VoiceActivityDetector extends EventEmitter {
 
       return (probTensor.data as Float32Array)[0]
     } catch (err) {
-      console.error(`[vad:${this.source}] Inference error:`, err)
+      createLogger('vad').error(`[${this.source}] Inference error:`, err)
       return -1
     }
   }

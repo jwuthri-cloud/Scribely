@@ -160,9 +160,12 @@ export interface InsightsSettings {
   detectTopicChanges: boolean
   detectActionItems: boolean
   detectKeyMentions: boolean
-  detectDecisions: boolean
-  /** Custom keywords for question detection (comma-separated in UI) */
-  extraQuestionKeywords: string[]
+  /** User-added question words (merged with defaults) */
+  extraQuestionWords: string[]
+  /** User-added question verbs (merged with defaults) */
+  extraQuestionVerbs: string[]
+  /** Enable ML gate for gray-zone questions (default: true) */
+  questionMlEnabled: boolean
 }
 
 export const DEFAULT_INSIGHTS: InsightsSettings = {
@@ -172,8 +175,9 @@ export const DEFAULT_INSIGHTS: InsightsSettings = {
   detectTopicChanges: true,
   detectActionItems: true,
   detectKeyMentions: true,
-  detectDecisions: true,
-  extraQuestionKeywords: [],
+  extraQuestionWords: [],
+  extraQuestionVerbs: [],
+  questionMlEnabled: true,
 }
 
 export interface LLMSettings {

@@ -4,7 +4,10 @@ import { propagateAttributes } from '@langfuse/tracing'
 import { machineIdSync } from 'node-machine-id'
 import Store from 'electron-store'
 import { BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { createLogger } from '../logger'
 import { PromptAssembler } from './prompt-assembler'
+
+const log = createLogger('llm-service')
 import { TokenCounter } from './token-counter'
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
@@ -174,6 +177,9 @@ export class LLMService {
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
+
+  // Insights validation conversation history (append-only, for prefix caching)
+  private insightsValidationMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
 
   // Cached device ID for Langfuse userId (stable per machine)
   private deviceUserId: string | null = null
@@ -441,7 +447,7 @@ export class LLMService {
     ipcMain.handle(
       'llm:trigger-summarize',
       async (_event, payload?: { transcriptEntries?: TranscriptEntry[] }) => {
-        console.log('[llm] Summarization triggered (manual)')
+        log.info('[llm] Summarization triggered (manual)')
         // Use live transcript from renderer if provided, else from conversation
         const fromPayload = payload?.transcriptEntries ?? []
         const fromConversation = this.conversationMessages.flatMap(
@@ -467,7 +473,7 @@ export class LLMService {
           allEntries,
           config.keepRawCount,
         )
-        console.log(
+        log.info(
           '[llm] Summarization complete:',
           result.summary ? 'success' : 'failed',
           result.summary ? `(${result.summary.length} chars)` : result.error,
@@ -578,7 +584,7 @@ export class LLMService {
     // transcript block needed.
     const modelConfig = MODEL_CONFIGS[this.currentModel]
     const transcriptSummary = this.transcriptMemory.getSummary()
-    console.log(
+    log.info(
       '[llm] Transcript summary:',
       transcriptSummary ? `INCLUDED (${transcriptSummary.length} chars)` : 'MISSING — click "Summarize now" first',
     )
@@ -597,8 +603,8 @@ export class LLMService {
     const hasSummaryInPrompt = assembled.messages.some(
       (m) => m.role === 'system' && m.content.includes('<transcript_summary>'),
     )
-    console.log('[llm] Summary in assembled messages:', hasSummaryInPrompt ? 'YES' : 'NO')
-    console.log('[llm] Full prompt:', JSON.stringify(assembled.messages, null, 2))
+    log.info('[llm] Summary in assembled messages:', hasSummaryInPrompt ? 'YES' : 'NO')
+    log.info('[llm] Full prompt:', JSON.stringify(assembled.messages, null, 2))
 
     // Persist user message to disk
     this.persistConversation()
@@ -730,18 +736,195 @@ export class LLMService {
   }
 
   /**
+   * Fit insights conversation history within token budget.
+   * Drops oldest user+assistant pairs; prepends truncation note if needed.
+   */
+  private fitInsightsHistory(
+    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+    budget: number,
+  ): Array<{ role: 'user' | 'assistant'; content: string }> {
+    if (messages.length === 0) return []
+    const totalTokens = this.tokenCounter.countMessages(messages)
+    if (totalTokens <= budget) return [...messages]
+
+    const result = [...messages]
+    let truncatedPairs = 0
+
+    while (result.length > 1 && this.tokenCounter.countMessages(result) > budget) {
+      if (result.length >= 2 && result[0].role === 'user' && result[1].role === 'assistant') {
+        result.splice(0, 2)
+        truncatedPairs++
+      } else if (result[0].role === 'assistant') {
+        result.splice(0, 1)
+      } else if (result[0].role === 'user' && (result.length < 2 || result[1].role === 'user')) {
+        result.splice(0, 1)
+        truncatedPairs++
+      } else {
+        result.splice(0, 1)
+      }
+    }
+
+    if (truncatedPairs > 0) {
+      const firstUserIdx = result.findIndex((m) => m.role === 'user')
+      if (firstUserIdx >= 0) {
+        const note = `[Earlier conversation messages truncated — ${truncatedPairs} message pair${truncatedPairs > 1 ? 's' : ''} removed]\n\n`
+        result[firstUserIdx] = { ...result[firstUserIdx], content: note + result[firstUserIdx].content }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Unified LLM validation for non-question insights.
+   * Maintains conversation history with transcript-delta-only user messages for prefix caching.
+   * Returns structured JSON; null fields mean not valid for that modality.
+   */
+  async validateInsights(
+    transcriptDelta: string,
+    entry: { id: string; speaker: string; text: string; startTime: number },
+    triggeredTypes: string[],
+  ): Promise<{
+    entities: Array<{ type: string; text: string; metadata?: Record<string, unknown> }>
+    topic: string
+    action_item: string | null
+    decision: string | null
+    key_mention: string | null
+  } | null> {
+    if (!this.client || triggeredTypes.length === 0) {
+      log.info(`[llm-service] validateInsights skipped: client=${!!this.client}, triggeredTypes=${triggeredTypes.length}`)
+      return null
+    }
+
+    log.info(`[llm-service] validateInsights called — types: [${triggeredTypes.join(', ')}], speaker: ${entry.speaker}`)
+
+    const systemPrompt = `You are a precision filter for a live meeting assistant. Your job is to REJECT noise, not extract everything. Most utterances should produce all nulls. Only return a value when you are confident it is high-quality and useful to a real user in real time. Respond ONLY with JSON.
+
+Output format:
+{
+  "entities": [{"type": "person"|"amount"|"date"|"url"|"org"|"place", "text": "...", "metadata": {}}],
+  "topic": "short topic label" or "N/A",
+  "action_item": "concise action item" or null,
+  "decision": "concise decision" or null,
+  "key_mention": "useful search phrase (3+ words)" or null
+}
+
+Rules:
+- entities: extract named entities (person, amount, date, URL, org, place) from the utterance. Low risk — extract what you see.
+- topic: "N/A" unless the utterance CLEARLY starts a new, distinct topic. Default is "N/A". Only fire when the subject obviously changes (e.g. from budget to hiring). Do not fire on minor shifts or continuations.
+- action_item: must have a clear owner or action verb (e.g. "Sarah will send the deck by Friday"). Return null for vague intent: "we should think about it", "maybe we could", "let's see", "we need to figure that out" — these are NOT action items.
+- decision: must state a concrete, final choice (e.g. "We'll go with vendor B", "Budget approved at $2M"). Return null for soft agreement: "sounds good", "let's see", "yeah maybe", "I think so" — these are NOT decisions.
+- key_mention: must be 3+ words AND useful as a web search query or question. ALWAYS null for: single words ("Cadillac"), bare names ("Alice"), bare numbers ("690"), generic phrases ("next item", "the thing"). Good: "Q3 product launch timeline", "$2.5M marketing budget". If in doubt, null.
+- When unsure about ANY field, return null. Precision over recall.`
+
+    const typesStr = triggeredTypes.join(', ')
+    const userContent =
+      transcriptDelta.trim().length > 0
+        ? `${transcriptDelta}\n\nCandidate utterance (speaker: ${entry.speaker}): "${entry.text}"\n\nTriggered modalities: ${typesStr}`
+        : `Candidate utterance (speaker: ${entry.speaker}): "${entry.text}"\n\nTriggered modalities: ${typesStr}`
+
+    this.insightsValidationMessages.push({ role: 'user', content: userContent })
+
+    const INSIGHTS_BUDGET = 100_000
+    const fittedHistory = this.fitInsightsHistory(this.insightsValidationMessages.slice(0, -1), INSIGHTS_BUDGET)
+    const lastUser = this.insightsValidationMessages[this.insightsValidationMessages.length - 1]!
+
+    const apiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+      ...fittedHistory.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      { role: 'user', content: lastUser.content },
+    ]
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-5-nano',
+        messages: apiMessages,
+        max_completion_tokens: 512,
+        reasoning_effort: 'low',
+        prompt_cache_key: `insights-${this.sessionId}`,
+      })
+
+      const content = response.choices?.[0]?.message?.content
+      if (!content?.trim()) {
+        log.info('[llm-service] validateInsights: empty response from LLM')
+        return null
+      }
+
+      log.info(`[llm-service] validateInsights raw response: ${content.trim().slice(0, 200)}`)
+      this.insightsValidationMessages.push({ role: 'assistant', content: content.trim() })
+
+      const jsonStr = content.trim().replace(/^```json?\s*|\s*```$/g, '')
+      const parsed = JSON.parse(jsonStr) as {
+        entities?: Array<{ type: string; text: string; metadata?: Record<string, unknown> }>
+        topic?: string
+        action_item?: string | null
+        decision?: string | null
+        key_mention?: string | null
+      }
+
+      const topicRaw = parsed.topic
+      const topic = typeof topicRaw === 'string' && topicRaw.trim() ? topicRaw.trim() : 'N/A'
+
+      const rawKeyMention = parsed.key_mention && typeof parsed.key_mention === 'string' ? parsed.key_mention.trim() : null
+      const keyMention = rawKeyMention && rawKeyMention.split(/\s+/).length >= 3 ? rawKeyMention : null
+      if (rawKeyMention && !keyMention) {
+        log.info(`[llm-service] validateInsights: rejected key_mention (under 3 words): "${rawKeyMention}"`)
+      }
+
+      return {
+        entities: Array.isArray(parsed.entities) ? parsed.entities : [],
+        topic,
+        action_item: parsed.action_item && typeof parsed.action_item === 'string' ? parsed.action_item.trim() : null,
+        decision: parsed.decision && typeof parsed.decision === 'string' ? parsed.decision.trim() : null,
+        key_mention: keyMention,
+      }
+    } catch (err) {
+      log.error('[llm-service] validateInsights error:', err)
+      this.insightsValidationMessages.pop()
+      return null
+    }
+  }
+
+  /** Clear insights validation history when meeting session ends */
+  resetInsightsValidation(): void {
+    this.insightsValidationMessages = []
+  }
+
+  /**
    * Validate whether a candidate utterance is a genuine question from another person.
    * Uses gpt5-nano with last ~500 tokens of transcript context.
-   * Returns the extracted question string, or null if "na" (no real question).
+   * Returns both the raw question and a self-contained contextual rewrite, or null if not a real question.
    */
   async validateQuestion(
     transcriptContext: string,
     candidateText: string,
     speaker: string,
-  ): Promise<string | null> {
-    if (!this.client) return null
+  ): Promise<{ question: string; questionWithContext: string } | null> {
+    if (!this.client) {
+      log.info('[llm-service] validateQuestion skipped: no client')
+      return null
+    }
 
-    const systemPrompt = `You are a meeting transcript analyzer. Given recent transcript context and a candidate utterance, determine if a genuine question was asked by the other person (not the user). Respond ONLY with JSON: {"question": "<the actual question>"} or {"question": "na"} if no real question.`
+    log.info(`[llm-service] validateQuestion: speaker=${speaker}, text="${candidateText.slice(0, 60)}"`)
+
+    const systemPrompt = `You are a precision filter for a live meeting assistant. Determine if a GENUINE, substantive question was asked by the other person (not "You"/the user). Most utterances are NOT real questions. Default to "na". Respond ONLY with JSON.
+
+Return {"question": "na"} for ALL of these:
+- Rhetorical questions: "you know?", "right?", "isn't it?", "wouldn't you say?"
+- Tag questions: "...don't you think?", "...isn't that right?"
+- Filler/conversational: "you know what I mean?", "does that make sense?", "how are you?"
+- Self-answered questions: speaker asks and immediately answers
+- Questions from "You" (the user) — only validate questions from others
+- Vague/trivial: "what?", "huh?", "really?", "what about that?"
+- Questions that would NOT benefit from an AI answer or web search
+
+Only if a genuine, substantive question remains, return:
+{"question": "<verbatim question from transcript>", "question_with_context": "<contextual rewrite>"}
+
+Rules for question_with_context:
+- If the transcript context adds useful specifics (names, topics, dates), rewrite the question to be self-contained. Example: "What's the timeline?" → "What is the timeline for the Q3 product launch?"
+- If context does NOT meaningfully change the question, return the EXACT same string as "question". Do NOT add fluff.
+- NEVER add parentheticals, meta-commentary, "In the meeting...", "Asking about...", or any explanation. Just the question.`
 
     const userContent = `Recent transcript:\n${transcriptContext}\n\nCandidate utterance (speaker: ${speaker}): "${candidateText}"`
 
@@ -752,19 +935,28 @@ export class LLMService {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        max_completion_tokens: 128,
+        max_completion_tokens: 2048,
         reasoning_effort: 'low',
       })
 
       const content = response.choices?.[0]?.message?.content
-      if (!content?.trim()) return null
+      if (!content?.trim()) {
+        log.info('[llm-service] validateQuestion: empty response')
+        return null
+      }
 
       const jsonStr = content.trim().replace(/^```json?\s*|\s*```$/g, '')
-      const parsed = JSON.parse(jsonStr) as { question?: string }
+      const parsed = JSON.parse(jsonStr) as { question?: string; question_with_context?: string }
       const q = parsed.question?.trim()
-      if (!q || q.toLowerCase() === 'na') return null
-      return q
-    } catch {
+      if (!q || q.toLowerCase() === 'na') {
+        log.info('[llm-service] validateQuestion: LLM says "na" — not a real question')
+        return null
+      }
+      const qWithContext = parsed.question_with_context?.trim() || q
+      log.info(`[llm-service] validateQuestion: confirmed → "${q.slice(0, 60)}" | context: "${qWithContext.slice(0, 60)}"`)
+      return { question: q, questionWithContext: qWithContext }
+    } catch (err) {
+      log.error('[llm-service] validateQuestion error:', err)
       return null
     }
   }
@@ -780,18 +972,27 @@ export class LLMService {
   ): Promise<{ title?: string; description?: string; suggestedActions?: Array<{ label: string; type: string; payload: string; icon: string }> } | null> {
     if (!this.client) return null
 
-    const systemPrompt = `You are a meeting assistant. Given a detected event from a live transcript, respond with a JSON object only (no markdown, no explanation):
+    const systemPrompt = `You are a precision enricher for a live meeting assistant. Given a detected event, produce a JSON card for the user. If the event is too vague or trivial to enrich meaningfully, respond with: null
+
+Otherwise respond with JSON only (no markdown):
 {
-  "title": "Short title (e.g. 'Question from Neel')",
-  "description": "One sentence description",
+  "title": "Short title under 40 chars (e.g. 'Question from Neel', 'Action: send deck')",
+  "description": "See rules below — under 100 chars",
   "suggestedActions": [
-    { "label": "Answer now", "type": "answer", "payload": "question text", "icon": "sparkle" },
-    { "label": "Search the web", "type": "search", "payload": "search query", "icon": "search" },
-    { "label": "Suggest follow-up questions", "type": "follow_up", "payload": "prompt", "icon": "chat" }
+    { "label": "Answer now", "type": "answer", "payload": "the question or event text", "icon": "sparkle" },
+    { "label": "Search the web", "type": "search", "payload": "optimized web search query", "icon": "search" },
+    { "label": "Suggest follow-up", "type": "follow_up", "payload": "prompt for follow-up", "icon": "chat" }
   ]
 }
-For questions: include "Answer now" (payload=question), "Search the web" (payload=question), and "Suggest follow-up questions".
-Keep title under 40 chars, description under 100 chars.`
+
+Rules for description:
+- For questions: the question text VERBATIM. No rewording, no explanation, no "In the meeting..." or "(asking about...)". Just the question.
+- For non-questions: one short factual sentence about what happened. No filler, no meta-commentary.
+
+Rules for suggestedActions search payload:
+- Write an optimized web search query — not just the raw text. Add context to make it searchable.
+  Example: raw text "What's the ROI?" → search payload "ROI calculation methodology business"
+- The answer payload should be the question or event text as-is.`
 
     const userContent = `Event type: ${eventType}\nSpeaker: ${speaker}\nText: "${text}"`
 
@@ -802,7 +1003,7 @@ Keep title under 40 chars, description under 100 chars.`
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent },
         ],
-        max_completion_tokens: 256,
+        max_completion_tokens: 512,
         reasoning_effort: 'low',
       })
 
@@ -810,11 +1011,16 @@ Keep title under 40 chars, description under 100 chars.`
       if (!content?.trim()) return null
 
       const jsonStr = content.trim().replace(/^```json?\s*|\s*```$/g, '')
+      if (jsonStr === 'null') {
+        log.info('[llm-service] enrichForInsight: LLM returned null — event too trivial')
+        return null
+      }
       const parsed = JSON.parse(jsonStr) as {
         title?: string
         description?: string
         suggestedActions?: Array<{ label: string; type: string; payload: string; icon: string }>
-      }
+      } | null
+      if (!parsed) return null
 
       if (parsed.suggestedActions) {
         parsed.suggestedActions = parsed.suggestedActions.map((a) => ({
@@ -858,7 +1064,7 @@ Keep title under 40 chars, description under 100 chars.`
       return
     }
 
-    console.log(
+    log.info(
       '[llm] Summarization triggered (auto) —',
       allEntries.length,
       'entries,',
@@ -872,7 +1078,7 @@ Keep title under 40 chars, description under 100 chars.`
         }
       })
       .catch((err) => {
-        console.error('[llm-service] Background summarization error:', err)
+        log.error('[llm-service] Background summarization error:', err)
       })
   }
 
@@ -983,7 +1189,7 @@ Keep title under 40 chars, description under 100 chars.`
 
     if (usage.cachedTokens > 0) {
       const hitRate = Math.round((usage.cachedTokens / usage.promptTokens) * 100)
-      console.log(
+      log.info(
         `[llm] Cache hit: ${usage.cachedTokens} cached / ${usage.promptTokens} prompt tokens (${hitRate}%)`,
       )
     }
@@ -995,7 +1201,7 @@ Keep title under 40 chars, description under 100 chars.`
       usage.promptTokens > 0 &&
       usage.promptTokens < 1024
     ) {
-      console.log(
+      log.info(
         `[llm] No cache: ${usage.promptTokens} prompt tokens (OpenAI caching needs 1024+)`,
       )
     }
@@ -1142,7 +1348,7 @@ Keep title under 40 chars, description under 100 chars.`
       }
       this.store.set(`conversations.${this.sessionId}` as any, conversation)
     } catch (err) {
-      console.error('[llm-service] Failed to persist conversation:', err)
+      log.error('[llm-service] Failed to persist conversation:', err)
     }
   }
 

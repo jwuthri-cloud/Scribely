@@ -1,5 +1,8 @@
 import { EventEmitter } from 'events'
 import { WebSocketServer, WebSocket } from 'ws'
+import { createLogger } from './logger'
+
+const log = createLogger('ws-server')
 
 // ── Binary message protocol ────────────────────────────
 // 1-byte type header:
@@ -59,11 +62,11 @@ export class ExtensionWsServer extends EventEmitter {
     })
 
     this.wss.on('listening', () => {
-      console.log(`[ws-server] Listening on ws://${this._host}:${this._port}`)
+      log.success(`Listening on ws://${this._host}:${this._port}`)
     })
 
     this.wss.on('connection', (ws) => {
-      console.log('[ws-server] New WebSocket connection (awaiting hello handshake)')
+      log.debug('New WebSocket connection (awaiting hello handshake)')
 
       ws.on('message', (data: Buffer, isBinary: boolean) => {
         if (!isBinary || data.length < 2) return
@@ -72,7 +75,7 @@ export class ExtensionWsServer extends EventEmitter {
 
       ws.on('close', () => {
         if (ws === this.captureClient) {
-          console.log('[ws-server] Capture client disconnected')
+          log.info('Capture client disconnected')
           this.captureClient = null
           this.emit('disconnected')
         }
@@ -80,7 +83,7 @@ export class ExtensionWsServer extends EventEmitter {
       })
 
       ws.on('error', (err) => {
-        console.error('[ws-server] Client error:', err)
+        log.error('Client error:', err)
         if (ws === this.captureClient) {
           this.emit('error', err)
         }
@@ -88,7 +91,7 @@ export class ExtensionWsServer extends EventEmitter {
     })
 
     this.wss.on('error', (err) => {
-      console.error('[ws-server] Server error:', err)
+      log.error('Server error:', err)
       this.emit('error', err)
     })
   }
@@ -103,7 +106,7 @@ export class ExtensionWsServer extends EventEmitter {
       this.wss.close()
       this.wss = null
     }
-    console.log('[ws-server] Stopped')
+    log.info('Stopped')
   }
 
   /**
@@ -192,18 +195,18 @@ export class ExtensionWsServer extends EventEmitter {
           const msg = JSON.parse(payload.toString('utf-8'))
           this._handleControl(ws, msg)
         } catch {
-          console.warn('[ws-server] Invalid control message')
+          log.warn('Invalid control message')
         }
         break
       }
 
       default:
-        console.warn(`[ws-server] Unknown message type: 0x${type.toString(16)}`)
+        log.warn(`Unknown message type: 0x${type.toString(16)}`)
     }
   }
 
   private _handleControl(ws: WebSocket, msg: Record<string, unknown>): void {
-    console.log('[ws-server] Control message:', JSON.stringify(msg))
+    log.debug('Control message:', msg)
 
     if (msg.type === 'hello' && msg.source === 'chrome-extension') {
       // This is the real capture client (offscreen document).
@@ -218,12 +221,12 @@ export class ExtensionWsServer extends EventEmitter {
       } else {
         this.clientSampleRate = 16000
       }
-      console.log(`[ws-server] ✓ Capture client identified (sampleRate=${this.clientSampleRate}) — extension capture active`)
+      log.success(`Capture client identified (sampleRate=${this.clientSampleRate}) — extension capture active`)
       this.emit('connected')
     }
 
     if (msg.type === 'capture-stopped' && ws === this.captureClient) {
-      console.log('[ws-server] Capture client signaled stop')
+      log.info('Capture client signaled stop')
       this.captureClient = null
       this.emit('disconnected')
     }

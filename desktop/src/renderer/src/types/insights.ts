@@ -44,6 +44,8 @@ export interface Insight {
   suggestedActions: InsightAction[]
   sourceEntryId: string
   enriched: boolean
+  /** Self-contained contextual question rewrite (only set for question insights) */
+  questionWithContext?: string
 }
 
 export interface WebSearchResult {

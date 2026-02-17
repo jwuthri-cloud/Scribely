@@ -7,11 +7,14 @@
  */
 
 import { config } from 'dotenv'
+import { createLogger } from './logger'
+
+const log = createLogger('langfuse')
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { LangfuseSpanProcessor } from '@langfuse/otel'
 
 // Load .env from desktop/ directory (where npm run dev is executed)
-config()
+config({ quiet: true })
 
 const secretKey = process.env['LANGFUSE_SECRET_KEY']
 const publicKey = process.env['LANGFUSE_PUBLIC_KEY']
@@ -33,9 +36,9 @@ if (secretKey && publicKey) {
   })
 
   sdk.start()
-  console.log('[langfuse] Observability enabled')
+  log.success('Observability enabled')
 } else {
-  console.log('[langfuse] Skipped — set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY to enable')
+  log.info('Skipped — set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY to enable')
 }
 
 export async function flushLangfuse(): Promise<void> {
@@ -43,7 +46,7 @@ export async function flushLangfuse(): Promise<void> {
     try {
       await langfuseSpanProcessor.forceFlush()
     } catch (err) {
-      console.warn('[langfuse] Flush failed:', err)
+      log.warn('Flush failed:', err)
     }
   }
 }

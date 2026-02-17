@@ -347,7 +347,7 @@ export function TitleBar({
             active={view === 'insights'}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
+              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-9M20 8V3M2 14h4M12 8h4M18 8h4" />
             </svg>
           </TitleBtn>
         )}
