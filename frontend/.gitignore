@@ -166,8 +166,7 @@ Thumbs.db
 # Local development
 .env.local
 
-# Package managers
-package-lock.json
+# Package managers (keep package-lock.json for reproducible CI builds)
 yarn.lock
 pnpm-lock.yaml
 
