@@ -131,8 +131,8 @@ export async function classifyQuestion(text: string): Promise<boolean | null> {
     const logits = results[outputKey]?.data as Float32Array
     if (!logits || logits.length < 2) return null
 
-    // Class 0 = statement, Class 1 = question (typical for question vs statement)
-    const isQuestion = logits[1] > logits[0]
+    // shahrukhx01/question-vs-statement-classifier: id2label is 0=question, 1=statement (alphabetical)
+    const isQuestion = logits[0] > logits[1]
     return isQuestion
   } catch (err) {
     log.warn('Inference failed:', err)

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Insight, InsightAction, WebSearchResult } from '../types/insights'
 import { getQuickActionIcon } from './QuickActionIcons'
@@ -80,6 +80,7 @@ function getActionIcon(icon: string) {
 interface LiveInsightsPanelProps {
   insights: Array<Insight & { searchResult?: WebSearchResult | null; searchLoading?: boolean }>
   onExecuteAction: (insightId: string, action: InsightAction) => void
+  onSearchWithQuery?: (insightId: string, query: string) => void
   onDismissInsight?: (id: string) => void
   onClearAll?: () => void
   onSendToChat?: (text: string) => void
@@ -88,6 +89,7 @@ interface LiveInsightsPanelProps {
 export function LiveInsightsPanel({
   insights,
   onExecuteAction,
+  onSearchWithQuery,
   onDismissInsight,
   onClearAll,
   onSendToChat,
@@ -170,6 +172,7 @@ export function LiveInsightsPanel({
                   key={insight.id}
                   insight={insight}
                   onExecuteAction={onExecuteAction}
+                  onSearchWithQuery={onSearchWithQuery}
                   onDismiss={onDismissInsight}
                   onSendToChat={onSendToChat}
                   getTypeIcon={getInsightTypeIcon}
@@ -187,6 +190,7 @@ export function LiveInsightsPanel({
 interface InsightCardProps {
   insight: Insight & { searchResult?: WebSearchResult | null; searchLoading?: boolean }
   onExecuteAction: (insightId: string, action: InsightAction) => void
+  onSearchWithQuery?: (insightId: string, query: string) => void
   onDismiss?: (id: string) => void
   onSendToChat?: (text: string) => void
   getTypeIcon: (type: Insight['type']) => React.ReactNode
@@ -196,12 +200,31 @@ interface InsightCardProps {
 function InsightCard({
   insight,
   onExecuteAction,
+  onSearchWithQuery,
   onDismiss,
+  onSendToChat,
   getTypeIcon,
   getActionIcon,
 }: InsightCardProps) {
+  const [followUp, setFollowUp] = useState('')
   const hasSearchResult = insight.searchResult && (insight.searchResult.content || insight.searchResult.error)
   const isLoading = insight.searchLoading
+  const hasSearchAction = insight.suggestedActions.some((a) => a.type === 'search')
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!followUp.trim()) return
+    if (onSearchWithQuery) {
+      onSearchWithQuery(insight.id, followUp.trim())
+      setFollowUp('')
+    }
+  }
+
+  const handleSendToChat = () => {
+    if (!followUp.trim() || !onSendToChat) return
+    onSendToChat(followUp.trim())
+    setFollowUp('')
+  }
 
   return (
     <div
@@ -295,6 +318,53 @@ function InsightCard({
             </>
           )}
         </div>
+      )}
+
+      {hasSearchAction && onSearchWithQuery && (
+        <form
+          onSubmit={handleSubmit}
+          className="mt-2 pt-2 flex gap-1 items-center border-t"
+          style={{ borderColor: 'color-mix(in srgb, var(--border) 60%, transparent)' }}
+        >
+          <input
+            type="text"
+            value={followUp}
+            onChange={(e) => setFollowUp(e.target.value)}
+            placeholder="Ask a follow-up or search again..."
+            disabled={isLoading}
+            className="flex-1 min-w-0 px-1.5 py-1 rounded text-[10px] border bg-transparent focus:outline-none focus:ring-1"
+            style={{
+              color: 'var(--text)',
+              borderColor: 'var(--border)',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !followUp.trim()}
+            className="p-1 rounded hover:bg-[var(--surface-hover)] disabled:opacity-50 shrink-0"
+            style={{ color: 'var(--accent)' }}
+            title="Search the web"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
+          </button>
+          {onSendToChat && (
+            <button
+              type="button"
+              onClick={handleSendToChat}
+              disabled={isLoading || !followUp.trim()}
+              className="p-1 rounded hover:bg-[var(--surface-hover)] disabled:opacity-50 shrink-0"
+              style={{ color: 'var(--text-muted)' }}
+              title="Send to chat"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          )}
+        </form>
       )}
     </div>
   )
