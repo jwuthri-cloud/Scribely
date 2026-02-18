@@ -1,6 +1,9 @@
 import { desktopCapturer, ipcMain, app, BrowserWindow, session } from 'electron'
 import { join } from 'path'
-import { mkdir, writeFile, appendFile } from 'fs/promises'
+import { mkdir, writeFile, appendFile, unlink } from 'fs/promises'
+import { createLogger } from './logger'
+
+const log = createLogger('screen-recorder')
 
 export interface SourceInfo {
   id: string
@@ -50,7 +53,7 @@ export class ScreenRecorder {
           callback({})
         }
       } catch (err) {
-        console.error('[screen-recorder] Default handler error:', err)
+        log.error('Default handler error:', err)
         callback({})
       }
     })
@@ -67,10 +70,10 @@ export class ScreenRecorder {
         })
         const match = allSources.find((s) => s.id === sourceId)
         if (match) {
-          console.log(`[screen-recorder] Auto-selecting source: ${match.name} (${match.id})`)
+          log.info(`Auto-selecting source: ${match.name} (${match.id})`)
           callback({ video: match, audio: 'loopback' })
         } else {
-          console.warn(`[screen-recorder] Source ${sourceId} not found, falling back to screen`)
+          log.warn(`Source ${sourceId} not found, falling back to screen`)
           const screens = allSources.filter((s) => s.id.startsWith('screen:'))
           if (screens.length > 0) {
             callback({ video: screens[0], audio: 'loopback' })
@@ -79,7 +82,7 @@ export class ScreenRecorder {
           }
         }
       } catch (err) {
-        console.error('[screen-recorder] Source handler error:', err)
+        log.error('Source handler error:', err)
         callback({})
       }
     })
@@ -92,6 +95,11 @@ export class ScreenRecorder {
 
     ipcMain.handle('recording:stop', async () => {
       return this.stop()
+    })
+
+    // User dismissed the picker (X or Cancel) — cancel recording and clean up
+    ipcMain.handle('recording:cancel', async () => {
+      return this.cancel()
     })
 
     // User picked a source from the custom picker
@@ -107,7 +115,7 @@ export class ScreenRecorder {
         const buf = Buffer.from(payload.data)
         await appendFile(this.filepath, buf)
         if (this.chunkCount <= 3 || this.chunkCount % 10 === 0) {
-          console.log(
+          log.info(
             `[screen-recorder] Chunk #${this.chunkCount}: ${(buf.byteLength / 1024).toFixed(1)}KB → ${this.filepath.split('/').pop()}`,
           )
         }
@@ -120,7 +128,7 @@ export class ScreenRecorder {
    * Installs the auto-select handler and tells the renderer to call getDisplayMedia.
    */
   private _onSourceSelected(sourceId: string): void {
-    console.log(`[screen-recorder] User selected source: ${sourceId}`)
+    log.info(`[screen-recorder] User selected source: ${sourceId}`)
 
     // Install handler that will auto-select this source
     this._installSourceHandler(sourceId)
@@ -137,7 +145,7 @@ export class ScreenRecorder {
     }
 
     try {
-      const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+      const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
       await mkdir(dir, { recursive: true })
 
       const timestamp = new Date()
@@ -150,7 +158,7 @@ export class ScreenRecorder {
       this.chunkCount = 0
 
       await writeFile(this.filepath, Buffer.alloc(0))
-      console.log(`[screen-recorder] Recording file created: ${this.filepath}`)
+      log.info(`[screen-recorder] Recording file created: ${this.filepath}`)
 
       // Get available sources for the picker (screens + windows)
       // Window names include the active tab title (e.g. "YouTube — Google Chrome")
@@ -170,7 +178,7 @@ export class ScreenRecorder {
           thumbnailDataUrl: s.thumbnail.toDataURL(),
         }))
 
-      console.log(
+      log.info(
         `[screen-recorder] Sending ${sources.length} sources to picker (${sources.filter((s) => s.type === 'screen').length} screens, ${sources.filter((s) => s.type === 'window').length} windows)`,
       )
 
@@ -183,7 +191,7 @@ export class ScreenRecorder {
       this.isRecording = true
       return { success: true, filepath: this.filepath }
     } catch (err) {
-      console.error('[screen-recorder] Failed to start:', err)
+      log.error('[screen-recorder] Failed to start:', err)
       return { success: false, error: String(err) }
     }
   }
@@ -193,13 +201,37 @@ export class ScreenRecorder {
       return { filepath: this.filepath }
     }
 
-    console.log(`[screen-recorder] Stopping recording (${this.chunkCount} chunks written)`)
+    log.info(`[screen-recorder] Stopping recording (${this.chunkCount} chunks written)`)
     this.win?.webContents.send('recording:stop-capture')
     this.isRecording = false
     this._installDefaultHandler()
 
     const fp = this.filepath
     return { filepath: fp }
+  }
+
+  /**
+   * Cancel recording when user dismisses the picker without selecting.
+   * Deletes the empty file and resets state.
+   */
+  async cancel(): Promise<void> {
+    if (!this.isRecording) return
+
+    log.info(`[screen-recorder] Cancelling recording (picker dismissed)`)
+    this.win?.webContents.send('recording:stop-capture')
+    this.isRecording = false
+    this._installDefaultHandler()
+
+    // Delete empty file if no chunks were written
+    if (this.filepath && this.chunkCount === 0) {
+      try {
+        await unlink(this.filepath)
+        log.info(`[screen-recorder] Deleted empty file: ${this.filepath}`)
+      } catch (err) {
+        log.warn(`[screen-recorder] Failed to delete empty file:`, err)
+      }
+    }
+    this.filepath = null
   }
 
   /**
@@ -213,7 +245,7 @@ export class ScreenRecorder {
     }
 
     try {
-      const dir = join(app.getPath('documents'), 'AssistMe', 'recordings')
+      const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
       await mkdir(dir, { recursive: true })
 
       const timestamp = new Date()
@@ -226,12 +258,12 @@ export class ScreenRecorder {
       this.chunkCount = 0
 
       await writeFile(this.filepath, Buffer.alloc(0))
-      console.log(`[screen-recorder] External recording file created: ${this.filepath}`)
+      log.info(`[screen-recorder] External recording file created: ${this.filepath}`)
 
       this.isRecording = true
       return { success: true, filepath: this.filepath }
     } catch (err) {
-      console.error('[screen-recorder] Failed to start external recording:', err)
+      log.error('[screen-recorder] Failed to start external recording:', err)
       return { success: false, error: String(err) }
     }
   }
@@ -244,7 +276,7 @@ export class ScreenRecorder {
       return { filepath: this.filepath }
     }
 
-    console.log(`[screen-recorder] Stopping external recording (${this.chunkCount} chunks written)`)
+    log.info(`[screen-recorder] Stopping external recording (${this.chunkCount} chunks written)`)
     this.isRecording = false
 
     const fp = this.filepath
@@ -268,7 +300,7 @@ export class ScreenRecorder {
     this.chunkCount++
     await appendFile(this.filepath, data)
     if (this.chunkCount <= 3 || this.chunkCount % 10 === 0) {
-      console.log(
+      log.info(
         `[screen-recorder] External chunk #${this.chunkCount}: ${(data.byteLength / 1024).toFixed(1)}KB → ${this.filepath.split('/').pop()}`,
       )
     }

@@ -1,5 +1,5 @@
 """
-Simple metrics endpoints for AssistMe.
+Simple metrics endpoints for Scribely.
 """
 
 from typing import Any, Dict

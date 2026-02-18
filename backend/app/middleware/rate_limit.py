@@ -1,5 +1,5 @@
 """
-Rate limiting middleware for AssistMe.
+Rate limiting middleware for Scribely.
 
 Uses slowapi to provide per-IP and per-user rate limiting.
 """

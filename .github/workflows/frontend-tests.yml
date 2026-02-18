@@ -179,7 +179,7 @@ jobs:
         with:
           context: ./frontend
           push: false
-          tags: {{ cookiecutter.project_slug }}-frontend:test
+          tags: scribely-frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: Test Docker image health
         run: |
-          docker run -d --name frontend-test -p 3000:3000 {{ cookiecutter.project_slug }}-frontend:test
+          docker run -d --name frontend-test -p 3000:3000 scribely-frontend:test
           sleep 10
           curl -f http://localhost:3000/api/health || exit 1
           docker stop frontend-test

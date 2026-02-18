@@ -1,4 +1,4 @@
-import type { ChatAttachment, AppSettings } from './settings'
+import type { ChatAttachment, AppSettings, LLMChatRequest, LLMChatDelta, LLMChatDone, LLMChatError, ModelId } from './settings'
 
 /**
  * ElectronAPI exposed via contextBridge in the preload script.
@@ -105,6 +105,7 @@ export interface ElectronAPI {
   // Screen Recording (main-process driven)
   startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
   stopRecording: () => Promise<{ filepath: string | null }>
+  cancelRecording: () => Promise<void>
   selectRecordingSource: (sourceId: string) => Promise<void>
   onShowPicker: (
     callback: (data: {
@@ -164,9 +165,101 @@ export interface ElectronAPI {
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 
+  // LLM
+  llmChat: (request: LLMChatRequest) => void
+  llmCancel: (requestId: string) => void
+  llmReset: () => void
+  llmSetModel: (modelId: ModelId) => Promise<{ success: boolean; model: ModelId }>
+  llmGetModel: () => Promise<ModelId>
+  llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasApiKey: () => Promise<boolean>
+  llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
+  onLLMChatDelta: (callback: (data: LLMChatDelta) => void) => () => void
+  onLLMChatDone: (callback: (data: LLMChatDone) => void) => () => void
+  onLLMChatError: (callback: (data: LLMChatError) => void) => () => void
+
+  // System Prompts
+  llmGetSystemPrompts: () => Promise<import('./settings').SystemPrompt[]>
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => Promise<import('./settings').SystemPrompt>
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => Promise<import('./settings').SystemPrompt>
+  llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
+  llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
+  llmGetActiveSystemPrompt: () => Promise<string | null>
+
+  // Summarization
+  llmTriggerSummarize: (payload?: {
+    transcriptEntries?: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+  }) => Promise<{ success: boolean; error?: string }>
+  llmGetSummarizationStatus: () => Promise<{
+    hasSummary: boolean
+    inProgress: boolean
+    autoSummarizeEnabled: boolean
+  }>
+  llmGetSummary: () => Promise<string | null>
+  onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetPromptForRequest: (requestId: string) => Promise<
+    Array<{ role: string; content: string }> | null
+  >
+  llmGetUsageStats: () => Promise<{
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    estimatedCostUsd: number
+  }>
+  onLLMUsageUpdated: (callback: () => void) => () => void
+
+  // Live Insights
+  onInsightNew: (callback: (insight: import('./insights').Insight) => void) => () => void
+  onInsightUpdate: (
+    callback: (update: {
+      id: string
+      title?: string
+      description?: string
+      suggestedActions?: import('./insights').InsightAction[]
+    }) => void,
+  ) => () => void
+  llmWebSearch: (query: string) => Promise<import('./insights').WebSearchResult>
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => void
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => () => void
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
+  toggleInsightsWindow: () => Promise<void>
+  insightsWindowVisible: () => Promise<boolean>
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
+  closeInsightsWindow: () => void
+  sendToChat: (text: string) => void
+  onChatMessageFromInsights: (callback: (text: string) => void) => () => void
+
   // Invisibility
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
+
+  // Window hide/show
+  toggleWindowVisibility: () => Promise<void>
+
+  // Onboarding
+  onboardingGetCompleted: () => Promise<boolean>
+  onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
+
+  // Open external URL
+  clipboardWriteText: (text: string) => Promise<void>
+  openExternalUrl: (url: string) => Promise<{ success: boolean }>
+
+  // Window resize
+  setWindowSize: (size: { width: number; height: number }) => void
 
   // App lifecycle
   quit: () => void
@@ -182,12 +275,64 @@ export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  /** User's original question without the transcript prefix (for UI display) */
+  rawQuery?: string
   timestamp: number
   attachments?: ChatAttachment[]
+  /** True when this assistant message is from a web search (vs regular chat) */
+  isWebSearch?: boolean
+  /** Sources from web search (when message is a web search result) */
+  webSources?: Array<{ title: string; url: string }>
+  model?: string
+  usage?: {
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    latencyMs?: number
+  }
+  isError?: boolean
+  retryable?: boolean
 }
 
-export type { AppSettings, HotkeyConfig, ChatAttachment, TranscriptionProvider, TranscriptionSettings } from './settings'
-export { HOTKEY_LABELS, DEFAULT_HOTKEYS, DEFAULT_SETTINGS, DEFAULT_TRANSCRIPTION } from './settings'
+export type {
+  AppSettings,
+  HotkeyConfig,
+  ChatAttachment,
+  TranscriptionProvider,
+  TranscriptionSettings,
+  SummarizationSettings,
+  ModelId,
+  ModelConfig,
+  LLMSettings,
+  SystemPrompt,
+  LLMChatRequest,
+  LLMChatDelta,
+  LLMChatDone,
+  LLMChatError,
+  LLMUsage,
+} from './settings'
+export {
+  HOTKEY_LABELS,
+  DEFAULT_HOTKEYS,
+  DEFAULT_SETTINGS,
+  DEFAULT_TRANSCRIPTION,
+  DEFAULT_LLM,
+  DEFAULT_SUMMARIZATION,
+  DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
+  MODEL_CONFIGS,
+  MODEL_PRICING,
+  estimateMessageCost,
+} from './settings'
+
+// Insight types (Live Insights feature)
+export type {
+  DetectedEventType,
+  DetectedEvent,
+  InsightActionType,
+  InsightAction,
+  Insight,
+  WebSearchResult,
+} from './insights'
 
 // Transcript types
 export type {

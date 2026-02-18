@@ -1,5 +1,5 @@
 """
-Logging utilities for AssistMe.
+Logging utilities for Scribely.
 Enhanced with Rich for beautiful console output and JSON for production.
 """
 import logging

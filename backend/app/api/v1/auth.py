@@ -1,5 +1,5 @@
 """
-Authentication endpoints with Clerk integration for AssistMe.
+Authentication endpoints with Clerk integration for Scribely.
 """
 
 from typing import Any, Dict, Optional

@@ -1,5 +1,5 @@
 /**
- * Popup UI for AssistMe Tab Capture extension.
+ * Popup UI for Scribely Tab Capture extension.
  *
  * Shows current tab info, connection status to the Electron app,
  * and a Start/Stop capture button.
@@ -161,7 +161,7 @@ captureBtn.addEventListener('click', async () => {
       // Verify desktop app is reachable first
       const connected = await checkDesktopConnection()
       if (!connected) {
-        showError('AssistMe desktop app is not running. Start it first.')
+        showError('Scribely desktop app is not running. Start it first.')
         return
       }
 

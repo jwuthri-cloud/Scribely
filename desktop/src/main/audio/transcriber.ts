@@ -1,7 +1,10 @@
 import { join } from 'path'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
+import { createLogger } from '../logger'
 import { ModelManager } from './model-manager'
+
+const log = createLogger('transcriber')
 
 // ── Types ──────────────────────────────────────────────────
 type TranscriptionProvider =
@@ -37,7 +40,7 @@ export class Transcriber {
   constructor(modelManager: ModelManager, config: TranscriptionConfig) {
     this.modelManager = modelManager
     this.config = { ...config }
-    this.tmpDir = mkdtempSync(join(tmpdir(), 'assistme-audio-'))
+    this.tmpDir = mkdtempSync(join(tmpdir(), 'scribely-audio-'))
   }
 
   get mode(): string {
@@ -80,13 +83,13 @@ export class Transcriber {
           this.whisper = new SmartWhisper(modelPath, { gpu: true })
           this._activeModelId = modelId
           this._mode = provider
-          console.log(`[transcriber] Local whisper initialized: ${modelId} (Metal)`)
+          log.success(`Local whisper initialized: ${modelId} (Metal)`)
         } catch (err) {
-          console.warn('[transcriber] smart-whisper load failed:', err)
+          log.warn('smart-whisper load failed:', err)
           this._mode = provider // keep provider, will fail gracefully on transcribe
         }
       } else {
-        console.log(`[transcriber] Model ${modelId} not downloaded yet`)
+        log.info(`Model ${modelId} not downloaded yet`)
         this._mode = provider
       }
     }
@@ -158,7 +161,7 @@ export class Transcriber {
           : ''
       return { text: text.trim(), duration }
     } catch (err) {
-      console.error('[transcriber] Local transcription failed:', err)
+      log.error('Local transcription failed:', err)
       return { text: '', duration }
     }
   }

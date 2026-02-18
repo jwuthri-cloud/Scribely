@@ -1,5 +1,5 @@
 """
-Message model for AssistMe.
+Message model for Scribely.
 """
 
 import enum

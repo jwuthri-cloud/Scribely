@@ -2,7 +2,7 @@ import type { Theme } from './types'
 
 export const monokai: Theme = {
   id: 'monokai',
-  name: 'Monokai',
+  name: 'Monokai Dark',
   colors: {
     bg: '#272822',
     surface: '#2e2e2a',

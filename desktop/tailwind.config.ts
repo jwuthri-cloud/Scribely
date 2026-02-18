@@ -40,6 +40,15 @@ const config: Config = {
       borderRadius: {
         overlay: '1rem',
       },
+      keyframes: {
+        'progress-shimmer': {
+          '0%, 100%': { transform: 'translateX(-100%)' },
+          '50%': { transform: 'translateX(200%)' },
+        },
+      },
+      animation: {
+        'progress-shimmer': 'progress-shimmer 1.2s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

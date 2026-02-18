@@ -1,5 +1,5 @@
 """
-Database package for AssistMe.
+Database package for Scribely.
 """
 
 from .base import Base, SessionLocal, engine, get_db

@@ -1,5 +1,5 @@
 """
-Alembic environment configuration for AssistMe.
+Alembic environment configuration for Scribely.
 """
 
 import os

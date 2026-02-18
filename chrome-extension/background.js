@@ -1,5 +1,5 @@
 /**
- * Background service worker for AssistMe Tab Capture extension.
+ * Background service worker for Scribely Tab Capture extension.
  *
  * Handles:
  * - Tab capture stream ID via chrome.tabCapture.getMediaStreamId()
@@ -26,7 +26,7 @@ async function ensureOffscreenDocument() {
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
     reasons: ['USER_MEDIA'],
-    justification: 'Tab audio/video capture for AssistMe transcription',
+    justification: 'Tab audio/video capture for Scribely transcription',
   })
 }
 

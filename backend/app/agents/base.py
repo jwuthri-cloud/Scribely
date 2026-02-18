@@ -1,5 +1,5 @@
 """
-Base agent class for AssistMe.
+Base agent class for Scribely.
 
 All agents should inherit from BaseAgent and implement the required methods.
 Protected by circuit breaker for resilient LLM calls.

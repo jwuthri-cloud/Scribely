@@ -1,4 +1,4 @@
-# AssistMe
+# Scribely
 
 > 🤖 **Modern AI Chat Application** built with **FastAPI** + **Next.js** + **OpenRouter** + **Clerk**
 
@@ -283,7 +283,7 @@ npm start
 ## 📁 **Project Structure**
 
 ```
-assistme/
+scribely/
 ├── 📁 backend/                 # FastAPI Backend
 │   ├── 📁 app/
 │   │   ├── 📁 api/v1/         # API routes
@@ -416,8 +416,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 **Support**
 
 - 📧 **Email**: julien.wut@gmail.com
-- 🐛 **Issues**: [GitHub Issues](https://github.com/Jwuthri/assistme/issues)
-- 📖 **Documentation**: [Project Wiki](https://github.com/Jwuthri/assistme/wiki)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/julienwuthrich/scribely/issues)
+- 📖 **Documentation**: [Project Wiki](https://github.com/julienwuthrich/scribely/wiki)
 
 ---
 

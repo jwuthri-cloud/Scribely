@@ -15,7 +15,7 @@ Follow these conventions for FastAPI backend development:
 
 ## Pydantic Models
 - Use Pydantic v2 syntax and features
-- Define models in [app/models/](mdc:assistme/backend/app/models/) for API contracts
+- Define models in [app/models/](mdc:scribely/backend/app/models/) for API contracts
 - Include `Config` class with examples for API documentation
 - Use validators for custom validation logic
 - Separate API models from database models
@@ -39,7 +39,7 @@ class ChatRequest(BaseModel):
 ```
 
 ## API Endpoints
-- Group endpoints by version in [app/api/v1/](mdc:assistme/backend/app/api/v1/)
+- Group endpoints by version in [app/api/v1/](mdc:scribely/backend/app/api/v1/)
 - Use FastAPI's dependency injection system extensively
 - Include comprehensive docstrings and response models
 - Handle exceptions with proper HTTP status codes
@@ -63,7 +63,7 @@ async def send_message(
 ```
 
 ## Services & Business Logic
-- Implement business logic in service classes in [app/services/](mdc:assistme/backend/app/services/)
+- Implement business logic in service classes in [app/services/](mdc:scribely/backend/app/services/)
 - Use dependency injection for service dependencies
 - Follow single responsibility principle
 - Use async/await for I/O operations
@@ -71,14 +71,14 @@ async def send_message(
 
 ## Database Integration
 - Use SQLAlchemy with async support
-- Define database models in [app/database/models/](mdc:assistme/backend/app/database/models/)
-- Implement repository pattern in [app/database/repositories/](mdc:assistme/backend/app/database/repositories/)
+- Define database models in [app/database/models/](mdc:scribely/backend/app/database/models/)
+- Implement repository pattern in [app/database/repositories/](mdc:scribely/backend/app/database/repositories/)
 - Use Alembic for database migrations
 - Follow the Unit of Work pattern for transactions
 
 ## CQRS Pattern
 When using CQRS (Command Query Responsibility Segregation):
-- Commands for state changes go in [app/core/cqrs/](mdc:assistme/backend/app/core/cqrs/)
+- Commands for state changes go in [app/core/cqrs/](mdc:scribely/backend/app/core/cqrs/)
 - Queries for data retrieval use separate handlers
 - Register handlers with the CQRS bus
 - Use proper result types (CommandResult/QueryResult)
@@ -95,25 +95,25 @@ result = await get_cqrs_bus().execute_query(GetChatHistoryQuery(...))
 ```
 
 ## Configuration Management
-- Use [app/core/config/settings.py](mdc:assistme/backend/app/core/config/settings.py) for all configuration
+- Use [app/core/config/settings.py](mdc:scribely/backend/app/core/config/settings.py) for all configuration
 - Environment-specific settings with Pydantic validation
 - Use secrets management for sensitive data
 - Validate configuration on startup
 
 ## Error Handling
-- Define custom exceptions in [app/exceptions.py](mdc:assistme/backend/app/exceptions.py)
+- Define custom exceptions in [app/exceptions.py](mdc:scribely/backend/app/exceptions.py)
 - Use FastAPI exception handlers for consistent error responses
 - Log errors with proper context and correlation IDs
 - Return user-friendly error messages
 
 ## Logging & Monitoring
-- Use structured logging with the utility in [app/utils/logging.py](mdc:assistme/backend/app/utils/logging.py)
+- Use structured logging with the utility in [app/utils/logging.py](mdc:scribely/backend/app/utils/logging.py)
 - Include correlation IDs for tracing
 - Log at appropriate levels (DEBUG, INFO, WARNING, ERROR)
 - Use OpenTelemetry for distributed tracing
 
 ## LLM Integration
-- Use the LLM service abstraction in [app/core/llm/](mdc:assistme/backend/app/core/llm/)
+- Use the LLM service abstraction in [app/core/llm/](mdc:scribely/backend/app/core/llm/)
 - Support multiple LLM providers through factory pattern
 - Implement proper error handling for external API calls
 
@@ -134,6 +134,6 @@ result = await get_cqrs_bus().execute_query(GetChatHistoryQuery(...))
 
 ## Background Tasks
 - Use Celery for background processing
-- Define tasks in [app/tasks/](mdc:assistme/backend/app/tasks/)
+- Define tasks in [app/tasks/](mdc:scribely/backend/app/tasks/)
 - Use proper task routing and queues
 - Implement retry logic with exponential backoff

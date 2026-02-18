@@ -1,8 +1,8 @@
-# Production Docker Compose for AssistMe Backend
+# Production Docker Compose for Scribely Backend
 version: '3.8'
 
 networks:
-  assistme_network:
+  scribely_network:
     driver: bridge
 
 volumes:
@@ -18,7 +18,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: assistme_backend
+    container_name: scribely_backend
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -33,7 +33,7 @@ services:
 
       # Database
       
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/assistme
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/scribely
       
 
       # Redis
@@ -41,7 +41,7 @@ services:
 
       # Kafka
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_GROUP_ID=assistme_backend_prod
+      - KAFKA_GROUP_ID=scribely_backend_prod
 
       # RabbitMQ
       - RABBITMQ_URL=amqp://guest:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
@@ -63,7 +63,7 @@ services:
       - kafka
       - rabbitmq
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -75,18 +75,18 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: assistme_postgres
+    container_name: scribely_postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=assistme
+      - POSTGRES_DB=scribely
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -97,14 +97,14 @@ services:
   # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: assistme_redis
+    container_name: scribely_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -115,7 +115,7 @@ services:
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: assistme_zookeeper
+    container_name: scribely_zookeeper
     restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -124,7 +124,7 @@ services:
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
       interval: 10s
@@ -134,7 +134,7 @@ services:
   # Kafka Message Broker
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: assistme_kafka
+    container_name: scribely_kafka
     restart: unless-stopped
     depends_on:
       - zookeeper
@@ -153,7 +153,7 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 30s
@@ -163,7 +163,7 @@ services:
   # RabbitMQ Message Queue
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
-    container_name: assistme_rabbitmq
+    container_name: scribely_rabbitmq
     restart: unless-stopped
     ports:
       - "5672:5672"
@@ -175,7 +175,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
-      - assistme_network
+      - scribely_network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
@@ -185,7 +185,7 @@ services:
   # Nginx Reverse Proxy (Optional)
   nginx:
     image: nginx:alpine
-    container_name: assistme_nginx
+    container_name: scribely_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -196,6 +196,6 @@ services:
     depends_on:
       - backend
     networks:
-      - assistme_network
+      - scribely_network
     profiles:
       - nginx  # Optional service, start with: docker-compose --profile nginx up

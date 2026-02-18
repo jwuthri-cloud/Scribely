@@ -1,5 +1,5 @@
 """
-CLI module for AssistMe.
+CLI module for Scribely.
 """
 
 from .main import cli

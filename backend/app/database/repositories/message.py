@@ -1,5 +1,5 @@
 """
-Message repository for AssistMe.
+Message repository for Scribely.
 """
 
 from datetime import datetime

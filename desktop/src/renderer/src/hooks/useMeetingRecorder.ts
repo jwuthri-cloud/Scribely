@@ -238,9 +238,10 @@ export function useMeetingRecorder() {
     await window.electronAPI?.selectRecordingSource?.(sourceId)
   }, [])
 
-  /** User dismissed the picker */
-  const dismissPicker = useCallback(() => {
+  /** User dismissed the picker — cancel recording and notify main process */
+  const dismissPicker = useCallback(async () => {
     setPickerSources(null)
+    await window.electronAPI?.cancelRecording?.()
   }, [])
 
   const stopRecording = useCallback(async (): Promise<string | null> => {

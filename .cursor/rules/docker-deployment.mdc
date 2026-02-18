@@ -27,9 +27,9 @@ FROM dependencies as production
 ```
 
 ### Container Organization
-- **Backend**: [assistme/backend/Dockerfile](mdc:assistme/backend/Dockerfile)
-- **Frontend**: [assistme/frontend/Dockerfile](mdc:assistme/frontend/Dockerfile)
-- **Docker Compose**: [docker-compose.yml](mdc:assistme/docker-compose.yml) for orchestration
+- **Backend**: [scribely/backend/Dockerfile](mdc:scribely/backend/Dockerfile)
+- **Frontend**: [scribely/frontend/Dockerfile](mdc:scribely/frontend/Dockerfile)
+- **Docker Compose**: [docker-compose.yml](mdc:scribely/docker-compose.yml) for orchestration
 
 ## Docker Compose Services
 
@@ -65,21 +65,21 @@ services:
 ```
 
 ### Development vs Production
-- **Development**: Use [docker/docker-compose.dev.yml](mdc:assistme/backend/docker/docker-compose.dev.yml)
-- **Tracing**: Use [docker/docker-compose.tracing.yml](mdc:assistme/backend/docker/docker-compose.tracing.yml) for observability
+- **Development**: Use [docker/docker-compose.dev.yml](mdc:scribely/backend/docker/docker-compose.dev.yml)
+- **Tracing**: Use [docker/docker-compose.tracing.yml](mdc:scribely/backend/docker/docker-compose.tracing.yml) for observability
 - **Production**: Base compose file with production overrides
 
 ## Environment Configuration
 
 ### Environment Files
-- **Template**: [config_template.env](mdc:assistme/backend/config_template.env) as reference
+- **Template**: [config_template.env](mdc:scribely/backend/config_template.env) as reference
 - **Development**: `.env` files for local development
 - **Production**: Use secrets management (Docker Secrets, Kubernetes Secrets)
 
 ### Environment Variables Pattern
 ```bash
 # Core Application
-APP_NAME=AssistMe
+APP_NAME=Scribely
 APP_VERSION=0.1.0
 ENVIRONMENT=production
 
@@ -105,7 +105,7 @@ CLERK_SECRET_KEY=sk_live_...
 ## Deployment Scripts
 
 ### Management Scripts
-Use scripts in [scripts/](mdc:assistme/backend/scripts/) for deployment management:
+Use scripts in [scripts/](mdc:scribely/backend/scripts/) for deployment management:
 
 ```bash
 # Start services
@@ -131,7 +131,7 @@ Use scripts in [scripts/](mdc:assistme/backend/scripts/) for deployment manageme
 
 set -e  # Exit on error
 
-echo "🚀 Starting AssistMe services..."
+echo "🚀 Starting Scribely services..."
 
 # Pull latest images
 docker-compose pull
@@ -224,7 +224,7 @@ services:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: assistme
+  name: scribely
 ```
 
 ### Deployment Manifests
@@ -233,7 +233,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: assistme
+  namespace: scribely
 spec:
   replicas: 3
   selector:
@@ -246,7 +246,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: assistme-backend:latest
+        image: scribely-backend:latest
         env:
         - name: DATABASE_URL
           valueFrom:
@@ -265,7 +265,7 @@ spec:
 ## Observability & Monitoring
 
 ### Distributed Tracing
-Use OpenTelemetry configuration in [docker/otel-collector-config.yml](mdc:assistme/backend/docker/otel-collector-config.yml):
+Use OpenTelemetry configuration in [docker/otel-collector-config.yml](mdc:scribely/backend/docker/otel-collector-config.yml):
 
 ```yaml
 receivers:

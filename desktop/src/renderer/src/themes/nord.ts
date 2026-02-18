@@ -2,7 +2,7 @@ import type { Theme } from './types'
 
 export const nord: Theme = {
   id: 'nord',
-  name: 'Nord',
+  name: 'Nord Dark',
   colors: {
     bg: '#2e3440',
     surface: '#3b4252',

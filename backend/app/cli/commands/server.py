@@ -45,7 +45,7 @@ def server():
 def start(host, port, reload, workers):
     """Start the FastAPI server."""
     console.print(Panel.fit(
-        f"[bold green]Starting AssistMe Server[/bold green]\n"
+        f"[bold green]Starting Scribely Server[/bold green]\n"
         f"Host: {host}:{port}\n"
         f"Reload: {'✓' if reload else '✗'}\n"
         f"Workers: {workers}",

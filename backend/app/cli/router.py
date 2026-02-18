@@ -1,5 +1,5 @@
 """
-CLI command router for AssistMe.
+CLI command router for Scribely.
 """
 
 from .commands import cache, database, health, llm, logs, server, setup, training, worker

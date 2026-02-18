@@ -1,6 +1,6 @@
-# AssistMe CLI
+# Scribely CLI
 
-A comprehensive command-line interface for managing your AssistMe backend.
+A comprehensive command-line interface for managing your Scribely backend.
 
 ## Installation
 
@@ -18,7 +18,7 @@ After installation, you can use the CLI in several ways:
 
 ```bash
 # Direct command (after pip install)
-assistme --help
+scribely --help
 
 # Python module
 python -m app.cli --help
@@ -40,141 +40,141 @@ python -m app.cli.main --help
 
 ```bash
 # Start the FastAPI server
-assistme server start --host 0.0.0.0 --port 8000 --reload
+scribely server start --host 0.0.0.0 --port 8000 --reload
 
 # Check server status
-assistme server status
+scribely server status
 
 # Stop server processes
-assistme server stop
+scribely server stop
 ```
 
 ### Database Operations
 
 ```bash
 # Initialize database
-assistme database init
+scribely database init
 
 # Run migrations
-assistme database migrate
+scribely database migrate
 
 # Reset database (WARNING: deletes all data)
-assistme database reset
+scribely database reset
 
 # Check database status
-assistme database status
+scribely database status
 ```
 
 ### Health Checks
 
 ```bash
 # Run comprehensive health check
-assistme health check
+scribely health check
 
 # Check specific service
-assistme health check --service redis
+scribely health check --service redis
 
 # Continuous monitoring
-assistme health monitor
+scribely health monitor
 ```
 
 ### Setup and Configuration
 
 ```bash
 # Full application setup
-assistme setup init
+scribely setup init
 
 # Create environment file
-assistme setup env
+scribely setup env
 
 # Install dependencies
-assistme setup deps
+scribely setup deps
 
 # Setup development environment
-assistme setup dev
+scribely setup dev
 ```
 
 ### LLM Management
 
 ```bash
 # List available models from OpenRouter
-assistme llm list
+scribely llm list
 
 # Test OpenRouter connection
-assistme llm test
+scribely llm test
 
 # Interactive chat
-assistme llm chat --model openai/gpt-4o-mini
+scribely llm chat --model openai/gpt-4o-mini
 
 # Single completion
-assistme llm complete "Hello, world!" --model openai/gpt-4o-mini
+scribely llm complete "Hello, world!" --model openai/gpt-4o-mini
 
 # Configure OpenRouter API key
-assistme llm config
+scribely llm config
 ```
 
 ### Cache Management
 
 ```bash
 # Check cache status
-assistme cache status
+scribely cache status
 
 # List cache keys
-assistme cache list --pattern "user:*"
+scribely cache list --pattern "user:*"
 
 # Get/Set cache values
-assistme cache get user:123
-assistme cache set user:123 "cached_data" --ttl 300
+scribely cache get user:123
+scribely cache set user:123 "cached_data" --ttl 300
 
 # Clear cache
-assistme cache flush --pattern "*" --force
+scribely cache flush --pattern "*" --force
 ```
 
 ### Logging Management
 
 ```bash
 # Test logging output (Rich vs JSON)
-assistme logs test --format json
+scribely logs test --format json
 
 # Show current logging configuration
-assistme logs status
+scribely logs status
 
 # View recent log entries
-assistme logs tail --lines 100 --follow
+scribely logs tail --lines 100 --follow
 
 # Show JSON log format example
-assistme logs json-example
+scribely logs json-example
 
 # Send test log message
-assistme logs send INFO "Test message"
+scribely logs send INFO "Test message"
 ```
 
 ### Celery Worker Management
 
 ```bash
 # Start Celery worker
-assistme worker start --queues general,chat,llm --concurrency 4
+scribely worker start --queues general,chat,llm --concurrency 4
 
 # Start worker in background
-assistme worker start --detach --pidfile /tmp/worker.pid
+scribely worker start --detach --pidfile /tmp/worker.pid
 
 # Check worker status
-assistme worker status
+scribely worker status
 
 # Stop worker (graceful)
-assistme worker stop --pidfile /tmp/worker.pid
+scribely worker stop --pidfile /tmp/worker.pid
 
 # Force stop worker
-assistme worker stop --force
+scribely worker stop --force
 
 # Inspect worker stats
-assistme worker inspect --queue general
+scribely worker inspect --queue general
 
 # Monitor worker activity
-assistme worker monitor --refresh 10
+scribely worker monitor --refresh 10
 
 # Purge all task queues (WARNING: destructive)
-assistme worker purge
+scribely worker purge
 ```
 
 ## Rich Integration
@@ -210,7 +210,7 @@ Set these in your `.env` file to configure logging:
 ENVIRONMENT=production  # or development, staging
 
 # DataDog configuration (for production)
-DD_SERVICE=assistme
+DD_SERVICE=scribely
 DD_ENV=production
 DD_VERSION=0.1.0
 

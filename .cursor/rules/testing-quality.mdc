@@ -9,12 +9,12 @@ Follow these testing patterns and quality standards:
 ## Backend Testing (Python/pytest)
 
 ### Test Structure
-- **Location**: All tests in [tests/](mdc:assistme/backend/tests/)
+- **Location**: All tests in [tests/](mdc:scribely/backend/tests/)
 - **Organization**:
   - `tests/unit/` - Unit tests for individual components
   - `tests/integration/` - Integration tests for API endpoints
   - `tests/performance/` - Performance and load testing
-- **Configuration**: Use [pytest.ini](mdc:assistme/backend/pytest.ini) for pytest settings
+- **Configuration**: Use [pytest.ini](mdc:scribely/backend/pytest.ini) for pytest settings
 - **Coverage**: Aim for 80%+ test coverage with `pytest-cov`
 
 ### Test Naming & Organization

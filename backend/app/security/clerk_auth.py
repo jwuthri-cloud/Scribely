@@ -1,5 +1,5 @@
 """
-Clerk authentication integration for AssistMe.
+Clerk authentication integration for Scribely.
 """
 
 from datetime import datetime, timedelta

@@ -1,6 +1,9 @@
 import { globalShortcut, BrowserWindow } from 'electron'
 import type Store from 'electron-store'
+import { createLogger } from './logger'
 import { captureScreen } from './screenshot'
+
+const log = createLogger('hotkey')
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -19,12 +22,27 @@ interface TranscriptionSettings {
   chunkDurationSec: number
 }
 
+interface LLMSettings {
+  apiKey: string
+  defaultModel: string
+  temperature: number
+  activeSystemPromptId: string | null
+  systemPrompts: Array<{
+    id: string
+    name: string
+    content: string
+    createdAt: number
+    updatedAt: number
+  }>
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
   transcription: TranscriptionSettings
+  llm: LLMSettings
 }
 
 /**
@@ -83,7 +101,7 @@ export function registerAllHotkeys(
       const dataUrl = await captureScreen(win)
       if (!win.isDestroyed()) win.webContents.send('screenshot-taken', dataUrl)
     } catch (err) {
-      console.error('[hotkey] Screenshot failed:', err)
+      log.error('Screenshot failed:', err)
     }
   }))
 
@@ -125,8 +143,8 @@ function tryRegister(accelerator: string, callback: () => void): void {
   if (!accelerator) return
   const ok = globalShortcut.register(accelerator, callback)
   if (!ok) {
-    console.error(`[hotkey] Failed to register: ${accelerator}`)
+    log.error(`Failed to register: ${accelerator}`)
   } else {
-    console.log(`[hotkey] Registered: ${accelerator}`)
+    log.success(`Registered: ${accelerator}`)
   }
 }

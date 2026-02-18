@@ -1,5 +1,5 @@
 """
-Database repositories package for AssistMe.
+Database repositories package for Scribely.
 """
 
 from .agent import AgentRepository

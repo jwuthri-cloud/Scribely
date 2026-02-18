@@ -1,5 +1,5 @@
 [project]
-name = "assistme-backend"
+name = "scribely-backend"
 version = "0.1.0"
 description = "A FastAPI + Next.js AI agent application with OpenRouter - Backend API"
 authors = [
@@ -95,12 +95,12 @@ test = [
 ]
 
 [project.scripts]
-assistme = "app.cli.main:cli"
+scribely = "app.cli.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/Julien wuthrich/assistme"
-Repository = "https://github.com/Julien wuthrich/assistme"
-Issues = "https://github.com/Julien wuthrich/assistme/issues"
+Homepage = "https://github.com/julienwuthrich/scribely"
+Repository = "https://github.com/julienwuthrich/scribely"
+Issues = "https://github.com/julienwuthrich/scribely/issues"
 
 [build-system]
 requires = ["hatchling"]

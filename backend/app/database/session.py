@@ -1,5 +1,5 @@
 """
-Async database session management for AssistMe.
+Async database session management for Scribely.
 """
 
 from contextlib import asynccontextmanager

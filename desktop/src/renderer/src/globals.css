@@ -25,6 +25,11 @@
   --chip-bg: #2c313a;
   --chip-text: #abb2bf;
   --overlay: rgba(30, 33, 39, 0.85);
+  /* Font size (overridden by Overlay based on user setting) */
+  --font-size-base: 13px;
+  --font-size-sm: 12px;
+  --font-size-xs: 10px;
+  --font-size-code: 12px;
 }
 
 /* ──────────────────────────────────────────────
@@ -129,6 +134,19 @@ body,
 }
 
 /* ──────────────────────────────────────────────
+   Focus rings for keyboard navigation
+   ────────────────────────────────────────────── */
+:focus {
+  outline: none;
+}
+
+/* Visible focus rings for keyboard navigation (not on mouse click) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ──────────────────────────────────────────────
    Form element defaults
    ────────────────────────────────────────────── */
 input::placeholder,
@@ -168,4 +186,22 @@ kbd {
 
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* ──────────────────────────────────────────────
+   Empty state illustration animation
+   ────────────────────────────────────────────── */
+@keyframes empty-state-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+.empty-state-illustration {
+  animation: empty-state-pulse 2.5s ease-in-out infinite;
 }

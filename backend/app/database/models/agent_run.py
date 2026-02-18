@@ -1,5 +1,5 @@
 """
-AgentRun model for AssistMe.
+AgentRun model for Scribely.
 """
 
 import enum

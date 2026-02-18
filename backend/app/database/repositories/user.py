@@ -1,5 +1,5 @@
 """
-User repository for AssistMe.
+User repository for Scribely.
 """
 
 from datetime import datetime

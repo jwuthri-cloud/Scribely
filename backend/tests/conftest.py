@@ -1,5 +1,5 @@
 """
-Test configuration and fixtures for AssistMe backend tests.
+Test configuration and fixtures for Scribely backend tests.
 """
 
 import asyncio

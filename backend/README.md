@@ -1,4 +1,4 @@
-# AssistMe Backend
+# Scribely Backend
 
 A FastAPI + Next.js AI agent application with OpenRouter
 
@@ -755,13 +755,13 @@ See `app/agents/README.md` for more details.
 
 ```bash
 # Build image
-docker build -t assistme-backend .
+docker build -t scribely-backend .
 
 # Run container
 docker run -p 8000:8000 \
   -e OPENROUTER_API_KEY=your-key \
   -e DATABASE_URL=postgresql://... \
-  assistme-backend
+  scribely-backend
 ```
 
 ### Environment Variables

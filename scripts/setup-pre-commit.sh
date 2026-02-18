@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🔧 Setting up pre-commit hooks for AssistMe..."
+echo "🔧 Setting up pre-commit hooks for Scribely..."
 
 # Check if pre-commit is installed
 if ! command -v pre-commit &> /dev/null; then

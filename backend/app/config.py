@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     
     # Application
-    app_name: str = "AssistMe"
+    app_name: str = "Scribely"
     app_version: str = "0.1.0"
     debug: bool = False
 

@@ -6,14 +6,14 @@ enum Config {
     static var socketPath: String {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!.appendingPathComponent("AssistMe")
+        ).first!.appendingPathComponent("Scribely")
 
         // Ensure directory exists
         try? FileManager.default.createDirectory(
             at: appSupport, withIntermediateDirectories: true
         )
 
-        return appSupport.appendingPathComponent("assistme.sock").path
+        return appSupport.appendingPathComponent("scribely.sock").path
     }
 
     /// Mic capture sample rate (16 kHz mono for speech)

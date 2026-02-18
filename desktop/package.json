@@ -1,7 +1,7 @@
 {
-  "name": "assistme-desktop",
+  "name": "scribely-desktop",
   "version": "0.1.0",
-  "description": "AssistMe desktop overlay – invisible to screen sharing",
+  "description": "Scribely desktop overlay – invisible to screen sharing",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -14,21 +14,38 @@
     "build:native": "./scripts/build-native.sh",
     "build:native:debug": "./scripts/build-native.sh --debug",
     "build:proto": "./scripts/compile-proto.sh",
+    "export:question-classifier": "python scripts/export-question-classifier.py",
     "dist": "npm run build:all && electron-builder --mac",
     "build:all": "npm run build:proto && npm run build:native && npm run build"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "@langfuse/openai": "^4.6.1",
+    "@langfuse/otel": "^4.6.1",
+    "@opentelemetry/sdk-node": "^0.212.0",
+    "@traceloop/node-server-sdk": "^0.22.7",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "bert-tokenizer": "^1.1.8",
+    "compromise": "^14.14.5",
+    "consola": "^3.4.2",
+    "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
     "framer-motion": "^11.15.0",
+    "gpt-tokenizer": "^3.4.0",
+    "node-machine-id": "^1.1.12",
     "nswindow-napi": "^0.0.3",
     "onnxruntime-node": "^1.24.1",
+    "openai": "^6.22.0",
     "protobufjs": "^8.0.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1",
     "smart-whisper": "^0.8.1",
     "ws": "^8.19.0"
   },
   "build": {
-    "appId": "com.assistme.desktop",
-    "productName": "AssistMe",
+    "appId": "com.scribely.desktop",
+    "productName": "Scribely",
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity"
@@ -42,6 +59,9 @@
     "directories": {
       "output": "dist"
     }
+  },
+  "overrides": {
+    "onnxruntime-node": "$onnxruntime-node"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

@@ -8,11 +8,11 @@ final class IPCServer {
     private var serverSocket: Int32 = -1
     private var clientSocket: Int32 = -1
     private var isRunning = false
-    private let queue = DispatchQueue(label: "com.assistme.ipc", qos: .userInteractive)
-    private let readQueue = DispatchQueue(label: "com.assistme.ipc.read", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "com.scribely.ipc", qos: .userInteractive)
+    private let readQueue = DispatchQueue(label: "com.scribely.ipc.read", qos: .userInteractive)
 
     /// Called when a ControlMessage is received from the client
-    var onControlMessage: ((Assistme_ControlMessage) -> Void)?
+    var onControlMessage: ((Scribely_ControlMessage) -> Void)?
 
     /// Called when the client connects
     var onClientConnected: (() -> Void)?
@@ -87,7 +87,7 @@ final class IPCServer {
     // MARK: - Send
 
     /// Send a NativeMessage to the connected client (length-prefixed protobuf).
-    func send(_ message: Assistme_NativeMessage) {
+    func send(_ message: Scribely_NativeMessage) {
         guard clientSocket >= 0 else { return }
 
         do {
@@ -173,7 +173,7 @@ final class IPCServer {
 
             // Decode ControlMessage
             do {
-                let msg = try Assistme_ControlMessage(serializedBytes: bodyBuf)
+                let msg = try Scribely_ControlMessage(serializedBytes: bodyBuf)
                 onControlMessage?(msg)
             } catch {
                 log(.error, "Failed to decode ControlMessage: \(error)")

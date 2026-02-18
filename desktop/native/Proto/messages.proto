@@ -1,5 +1,5 @@
 syntax = "proto3";
-package assistme;
+package scribely;
 
 // ── Control messages (Electron -> NativeHelper) ─────────────
 

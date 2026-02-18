@@ -1,5 +1,5 @@
 """
-Main API v1 router for AssistMe.
+Main API v1 router for Scribely.
 """
 
 from app.api.v1 import auth, chat, health, metrics

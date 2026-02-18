@@ -14,7 +14,7 @@ This project uses **LangChain** as the primary LLM framework, integrated with **
 - **Framework**: LangChain provides the abstraction layer for LLM interactions
 - **Provider**: OpenRouter provides unified access to multiple model providers (OpenAI, Anthropic, Google, etc.)
 - **Implementation**: Use `langchain_openai.ChatOpenAI` configured with OpenRouter's base URL
-- **Abstraction Layer**: LLM service abstractions in [app/infrastructure/llm_provider.py](mdc:assistme/backend/app/infrastructure/llm_provider.py)
+- **Abstraction Layer**: LLM service abstractions in [app/infrastructure/llm_provider.py](mdc:scribely/backend/app/infrastructure/llm_provider.py)
 - **Error Handling**: Implement robust error handling for external API failures
 - **Rate Limiting**: Implement rate limiting to respect provider limits
 
@@ -54,7 +54,7 @@ response = chain.invoke({"input": "Hello!"})
 
 ## Memory Management
 - **Memory Types**: Support in-memory, Redis, and vector database memory
-- **Memory Configuration**: Configure via [app/core/memory/](mdc:assistme/backend/app/core/memory/)
+- **Memory Configuration**: Configure via [app/core/memory/](mdc:scribely/backend/app/core/memory/)
 - **Persistence**: Use persistent memory for important conversations
 - **Cleanup**: Implement memory cleanup for expired sessions
 

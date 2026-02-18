@@ -11,10 +11,70 @@ export interface ElectronAPI {
   // ── Visibility ──────────────────────────────────
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
 
-  // ── Chat ────────────────────────────────────────
+  // ── Chat (legacy) ──────────────────────────────
   sendMessage: (message: string) => void
   onMessage: (callback: (response: string) => void) => () => void
   cancelResponse: () => void
+
+  // ── LLM ────────────────────────────────────────
+  llmChat: (request: any) => void
+  llmCancel: (requestId: string) => void
+  llmReset: () => void
+  llmSetModel: (modelId: string) => Promise<{ success: boolean; model: string }>
+  llmGetModel: () => Promise<string>
+  llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasApiKey: () => Promise<boolean>
+  llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
+  onLLMChatDelta: (callback: (data: any) => void) => () => void
+  onLLMChatDone: (callback: (data: any) => void) => () => void
+  onLLMChatError: (callback: (data: any) => void) => () => void
+
+  // ── System Prompts ─────────────────────────────
+  llmGetSystemPrompts: () => Promise<any[]>
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => Promise<any>
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => Promise<any>
+  llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
+  llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
+  llmGetActiveSystemPrompt: () => Promise<string | null>
+  llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => Promise<{ success: boolean; error?: string }>
+  llmGetSummarizationStatus: () => Promise<{
+    hasSummary: boolean
+    inProgress: boolean
+    autoSummarizeEnabled: boolean
+  }>
+  llmGetSummary: () => Promise<string | null>
+  onLLMSummaryUpdated: (callback: () => void) => () => void
+  llmGetPromptForRequest: (requestId: string) => Promise<
+    Array<{ role: string; content: string }> | null
+  >
+  llmGetUsageStats: () => Promise<{
+    promptTokens: number
+    completionTokens: number
+    cachedTokens: number
+    estimatedCostUsd: number
+  }>
+  onLLMUsageUpdated: (callback: () => void) => () => void
+
+  // ── Live Insights ───────────────────────────────
+  onInsightNew: (callback: (insight: unknown) => void) => () => void
+  onInsightUpdate: (callback: (update: unknown) => void) => () => void
+  llmWebSearch: (query: string) => Promise<unknown>
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => void
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => () => void
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
+  toggleInsightsWindow: () => Promise<void>
+  insightsWindowVisible: () => Promise<boolean>
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
+  closeInsightsWindow: () => void
+  sendToChat: (text: string) => void
+  onChatMessageFromInsights: (callback: (text: string) => void) => () => void
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -91,6 +151,7 @@ export interface ElectronAPI {
   // ── Screen Recording (main-process driven) ─────
   startRecording: () => Promise<{ success: boolean; filepath?: string; error?: string }>
   stopRecording: () => Promise<{ filepath: string | null }>
+  cancelRecording: () => Promise<void>
   selectRecordingSource: (sourceId: string) => Promise<void>
   onShowPicker: (
     callback: (data: {
@@ -154,6 +215,22 @@ export interface ElectronAPI {
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
 
+  // ── Window hide/show ─────────────────────────────
+  toggleWindowVisibility: () => Promise<void>
+
+  // ── Onboarding ───────────────────────────────────
+  onboardingGetCompleted: () => Promise<boolean>
+  onboardingSetCompleted: (completed: boolean) => Promise<{ success: boolean }>
+
+  // ── Clipboard ────────────────────────────────────
+  clipboardWriteText: (text: string) => Promise<void>
+
+  // ── Open external URL ────────────────────────────
+  openExternalUrl: (url: string) => Promise<{ success: boolean }>
+
+  // ── Window resize ──────────────────────────────
+  setWindowSize: (size: { width: number; height: number }) => void
+
   // ── App lifecycle ───────────────────────────────
   quit: () => void
 }
@@ -168,21 +245,195 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener('toggle-visibility', handler)
   },
 
-  // ── Chat ────────────────────────────────────────
-  sendMessage: (message: string) => {
-    ipcRenderer.send('send-message', message)
+  // ── Chat (legacy — kept for backward compat, no-ops) ──
+  sendMessage: (_message: string) => {
+    // Deprecated: use llmChat() instead
   },
 
-  onMessage: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, response: string) => {
-      callback(response)
-    }
-    ipcRenderer.on('chat-response', handler)
-    return () => ipcRenderer.removeListener('chat-response', handler)
+  onMessage: (_callback) => {
+    // Deprecated: use onLLMChatDelta/Done/Error instead
+    return () => {}
   },
 
   cancelResponse: () => {
-    ipcRenderer.send('cancel-response')
+    // Deprecated: use llmCancel() instead
+  },
+
+  // ── LLM ────────────────────────────────────────
+  llmChat: (request) => {
+    ipcRenderer.send('llm:chat', request)
+  },
+
+  llmCancel: (requestId: string) => {
+    ipcRenderer.send('llm:cancel', requestId)
+  },
+
+  llmReset: () => {
+    ipcRenderer.send('llm:reset')
+  },
+
+  llmSetModel: (modelId) => {
+    return ipcRenderer.invoke('llm:set-model', modelId)
+  },
+
+  llmGetModel: () => {
+    return ipcRenderer.invoke('llm:get-model')
+  },
+
+  llmSetApiKey: (apiKey: string) => {
+    return ipcRenderer.invoke('llm:set-api-key', apiKey)
+  },
+
+  llmHasApiKey: () => {
+    return ipcRenderer.invoke('llm:has-api-key')
+  },
+
+  onLLMChatDelta: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-delta', handler)
+    return () => ipcRenderer.removeListener('llm:chat-delta', handler)
+  },
+
+  onLLMChatDone: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-done', handler)
+    return () => ipcRenderer.removeListener('llm:chat-done', handler)
+  },
+
+  onLLMChatError: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+      callback(data)
+    }
+    ipcRenderer.on('llm:chat-error', handler)
+    return () => ipcRenderer.removeListener('llm:chat-error', handler)
+  },
+
+  // ── LLM Temperature ─────────────────────────────
+  llmSetTemperature: (temperature: number) => {
+    return ipcRenderer.invoke('llm:set-temperature', temperature)
+  },
+
+  // ── System Prompts ──────────────────────────────
+  llmGetSystemPrompts: () => {
+    return ipcRenderer.invoke('llm:get-system-prompts')
+  },
+
+  llmCreateSystemPrompt: (prompt: { name: string; content: string }) => {
+    return ipcRenderer.invoke('llm:create-system-prompt', prompt)
+  },
+
+  llmUpdateSystemPrompt: (prompt: { id: string; name: string; content: string }) => {
+    return ipcRenderer.invoke('llm:update-system-prompt', prompt)
+  },
+
+  llmDeleteSystemPrompt: (id: string) => {
+    return ipcRenderer.invoke('llm:delete-system-prompt', id)
+  },
+
+  llmSetActiveSystemPrompt: (id: string | null) => {
+    return ipcRenderer.invoke('llm:set-active-system-prompt', id)
+  },
+
+  llmGetActiveSystemPrompt: () => {
+    return ipcRenderer.invoke('llm:get-active-system-prompt')
+  },
+
+  llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => {
+    return ipcRenderer.invoke('llm:trigger-summarize', payload)
+  },
+
+  llmGetSummarizationStatus: () => {
+    return ipcRenderer.invoke('llm:get-summarization-status')
+  },
+
+  llmGetSummary: () => {
+    return ipcRenderer.invoke('llm:get-summary')
+  },
+
+  onLLMSummaryUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('llm:summary-updated', handler)
+    return () => ipcRenderer.removeListener('llm:summary-updated', handler)
+  },
+
+  llmGetPromptForRequest: (requestId: string) => {
+    return ipcRenderer.invoke('llm:get-prompt-for-request', requestId)
+  },
+
+  llmGetUsageStats: () => {
+    return ipcRenderer.invoke('llm:get-usage-stats')
+  },
+
+  onLLMUsageUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('llm:usage-updated', handler)
+    return () => ipcRenderer.removeListener('llm:usage-updated', handler)
+  },
+
+  onInsightNew: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, insight: unknown) => {
+      callback(insight)
+    }
+    ipcRenderer.on('insight:new', handler)
+    return () => ipcRenderer.removeListener('insight:new', handler)
+  },
+  onInsightUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: unknown) => {
+      callback(update)
+    }
+    ipcRenderer.on('insight:update', handler)
+    return () => ipcRenderer.removeListener('insight:update', handler)
+  },
+
+  llmWebSearch: (query: string) => {
+    return ipcRenderer.invoke('llm:web-search', query)
+  },
+  llmWebSearchStream: (payload: { requestId: string; query: string }) => {
+    ipcRenderer.send('llm:web-search-stream', payload)
+  },
+  onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; delta: string }) =>
+      callback(data)
+    ipcRenderer.on('llm:web-search-delta', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-delta', handler)
+  },
+  onLLMWebSearchDone: (
+    callback: (data: {
+      requestId: string
+      content: string
+      sources?: Array<{ title: string; url: string }>
+    }) => void,
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { requestId: string; content: string; sources?: Array<{ title: string; url: string }> },
+    ) => callback(data)
+    ipcRenderer.on('llm:web-search-done', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-done', handler)
+  },
+  onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; error: string }) =>
+      callback(data)
+    ipcRenderer.on('llm:web-search-error', handler)
+    return () => ipcRenderer.removeListener('llm:web-search-error', handler)
+  },
+  toggleInsightsWindow: () => ipcRenderer.invoke('insights:toggle-window'),
+  insightsWindowVisible: () => ipcRenderer.invoke('insights:window-visible'),
+  onInsightsWindowChanged: (callback: (visible: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, visible: boolean) => callback(visible)
+    ipcRenderer.on('insights:window-changed', handler)
+    return () => ipcRenderer.removeListener('insights:window-changed', handler)
+  },
+  closeInsightsWindow: () => ipcRenderer.invoke('insights:close-window'),
+  sendToChat: (text: string) => ipcRenderer.invoke('insights:send-to-chat', text),
+  onChatMessageFromInsights: (callback: (text: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text)
+    ipcRenderer.on('chat:message-from-insights', handler)
+    return () => ipcRenderer.removeListener('chat:message-from-insights', handler)
   },
 
   // ── Settings ────────────────────────────────────
@@ -317,6 +568,10 @@ const api: ElectronAPI = {
 
   stopRecording: () => {
     return ipcRenderer.invoke('recording:stop')
+  },
+
+  cancelRecording: () => {
+    return ipcRenderer.invoke('recording:cancel')
   },
 
   selectRecordingSource: (sourceId: string) => {
@@ -459,6 +714,33 @@ const api: ElectronAPI = {
 
   getInvisibility: () => {
     return ipcRenderer.invoke('get-invisibility')
+  },
+
+  // ── Window hide/show ─────────────────────────────
+  toggleWindowVisibility: () => {
+    return ipcRenderer.invoke('toggle-window-visibility')
+  },
+
+  // ── Onboarding ───────────────────────────────────
+  onboardingGetCompleted: () => {
+    return ipcRenderer.invoke('onboarding:get-completed')
+  },
+
+  onboardingSetCompleted: (completed: boolean) => {
+    return ipcRenderer.invoke('onboarding:set-completed', completed)
+  },
+
+  clipboardWriteText: (text: string) => {
+    return ipcRenderer.invoke('clipboard:write-text', text)
+  },
+
+  openExternalUrl: (url: string) => {
+    return ipcRenderer.invoke('open-external-url', url)
+  },
+
+  // ── Window resize ──────────────────────────────
+  setWindowSize: (size: { width: number; height: number }) => {
+    ipcRenderer.send('set-window-size', size)
   },
 
   // ── App lifecycle ───────────────────────────────

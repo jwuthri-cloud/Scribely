@@ -1,4 +1,4 @@
-"""Agents module for AssistMe."""
+"""Agents module for Scribely."""
 
 from app.agents.agents.customer_support import CustomerSupportAgent
 

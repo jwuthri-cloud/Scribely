@@ -1,5 +1,5 @@
 """
-Database configuration and session management for AssistMe.
+Database configuration and session management for Scribely.
 """
 
 import logging

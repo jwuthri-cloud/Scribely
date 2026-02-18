@@ -10,10 +10,13 @@
  */
 
 import { EventEmitter } from 'events'
+import { createLogger } from './logger'
+
+const log = createLogger('native-bridge')
 import { ChildProcess, spawn, execSync } from 'child_process'
 import net from 'net'
 import path from 'path'
-import { existsSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, unlinkSync } from 'fs'
 import { app } from 'electron'
 import {
   loadProtoSchema,
@@ -58,9 +61,9 @@ export interface NativeBridgeEvents {
 
 const SOCKET_DIR = path.join(
   app.getPath('appData'),
-  'AssistMe',
+  'Scribely',
 )
-const DEFAULT_SOCKET_PATH = path.join(SOCKET_DIR, 'assistme.sock')
+const DEFAULT_SOCKET_PATH = path.join(SOCKET_DIR, 'scribely.sock')
 
 /** Delay between reconnection attempts (ms) */
 const RECONNECT_DELAY_MS = 1000
@@ -190,7 +193,7 @@ export class NativeHelperBridge extends EventEmitter {
     const resourcesPath = process.resourcesPath ?? app.getAppPath()
     const prodPath = path.join(resourcesPath, 'native', 'NativeHelper')
     if (existsSync(prodPath)) {
-      console.log(`[native-bridge] Found binary (prod): ${prodPath}`)
+      log.debug(`Found binary (prod): ${prodPath}`)
       return prodPath
     }
 
@@ -204,21 +207,21 @@ export class NativeHelperBridge extends EventEmitter {
       for (const triple of triples) {
         const tripled = path.join(nativeDir, '.build', triple, config, 'NativeHelper')
         if (existsSync(tripled)) {
-          console.log(`[native-bridge] Found binary (dev/${config}/${triple}): ${tripled}`)
+          log.debug(`Found binary (dev/${config}/${triple}): ${tripled}`)
           return tripled
         }
       }
       // Also check the flat path (older SPM versions)
       const flat = path.join(nativeDir, '.build', config, 'NativeHelper')
       if (existsSync(flat)) {
-        console.log(`[native-bridge] Found binary (dev/${config}): ${flat}`)
+        log.debug(`Found binary (dev/${config}): ${flat}`)
         return flat
       }
     }
 
-    console.error(`[native-bridge] NativeHelper binary NOT FOUND in any known path`)
-    console.error(`[native-bridge] Searched: ${nativeDir}/.build/{${triples.join(',')}/{release,debug}`)
-    console.error(`[native-bridge] Build it with: cd desktop && npm run build:native`)
+    log.error('NativeHelper binary NOT FOUND in any known path')
+    log.error(`Searched: ${nativeDir}/.build/{${triples.join(',')}/{release,debug}`)
+    log.error('Build it with: cd desktop && npm run build:native')
 
     // Last resort: assume it's on PATH (will fail with a clear spawn error)
     return 'NativeHelper'
@@ -231,7 +234,7 @@ export class NativeHelperBridge extends EventEmitter {
       const result = execSync('pgrep -f NativeHelper', { encoding: 'utf-8', timeout: 3000 }).trim()
       if (result) {
         const pids = result.split('\n').filter(Boolean)
-        console.log(`[native-bridge] Killing ${pids.length} stale NativeHelper process(es): ${pids.join(', ')}`)
+        log.info(`Killing ${pids.length} stale NativeHelper process(es): ${pids.join(', ')}`)
         execSync('pkill -9 -f NativeHelper', { timeout: 3000 })
         // Brief wait for processes to die
         execSync('sleep 0.5', { timeout: 3000 })
@@ -244,23 +247,35 @@ export class NativeHelperBridge extends EventEmitter {
     try {
       if (existsSync(this.socketPath)) {
         unlinkSync(this.socketPath)
-        console.log(`[native-bridge] Removed stale socket: ${this.socketPath}`)
+        log.info(`Removed stale socket: ${this.socketPath}`)
       }
     } catch (err) {
-      console.warn(`[native-bridge] Could not remove stale socket: ${err}`)
+      log.warn(`Could not remove stale socket: ${err}`)
     }
   }
 
   private _spawnProcess(): void {
     if (this.childProcess) {
-      console.log('[native-bridge] Process already running — skipping spawn')
+      log.debug('Process already running — skipping spawn')
       return
     }
 
     // Clean up any leftover processes/sockets from previous runs
     this._cleanupStaleProcesses()
 
-    console.log(`[native-bridge] Spawning NativeHelper: ${this.binaryPath}`)
+    // Ensure socket directory exists (NativeHelper bind fails with ENOENT otherwise)
+    try {
+      const dir = path.dirname(this.socketPath)
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true })
+        log.debug(`Created socket directory: ${dir}`)
+      }
+    } catch (err) {
+      log.error(`Failed to create socket directory: ${err}`)
+      throw err
+    }
+
+    log.info(`Spawning NativeHelper: ${this.binaryPath}`)
 
     try {
       this.childProcess = spawn(this.binaryPath, [
@@ -278,18 +293,16 @@ export class NativeHelperBridge extends EventEmitter {
       // Forward stdout/stderr for debugging
       this.childProcess.stdout?.on('data', (data: Buffer) => {
         const lines = data.toString().trim()
-        if (lines) console.log(`[NativeHelper] ${lines}`)
+        if (lines) log.debug(`[NativeHelper] ${lines}`)
       })
 
       this.childProcess.stderr?.on('data', (data: Buffer) => {
         const lines = data.toString().trim()
-        if (lines) console.error(`[NativeHelper:err] ${lines}`)
+        if (lines) log.warn(`[NativeHelper:err] ${lines}`)
       })
 
       this.childProcess.on('exit', (code, signal) => {
-        console.log(
-          `[native-bridge] NativeHelper exited (code=${code}, signal=${signal})`,
-        )
+        log.info(`NativeHelper exited (code=${code}, signal=${signal})`)
         this.childProcess = null
         this._status.processRunning = false
         this.emit('process-exit', code, signal)
@@ -301,7 +314,7 @@ export class NativeHelperBridge extends EventEmitter {
       })
 
       this.childProcess.on('error', (err) => {
-        console.error('[native-bridge] Failed to spawn NativeHelper:', err)
+        log.error('Failed to spawn NativeHelper:', err)
         this.childProcess = null
         this._status.processRunning = false
         this.emit('error', {
@@ -310,7 +323,7 @@ export class NativeHelperBridge extends EventEmitter {
         })
       })
     } catch (err) {
-      console.error('[native-bridge] Spawn error:', err)
+      log.error('Spawn error:', err)
       this._status.processRunning = false
       this.emit('error', {
         code: 'SPAWN_FAILED',
@@ -323,7 +336,7 @@ export class NativeHelperBridge extends EventEmitter {
     if (!this.childProcess) return
 
     const pid = this.childProcess.pid
-    console.log(`[native-bridge] Killing NativeHelper process (pid=${pid})`)
+    log.info(`Killing NativeHelper process (pid=${pid})`)
     try {
       // Send SIGTERM for graceful shutdown
       this.childProcess.kill('SIGTERM')
@@ -332,7 +345,7 @@ export class NativeHelperBridge extends EventEmitter {
       const forceKillTimer = setTimeout(() => {
         try {
           if (this.childProcess) {
-            console.log('[native-bridge] Force-killing NativeHelper (SIGKILL)')
+            log.warn('Force-killing NativeHelper (SIGKILL)')
             this.childProcess.kill('SIGKILL')
           }
           // Also kill by name as a safety net
@@ -387,13 +400,13 @@ export class NativeHelperBridge extends EventEmitter {
       this._disconnect()
     }
 
-    console.log(`[native-bridge] Connecting to UDS: ${this.socketPath}`)
+    log.info(`Connecting to UDS: ${this.socketPath}`)
 
     this.socket = net.createConnection({ path: this.socketPath })
     this.readBuffer = Buffer.alloc(0)
 
     this.socket.on('connect', () => {
-      console.log('[native-bridge] Connected to NativeHelper')
+      log.success('Connected to NativeHelper')
       this.reconnectAttempts = 0
       this._status.connected = true
       this.emit('connected')
@@ -404,7 +417,7 @@ export class NativeHelperBridge extends EventEmitter {
     })
 
     this.socket.on('close', () => {
-      console.log('[native-bridge] Socket closed')
+      log.info('Socket closed')
       this._status.connected = false
       this.socket = null
 
@@ -416,7 +429,7 @@ export class NativeHelperBridge extends EventEmitter {
     })
 
     this.socket.on('error', (err) => {
-      console.error('[native-bridge] Socket error:', err.message)
+      log.error('Socket error:', err.message)
       // 'close' event will fire after this — reconnect handled there
     })
   }
@@ -441,9 +454,7 @@ export class NativeHelperBridge extends EventEmitter {
 
     this.reconnectAttempts++
     if (this.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-      console.error(
-        `[native-bridge] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached — giving up`,
-      )
+      log.error('Max reconnect attempts reached — giving up')
       this.emit('error', {
         code: 'MAX_RECONNECT',
         message: `Failed to reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts`,
@@ -452,9 +463,7 @@ export class NativeHelperBridge extends EventEmitter {
     }
 
     const delay = RECONNECT_DELAY_MS * Math.min(this.reconnectAttempts, 5)
-    console.log(
-      `[native-bridge] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
-    )
+    log.info(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
 
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null
@@ -466,7 +475,7 @@ export class NativeHelperBridge extends EventEmitter {
         }
         this._connect()
       } catch (err) {
-        console.error('[native-bridge] Reconnect failed:', err)
+        log.error('Reconnect failed:', err)
         this._scheduleReconnect()
       }
     }, delay)
@@ -552,7 +561,7 @@ export class NativeHelperBridge extends EventEmitter {
     cmd: Parameters<typeof encodeControlMessage>[0],
   ): void {
     if (!this.socket || this.socket.destroyed) {
-      console.warn('[native-bridge] Cannot send — not connected')
+      log.warn('Cannot send — not connected')
       return
     }
 
@@ -560,7 +569,7 @@ export class NativeHelperBridge extends EventEmitter {
       const frame = encodeControlMessage(cmd)
       this.socket.write(frame)
     } catch (err) {
-      console.error('[native-bridge] Failed to send control message:', err)
+      log.error('Failed to send control message:', err)
     }
   }
 }

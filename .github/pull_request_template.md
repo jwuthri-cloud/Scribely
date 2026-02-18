@@ -62,6 +62,6 @@
 
 ---
 <!--
-🎉 Thank you for contributing to AssistMe!
+🎉 Thank you for contributing to Scribely!
 Your efforts help make this project better for everyone.
 -->

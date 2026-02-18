@@ -1,5 +1,5 @@
 """
-Agent orchestrator for AssistMe.
+Agent orchestrator for Scribely.
 
 Provides multi-agent coordination, routing, and pipeline execution.
 Protected by circuit breaker for resilient LLM calls.

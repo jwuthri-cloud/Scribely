@@ -1,11 +1,14 @@
 import { BrowserWindow } from 'electron'
+import { createLogger } from './logger'
+
+const log = createLogger('invisibility')
 
 let NSWindow: typeof import('nswindow-napi') | null = null
 
 try {
   NSWindow = require('nswindow-napi')
 } catch {
-  console.warn('[invisibility] nswindow-napi not available — screen-sharing invisibility disabled')
+  log.warn('nswindow-napi not available — screen-sharing invisibility disabled')
 }
 
 /**
@@ -44,5 +47,5 @@ export function applyInvisibility(win: BrowserWindow): void {
   // --- Content protection (sharingType = .none) ---
   win.setContentProtection(true)
 
-  console.log('[invisibility] macOS window invisibility applied')
+  log.success('macOS window invisibility applied')
 }

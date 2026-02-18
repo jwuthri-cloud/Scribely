@@ -1,6 +1,16 @@
+import './instrumentation' // Must be first — Langfuse observability
+
+import { createLogger } from './logger'
+
+const permissionsLog = createLogger('permissions')
+const extensionWsLog = createLogger('extension-ws')
+const nativeBridgeLog = createLogger('native-bridge')
+const appLog = createLogger('app')
+
 import {
   app,
   BrowserWindow,
+  clipboard,
   ipcMain,
   shell,
   session,
@@ -15,6 +25,9 @@ import { AudioPipeline } from './audio/pipeline'
 import { NativeHelperBridge } from './native-bridge'
 import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
+import { LLMService } from './llm/llm-service'
+import { InsightEngine } from './insights/insight-engine'
+import { flushLangfuse } from './instrumentation'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -33,12 +46,57 @@ interface TranscriptionSettings {
   chunkDurationSec: number
 }
 
+interface SummarizationSettings {
+  autoSummarizeEnabled: boolean
+  stalenessMinutes: number
+  thresholdPercent: number
+  keepRawCount: number
+  summarizerSystemPrompt: string | null
+}
+
+interface QuickAction {
+  label: string
+  value: string
+  icon?: string
+}
+
+interface InsightsSettings {
+  enabled?: boolean
+  enrichmentEnabled?: boolean
+  detectQuestions?: boolean
+  detectTopicChanges?: boolean
+  detectActionItems?: boolean
+  detectKeyMentions?: boolean
+  extraQuestionWords?: string[]
+  extraQuestionVerbs?: string[]
+  questionMlEnabled?: boolean
+}
+
+interface LLMSettings {
+  apiKey: string
+  defaultModel: string
+  temperature: number
+  activeSystemPromptId: string | null
+  systemPrompts: Array<{
+    id: string
+    name: string
+    content: string
+    createdAt: number
+    updatedAt: number
+  }>
+  summarization?: SummarizationSettings
+  quickActions?: QuickAction[]
+  insights?: InsightsSettings
+}
+
 interface AppSettings {
   themeId: string
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  fontSize?: 'small' | 'medium' | 'large'
   transcription: TranscriptionSettings
+  llm: LLMSettings
 }
 
 const store = new Store<AppSettings>({
@@ -61,6 +119,32 @@ const store = new Store<AppSettings>({
       provider: 'local-fast',
       chunkDurationSec: 2,
     },
+    llm: {
+      apiKey: '',
+      defaultModel: 'gpt5-mini',
+      temperature: 0.3,
+      activeSystemPromptId: null,
+      systemPrompts: [],
+      summarization: {
+        autoSummarizeEnabled: true,
+        stalenessMinutes: 5,
+        thresholdPercent: 40,
+        keepRawCount: 5,
+        summarizerSystemPrompt: null,
+      },
+      quickActions: [],
+      insights: {
+        enabled: true,
+        enrichmentEnabled: true,
+        detectQuestions: true,
+        detectTopicChanges: true,
+        detectActionItems: true,
+        detectKeyMentions: true,
+        extraQuestionWords: [],
+        extraQuestionVerbs: [],
+        questionMlEnabled: true,
+      },
+    },
   },
 })
 
@@ -70,9 +154,72 @@ if (!storedHotkeys.toggleMeeting) {
   store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
 }
 
+// ── Onboarding state (separate store) ────────────────────
+const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
+  name: 'onboarding',
+  defaults: { hasCompletedOnboarding: false },
+})
+
 let mainWindow: BrowserWindow | null = null
-let pendingResponseTimer: ReturnType<typeof setTimeout> | null = null
+let insightsWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
+
+// ── LLM Service ─────────────────────────────────────────
+const llmService = new LLMService(store)
+
+// ── Live Insights Engine ───────────────────────────────
+function getInsightsConfig() {
+  const llm = store.get('llm') as { insights?: { enabled?: boolean; enrichmentEnabled?: boolean } } | undefined
+  const insights = llm?.insights ?? {}
+  return {
+    enabled: insights.enabled !== false,
+    enrichmentEnabled: insights.enrichmentEnabled !== false,
+  }
+}
+
+const insightEngine = new InsightEngine({
+  sendToRenderer: (channel, data) => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.webContents.send(channel, data)
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data)
+    }
+  },
+  validate: async (event, transcriptContext) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return null
+    return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
+  },
+  validateInsights: async (transcriptDelta, entry, triggeredTypes) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return null
+    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes)
+  },
+  enrich: async (event) => {
+    const config = getInsightsConfig()
+    if (!config.enrichmentEnabled) return null
+    const result = await llmService.enrichForInsight(
+      event.type,
+      event.text,
+      event.speaker,
+    )
+    if (!result) return null
+    return {
+      title: result.title,
+      description: result.description,
+      suggestedActions: result.suggestedActions?.map((a) => ({
+        id: crypto.randomUUID(),
+        label: a.label,
+        type: a.type as import('./insights/types').InsightActionType,
+        payload: a.payload,
+        icon: a.icon,
+      })),
+    }
+  },
+  enrichmentEnabled: getInsightsConfig().enrichmentEnabled,
+  debounceMs: 10_000,
+})
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
@@ -134,7 +281,7 @@ function createWindow(): void {
   // Without this, getUserMedia() for microphone is silently denied by Electron.
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     const allowed = ['media', 'display-capture', 'mediaKeySystem']
-    console.log(`[permissions] Permission request: ${permission} → ${allowed.includes(permission) ? 'granted' : 'denied'}`)
+    permissionsLog.info(`Permission request: ${permission} → ${allowed.includes(permission) ? 'granted' : 'denied'}`)
     callback(allowed.includes(permission))
   })
 
@@ -143,9 +290,10 @@ function createWindow(): void {
     return allowed.includes(permission)
   })
 
-  // Connect pipeline and recorder to window
+  // Connect pipeline, recorder, and LLM service to window
   audioPipeline.setWindow(mainWindow)
   screenRecorder.setWindow(mainWindow)
+  llmService.setWindow(mainWindow)
 
   // Install the default display media handler.
   // The ScreenRecorder swaps this to auto-select the user's chosen source when recording.
@@ -165,6 +313,58 @@ function createWindow(): void {
 
   // Register all global hotkeys
   registerAllHotkeys(mainWindow, store)
+}
+
+function createInsightsWindow(): void {
+  if (insightsWindow && !insightsWindow.isDestroyed()) {
+    insightsWindow.focus()
+    return
+  }
+
+  insightsWindow = new BrowserWindow({
+    width: 340,
+    height: 500,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: true,
+    hasShadow: false,
+    visualEffectState: 'active',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+
+  insightsWindow.setOpacity(store.get('windowOpacity'))
+  applyInvisibility(insightsWindow)
+
+  insightsWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    insightsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '?view=insights')
+  } else {
+    insightsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { view: 'insights' },
+    })
+  }
+
+  insightsWindow.on('closed', () => {
+    insightsWindow = null
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('insights:window-changed', false)
+    }
+  })
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('insights:window-changed', true)
+  }
 }
 
 function registerIpcHandlers(): void {
@@ -190,6 +390,21 @@ function registerIpcHandlers(): void {
           ...current,
           ...incoming,
         })
+      } else if (key === 'llm' && typeof value === 'object') {
+        // Deep merge LLM settings (including nested summarization, insights)
+        const current = (store.get('llm') || {}) as unknown as Record<string, unknown>
+        const incoming = value as unknown as Record<string, unknown>
+        const merged: Record<string, unknown> = { ...current }
+        for (const [k, v] of Object.entries(incoming)) {
+          if (k === 'summarization' && typeof v === 'object' && v !== null) {
+            merged[k] = { ...((current.summarization as object) || {}), ...v }
+          } else if (k === 'insights' && typeof v === 'object' && v !== null) {
+            merged[k] = { ...((current.insights as object) || {}), ...v }
+          } else {
+            merged[k] = v
+          }
+        }
+        store.set('llm', merged as unknown as LLMSettings)
       } else {
         store.set(key as keyof AppSettings, value as never)
       }
@@ -210,6 +425,26 @@ function registerIpcHandlers(): void {
     // Notify audio pipeline if transcription settings changed
     if (partial.transcription) {
       audioPipeline.onSettingsChanged(store.get('transcription'))
+    }
+
+    // Update insight engine detector config when llm.insights changed
+    if (partial.llm && typeof partial.llm === 'object' && 'insights' in partial.llm) {
+      const insights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
+      const disabled = new Set<import('./insights/types').DetectedEventType>()
+      if (insights.detectQuestions === false) disabled.add('question')
+      if (insights.detectTopicChanges === false) disabled.add('topic_change')
+      if (insights.detectActionItems === false) disabled.add('action_item')
+      if (insights.detectKeyMentions === false) disabled.add('key_mention')
+      insightEngine.updateSettings({
+        disabledTypes: disabled,
+        extraQuestionWords: Array.isArray(insights.extraQuestionWords)
+          ? insights.extraQuestionWords.filter((k): k is string => typeof k === 'string')
+          : [],
+        extraQuestionVerbs: Array.isArray(insights.extraQuestionVerbs)
+          ? insights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
+          : [],
+        questionMlEnabled: insights.questionMlEnabled !== false,
+      })
     }
 
     // Notify renderer that settings changed
@@ -233,29 +468,38 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
-  // ── Chat ──────────────────────────────────────────
-  ipcMain.on('send-message', (_event, message: string) => {
-    console.log('[ipc] Received message:', message)
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      pendingResponseTimer = setTimeout(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(
-            'chat-response',
-            `You said: "${message}"\n\n(Placeholder — backend integration coming soon.)`,
-          )
-        }
-        pendingResponseTimer = null
-      }, 600)
+  // ── Insights window ─────────────────────────────────
+  ipcMain.handle('insights:toggle-window', () => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.close()
+    } else {
+      createInsightsWindow()
     }
   })
 
-  ipcMain.on('cancel-response', () => {
-    if (pendingResponseTimer) {
-      clearTimeout(pendingResponseTimer)
-      pendingResponseTimer = null
-      console.log('[ipc] Response cancelled')
+  ipcMain.handle('insights:window-visible', () => {
+    return !!(insightsWindow && !insightsWindow.isDestroyed())
+  })
+
+  ipcMain.handle('insights:close-window', () => {
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.close()
     }
   })
+
+  ipcMain.handle('insights:send-to-chat', (_event, text: string) => {
+    if (mainWindow && !mainWindow.isDestroyed() && typeof text === 'string') {
+      mainWindow.webContents.send('chat:message-from-insights', text)
+    }
+  })
+
+  // ── LLM Service ──────────────────────────────────────
+  // The LLM service registers its own IPC handlers for:
+  //   llm:chat, llm:cancel, llm:reset, llm:set-model, llm:get-model,
+  //   llm:set-api-key, llm:has-api-key, llm:set-temperature
+  // and sends streaming responses via:
+  //   llm:chat-delta, llm:chat-done, llm:chat-error
+  llmService.registerIpcHandlers()
 
   // ── Invisibility toggle ─────────────────────────────
   ipcMain.handle('toggle-invisibility', () => {
@@ -267,6 +511,48 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('get-invisibility', () => {
     return isInvisible
+  })
+
+  // ── Onboarding ─────────────────────────────────────
+  ipcMain.handle('onboarding:get-completed', () => {
+    return onboardingStore.get('hasCompletedOnboarding')
+  })
+
+  ipcMain.handle('onboarding:set-completed', (_event, completed: boolean) => {
+    onboardingStore.set('hasCompletedOnboarding', completed)
+    return { success: true }
+  })
+
+  // ── Open external URL ──────────────────────────────
+  ipcMain.handle('clipboard:write-text', (_event, text: string) => {
+    clipboard.writeText(text)
+  })
+
+  ipcMain.handle('open-external-url', (_event, url: string) => {
+    shell.openExternal(url)
+    return { success: true }
+  })
+
+  // ── Window resize (compact mode) ───────────────────
+  ipcMain.on('set-window-size', (_event, { width, height }: { width: number; height: number }) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setSize(width, height, true) // true = animate
+    }
+  })
+
+  // ── Window hide/show (blue button) ─────────────────
+  ipcMain.handle('toggle-window-visibility', () => {
+    const win = mainWindow
+    if (!win || win.isDestroyed()) return
+    if (win.isVisible()) {
+      win.webContents.send('toggle-visibility', false)
+      setTimeout(() => {
+        if (!win.isDestroyed()) win.hide()
+      }, 200)
+    } else {
+      win.show()
+      win.webContents.send('toggle-visibility', true)
+    }
   })
 
   // ── App lifecycle ─────────────────────────────────
@@ -289,7 +575,7 @@ function initExtensionWsServer(): void {
   }
 
   extensionWsServer.on('connected', () => {
-    console.log('[extension-ws] Chrome extension connected')
+    extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
     // Start external recording so video chunks are saved to disk
     screenRecorder.startExternalRecording()
@@ -298,7 +584,7 @@ function initExtensionWsServer(): void {
   })
 
   extensionWsServer.on('disconnected', () => {
-    console.log('[extension-ws] Chrome extension disconnected')
+    extensionWsLog.info('Chrome extension disconnected')
     safeSend('extension:status-changed', { connected: false })
     // Stop external recording
     screenRecorder.stopExternalRecording()
@@ -334,7 +620,7 @@ function initExtensionWsServer(): void {
   )
 
   extensionWsServer.on('error', (err: Error) => {
-    console.error('[extension-ws] Error:', err)
+    extensionWsLog.error(err)
   })
 
   // IPC handler so renderer can query extension connection status
@@ -356,7 +642,7 @@ function initExtensionWsServer(): void {
 // ── Native Helper Bridge Lifecycle ─────────────────────
 async function initNativeBridge(): Promise<void> {
   if (process.platform !== 'darwin') {
-    console.log('[native-bridge] Skipping — not on macOS')
+    nativeBridgeLog.info('Skipping — not on macOS')
     return
   }
 
@@ -375,7 +661,6 @@ async function initNativeBridge(): Promise<void> {
 
   // Forward native bridge events to renderer
   nativeBridge.on('connected', () => {
-    console.log('[native-bridge] Connected to NativeHelper')
     safeSend('native:status-changed', {
       available: true,
       ...nativeBridge!.status,
@@ -383,7 +668,7 @@ async function initNativeBridge(): Promise<void> {
   })
 
   nativeBridge.on('disconnected', () => {
-    console.log('[native-bridge] Disconnected from NativeHelper')
+    nativeBridgeLog.info('Disconnected from NativeHelper')
     safeSend('native:status-changed', {
       available: false,
       connected: false,
@@ -402,7 +687,7 @@ async function initNativeBridge(): Promise<void> {
   })
 
   nativeBridge.on('error', (err) => {
-    console.error('[native-bridge] Error:', err)
+    nativeBridgeLog.error(err)
     safeSend('native:error', err)
   })
 
@@ -412,12 +697,12 @@ async function initNativeBridge(): Promise<void> {
   // Start the native helper process
   try {
     await nativeBridge.start()
-    console.log('[native-bridge] ✓ NativeHelper started and connected — native audio capture AVAILABLE')
-    console.log('[native-bridge]   Status:', JSON.stringify(nativeBridge.status))
+    nativeBridgeLog.success('NativeHelper started and connected — native audio capture AVAILABLE')
+    nativeBridgeLog.debug('Status:', nativeBridge.status)
   } catch (err) {
-    console.warn('[native-bridge] ✗ Failed to start NativeHelper — falling back to browser-only capture')
-    console.warn('[native-bridge]   Error:', err)
-    console.warn('[native-bridge]   Build it with: cd desktop && npm run build:native')
+    nativeBridgeLog.warn('Failed to start NativeHelper — falling back to browser-only capture')
+    nativeBridgeLog.warn('Error:', err)
+    nativeBridgeLog.warn('Build it with: cd desktop && npm run build:native')
   }
 }
 
@@ -430,15 +715,16 @@ app.whenReady().then(async () => {
     // on first run so getUserMedia won't fail with "access denied" later.
     const micStatus = systemPreferences.getMediaAccessStatus('microphone')
     if (micStatus !== 'granted') {
-      console.log(`[permissions] Microphone status: ${micStatus} — requesting access…`)
+      permissionsLog.info(`Microphone status: ${micStatus} — requesting access…`)
       const granted = await systemPreferences.askForMediaAccess('microphone')
-      console.log(`[permissions] Microphone access ${granted ? 'granted' : 'denied'}`)
+      if (granted) permissionsLog.success('Microphone access granted')
+      else permissionsLog.warn('Microphone access denied')
     }
 
     // Screen recording permission is handled by the system picker
     // (useSystemPicker: true) — macOS shows the permission flow automatically.
     const screenStatus = systemPreferences.getMediaAccessStatus('screen')
-    console.log(`[permissions] Screen recording status: ${screenStatus}`)
+    permissionsLog.info(`Screen recording status: ${screenStatus}`)
   }
 
   registerIpcHandlers()
@@ -446,6 +732,38 @@ app.whenReady().then(async () => {
   // Initialize audio pipeline (registers its own IPC handlers)
   audioPipeline.registerIpcHandlers()
   await audioPipeline.init()
+
+  // Wire Live Insights to pipeline
+  audioPipeline.setOnTranscriptEntry((entry) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) {
+      appLog.debug('Insights disabled — skipping entry')
+      return
+    }
+    insightEngine.onTranscriptEntry(entry)
+  })
+  audioPipeline.setOnSessionStop(() => {
+    insightEngine.reset()
+    llmService.resetInsightsValidation()
+  })
+
+  // Apply initial insights detector config from store
+  const initialInsights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
+  const initialDisabled = new Set<import('./insights/types').DetectedEventType>()
+  if (initialInsights.detectQuestions === false) initialDisabled.add('question')
+  if (initialInsights.detectTopicChanges === false) initialDisabled.add('topic_change')
+  if (initialInsights.detectActionItems === false) initialDisabled.add('action_item')
+  if (initialInsights.detectKeyMentions === false) initialDisabled.add('key_mention')
+  insightEngine.updateSettings({
+    disabledTypes: initialDisabled,
+    extraQuestionWords: Array.isArray(initialInsights.extraQuestionWords)
+      ? initialInsights.extraQuestionWords.filter((k): k is string => typeof k === 'string')
+      : [],
+    extraQuestionVerbs: Array.isArray(initialInsights.extraQuestionVerbs)
+      ? initialInsights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
+      : [],
+    questionMlEnabled: initialInsights.questionMlEnabled !== false,
+  })
 
   // Start Chrome extension WebSocket server
   initExtensionWsServer()
@@ -469,14 +787,19 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  // Null out mainWindow early so async callbacks don't touch a destroyed object
+  // Null out windows early so async callbacks don't touch destroyed objects
   mainWindow = null
+  insightsWindow = null
 })
 
-app.on('will-quit', (e) => {
+app.on('will-quit', async (e) => {
   unregisterAllHotkeys()
   extensionWsServer.stop()
   audioPipeline.destroy()
+  llmService.destroy()
+
+  // Flush Langfuse traces before exit (Electron is short-lived)
+  await flushLangfuse()
 
   if (nativeBridge) {
     const bridge = nativeBridge
@@ -486,7 +809,7 @@ app.on('will-quit', (e) => {
 
     // Give the bridge 2s to stop gracefully, then force quit
     const forceQuitTimer = setTimeout(() => {
-      console.log('[app] Force quitting (native bridge stop timed out)')
+      appLog.warn('Force quitting (native bridge stop timed out)')
       app.exit(0)
     }, 2000)
 

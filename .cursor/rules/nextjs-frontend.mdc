@@ -7,14 +7,14 @@ globs: *.tsx,*.ts,*.jsx,*.js
 Follow these conventions for Next.js frontend development:
 
 ## Next.js App Router
-- Use Next.js 14+ App Router structure in [src/app/](mdc:assistme/frontend/src/app/)
+- Use Next.js 14+ App Router structure in [src/app/](mdc:scribely/frontend/src/app/)
 - File-based routing with `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`
 - Server and Client Components appropriately
 - Use `"use client"` directive only when necessary
 
 ## TypeScript Standards
-- **Strict TypeScript**: Enable strict mode in [tsconfig.json](mdc:assistme/frontend/tsconfig.json)
-- **Type Definitions**: Define interfaces in [src/types/](mdc:assistme/frontend/src/types/)
+- **Strict TypeScript**: Enable strict mode in [tsconfig.json](mdc:scribely/frontend/tsconfig.json)
+- **Type Definitions**: Define interfaces in [src/types/](mdc:scribely/frontend/src/types/)
 - **API Types**: Mirror backend Pydantic models for API contracts
 - **Component Props**: Always type component props with interfaces
 
@@ -37,7 +37,7 @@ export interface ChatRequest {
 ```
 
 ## Component Structure
-- **Organization**: Group components by feature in [src/components/](mdc:assistme/frontend/src/components/)
+- **Organization**: Group components by feature in [src/components/](mdc:scribely/frontend/src/components/)
 - **Naming**: Use PascalCase for components, kebab-case for files
 - **Props Interface**: Always define props interface above component
 - **Export**: Use default exports for components
@@ -59,12 +59,12 @@ export default function ChatInterface({
 
 ## State Management
 - **Local State**: Use `useState` for component-local state
-- **Global State**: Use Context API with providers in [src/components/providers/](mdc:assistme/frontend/src/components/providers/)
+- **Global State**: Use Context API with providers in [src/components/providers/](mdc:scribely/frontend/src/components/providers/)
 - **Server State**: Use custom hooks for API data fetching
 - **Form State**: Use controlled components with validation
 
 ## Custom Hooks
-- **Location**: Place custom hooks in [src/hooks/](mdc:assistme/frontend/src/hooks/)
+- **Location**: Place custom hooks in [src/hooks/](mdc:scribely/frontend/src/hooks/)
 - **Naming**: Prefix with `use` (e.g., `useChat`, `useDebounce`)
 - **Reusability**: Extract reusable logic into custom hooks
 - **TypeScript**: Always type hook parameters and return values
@@ -85,9 +85,9 @@ export function useChat(initialSessionId?: string) {
 ```
 
 ## Styling with Tailwind CSS
-- **Configuration**: Use [tailwind.config.js](mdc:assistme/frontend/tailwind.config.js) for customization
+- **Configuration**: Use [tailwind.config.js](mdc:scribely/frontend/tailwind.config.js) for customization
 - **Utility-First**: Prefer Tailwind utility classes
-- **Custom Styles**: Use [src/app/globals.css](mdc:assistme/frontend/src/app/globals.css) for global styles
+- **Custom Styles**: Use [src/app/globals.css](mdc:scribely/frontend/src/app/globals.css) for global styles
 - **Component Variants**: Use `clsx` and `tailwind-merge` for conditional classes
 
 Example styling patterns:
@@ -121,7 +121,7 @@ export function Button({ variant = 'primary', size = 'md', className, ...props }
 ```
 
 ## API Integration
-- **Client**: Use API client in [src/lib/api.ts](mdc:assistme/frontend/src/lib/api.ts)
+- **Client**: Use API client in [src/lib/api.ts](mdc:scribely/frontend/src/lib/api.ts)
 - **Authentication**: Handle Clerk tokens automatically
 - **Error Handling**: Implement consistent error handling patterns
 - **Type Safety**: Type API requests and responses
@@ -148,10 +148,10 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 ```
 
 ## Authentication with Clerk
-- **Provider**: Wrap app with `ClerkProvider` in [src/app/layout.tsx](mdc:assistme/frontend/src/app/layout.tsx)
+- **Provider**: Wrap app with `ClerkProvider` in [src/app/layout.tsx](mdc:scribely/frontend/src/app/layout.tsx)
 - **Components**: Use Clerk components for auth UI
 - **Hooks**: Use `useUser()`, `useAuth()` for authentication state
-- **Middleware**: Configure [middleware.ts](mdc:assistme/frontend/middleware.ts) for route protection
+- **Middleware**: Configure [middleware.ts](mdc:scribely/frontend/middleware.ts) for route protection
 
 ## Performance Optimization
 - **Code Splitting**: Use dynamic imports for large components

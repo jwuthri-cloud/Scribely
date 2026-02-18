@@ -1,5 +1,5 @@
 """
-Base models for AssistMe.
+Base models for Scribely.
 """
 
 from datetime import datetime
@@ -23,7 +23,7 @@ class HealthResponse(BaseModel):
             "example": {
                 "status": "healthy",
                 "timestamp": "2024-01-01T12:00:00.000Z",
-                "service": "AssistMe",
+                "service": "Scribely",
                 "version": "0.1.0",
                 "environment": "development",
                 "services": {
@@ -85,7 +85,7 @@ class APIInfo(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "name": "AssistMe API",
+                "name": "Scribely API",
                 "version": "0.1.0",
                 "description": "A FastAPI + Next.js AI agent application with OpenRouter",
                 "docs_url": "/docs",

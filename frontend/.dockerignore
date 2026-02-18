@@ -1,4 +1,4 @@
-# AssistMe Frontend - Docker Ignore
+# Scribely Frontend - Docker Ignore
 # Exclude files and directories that shouldn't be copied to Docker build context
 
 # Dependencies

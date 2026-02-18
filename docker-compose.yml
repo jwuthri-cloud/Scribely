@@ -4,7 +4,7 @@ services:
   # Redis for caching and session management
   redis:
     image: redis:7-alpine
-    container_name: assistme-redis
+    container_name: scribely-redis
     ports:
       - "6379:6379"
     volumes:
@@ -21,9 +21,9 @@ services:
   
   postgres:
     image: postgres:15-alpine
-    container_name: assistme-postgres
+    container_name: scribely-postgres
     environment:
-      POSTGRES_DB: assistme
+      POSTGRES_DB: scribely
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -45,7 +45,7 @@ services:
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    container_name: assistme-zookeeper
+    container_name: scribely-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -57,7 +57,7 @@ services:
   # Kafka for event streaming
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    container_name: assistme-kafka
+    container_name: scribely-kafka
     depends_on:
       - zookeeper
     ports:
@@ -86,7 +86,7 @@ services:
   # RabbitMQ for message queuing
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
-    container_name: assistme-rabbitmq
+    container_name: scribely-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -107,7 +107,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: assistme-backend
+    container_name: scribely-backend
     depends_on:
       redis:
         condition: service_healthy
@@ -124,7 +124,7 @@ services:
     environment:
       # Database configuration
       
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/assistme
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
       
 
       # Redis configuration
@@ -156,7 +156,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: assistme-celery-general
+    container_name: scribely-celery-general
     depends_on:
       redis:
         condition: service_healthy
@@ -168,7 +168,7 @@ services:
     environment:
       # Same environment as backend
       
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/assistme
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
       
 
       REDIS_URL: redis://redis:6379/0
@@ -197,7 +197,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: assistme-celery-chat
+    container_name: scribely-celery-chat
     depends_on:
       redis:
         condition: service_healthy
@@ -209,7 +209,7 @@ services:
     environment:
       # Same environment as backend
       
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/assistme
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
       
 
       REDIS_URL: redis://redis:6379/0
@@ -238,7 +238,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: assistme-celery-llm
+    container_name: scribely-celery-llm
     depends_on:
       redis:
         condition: service_healthy
@@ -250,7 +250,7 @@ services:
     environment:
       # Same environment as backend
       
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/assistme
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
       
 
       REDIS_URL: redis://redis:6379/0
@@ -279,7 +279,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: assistme-flower
+    container_name: scribely-flower
     depends_on:
       redis:
         condition: service_healthy
@@ -298,14 +298,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: assistme-frontend
+    container_name: scribely-frontend
     depends_on:
       - backend
     ports:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_APP_NAME: "AssistMe"
+      NEXT_PUBLIC_APP_NAME: "Scribely"
       NODE_ENV: development
     volumes:
       - ./frontend:/app
@@ -316,7 +316,7 @@ services:
   # Nginx reverse proxy (optional)
   nginx:
     image: nginx:alpine
-    container_name: assistme-nginx
+    container_name: scribely-nginx
     depends_on:
       - frontend
       - backend
@@ -341,5 +341,5 @@ volumes:
 
 networks:
   default:
-    name: assistme-network
+    name: scribely-network
     driver: bridge

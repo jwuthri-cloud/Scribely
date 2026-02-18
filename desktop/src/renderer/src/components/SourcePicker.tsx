@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import type { SourceInfo } from '../hooks/useMeetingRecorder'
 
 interface SourcePickerProps {
@@ -71,10 +71,22 @@ export function SourcePicker({ sources, onSelect, onDismiss }: SourcePickerProps
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab)
   const [selected, setSelected] = useState<string | null>(null)
 
+  // Close on Escape
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onDismiss])
+
   return (
     <div
       className="absolute inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="source-picker-title"
     >
       <div
         className="w-[420px] max-h-[540px] rounded-xl overflow-hidden flex flex-col"
@@ -83,7 +95,7 @@ export function SourcePicker({ sources, onSelect, onDismiss }: SourcePickerProps
         {/* Header */}
         <div className="px-4 pt-3 pb-0">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+            <span id="source-picker-title" className="text-sm font-medium" style={{ color: 'var(--text)' }}>
               Choose what to record
             </span>
             <button

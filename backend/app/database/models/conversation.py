@@ -1,5 +1,5 @@
 """
-Conversation model for AssistMe.
+Conversation model for Scribely.
 """
 
 import enum

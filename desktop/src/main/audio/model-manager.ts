@@ -2,6 +2,9 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync, createWriteStream, unlinkSync } from 'fs'
 import { EventEmitter } from 'events'
+import { createLogger } from '../logger'
+
+const log = createLogger('model-manager')
 import https from 'https'
 import http from 'http'
 
@@ -154,7 +157,7 @@ export class ModelManager extends EventEmitter {
               this.downloading.delete(modelId)
               this.progressMap.delete(modelId)
               this.emit('complete', { modelId, path: filepath })
-              console.log(`[model-manager] Downloaded ${modelId} to ${filepath}`)
+              log.success(`Downloaded ${modelId} to ${filepath}`)
               resolve(filepath)
             })
 
