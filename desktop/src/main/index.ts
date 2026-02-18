@@ -12,10 +12,14 @@ import {
   BrowserWindow,
   clipboard,
   ipcMain,
+  Menu,
+  nativeImage,
   shell,
   session,
   systemPreferences,
+  Tray,
 } from 'electron'
+import { existsSync } from 'fs'
 import { join } from 'path'
 import Store from 'electron-store'
 import { applyInvisibility } from './invisibility'
@@ -163,6 +167,8 @@ const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
 let mainWindow: BrowserWindow | null = null
 let insightsWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
+let tray: Tray | null = null
+let isMeetingActive = false
 
 // ── LLM Service ─────────────────────────────────────────
 const llmService = new LLMService(store)
@@ -317,6 +323,9 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  mainWindow.on('show', rebuildTrayMenu)
+  mainWindow.on('hide', rebuildTrayMenu)
 
   // Register all global hotkeys
   registerAllHotkeys(mainWindow, store)
@@ -566,6 +575,7 @@ function registerIpcHandlers(): void {
   ipcMain.on('app-quit', () => {
     app.quit()
   })
+
 }
 
 // ── Chrome Extension WS Server Lifecycle ──────────────
@@ -713,6 +723,70 @@ async function initNativeBridge(): Promise<void> {
   }
 }
 
+// ── Tray (macOS menu bar icon) ──────────────────────────
+function toggleOverlayVisibility(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isVisible()) {
+    mainWindow.webContents.send('toggle-visibility', false)
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide()
+    }, 200)
+  } else {
+    mainWindow.show()
+    mainWindow.webContents.send('toggle-visibility', true)
+  }
+}
+
+function rebuildTrayMenu(): void {
+  if (!tray) return
+  const settings = store.store as { hotkeys?: HotkeyConfig }
+  const hk = settings.hotkeys
+
+  const isVisible = mainWindow ? mainWindow.isVisible() : false
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: isVisible ? 'Hide Overlay' : 'Show Overlay',
+      accelerator: hk?.toggleOverlay || 'Alt+T',
+      click: toggleOverlayVisibility,
+    },
+    {
+      label: isMeetingActive ? 'Stop Meeting' : 'Start Meeting',
+      accelerator: hk?.toggleMeeting || 'Alt+M',
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        mainWindow.webContents.send('toggle-meeting')
+      },
+    },
+    {
+      label: 'Reset Chat',
+      accelerator: hk?.resetChat || 'Alt+R',
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        mainWindow.webContents.send('reset-chat')
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit Scribely',
+      accelerator: 'CmdOrCtrl+Q',
+      click: () => app.quit(),
+    },
+  ])
+  tray.setContextMenu(menu)
+}
+
+function createTray(): void {
+  const devPath = join(app.getAppPath(), 'resources', 'trayIcon.png')
+  const prodPath = join(process.resourcesPath, 'trayIcon.png')
+  const iconPath = existsSync(prodPath) ? prodPath : devPath
+  const icon = nativeImage.createFromPath(iconPath)
+  tray = new Tray(icon.resize({ width: 18, height: 18 }))
+  tray.setToolTip('Scribely')
+  tray.on('click', toggleOverlayVisibility)
+  rebuildTrayMenu()
+}
+
 // Hide the dock icon on macOS so the overlay is truly minimal
 app.whenReady().then(async () => {
   if (process.platform === 'darwin') {
@@ -749,9 +823,15 @@ app.whenReady().then(async () => {
     }
     insightEngine.onTranscriptEntry(entry)
   })
+  audioPipeline.setOnSessionStart(() => {
+    isMeetingActive = true
+    rebuildTrayMenu()
+  })
   audioPipeline.setOnSessionStop(() => {
     insightEngine.reset()
     llmService.resetInsightsValidation()
+    isMeetingActive = false
+    rebuildTrayMenu()
   })
 
   // Apply initial insights detector config from store
@@ -779,6 +859,7 @@ app.whenReady().then(async () => {
   initNativeBridge()
 
   createWindow()
+  createTray()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

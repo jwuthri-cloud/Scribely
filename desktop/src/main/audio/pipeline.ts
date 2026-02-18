@@ -78,6 +78,7 @@ export class AudioPipeline {
   private _systemLevel = 0
 
   // ── Live Insights callbacks (optional) ────────────────
+  private _onSessionStart: (() => void) | null = null
   private _onSessionStop: (() => void) | null = null
   private _onTranscriptEntry: ((entry: {
     id: string
@@ -556,6 +557,8 @@ export class AudioPipeline {
       this.micVad?.flush()
       this.tabVad?.flush()
 
+      this._onSessionStart?.()
+
       log.success(
         `Meeting session started (VAD: ${this.vadReady ? 'enabled' : 'fallback-chunk'})`,
       )
@@ -916,7 +919,10 @@ export class AudioPipeline {
     )
   }
 
-  /** Set optional callback when meeting session stops (used by Live Insights) */
+  setOnSessionStart(cb: (() => void) | null): void {
+    this._onSessionStart = cb
+  }
+
   setOnSessionStop(cb: (() => void) | null): void {
     this._onSessionStop = cb
   }

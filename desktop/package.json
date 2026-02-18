@@ -60,6 +60,14 @@
       {
         "from": "resources/native/NativeHelper",
         "to": "native/NativeHelper"
+      },
+      {
+        "from": "resources/trayIcon.png",
+        "to": "trayIcon.png"
+      },
+      {
+        "from": "resources/trayIcon@2x.png",
+        "to": "trayIcon@2x.png"
       }
     ],
     "directories": {
