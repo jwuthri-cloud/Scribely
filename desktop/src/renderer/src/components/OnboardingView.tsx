@@ -399,7 +399,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
                   <button
                     onClick={() =>
                       openUrl(
-                        'https://github.com/julienwuthrich/scribely/tree/main/chrome-extension',
+                        'https://github.com/Jwuthri/Scribely-Release/blob/main/chrome-extension.zip',
                       )
                     }
                     className="text-[10px] px-2 py-1 rounded-md border transition-colors hover:brightness-110"
