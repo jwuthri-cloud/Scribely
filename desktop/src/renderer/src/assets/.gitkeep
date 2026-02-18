@@ -1,3 +1,2 @@
-# Assets for empty state:
-# - scribely-empty-state.svg — static chat bubble (used by default)
-# - empty-state.gif — optional animated GIF (replaces SVG when present)
+# Assets:
+# - app-icon.png — app icon (matches Chrome extension icon)

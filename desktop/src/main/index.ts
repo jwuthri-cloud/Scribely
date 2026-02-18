@@ -233,6 +233,13 @@ const extensionWsServer = new ExtensionWsServer()
 // ── Native Helper Bridge ───────────────────────────────
 let nativeBridge: NativeHelperBridge | null = null
 
+// ── Suppress "Chromium Safe Storage" keychain prompt ───
+// Electron uses the system keychain to store its own encryption key, which
+// triggers a macOS permission dialog on every launch. Using 'basic' avoids
+// the keychain entirely for Chromium's internal password store.
+// Our API key is still encrypted via Electron's safeStorage (separate from this).
+app.commandLine.appendSwitch('password-store', 'basic')
+
 // ── Chromium flags for macOS audio loopback ────────────
 // These must be set before app.ready(). They enable system audio capture
 // even when output goes through Bluetooth (AirPods) or other non-default routes.
@@ -815,7 +822,7 @@ app.on('will-quit', async (e) => {
 
     bridge
       .stop()
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         clearTimeout(forceQuitTimer)
         app.exit(0)

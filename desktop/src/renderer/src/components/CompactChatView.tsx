@@ -10,21 +10,7 @@ import { ActionChips } from './ActionChips'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
-/** Import empty-state illustration assets (same as ResponseCard) */
-const emptyStateGif = import.meta.glob('../assets/empty-state.gif', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-})
-const emptyStateSvg = import.meta.glob('../assets/scribely-empty-state.svg', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-})
-const EMPTY_STATE_IMAGE_URL =
-  (Object.values(emptyStateGif)[0] as string | undefined) ??
-  (Object.values(emptyStateSvg)[0] as string | undefined) ??
-  null
+import appIconUrl from '../assets/app-icon.png'
 
 interface CompactChatViewProps {
   messages: ChatMessage[]
@@ -167,22 +153,13 @@ export function CompactChatView({
               transition={{ duration: 0.3 }}
               className="flex flex-col items-center gap-2"
             >
-              {EMPTY_STATE_IMAGE_URL ? (
-                <img
-                  src={EMPTY_STATE_IMAGE_URL}
-                  alt=""
-                  className="w-8 h-7 object-contain"
-                  width={32}
-                  height={28}
-                />
-              ) : (
-                <div style={{ color: 'var(--text-muted)' }}>
-                  <svg width="32" height="28" viewBox="0 0 32 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h18a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8l-4 4V4z" />
-                    <path d="M20 12h-4M20 16h-2" strokeWidth="1.2" />
-                  </svg>
-                </div>
-              )}
+              <img
+                src={appIconUrl}
+                alt=""
+                className="w-8 h-8 object-contain rounded-lg"
+                width={32}
+                height={32}
+              />
               <span
                 className="text-sm font-semibold tracking-tight"
                 style={{ color: 'var(--text-bright)' }}

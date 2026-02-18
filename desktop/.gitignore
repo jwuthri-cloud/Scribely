@@ -66,4 +66,6 @@ coverage/
 
 # Misc
 *.tgz
+*.p12
+*.key
 .eslintcache

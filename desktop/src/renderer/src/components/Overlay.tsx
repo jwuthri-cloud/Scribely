@@ -106,7 +106,7 @@ function SummaryModal({ content, onClose }: { content: string | null; onClose: (
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
-  const [showOnboarding, setShowOnboarding] = useState(true)
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null) // null = not yet checked
   const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
@@ -176,6 +176,8 @@ export function Overlay() {
   useEffect(() => {
     window.electronAPI?.onboardingGetCompleted?.().then((completed) => {
       setShowOnboarding(!completed)
+    }).catch(() => {
+      setShowOnboarding(true) // default to showing wizard if check fails
     })
   }, [])
 
@@ -537,7 +539,7 @@ export function Overlay() {
             ),
           } as React.CSSProperties}
         >
-          {showOnboarding ? (
+          {showOnboarding === null ? null : showOnboarding ? (
             <OnboardingView onComplete={handleOnboardingComplete} />
           ) : compactMode && view === 'chat' ? (
             /* ── Compact mode: single CompactChatView replaces the entire advanced layout ── */
@@ -620,22 +622,22 @@ export function Overlay() {
                   {/* Live transcript panel — visible when meeting is active */}
                   {meetingActive && (
                     <>
-                    <LiveTranscriptPanel
-                      entries={transcript.entries}
-                      isActive={meetingActive}
-                      isRecording={recorder.isRecording}
-                      formattedDuration={formattedMeetingDuration}
-                      transcriptionMode={transcript.status.transcriptionMode}
-                      micActive={capture.micActive}
-                      tabActive={capture.tabActive}
-                      onStop={handleStopMeeting}
-                      error={meetingError || capture.error || recorder.error}
-                      modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
-                      modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
-                      captureMode={capture.captureMode}
-                      nativeAvailable={capture.nativeAvailable}
-                      extensionConnected={capture.extensionConnected}
-                    />
+                      <LiveTranscriptPanel
+                        entries={transcript.entries}
+                        isActive={meetingActive}
+                        isRecording={recorder.isRecording}
+                        formattedDuration={formattedMeetingDuration}
+                        transcriptionMode={transcript.status.transcriptionMode}
+                        micActive={capture.micActive}
+                        tabActive={capture.tabActive}
+                        onStop={handleStopMeeting}
+                        error={meetingError || capture.error || recorder.error}
+                        modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                        modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                        captureMode={capture.captureMode}
+                        nativeAvailable={capture.nativeAvailable}
+                        extensionConnected={capture.extensionConnected}
+                      />
 
                     </>
                   )}
@@ -678,9 +680,8 @@ export function Overlay() {
                   {/* Summarize feedback */}
                   {summarizeFeedback && (
                     <div
-                      className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 ${
-                        summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
-                      }`}
+                      className={`mx-4 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-center gap-1.5 ${summarizeFeedback.type === 'success' ? 'cursor-pointer hover:brightness-110' : ''
+                        }`}
                       style={{
                         backgroundColor:
                           summarizeFeedback.type === 'success'
