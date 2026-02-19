@@ -69,6 +69,12 @@ export function useMeetingRecorder() {
         console.log(
           `[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`,
         )
+        if (!hasAudio) {
+          console.warn(
+            '[recorder] No system audio in display stream — recording will only have mic. ' +
+              'Ensure "Screen & System Audio Recording" permission is granted to Electron in macOS Privacy settings.',
+          )
+        }
 
         // ── Mix mic audio into the recording ──────────────
         // Capture the local mic and combine it with display audio so the

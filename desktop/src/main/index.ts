@@ -249,11 +249,14 @@ app.commandLine.appendSwitch('password-store', 'basic')
 // ── Chromium flags for macOS audio loopback ────────────
 // These must be set before app.ready(). They enable system audio capture
 // even when output goes through Bluetooth (AirPods) or other non-default routes.
+// MacSckSystemAudioLoopbackOverride = ScreenCaptureKit path (macOS 13+)
+// MacCatapSystemAudioLoopbackCapture = Core Audio path (fallback when SCK fails)
 app.commandLine.appendSwitch(
   'enable-features',
   [
     'MacLoopbackAudioForScreenShare',
     'MacSckSystemAudioLoopbackOverride',
+    'MacCatapSystemAudioLoopbackCapture',
     'ScreenCaptureKitStreamPickerSonoma',
     'ScreenCaptureKitAudio',
   ].join(','),

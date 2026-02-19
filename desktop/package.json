@@ -54,7 +54,11 @@
       "gatekeeperAssess": false,
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
-      "notarize": true
+      "notarize": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Scribely needs microphone access for meeting transcription and recording.",
+        "NSAudioCaptureUsageDescription": "Scribely needs system audio capture for recording meetings with participant audio."
+      }
     },
     "extraResources": [
       {
