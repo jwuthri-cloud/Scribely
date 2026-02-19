@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { motion } from "framer-motion"
 import { Separator } from "@/components/ui/separator"
 
 const footerLinks = {
@@ -26,9 +29,20 @@ export function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
+              <motion.img
+                src="/scribely-icon.png"
+                alt="Scribely"
+                className="h-8 w-8 rounded-lg object-contain"
+                width={32}
+                height={32}
+                animate={{ scale: [1, 1.08, 1] }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                whileHover={{ scale: 1 }}
+              />
               <span className="text-lg font-display font-bold text-white">
                 Scribely
               </span>

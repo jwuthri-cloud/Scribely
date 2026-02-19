@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { motion } from "framer-motion"
 import { Menu, X, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -41,9 +42,20 @@ export function Navbar() {
       <nav className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:shadow-purple-500/40 transition-shadow">
-              <span className="text-white font-bold text-sm">S</span>
-            </div>
+            <motion.img
+              src="/scribely-icon.png"
+              alt="Scribely"
+              className="h-8 w-8 rounded-lg object-contain"
+              width={32}
+              height={32}
+              animate={{ scale: [1, 1.08, 1] }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              whileHover={{ scale: 1 }}
+            />
             <span className="text-lg font-display font-bold text-white">
               Scribely
             </span>
