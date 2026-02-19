@@ -8,89 +8,18 @@ import { Badge } from "@/components/ui/badge"
 
 function AppMockup() {
   return (
-    <div className="relative mx-auto max-w-4xl">
-      <div className="absolute -inset-4 bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-blue-500/20 rounded-2xl blur-xl" />
-      <div className="relative rounded-xl border border-white/[0.08] bg-[#0c0c14] overflow-hidden shadow-2xl">
-        {/* Title bar */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-white/10" />
-            <div className="w-3 h-3 rounded-full bg-white/10" />
-            <div className="w-3 h-3 rounded-full bg-white/10" />
-          </div>
-          <div className="flex-1 text-center">
-            <span className="text-xs text-white/30 font-medium">Scribely</span>
-          </div>
-        </div>
+    <div className="relative mx-auto max-w-md sm:max-w-lg">
+      {/* Glow — uniform on all sides */}
+      <div className="absolute -inset-6 rounded-3xl blur-2xl bg-purple-500/20" />
 
-        <div className="flex min-h-[340px]">
-          {/* Transcript panel */}
-          <div className="w-1/2 border-r border-white/[0.06] p-4 space-y-3">
-            <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-4">
-              Live Transcript
-            </div>
-            {[
-              { time: "0:12", speaker: "Sarah", text: "Let's review the Q3 performance numbers." },
-              { time: "0:18", speaker: "Mark", text: "Sure, the numbers are looking good overall." },
-              { time: "0:25", speaker: "Sarah", text: "What about the enterprise segment?" },
-              { time: "0:31", speaker: "Mark", text: "We're seeing 40% growth in enterprise deals." },
-              { time: "0:38", speaker: "Sarah", text: "That's great. What's the timeline for Q4?" },
-              { time: "0:45", speaker: "Mark", text: "We're targeting end of November for the launch." },
-            ].map((entry, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.8 + i * 0.15 }}
-                className="flex gap-2 text-xs"
-              >
-                <span className="text-white/20 font-mono shrink-0 w-8">{entry.time}</span>
-                <span className="text-purple-400/70 shrink-0 w-10">{entry.speaker}</span>
-                <span className="text-white/50">{entry.text}</span>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* AI Chat panel */}
-          <div className="w-1/2 p-4 flex flex-col">
-            <div className="text-xs font-medium text-white/40 uppercase tracking-wider mb-4">
-              AI Chat
-            </div>
-            <div className="flex-1 space-y-3">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.6 }}
-                className="ml-auto max-w-[80%] rounded-lg bg-gradient-to-r from-purple-600/40 to-indigo-600/40 border border-purple-500/20 px-3 py-2"
-              >
-                <p className="text-xs text-white/80">What are the key metrics mentioned?</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 2.0 }}
-                className="max-w-[85%] rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2"
-              >
-                <p className="text-xs text-white/60">
-                  Based on the discussion, the key metrics are:
-                </p>
-                <ul className="text-xs text-white/50 mt-1 space-y-0.5 list-disc list-inside">
-                  <li>40% growth in enterprise deals</li>
-                  <li>Q4 launch target: end of November</li>
-                  <li>Positive Q3 performance</li>
-                </ul>
-              </motion.div>
-            </div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 2.4 }}
-              className="mt-3 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-            >
-              <span className="text-xs text-white/20">Ask about this meeting...</span>
-            </motion.div>
-          </div>
-        </div>
+      <div className="relative rounded-2xl overflow-hidden shadow-[0_0_80px_-8px_rgba(168,85,247,0.35)]">
+        <img
+          src="/screenshots/app-main.png"
+          alt="Scribely — Live transcription and AI chat during a meeting"
+          className="w-full h-auto rounded-2xl"
+          width={960}
+          height={1700}
+        />
       </div>
     </div>
   )
@@ -98,7 +27,7 @@ function AppMockup() {
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden pt-16">
+    <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 pb-32 overflow-x-hidden">
       {/* Background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-glow-pulse" />
@@ -166,8 +95,6 @@ export function Hero() {
         </motion.div>
       </div>
 
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
     </section>
   )
 }

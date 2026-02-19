@@ -357,6 +357,7 @@ function createInsightsWindow(): void {
 
   insightsWindow.setOpacity(store.get('windowOpacity'))
   applyInvisibility(insightsWindow)
+  insightsWindow.setContentProtection(isInvisible)
 
   insightsWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -522,6 +523,9 @@ function registerIpcHandlers(): void {
     if (!mainWindow) return isInvisible
     isInvisible = !isInvisible
     mainWindow.setContentProtection(isInvisible)
+    if (insightsWindow && !insightsWindow.isDestroyed()) {
+      insightsWindow.setContentProtection(isInvisible)
+    }
     return isInvisible
   })
 
