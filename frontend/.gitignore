@@ -136,7 +136,10 @@ dist
 
 # Gatsby files
 .cache/
-public
+public/*
+!public/screenshots/
+!public/scribely-icon.png
+!public/logo.svg
 
 # Storybook build outputs
 .out
