@@ -114,11 +114,10 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   onStartCapture: (
-    callback: (data: { filepath: string; isWindowSource?: boolean }) => void,
+    callback: (data: { filepath: string }) => void,
   ) => () => void
   onStopCapture: (callback: () => void) => () => void
   writeRecordingChunk: (payload: { data: Uint8Array }) => Promise<void>
-  prepareScreenAudio: () => Promise<void>
 
   // Audio Levels (waveform visualization)
   onAudioLevels: (

@@ -77,13 +77,6 @@ export class AudioPipeline {
   private _micLevel = 0
   private _systemLevel = 0
 
-  // ── Native vs loopback system audio deduplication ─────
-  // Tracks whether native 'system' source is producing actual audio.
-  // When native is silent, 'system-loopback' chunks are transcribed instead.
-  private _nativeSystemSilentCount = 0
-  private _nativeSystemActiveCount = 0
-  private static readonly SILENCE_THRESHOLD_RMS = 0.003
-
   // ── Live Insights callbacks (optional) ────────────────
   private _onSessionStart: (() => void) | null = null
   private _onSessionStop: (() => void) | null = null
@@ -306,9 +299,7 @@ export class AudioPipeline {
     if (source === 'mic') {
       this._micLevel = level
     } else {
-      // Both 'system' and 'system-loopback' contribute to the system level meter.
-      // Use the higher value so the UI shows activity from whichever source has audio.
-      this._systemLevel = source === 'system-loopback' ? Math.max(this._systemLevel, level) : level
+      this._systemLevel = level
     }
 
     // Throttle sends
@@ -452,48 +443,12 @@ export class AudioPipeline {
       // Skip very short chunks
       if (combined.length < sampleRate * 0.3) return
 
-      // Compute RMS to detect silence
-      let sumSq = 0
-      const step = Math.max(1, Math.floor(combined.length / 1024))
-      let count = 0
-      for (let i = 0; i < combined.length; i += step) {
-        sumSq += combined[i] * combined[i]
-        count++
-      }
-      const rms = Math.sqrt(sumSq / count)
-
-      // Track native system audio silence to decide whether to use loopback
-      if (source === 'system') {
-        if (rms < AudioPipeline.SILENCE_THRESHOLD_RMS) {
-          this._nativeSystemSilentCount++
-          this._nativeSystemActiveCount = 0
-        } else {
-          this._nativeSystemActiveCount++
-          this._nativeSystemSilentCount = 0
-        }
-      }
-
-      // Deduplicate native 'system' vs 'system-loopback':
-      // - If native is producing audio, skip loopback chunks (avoid duplicates)
-      // - If native is silent, skip native chunks (use loopback instead)
-      if (source === 'system' && this._nativeSystemSilentCount >= 2 && this.fallbackBuffers.has('system-loopback')) {
-        log.debug('Skipping native system chunk (silent, loopback active)')
-        return
-      }
-      if (source === 'system-loopback' && this._nativeSystemActiveCount >= 2) {
-        log.debug('Skipping loopback chunk (native system audio is active)')
-        return
-      }
-
-      // Normalize source for transcription — loopback is still "system" audio
-      const transcribeSource = source === 'system-loopback' ? 'system' : source
-
       // Queue for serialized transcription (prevents concurrent whisper calls)
       // Mic chunks get priority — insert at front of queue
-      if (transcribeSource === 'mic') {
-        this._transcribeQueue.unshift({ source: transcribeSource, audio: combined, sampleRate, timestamp })
+      if (source === 'mic') {
+        this._transcribeQueue.unshift({ source, audio: combined, sampleRate, timestamp })
       } else {
-        this._transcribeQueue.push({ source: transcribeSource, audio: combined, sampleRate, timestamp })
+        this._transcribeQueue.push({ source, audio: combined, sampleRate, timestamp })
       }
 
       // Drop oldest system chunks if queue is backing up (keep mic chunks)
@@ -577,19 +532,42 @@ export class AudioPipeline {
     await this._drainTranscribeQueue()
   }
 
+  /** Start session programmatically (e.g. when extension connects). Idempotent. */
+  startSessionIfNeeded(): boolean {
+    if (this.isActive) return true
+    const modelId = this.transcriber.requiredModelId
+    if (modelId) this._autoDownloadModel(modelId as any)
+    this.isActive = true
+    this.sessionStartTime = Date.now()
+    this.segmentQueue = []
+    this.isProcessingQueue = false
+    this.fallbackBuffers.clear()
+    this._transcribeQueue = []
+    this.micVad?.flush()
+    this.tabVad?.flush()
+    this._onSessionStart?.()
+    log.success('Meeting session started (extension)')
+    return true
+  }
+
   // ── IPC Handlers ───────────────────────────────────────
 
   registerIpcHandlers(): void {
     // ── Start meeting session ────────────────────────────
     ipcMain.handle('meeting:start-session', async () => {
-      // Auto-download whisper model if needed
       const whisperModelId = this.transcriber.requiredModelId
       if (whisperModelId) {
         this._autoDownloadModel(whisperModelId)
       }
 
-      // VAD disabled — skip auto-download
-      // this._autoDownloadModel(VAD_MODEL_ID)
+      // Reuse start logic (idempotent if already active)
+      if (this.isActive) {
+        return {
+          sessionId: randomUUID(),
+          transcriptionMode: this.transcriber.mode,
+          vadEnabled: this.vadReady,
+        }
+      }
 
       this.isActive = true
       this.sessionStartTime = Date.now()
@@ -597,10 +575,7 @@ export class AudioPipeline {
       this.isProcessingQueue = false
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
-      this._nativeSystemSilentCount = 0
-      this._nativeSystemActiveCount = 0
 
-      // Reset VAD state for fresh session
       this.micVad?.flush()
       this.tabVad?.flush()
 

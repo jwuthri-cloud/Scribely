@@ -601,9 +601,12 @@ function initExtensionWsServer(): void {
   extensionWsServer.on('connected', () => {
     extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
+    // Start pipeline immediately so we don't drop extension audio frames
+    // (renderer's handleStartMeeting is async and may lag)
+    audioPipeline.startSessionIfNeeded()
     // Start external recording so video chunks are saved to disk
     screenRecorder.startExternalRecording()
-    // Auto-start meeting session when extension connects
+    // Tell renderer to start meeting UI (mic capture, etc.)
     safeSend('extension:auto-start-meeting', {})
   })
 

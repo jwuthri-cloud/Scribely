@@ -41,7 +41,6 @@ export function useMeetingRecorder() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef(0)
   const streamRef = useRef<MediaStream | null>(null)
-  const screenAudioStreamRef = useRef<MediaStream | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
   const mixerCtxRef = useRef<AudioContext | null>(null)
 
@@ -55,7 +54,7 @@ export function useMeetingRecorder() {
 
     // Main says "go ahead and call getDisplayMedia now" (handler is installed for chosen source)
     const unsubStart = window.electronAPI?.onStartCapture?.(async (data) => {
-      console.log(`[recorder] Got start-capture signal (isWindowSource=${data.isWindowSource})`)
+      console.log('[recorder] Got start-capture signal')
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
@@ -66,45 +65,18 @@ export function useMeetingRecorder() {
 
         const tracks = stream.getTracks()
         const hasVideo = tracks.some((t) => t.kind === 'video')
-        let hasAudio = tracks.some((t) => t.kind === 'audio')
+        const hasAudio = tracks.some((t) => t.kind === 'audio')
         console.log(
           `[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`,
         )
-
-        // On macOS, window sources don't provide loopback audio.
-        // Capture screen-level audio separately and mix it in.
-        let screenAudioStream: MediaStream | null = null
-        if (!hasAudio && data.isWindowSource) {
-          console.log('[recorder] Window source has no audio — capturing screen audio separately')
-          try {
-            await window.electronAPI?.prepareScreenAudio?.()
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({
-              video: true,
-              audio: true,
-            })
-            const screenAudioTracks = screenStream.getAudioTracks()
-            if (screenAudioTracks.length > 0) {
-              screenAudioStream = new MediaStream(screenAudioTracks)
-              screenAudioStreamRef.current = screenStream
-              hasAudio = true
-              console.log('[recorder] Screen audio captured successfully')
-            }
-            // Stop the screen video track — we only need the audio
-            screenStream.getVideoTracks().forEach((t) => t.stop())
-          } catch (screenErr) {
-            console.warn('[recorder] Screen audio capture failed:', screenErr)
-          }
-        }
-
         if (!hasAudio) {
           console.warn(
-            '[recorder] No system audio available — recording will only have mic. ' +
+            '[recorder] No system audio in display stream — recording will only have mic. ' +
               'Ensure "Screen & System Audio Recording" permission is granted to Electron in macOS Privacy settings.',
           )
         }
 
-        // ── Mix all audio sources into the recording ──────
-        // Combine display/screen audio + mic so the WebM contains everything.
+        // ── Mix mic audio into the recording ──────────────
         let recordingStream = stream
         try {
           const micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -116,19 +88,12 @@ export function useMeetingRecorder() {
 
           const dest = mixerCtx.createMediaStreamDestination()
 
-          // Connect display/system audio if present (from original stream)
-          const displayAudioTracks = stream.getAudioTracks()
-          if (displayAudioTracks.length > 0) {
+          // Connect display/system audio if present
+          if (hasAudio) {
             const displaySource = mixerCtx.createMediaStreamSource(
-              new MediaStream(displayAudioTracks),
+              new MediaStream(stream.getAudioTracks()),
             )
             displaySource.connect(dest)
-          }
-
-          // Connect screen audio if captured separately (window source fallback)
-          if (screenAudioStream) {
-            const screenSource = mixerCtx.createMediaStreamSource(screenAudioStream)
-            screenSource.connect(dest)
           }
 
           // Connect mic audio
@@ -147,7 +112,7 @@ export function useMeetingRecorder() {
             ...stream.getVideoTracks(),
           ])
 
-          console.log('[recorder] Audio sources mixed into recording stream')
+          console.log('[recorder] Mic mixed into recording stream')
         } catch (micErr) {
           console.warn('[recorder] Mic capture failed, recording without mic:', micErr)
         }
@@ -252,11 +217,9 @@ export function useMeetingRecorder() {
     }
     mediaRecorderRef.current = null
 
-    // Clean up mic stream, screen audio stream & mixer
+    // Clean up mic stream & mixer
     micStreamRef.current?.getTracks().forEach((t) => t.stop())
     micStreamRef.current = null
-    screenAudioStreamRef.current?.getTracks().forEach((t) => t.stop())
-    screenAudioStreamRef.current = null
     mixerCtxRef.current?.close().catch(() => {})
     mixerCtxRef.current = null
 
