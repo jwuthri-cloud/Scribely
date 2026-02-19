@@ -160,10 +160,11 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   onStartCapture: (
-    callback: (data: { filepath: string }) => void,
+    callback: (data: { filepath: string; isWindowSource?: boolean }) => void,
   ) => () => void
   onStopCapture: (callback: () => void) => () => void
   writeRecordingChunk: (payload: { data: Uint8Array }) => Promise<void>
+  prepareScreenAudio: () => Promise<void>
 
   // ── Audio Levels (waveform visualization) ──────
   onAudioLevels: (
@@ -589,7 +590,7 @@ const api: ElectronAPI = {
   onStartCapture: (callback) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      data: { filepath: string },
+      data: { filepath: string; isWindowSource?: boolean },
     ) => {
       callback(data)
     }
@@ -605,6 +606,10 @@ const api: ElectronAPI = {
 
   writeRecordingChunk: (payload) => {
     return ipcRenderer.invoke('recording:write-chunk', payload)
+  },
+
+  prepareScreenAudio: () => {
+    return ipcRenderer.invoke('recording:prepare-screen-audio')
   },
 
   // ── Audio Levels (waveform visualization) ──────

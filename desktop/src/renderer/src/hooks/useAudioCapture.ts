@@ -96,7 +96,7 @@ export function useAudioCapture() {
   // gate that prevents Whisper hallucinations is applied in the main
   // process pipeline instead (before VAD, not here).
   const streamFrame = useCallback(
-    (input: Float32Array, source: 'mic' | 'system') => {
+    (input: Float32Array, source: 'mic' | 'system' | 'system-loopback') => {
       const copy = new Float32Array(input.length)
       copy.set(input)
       try {
@@ -117,7 +117,7 @@ export function useAudioCapture() {
   const createPcmExtractor = useCallback(
     async (
       stream: MediaStream,
-      source: 'mic' | 'system',
+      source: 'mic' | 'system' | 'system-loopback',
     ): Promise<{ ctx: AudioContext; processor: ScriptProcessorNode }> => {
       let ctx: AudioContext
       try {
@@ -290,9 +290,9 @@ export function useAudioCapture() {
       const nativeReady = liveStatus?.available && liveStatus?.connected
       console.log('[audio-capture] Native status:', JSON.stringify(liveStatus))
 
-      // ── Hybrid path: browser mic + native system audio ──
+      // ── Hybrid path: browser mic + native system audio + browser loopback ──
       if (nativeReady) {
-        console.log('[audio-capture] Hybrid mode — browser mic + native system audio')
+        console.log('[audio-capture] Hybrid mode — browser mic + native system audio + browser loopback')
 
         // Start native capture for system audio ONLY (no mic)
         if (options.tab) {
@@ -306,6 +306,37 @@ export function useAudioCapture() {
             setTabActive(true)
           } else {
             console.warn('[audio-capture] Native system audio failed:', result?.error)
+          }
+
+          // Also capture screen-level loopback audio via getDisplayMedia as a
+          // supplement. SCStream (native) misses audio from some apps (e.g. Chrome)
+          // because they use sandboxed audio pipelines. The Electron loopback
+          // captures system audio through Chromium's own audio path, which
+          // reliably includes browser audio. The default handler auto-selects
+          // the primary screen so no user picker is shown.
+          try {
+            const loopbackStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: true,
+            })
+            tabStreamRef.current = loopbackStream
+
+            const audioTracks = loopbackStream.getAudioTracks()
+            // Stop the video track — we only need audio for transcription
+            loopbackStream.getVideoTracks().forEach((t) => t.stop())
+
+            if (audioTracks.length > 0) {
+              const audioOnly = new MediaStream(audioTracks.map((t) => t.clone()))
+              tabCloneRef.current = audioOnly
+              const { ctx, processor } = await createPcmExtractor(audioOnly, 'system-loopback')
+              tabContextRef.current = ctx
+              tabProcessorRef.current = processor
+              console.log('[audio-capture] Browser loopback audio active (supplements native SCStream)')
+            } else {
+              console.warn('[audio-capture] No audio tracks in loopback stream')
+            }
+          } catch (loopbackErr) {
+            console.warn('[audio-capture] Browser loopback capture failed (native-only):', loopbackErr)
           }
         }
 
@@ -343,7 +374,7 @@ export function useAudioCapture() {
       setIsCapturing(true)
       return { micStream, tabStream, mode: 'browser' as CaptureMode }
     },
-    [setupMicCapture, setupTabCapture],
+    [setupMicCapture, setupTabCapture, createPcmExtractor],
   )
 
   // ── Public: stop capture ─────────────────────────────

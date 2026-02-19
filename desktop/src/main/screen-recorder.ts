@@ -63,6 +63,30 @@ export class ScreenRecorder {
   }
 
   /**
+   * Install a handler that auto-selects the primary screen for audio-only capture.
+   * Used when recording a window source (which doesn't provide loopback audio on macOS).
+   */
+  private _installScreenAudioHandler(): void {
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+      try {
+        const sources = await desktopCapturer.getSources({ types: ['screen'] })
+        if (sources.length > 0) {
+          log.info(`[screen-recorder] Screen audio handler: selecting ${sources[0].name} for loopback audio`)
+          callback({
+            video: sources[0],
+            audio: request.audioRequested ? 'loopback' : undefined,
+          })
+        } else {
+          callback({})
+        }
+      } catch (err) {
+        log.error('Screen audio handler error:', err)
+        callback({})
+      }
+    })
+  }
+
+  /**
    * Install a handler that auto-selects a specific source by ID.
    * Requested audio is captured via system loopback (requires Chromium flags).
    */
@@ -119,6 +143,12 @@ export class ScreenRecorder {
       this._onSourceSelected(sourceId)
     })
 
+    // Install a screen-only handler so the renderer can capture loopback audio
+    // separately when recording a window source (window sources don't provide audio on macOS).
+    ipcMain.handle('recording:prepare-screen-audio', async () => {
+      this._installScreenAudioHandler()
+    })
+
     ipcMain.handle(
       'recording:write-chunk',
       async (_event, payload: { data: Uint8Array }) => {
@@ -140,14 +170,18 @@ export class ScreenRecorder {
    * Installs the auto-select handler and tells the renderer to call getDisplayMedia.
    */
   private _onSourceSelected(sourceId: string): void {
-    log.info(`[screen-recorder] User selected source: ${sourceId}`)
+    const isWindowSource = sourceId.startsWith('window:')
+    log.info(`[screen-recorder] User selected source: ${sourceId} (isWindow=${isWindowSource})`)
 
     // Install handler that will auto-select this source
     this._installSourceHandler(sourceId)
 
-    // Tell renderer to call getDisplayMedia — the handler will auto-resolve it
+    // Tell renderer to call getDisplayMedia — the handler will auto-resolve it.
+    // Pass isWindowSource so the renderer knows to capture screen audio separately
+    // (window sources on macOS don't provide loopback audio).
     this.win?.webContents.send('recording:start-capture', {
       filepath: this.filepath!,
+      isWindowSource,
     })
   }
 
