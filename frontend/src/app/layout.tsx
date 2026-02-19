@@ -17,13 +17,13 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   metadataBase: new URL("https://scribely.app"),
   title: {
-    default: "Scribely — Your Invisible AI Meeting Assistant",
+    default: "Scribely Your Invisible AI Meeting Assistant",
     template: "%s | Scribely",
   },
   description:
     "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac. Invisible to screen sharing.",
   openGraph: {
-    title: "Scribely — Your Invisible AI Meeting Assistant",
+    title: "Scribely Your Invisible AI Meeting Assistant",
     description:
       "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac.",
     siteName: "Scribely",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Scribely — Your Invisible AI Meeting Assistant",
+    title: "Scribely Your Invisible AI Meeting Assistant",
     description:
       "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac.",
   },
