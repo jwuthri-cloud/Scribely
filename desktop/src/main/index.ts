@@ -637,7 +637,11 @@ function initExtensionWsServer(): void {
       _event: Electron.IpcMainEvent,
       payload: { source: string; pcm: ArrayBuffer; sampleRate: number; timestamp: number },
     ) => {
-      if (payload.source === 'mic' && extensionWsServer.isClientConnected) {
+      if (
+        payload.source === 'mic' &&
+        extensionWsServer.isClientConnected &&
+        !audioPipeline.getExcludeMyMic()
+      ) {
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length > 0) {
           extensionWsServer.sendMicAudio(pcm)
@@ -645,6 +649,10 @@ function initExtensionWsServer(): void {
       }
     },
   )
+
+  ipcMain.on('meeting:set-exclude-mic', (_event, value: boolean) => {
+    audioPipeline.setExcludeMyMic(value)
+  })
 
   extensionWsServer.on('error', (err: Error) => {
     extensionWsLog.error(err)

@@ -89,6 +89,9 @@ export class AudioPipeline {
     source: string
   }) => void) | null = null
 
+  // ── Exclude my mic (transcript + recording) ───────────
+  private _excludeMyMic = false
+
   // ── Native capture bridge ─────────────────────────────
   private nativeBridge: NativeHelperBridge | null = null
   private nativeAudioHandler: ((data: {
@@ -226,6 +229,7 @@ export class AudioPipeline {
     timestamp: number,
   ): void {
     if (pcm.length === 0) return
+    if (source === 'mic' && this._excludeMyMic) return
 
     // Resample to 16kHz if needed (system audio comes in at 48kHz)
     let resampled = pcm
@@ -264,6 +268,15 @@ export class AudioPipeline {
   /** Get the connected native bridge (if any) */
   getNativeBridge(): NativeHelperBridge | null {
     return this.nativeBridge
+  }
+
+  /** Exclude user's mic from transcript and recording */
+  setExcludeMyMic(value: boolean): void {
+    this._excludeMyMic = value
+  }
+
+  getExcludeMyMic(): boolean {
+    return this._excludeMyMic
   }
 
   // ── External audio frame (from Chrome extension WS) ────
@@ -604,6 +617,7 @@ export class AudioPipeline {
       // Flush fallback buffers
       await this._flushFallbackBuffers()
 
+      this._excludeMyMic = false
       this.isActive = false
       this.segmentQueue = []
       this.fallbackBuffers.clear()
@@ -629,6 +643,7 @@ export class AudioPipeline {
         },
       ) => {
         if (!this.isActive) return
+        if (payload.source === 'mic' && this._excludeMyMic) return
 
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length === 0) return

@@ -43,6 +43,8 @@ export interface ElectronAPI {
     sampleRate: number
     timestamp: number
   }) => void
+  /** Exclude user's mic from transcript and recording (others only) */
+  setExcludeMyMic: (value: boolean) => void
   /** Legacy: send a chunk directly for transcription (bypasses VAD) */
   transcribeAudioChunk: (payload: {
     source: string

@@ -12,6 +12,8 @@ interface LiveTranscriptPanelProps {
   micActive: boolean
   tabActive: boolean
   onStop: () => void
+  excludeMyMic?: boolean
+  onToggleExcludeMyMic?: () => void
   error?: string | null
   modelDownloading?: boolean
   modelProgress?: number
@@ -51,6 +53,8 @@ export function LiveTranscriptPanel({
   micActive,
   tabActive,
   onStop,
+  excludeMyMic = false,
+  onToggleExcludeMyMic,
   error,
   modelDownloading,
   modelProgress = 0,
@@ -167,6 +171,47 @@ export function LiveTranscriptPanel({
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
                 Copy
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Exclude my mic toggle — transcript & recording show others only */}
+        {onToggleExcludeMyMic && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleExcludeMyMic()
+            }}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 transition-colors"
+            style={{
+              backgroundColor: excludeMyMic
+                ? 'color-mix(in srgb, var(--success) 20%, transparent)'
+                : 'var(--surface-hover)',
+              color: excludeMyMic ? 'var(--success)' : 'var(--text-muted)',
+            }}
+            title={
+              excludeMyMic
+                ? 'Recording others only — click to include your voice'
+                : 'Click to exclude your voice (transcript & recording will show others only)'
+            }
+          >
+            {excludeMyMic ? (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </svg>
+                Others only
+              </>
+            ) : (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                </svg>
+                Include me
               </>
             )}
           </button>

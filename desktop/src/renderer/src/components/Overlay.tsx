@@ -125,9 +125,10 @@ export function Overlay() {
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
+  const [excludeMyMic, setExcludeMyMic] = useState(false)
   const capture = useAudioCapture()
   const transcript = useMeetingTranscript()
-  const recorder = useMeetingRecorder()
+  const recorder = useMeetingRecorder(excludeMyMic)
   const [meetingError, setMeetingError] = useState<string | null>(null)
 
   // ── Meeting session duration timer (independent of screen recording) ──
@@ -405,6 +406,7 @@ export function Overlay() {
 
     await transcript.stopSession()
     setMeetingError(null)
+    setExcludeMyMic(false)
 
     // Show save notification
     if (recordingPath || transcriptPath) {
@@ -631,6 +633,12 @@ export function Overlay() {
                         micActive={capture.micActive}
                         tabActive={capture.tabActive}
                         onStop={handleStopMeeting}
+                        excludeMyMic={excludeMyMic}
+                        onToggleExcludeMyMic={() => {
+                          const next = !excludeMyMic
+                          setExcludeMyMic(next)
+                          window.electronAPI?.setExcludeMyMic?.(next)
+                        }}
                         error={meetingError || capture.error || recorder.error}
                         modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
                         modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
