@@ -31,6 +31,8 @@ import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
 import { InsightEngine } from './insights/insight-engine'
+import { unloadQuestionClassifier } from './insights/question-classifier'
+import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 
 interface HotkeyConfig {
@@ -598,12 +600,12 @@ function initExtensionWsServer(): void {
     }
   }
 
-  extensionWsServer.on('connected', () => {
+  extensionWsServer.on('connected', async () => {
     extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
     // Start pipeline immediately so we don't drop extension audio frames
     // (renderer's handleStartMeeting is async and may lag)
-    audioPipeline.startSessionIfNeeded()
+    await audioPipeline.startSessionIfNeeded()
     // Start external recording so video chunks are saved to disk
     screenRecorder.startExternalRecording()
     // Tell renderer to start meeting UI (mic capture, etc.)
@@ -845,9 +847,11 @@ app.whenReady().then(async () => {
     isMeetingActive = true
     rebuildTrayMenu()
   })
-  audioPipeline.setOnSessionStop(() => {
+  audioPipeline.setOnSessionStop(async () => {
     insightEngine.reset()
     llmService.resetInsightsValidation()
+    await unloadQuestionClassifier()
+    unloadEmbeddingService()
     isMeetingActive = false
     rebuildTrayMenu()
   })

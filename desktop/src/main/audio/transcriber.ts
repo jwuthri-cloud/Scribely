@@ -106,6 +106,23 @@ export class Transcriber {
     await this._initProvider(this.config.provider)
   }
 
+  /** Unload Whisper from memory (e.g. when meeting stops). Call reinit() to load again. */
+  unload(): void {
+    if (this.whisper && this._activeModelId) {
+      try {
+        ;(this.whisper as any).free?.()
+        log.info(`Unloaded Whisper model: ${this._activeModelId}`)
+      } catch {}
+      this.whisper = null
+      this._activeModelId = null
+    }
+  }
+
+  /** Whether the Whisper model is currently loaded in memory */
+  get isLoaded(): boolean {
+    return this.whisper != null
+  }
+
   // ── Main transcription entry point ───────────────────────
   async transcribe(
     pcm: Float32Array,

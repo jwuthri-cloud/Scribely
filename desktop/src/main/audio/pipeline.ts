@@ -79,7 +79,7 @@ export class AudioPipeline {
 
   // ── Live Insights callbacks (optional) ────────────────
   private _onSessionStart: (() => void) | null = null
-  private _onSessionStop: (() => void) | null = null
+  private _onSessionStop: (() => void | Promise<void>) | null = null
   private _onTranscriptEntry: ((entry: {
     id: string
     speaker: string
@@ -546,10 +546,25 @@ export class AudioPipeline {
   }
 
   /** Start session programmatically (e.g. when extension connects). Idempotent. */
-  startSessionIfNeeded(): boolean {
+  async startSessionIfNeeded(): Promise<boolean> {
     if (this.isActive) return true
     const modelId = this.transcriber.requiredModelId
     if (modelId) this._autoDownloadModel(modelId as any)
+
+    // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
+    if (!this.transcriber.isLoaded) {
+      await this.transcriber.reinit()
+      this.sendToRenderer('meeting:status-update', {
+        transcriptionMode: this.transcriber.mode,
+      })
+    }
+    if (!this.vadReady) {
+      await this._initVad()
+      if (this.vadReady) {
+        this.sendToRenderer('meeting:status-update', { vadReady: true })
+      }
+    }
+
     this.isActive = true
     this.sessionStartTime = Date.now()
     this.segmentQueue = []
@@ -579,6 +594,22 @@ export class AudioPipeline {
           sessionId: randomUUID(),
           transcriptionMode: this.transcriber.mode,
           vadEnabled: this.vadReady,
+        }
+      }
+
+      // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
+      if (!this.transcriber.isLoaded) {
+        await this.transcriber.reinit()
+        this.sendToRenderer('meeting:status-update', {
+          transcriptionMode: this.transcriber.mode,
+        })
+      }
+
+      // Re-init VAD if it was unloaded (VAD is currently disabled by default)
+      if (!this.vadReady) {
+        await this._initVad()
+        if (this.vadReady) {
+          this.sendToRenderer('meeting:status-update', { vadReady: true })
         }
       }
 
@@ -622,9 +653,19 @@ export class AudioPipeline {
       this.segmentQueue = []
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
-      this._onSessionStop?.()
+      await this._onSessionStop?.()
 
-      log.info('Meeting session stopped')
+      // Unload ML models to free memory (~500MB–1.6GB for Whisper)
+      this.transcriber.unload()
+      if (this.vadReady) {
+        this.micVad?.destroy()
+        this.tabVad?.destroy()
+        this.micVad = null
+        this.tabVad = null
+        this.vadReady = false
+      }
+
+      log.info('Meeting session stopped (models unloaded)')
       return { success: true }
     })
 
@@ -960,7 +1001,7 @@ export class AudioPipeline {
     this._onSessionStart = cb
   }
 
-  setOnSessionStop(cb: (() => void) | null): void {
+  setOnSessionStop(cb: (() => void | Promise<void>) | null): void {
     this._onSessionStop = cb
   }
 

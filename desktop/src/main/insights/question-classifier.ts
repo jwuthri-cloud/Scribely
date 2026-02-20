@@ -88,6 +88,21 @@ async function init(): Promise<boolean> {
 }
 
 /**
+ * Unload the question classifier model from memory.
+ * Call when meeting stops to free resources. Will reload on next classifyQuestion call.
+ */
+export async function unloadQuestionClassifier(): Promise<void> {
+  if (session) {
+    try {
+      await (session as { release?: () => Promise<void> }).release?.()
+      log.info('Question classifier unloaded')
+    } catch {}
+    session = null
+  }
+  tokenizer = null
+}
+
+/**
  * Classify text as question (true) or statement (false).
  * Returns null when classifier is unavailable (skip ML gate).
  */
