@@ -1,6 +1,7 @@
 import { join } from 'path'
 import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
+import { createClient } from '@deepgram/sdk'
 import { createLogger } from '../logger'
 import { ModelManager } from './model-manager'
 
@@ -11,9 +12,11 @@ type TranscriptionProvider =
   | 'local-fast'
   | 'local-balanced'
   | 'local-accurate'
+  | 'deepgram'
 
 interface TranscriptionConfig {
   provider: TranscriptionProvider
+  apiKeys?: { deepgram?: string }
 }
 
 export interface TranscriptionResult {
@@ -21,11 +24,12 @@ export interface TranscriptionResult {
   duration: number // seconds
 }
 
-// Provider → local model mapping
-const PROVIDER_MODEL_MAP: Record<string, string> = {
+// Provider → local model mapping (null = cloud, no local model)
+const PROVIDER_MODEL_MAP: Record<string, string | null> = {
   'local-fast': 'whisper-small.en',
   'local-balanced': 'whisper-medium.en',
   'local-accurate': 'whisper-large-v3-turbo',
+  deepgram: null,
 }
 
 // ────────────────────────────────────────────────────────────
@@ -51,9 +55,9 @@ export class Transcriber {
     return this.config.provider
   }
 
-  /** Model ID needed for current local provider */
+  /** Model ID needed for current local provider (null for cloud providers) */
   get requiredModelId(): string | null {
-    return PROVIDER_MODEL_MAP[this.config.provider] || null
+    return PROVIDER_MODEL_MAP[this.config.provider] ?? null
   }
 
   // ── Initialization ───────────────────────────────────────
@@ -72,6 +76,12 @@ export class Transcriber {
     }
 
     const modelId = PROVIDER_MODEL_MAP[provider]
+
+    if (provider === 'deepgram') {
+      this._mode = 'deepgram'
+      log.info('Deepgram Nova 3 provider selected (cloud)')
+      return
+    }
 
     if (modelId) {
       // Local provider — try to load whisper
@@ -96,8 +106,14 @@ export class Transcriber {
   }
 
   // ── Hot-swap provider at runtime ─────────────────────────
-  async setProvider(provider: TranscriptionProvider): Promise<void> {
+  async setProvider(
+    provider: TranscriptionProvider,
+    apiKeys?: { deepgram?: string },
+  ): Promise<void> {
     this.config.provider = provider
+    if (apiKeys !== undefined) {
+      this.config.apiKeys = { ...(this.config.apiKeys || {}), ...apiKeys }
+    }
     await this._initProvider(provider)
   }
 
@@ -140,12 +156,59 @@ export class Transcriber {
       return { text: '', duration }
     }
 
+    if (this.config.provider === 'deepgram') {
+      return this._transcribeDeepgram(pcm, duration)
+    }
+
     if (this.whisper) {
       return this._transcribeLocal(pcm, duration)
     }
 
     // Model not loaded yet (probably downloading)
     return { text: '', duration }
+  }
+
+  // ── Deepgram Nova 3 (cloud) ──────────────────────────────
+  private async _transcribeDeepgram(
+    pcm: Float32Array,
+    duration: number,
+  ): Promise<TranscriptionResult> {
+    const apiKey = this.config.apiKeys?.deepgram?.trim()
+    if (!apiKey) {
+      return { text: '', duration }
+    }
+
+    try {
+      // Convert Float32 PCM (-1..1) to Int16 linear16
+      const int16 = new Int16Array(pcm.length)
+      for (let i = 0; i < pcm.length; i++) {
+        const s = Math.max(-1, Math.min(1, pcm[i]))
+        int16[i] = s < 0 ? s * 32768 : s * 32767
+      }
+      const buffer = Buffer.from(int16.buffer, int16.byteOffset, int16.byteLength)
+
+      const deepgram = createClient(apiKey)
+      const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+        buffer,
+        {
+          model: 'nova-3',
+          encoding: 'linear16',
+          sample_rate: 16000,
+        },
+      )
+
+      if (error) {
+        log.error('Deepgram API error:', error)
+        return { text: '', duration }
+      }
+
+      const transcript =
+        result?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? ''
+      return { text: transcript.trim(), duration }
+    } catch (err) {
+      log.error('Deepgram transcription failed:', err)
+      return { text: '', duration }
+    }
   }
 
   // ── Local whisper.cpp ────────────────────────────────────

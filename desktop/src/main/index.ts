@@ -49,7 +49,8 @@ interface HotkeyConfig {
 
 interface TranscriptionSettings {
   provider: string
-  chunkDurationSec: number
+  chunkDurationSec?: number
+  apiKeys?: { deepgram?: string }
 }
 
 interface SummarizationSettings {
@@ -124,6 +125,7 @@ const store = new Store<AppSettings>({
     transcription: {
       provider: 'local-fast',
       chunkDurationSec: 2,
+      apiKeys: {},
     },
     llm: {
       apiKey: '',
@@ -405,13 +407,14 @@ function registerIpcHandlers(): void {
         const current = store.get('hotkeys')
         store.set('hotkeys', { ...current, ...(value as Partial<HotkeyConfig>) })
       } else if (key === 'transcription' && typeof value === 'object') {
-        // Deep merge transcription settings
+        // Deep merge transcription settings (including apiKeys)
         const current = store.get('transcription')
         const incoming = value as Partial<TranscriptionSettings>
-        store.set('transcription', {
-          ...current,
-          ...incoming,
-        })
+        const merged: Record<string, unknown> = { ...current, ...incoming }
+        if (incoming.apiKeys && typeof incoming.apiKeys === 'object') {
+          merged.apiKeys = { ...(current?.apiKeys || {}), ...incoming.apiKeys }
+        }
+        store.set('transcription', merged)
       } else if (key === 'llm' && typeof value === 'object') {
         // Deep merge LLM settings (including nested summarization, insights)
         const current = (store.get('llm') || {}) as unknown as Record<string, unknown>

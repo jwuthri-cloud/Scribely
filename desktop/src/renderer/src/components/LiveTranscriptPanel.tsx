@@ -143,7 +143,7 @@ export function LiveTranscriptPanel({
             className="text-[11px] flex-1"
             style={{ color: 'var(--text-muted)' }}
           >
-            Live Transcript
+            Transcript
           </span>
         )}
 
@@ -397,6 +397,7 @@ const MODE_BADGE_MAP: Record<string, { label: string; color: 'success' | 'warnin
   'local-fast': { label: 'SMALL', color: 'success' },
   'local-balanced': { label: 'MED', color: 'success' },
   'local-accurate': { label: 'TURBO', color: 'success' },
+  deepgram: { label: 'NOVA', color: 'accent' },
   downloading: { label: 'DL...', color: 'accent' },
 }
 

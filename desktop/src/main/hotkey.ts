@@ -19,7 +19,8 @@ interface HotkeyConfig {
 
 interface TranscriptionSettings {
   provider: string
-  chunkDurationSec: number
+  chunkDurationSec?: number
+  apiKeys?: { deepgram?: string }
 }
 
 interface LLMSettings {

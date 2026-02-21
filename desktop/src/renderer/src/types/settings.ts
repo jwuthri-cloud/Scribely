@@ -27,16 +27,20 @@ export type TranscriptionProvider =
   | 'local-fast'     // whisper small.en (~488MB, Metal)
   | 'local-balanced' // whisper medium.en (~1.5GB, Metal)
   | 'local-accurate' // whisper large-v3-turbo (~1.6GB, Metal, multilingual)
+  | 'deepgram'       // Nova 3 (cloud)
 
 export interface TranscriptionSettings {
   provider: TranscriptionProvider
   /** Transcription chunk duration in seconds (1–10). Lower = faster but noisier. */
   chunkDurationSec: number
+  /** API keys for cloud providers (e.g. Deepgram) */
+  apiKeys?: { deepgram?: string }
 }
 
 export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
   provider: 'local-fast',
   chunkDurationSec: 2,
+  apiKeys: {},
 }
 
 // ── LLM Settings ────────────────────────────────────────

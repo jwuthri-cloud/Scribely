@@ -15,13 +15,15 @@ const log = createLogger('pipeline')
 interface TranscriptionSettings {
   provider: string
   chunkDurationSec?: number
+  apiKeys?: { deepgram?: string }
 }
 
-// Provider → whisper model ID mapping (matches transcriber.ts)
-const PROVIDER_MODEL_MAP: Record<string, string> = {
+// Provider → whisper model ID mapping (matches transcriber.ts; null = cloud)
+const PROVIDER_MODEL_MAP: Record<string, string | null> = {
   'local-fast': 'whisper-small.en',
   'local-balanced': 'whisper-medium.en',
   'local-accurate': 'whisper-large-v3-turbo',
+  deepgram: null,
 }
 
 const VAD_MODEL_ID = 'silero-vad-v5' as const
@@ -106,6 +108,7 @@ export class AudioPipeline {
     this.modelManager = new ModelManager()
     this.transcriber = new Transcriber(this.modelManager, {
       provider: transcriptionSettings.provider as any,
+      apiKeys: transcriptionSettings.apiKeys,
     })
 
     // Apply initial chunk duration from settings
@@ -339,9 +342,9 @@ export class AudioPipeline {
       log.info(`Chunk duration set to ${this._chunkDurationSec}s`)
     }
 
-    await this.transcriber.setProvider(provider)
+    await this.transcriber.setProvider(provider, settings.apiKeys)
 
-    // Auto-download whisper model if needed
+    // Auto-download whisper model if needed (skip for cloud providers)
     const modelId = PROVIDER_MODEL_MAP[provider]
     if (modelId) {
       this._autoDownloadModel(modelId)

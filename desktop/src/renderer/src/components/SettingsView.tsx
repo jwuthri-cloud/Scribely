@@ -269,6 +269,7 @@ const PROVIDERS: {
   { id: 'local-fast', label: 'Fast', detail: 'small.en ~0.5GB' },
   { id: 'local-balanced', label: 'Balanced', detail: 'medium.en ~1.5GB' },
   { id: 'local-accurate', label: 'Accurate', detail: 'large.en ~2GB' },
+  { id: 'deepgram', label: 'Deepgram', detail: 'Nova 3 (cloud)' },
 ]
 
 function TranscriptionSection({
@@ -283,6 +284,20 @@ function TranscriptionSection({
     downloading: boolean
     progress: number
   } | null>(null)
+
+  // Deepgram API key: show "configured" + Change, or input (like LLM API key)
+  const hasDeepgramKey = !!(transcription.apiKeys?.deepgram?.trim())
+  const [showDeepgramInput, setShowDeepgramInput] = useState(!hasDeepgramKey)
+  const [deepgramKeyInput, setDeepgramKeyInput] = useState('')
+
+  // Reset showDeepgramInput when key is set externally (e.g. from another tab)
+  useEffect(() => {
+    if (hasDeepgramKey && !showDeepgramInput) {
+      // Key exists and we're in "configured" view — stay
+    } else if (!hasDeepgramKey) {
+      setShowDeepgramInput(true)
+    }
+  }, [hasDeepgramKey])
 
   // Fetch model status on mount and when provider changes
   useEffect(() => {
@@ -310,8 +325,15 @@ function TranscriptionSection({
   }, [])
 
   const setProvider = (provider: TranscriptionProvider) => {
-    onUpdate({ ...transcription, provider })
+    const updated: TranscriptionSettings = {
+      ...transcription,
+      provider,
+      apiKeys: transcription.apiKeys ?? {},
+    }
+    onUpdate(updated)
   }
+
+  const isDeepgram = transcription.provider === 'deepgram'
 
   return (
     <Section title="Transcription">
@@ -345,8 +367,98 @@ function TranscriptionSection({
           ))}
         </div>
 
-        {/* Model status */}
-        {modelStatus && (
+        {/* Deepgram API key (same pattern as LLM API key) */}
+        {isDeepgram && (
+          <div className="space-y-2">
+            <span className="text-[11px]" style={{ color: 'var(--text)' }}>
+              Deepgram API Key
+            </span>
+            {hasDeepgramKey && !showDeepgramInput ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: 'var(--success)' }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--text)' }}>
+                    API key configured
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowDeepgramInput(true)}
+                  className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={deepgramKeyInput}
+                  onChange={(e) => setDeepgramKeyInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const v = deepgramKeyInput.trim()
+                      if (v) {
+                        onUpdate({
+                          ...transcription,
+                          apiKeys: { ...(transcription.apiKeys ?? {}), deepgram: v },
+                        })
+                        setDeepgramKeyInput('')
+                        setShowDeepgramInput(false)
+                      }
+                    }
+                  }}
+                  placeholder="Enter your Deepgram API key"
+                  className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border transition-colors focus:border-[var(--accent)]"
+                  style={{
+                    color: 'var(--text)',
+                    borderColor: 'var(--input-border)',
+                    backgroundColor: 'var(--input-bg)',
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const v = deepgramKeyInput.trim()
+                    if (v) {
+                      onUpdate({
+                        ...transcription,
+                        apiKeys: { ...(transcription.apiKeys ?? {}), deepgram: v },
+                      })
+                      setDeepgramKeyInput('')
+                      setShowDeepgramInput(false)
+                    }
+                  }}
+                  disabled={!deepgramKeyInput.trim()}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 disabled:opacity-40"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: '#fff',
+                  }}
+                >
+                  Save
+                </button>
+                {hasDeepgramKey && (
+                  <button
+                    onClick={() => {
+                      setShowDeepgramInput(false)
+                      setDeepgramKeyInput('')
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Model status (hidden for Deepgram) */}
+        {!isDeepgram && modelStatus && (
           <div className="flex items-center justify-between">
             <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
               {modelStatus.downloading

@@ -20,6 +20,7 @@
     "build:all": "npm run build:proto && npm run build:native && npm run build"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
     "@huggingface/transformers": "^3.8.1",
     "@langfuse/openai": "^4.6.1",
     "@langfuse/otel": "^4.6.1",
