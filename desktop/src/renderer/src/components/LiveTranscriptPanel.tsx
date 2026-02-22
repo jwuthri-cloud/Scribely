@@ -398,6 +398,9 @@ const MODE_BADGE_MAP: Record<string, { label: string; color: 'success' | 'warnin
   'local-balanced': { label: 'MED', color: 'success' },
   'local-accurate': { label: 'TURBO', color: 'success' },
   deepgram: { label: 'NOVA', color: 'accent' },
+  assemblyai: { label: 'ASSEMBLY', color: 'accent' },
+  gladia: { label: 'GLADIA', color: 'accent' },
+  revai: { label: 'REV', color: 'accent' },
   downloading: { label: 'DL...', color: 'accent' },
 }
 

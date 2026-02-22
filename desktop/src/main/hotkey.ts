@@ -17,10 +17,16 @@ interface HotkeyConfig {
   toggleMeeting: string
 }
 
+// Must match main's TranscriptionSettings for Store compatibility
 interface TranscriptionSettings {
-  provider: string
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string
   chunkDurationSec?: number
-  apiKeys?: { deepgram?: string }
+  apiKeys?: Record<string, string>
 }
 
 interface LLMSettings {
@@ -42,6 +48,7 @@ interface AppSettings {
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  fontSize?: 'small' | 'medium' | 'large'
   transcription: TranscriptionSettings
   llm: LLMSettings
 }

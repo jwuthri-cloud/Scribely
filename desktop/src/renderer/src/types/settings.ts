@@ -23,24 +23,61 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
 }
 
 // ── Transcription Provider Settings ─────────────────────
+export type TranscriptionMode = 'local' | 'cloud'
+
+export type LocalModel = 'fast' | 'balanced' | 'accurate'
+
+export type CloudProvider = 'deepgram' | 'assemblyai' | 'gladia' | 'revai'
+
+export type TranscriptionLanguage = 'en' | 'multi'
+
+/** Legacy provider string (for backward compat / derived value) */
 export type TranscriptionProvider =
-  | 'local-fast'     // whisper small.en (~488MB, Metal)
-  | 'local-balanced' // whisper medium.en (~1.5GB, Metal)
-  | 'local-accurate' // whisper large-v3-turbo (~1.6GB, Metal, multilingual)
-  | 'deepgram'       // Nova 3 (cloud)
+  | 'local-fast'
+  | 'local-balanced'
+  | 'local-accurate'
+  | 'deepgram'
+  | 'assemblyai'
+  | 'gladia'
+  | 'revai'
+
+/** Provider-specific model IDs */
+export type DeepgramModel = 'nova-3' | 'nova-2' | 'nova-3-general' | 'nova-3-medical'
+export type AssemblyAIModel = 'universal-2' | 'universal-1' | 'universal-3-pro'
 
 export interface TranscriptionSettings {
-  provider: TranscriptionProvider
+  mode: TranscriptionMode
+  localModel?: LocalModel
+  cloudProvider?: CloudProvider
+  cloudModel?: string
+  language: TranscriptionLanguage
   /** Transcription chunk duration in seconds (1–10). Lower = faster but noisier. */
   chunkDurationSec: number
-  /** API keys for cloud providers (e.g. Deepgram) */
-  apiKeys?: { deepgram?: string }
+  apiKeys?: {
+    deepgram?: string
+    assemblyai?: string
+    gladia?: string
+    revai?: string
+  }
 }
 
 export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
-  provider: 'local-fast',
+  mode: 'local',
+  localModel: 'fast',
+  cloudProvider: 'deepgram',
+  cloudModel: 'nova-3',
+  language: 'en',
   chunkDurationSec: 2,
   apiKeys: {},
+}
+
+/** Derive legacy provider string from new settings (for pipeline/transcriber) */
+export function deriveTranscriptionProvider(settings: TranscriptionSettings): TranscriptionProvider {
+  if (settings.mode === 'local') {
+    const model = settings.localModel ?? 'fast'
+    return `local-${model}` as TranscriptionProvider
+  }
+  return (settings.cloudProvider ?? 'deepgram') as TranscriptionProvider
 }
 
 // ── LLM Settings ────────────────────────────────────────

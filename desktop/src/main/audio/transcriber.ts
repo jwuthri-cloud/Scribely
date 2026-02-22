@@ -13,10 +13,22 @@ type TranscriptionProvider =
   | 'local-balanced'
   | 'local-accurate'
   | 'deepgram'
+  | 'assemblyai'
+  | 'gladia'
+  | 'revai'
+
+type TranscriptionLanguage = 'en' | 'multi'
 
 interface TranscriptionConfig {
   provider: TranscriptionProvider
-  apiKeys?: { deepgram?: string }
+  language?: TranscriptionLanguage
+  cloudModel?: string
+  apiKeys?: {
+    deepgram?: string
+    assemblyai?: string
+    gladia?: string
+    revai?: string
+  }
 }
 
 export interface TranscriptionResult {
@@ -24,12 +36,21 @@ export interface TranscriptionResult {
   duration: number // seconds
 }
 
-// Provider → local model mapping (null = cloud, no local model)
-const PROVIDER_MODEL_MAP: Record<string, string | null> = {
-  'local-fast': 'whisper-small.en',
-  'local-balanced': 'whisper-medium.en',
-  'local-accurate': 'whisper-large-v3-turbo',
-  deepgram: null,
+// (localModel, language) → whisper model ID. null = cloud.
+function getLocalModelId(
+  provider: TranscriptionProvider,
+  language: TranscriptionLanguage = 'en',
+): string | null {
+  if (provider === 'local-fast') {
+    return language === 'en' ? 'whisper-small.en' : 'whisper-small'
+  }
+  if (provider === 'local-balanced') {
+    return language === 'en' ? 'whisper-medium.en' : 'whisper-medium'
+  }
+  if (provider === 'local-accurate') {
+    return 'whisper-large-v3-turbo' // same for en/multi
+  }
+  return null
 }
 
 // ────────────────────────────────────────────────────────────
@@ -57,7 +78,10 @@ export class Transcriber {
 
   /** Model ID needed for current local provider (null for cloud providers) */
   get requiredModelId(): string | null {
-    return PROVIDER_MODEL_MAP[this.config.provider] ?? null
+    return getLocalModelId(
+      this.config.provider,
+      this.config.language ?? 'en',
+    )
   }
 
   // ── Initialization ───────────────────────────────────────
@@ -75,11 +99,11 @@ export class Transcriber {
       this._activeModelId = null
     }
 
-    const modelId = PROVIDER_MODEL_MAP[provider]
+    const modelId = getLocalModelId(provider, this.config.language ?? 'en')
 
-    if (provider === 'deepgram') {
-      this._mode = 'deepgram'
-      log.info('Deepgram Nova 3 provider selected (cloud)')
+    if (provider === 'deepgram' || provider === 'assemblyai' || provider === 'gladia' || provider === 'revai') {
+      this._mode = provider
+      log.info(`${provider} cloud provider selected`)
       return
     }
 
@@ -106,15 +130,9 @@ export class Transcriber {
   }
 
   // ── Hot-swap provider at runtime ─────────────────────────
-  async setProvider(
-    provider: TranscriptionProvider,
-    apiKeys?: { deepgram?: string },
-  ): Promise<void> {
-    this.config.provider = provider
-    if (apiKeys !== undefined) {
-      this.config.apiKeys = { ...(this.config.apiKeys || {}), ...apiKeys }
-    }
-    await this._initProvider(provider)
+  async setConfig(config: TranscriptionConfig): Promise<void> {
+    this.config = { ...config }
+    await this._initProvider(this.config.provider)
   }
 
   // ── Re-init (e.g. after model download) ──────────────────
@@ -159,6 +177,9 @@ export class Transcriber {
     if (this.config.provider === 'deepgram') {
       return this._transcribeDeepgram(pcm, duration)
     }
+    if (this.config.provider === 'assemblyai' || this.config.provider === 'gladia' || this.config.provider === 'revai') {
+      return { text: '', duration } // Not implemented yet
+    }
 
     if (this.whisper) {
       return this._transcribeLocal(pcm, duration)
@@ -168,7 +189,7 @@ export class Transcriber {
     return { text: '', duration }
   }
 
-  // ── Deepgram Nova 3 (cloud) ──────────────────────────────
+  // ── Deepgram (cloud) ─────────────────────────────────────
   private async _transcribeDeepgram(
     pcm: Float32Array,
     duration: number,
@@ -177,6 +198,9 @@ export class Transcriber {
     if (!apiKey) {
       return { text: '', duration }
     }
+
+    const model = (this.config.cloudModel?.trim() || 'nova-3') as string
+    const language = this.config.language === 'multi' ? 'multi' : 'en'
 
     try {
       // Convert Float32 PCM (-1..1) to Int16 linear16
@@ -191,7 +215,8 @@ export class Transcriber {
       const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
         buffer,
         {
-          model: 'nova-3',
+          model,
+          language,
           encoding: 'linear16',
           sample_rate: 16000,
         },
@@ -218,8 +243,9 @@ export class Transcriber {
   ): Promise<TranscriptionResult> {
     try {
       const os = require('os')
+      const lang = this.config.language === 'multi' ? '' : 'en'
       const task = await (this.whisper as any).transcribe(pcm, {
-        language: 'en',
+        language: lang || undefined,
         n_threads: Math.max(4, os.cpus().length - 2), // use most cores
         no_timestamps: true,       // skip timestamp computation
         single_segment: true,      // don't split into multiple segments

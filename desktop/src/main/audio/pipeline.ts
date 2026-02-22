@@ -13,17 +13,26 @@ const log = createLogger('pipeline')
 // ── Types ──────────────────────────────────────────────────
 
 interface TranscriptionSettings {
-  provider: string
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string // legacy
   chunkDurationSec?: number
-  apiKeys?: { deepgram?: string }
+  apiKeys?: { deepgram?: string; assemblyai?: string; gladia?: string; revai?: string }
 }
 
-// Provider → whisper model ID mapping (matches transcriber.ts; null = cloud)
-const PROVIDER_MODEL_MAP: Record<string, string | null> = {
-  'local-fast': 'whisper-small.en',
-  'local-balanced': 'whisper-medium.en',
-  'local-accurate': 'whisper-large-v3-turbo',
-  deepgram: null,
+/** Derive provider string from settings (supports old and new format) */
+function deriveProvider(settings: TranscriptionSettings): string {
+  if (settings.mode === 'cloud') {
+    return settings.cloudProvider ?? 'deepgram'
+  }
+  if (settings.mode === 'local') {
+    return `local-${settings.localModel ?? 'fast'}`
+  }
+  // Legacy format
+  return settings.provider ?? 'local-fast'
 }
 
 const VAD_MODEL_ID = 'silero-vad-v5' as const
@@ -106,8 +115,11 @@ export class AudioPipeline {
 
   constructor(transcriptionSettings: TranscriptionSettings) {
     this.modelManager = new ModelManager()
+    const provider = deriveProvider(transcriptionSettings)
     this.transcriber = new Transcriber(this.modelManager, {
-      provider: transcriptionSettings.provider as any,
+      provider: provider as any,
+      language: transcriptionSettings.language ?? 'en',
+      cloudModel: transcriptionSettings.cloudModel,
       apiKeys: transcriptionSettings.apiKeys,
     })
 
@@ -333,7 +345,7 @@ export class AudioPipeline {
   // ── Settings changed ───────────────────────────────────
 
   async onSettingsChanged(settings: TranscriptionSettings): Promise<void> {
-    const provider = settings.provider as any
+    const provider = deriveProvider(settings)
     log.info(`Transcription provider changed to: ${provider}`)
 
     // Update chunk duration
@@ -342,10 +354,15 @@ export class AudioPipeline {
       log.info(`Chunk duration set to ${this._chunkDurationSec}s`)
     }
 
-    await this.transcriber.setProvider(provider, settings.apiKeys)
+    await this.transcriber.setConfig({
+      provider: provider as any,
+      language: settings.language ?? 'en',
+      cloudModel: settings.cloudModel,
+      apiKeys: settings.apiKeys,
+    })
 
     // Auto-download whisper model if needed (skip for cloud providers)
-    const modelId = PROVIDER_MODEL_MAP[provider]
+    const modelId = this.transcriber.requiredModelId
     if (modelId) {
       this._autoDownloadModel(modelId)
     }

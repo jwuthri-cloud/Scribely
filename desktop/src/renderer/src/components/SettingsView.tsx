@@ -2,7 +2,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { HotkeyRecorder } from './HotkeyRecorder'
 import { useTheme } from '../themes/ThemeProvider'
 import { themes as themeMap } from '../themes/registry'
-import type { AppSettings, HotkeyConfig, TranscriptionProvider, TranscriptionSettings } from '../types'
+import type {
+  AppSettings,
+  HotkeyConfig,
+  TranscriptionSettings,
+  LocalModel,
+  CloudProvider,
+  TranscriptionMode,
+  TranscriptionLanguage,
+} from '../types'
 import {
   DEFAULT_HOTKEYS,
   HOTKEY_LABELS,
@@ -260,17 +268,37 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
   )
 }
 
-// ── Provider metadata ──────────────────────────────────────
-const PROVIDERS: {
-  id: TranscriptionProvider
-  label: string
-  detail: string
-}[] = [
-  { id: 'local-fast', label: 'Fast', detail: 'small.en ~0.5GB' },
-  { id: 'local-balanced', label: 'Balanced', detail: 'medium.en ~1.5GB' },
-  { id: 'local-accurate', label: 'Accurate', detail: 'large.en ~2GB' },
-  { id: 'deepgram', label: 'Deepgram', detail: 'Nova 3 (cloud)' },
+// ── Local models ────────────────────────────────────────────
+const LOCAL_MODELS: { id: LocalModel; label: string; detail: string }[] = [
+  { id: 'fast', label: 'Fast', detail: '~0.5GB' },
+  { id: 'balanced', label: 'Balanced', detail: '~1.5GB' },
+  { id: 'accurate', label: 'Accurate', detail: '~2GB' },
 ]
+
+// ── Cloud providers (same large-box style as Local models) ───
+const CLOUD_PROVIDERS: { id: CloudProvider; label: string; detail: string }[] = [
+  { id: 'deepgram', label: 'Deepgram', detail: 'Nova (cloud)' },
+  { id: 'assemblyai', label: 'AssemblyAI', detail: 'Universal (cloud)' },
+  { id: 'gladia', label: 'Gladia', detail: 'Solaria (cloud)' },
+  { id: 'revai', label: 'Rev.ai', detail: 'Cloud' },
+]
+
+// ── Cloud model options (provider → models) ─────────────────
+const CLOUD_MODELS: Record<CloudProvider, { id: string; label: string }[]> = {
+  deepgram: [
+    { id: 'nova-3', label: 'Nova 3' },
+    { id: 'nova-2', label: 'Nova 2' },
+    { id: 'nova-3-general', label: 'Nova 3 General' },
+    { id: 'nova-3-medical', label: 'Nova 3 Medical' },
+  ],
+  assemblyai: [
+    { id: 'universal-2', label: 'Universal 2' },
+    { id: 'universal-1', label: 'Universal 1' },
+    { id: 'universal-3-pro', label: 'Universal 3 Pro' },
+  ],
+  gladia: [{ id: 'solaria-1', label: 'Solaria 1' }],
+  revai: [],
+}
 
 function TranscriptionSection({
   transcription,
@@ -279,34 +307,36 @@ function TranscriptionSection({
   transcription: TranscriptionSettings
   onUpdate: (t: TranscriptionSettings) => void
 }) {
+  const mode = transcription.mode ?? 'local'
+  const localModel = transcription.localModel ?? 'fast'
+  const cloudProvider = (transcription.cloudProvider ?? 'deepgram') as CloudProvider
+  const language = transcription.language ?? 'en'
+
   const [modelStatus, setModelStatus] = useState<{
     available: boolean
     downloading: boolean
     progress: number
   } | null>(null)
 
-  // Deepgram API key: show "configured" + Change, or input (like LLM API key)
-  const hasDeepgramKey = !!(transcription.apiKeys?.deepgram?.trim())
-  const [showDeepgramInput, setShowDeepgramInput] = useState(!hasDeepgramKey)
-  const [deepgramKeyInput, setDeepgramKeyInput] = useState('')
+  // Cloud API key state (per provider)
+  const hasCloudKey = !!(transcription.apiKeys?.[cloudProvider]?.trim())
+  const [showCloudInput, setShowCloudInput] = useState(!hasCloudKey)
+  const [cloudKeyInput, setCloudKeyInput] = useState('')
 
-  // Reset showDeepgramInput when key is set externally (e.g. from another tab)
+  // Sync to "configured" view when key exists (settings load, provider switch, or after save)
+  // Only runs when hasCloudKey or cloudProvider changes - not when user clicks Change
   useEffect(() => {
-    if (hasDeepgramKey && !showDeepgramInput) {
-      // Key exists and we're in "configured" view — stay
-    } else if (!hasDeepgramKey) {
-      setShowDeepgramInput(true)
-    }
-  }, [hasDeepgramKey])
+    setShowCloudInput(!hasCloudKey)
+  }, [hasCloudKey, cloudProvider])
 
-  // Fetch model status on mount and when provider changes
+  // Fetch model status when local mode + model/language changes
   useEffect(() => {
+    if (mode !== 'local') return
     window.electronAPI?.getModelStatus?.().then((s: any) => {
       setModelStatus(s?.whisperModel || null)
     })
-  }, [transcription.provider])
+  }, [mode, localModel, language])
 
-  // Listen for download progress (only move forward, never back)
   useEffect(() => {
     const unsub = window.electronAPI?.onModelProgress?.((data) => {
       setModelStatus((prev) => ({
@@ -324,199 +354,240 @@ function TranscriptionSection({
     }
   }, [])
 
-  const setProvider = (provider: TranscriptionProvider) => {
-    const updated: TranscriptionSettings = {
-      ...transcription,
-      provider,
-      apiKeys: transcription.apiKeys ?? {},
-    }
-    onUpdate(updated)
+  const update = (patch: Partial<TranscriptionSettings>) => {
+    onUpdate({ ...transcription, ...patch })
   }
 
-  const isDeepgram = transcription.provider === 'deepgram'
+  const setMode = (m: TranscriptionMode) => update({ mode: m })
+  const setLocalModel = (m: LocalModel) => update({ localModel: m })
+  const setCloudProvider = (p: CloudProvider) =>
+    update({ cloudProvider: p, cloudModel: CLOUD_MODELS[p]?.[0]?.id })
+  const setCloudModel = (m: string) => update({ cloudModel: m })
+  const setLanguage = (l: TranscriptionLanguage) => update({ language: l })
+
+  const cloudModels = CLOUD_MODELS[cloudProvider] ?? []
+  const hasCloudModelSelect = cloudModels.length > 1
 
   return (
     <Section title="Transcription">
       <div className="space-y-3">
-        {/* Provider selection */}
-        <div className="flex gap-1.5">
-          {PROVIDERS.map((p) => (
+        {/* Mode toggle: Local / Cloud */}
+        <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: 'var(--border)' }}>
+          {(['local', 'cloud'] as const).map((m) => (
             <button
-              key={p.id}
-              onClick={() => setProvider(p.id)}
-              className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border text-center"
+              key={m}
+              onClick={() => setMode(m)}
+              className="flex-1 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all"
               style={{
-                backgroundColor:
-                  transcription.provider === p.id ? 'var(--accent)' : 'var(--surface)',
-                color: transcription.provider === p.id ? '#fff' : 'var(--text)',
-                borderColor:
-                  transcription.provider === p.id ? 'var(--accent)' : 'var(--border)',
+                backgroundColor: mode === m ? 'var(--accent)' : 'transparent',
+                color: mode === m ? '#fff' : 'var(--text-muted)',
               }}
             >
-              <div>{p.label}</div>
-              <div
-                className="text-[9px] mt-0.5 font-normal"
-                style={{
-                  opacity: 0.7,
-                  color: transcription.provider === p.id ? '#fff' : 'var(--text-muted)',
-                }}
-              >
-                {p.detail}
-              </div>
+              {m === 'local' ? 'Local' : 'Cloud'}
             </button>
           ))}
         </div>
 
-        {/* Deepgram API key (same pattern as LLM API key) */}
-        {isDeepgram && (
-          <div className="space-y-2">
-            <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-              Deepgram API Key
-            </span>
-            {hasDeepgramKey && !showDeepgramInput ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: 'var(--success)' }}
-                  />
-                  <span className="text-xs" style={{ color: 'var(--text)' }}>
-                    API key configured
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowDeepgramInput(true)}
-                  className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                >
-                  Change
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={deepgramKeyInput}
-                  onChange={(e) => setDeepgramKeyInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const v = deepgramKeyInput.trim()
-                      if (v) {
-                        onUpdate({
-                          ...transcription,
-                          apiKeys: { ...(transcription.apiKeys ?? {}), deepgram: v },
-                        })
-                        setDeepgramKeyInput('')
-                        setShowDeepgramInput(false)
-                      }
-                    }
-                  }}
-                  placeholder="Enter your Deepgram API key"
-                  className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border transition-colors focus:border-[var(--accent)]"
-                  style={{
-                    color: 'var(--text)',
-                    borderColor: 'var(--input-border)',
-                    backgroundColor: 'var(--input-bg)',
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    const v = deepgramKeyInput.trim()
-                    if (v) {
-                      onUpdate({
-                        ...transcription,
-                        apiKeys: { ...(transcription.apiKeys ?? {}), deepgram: v },
-                      })
-                      setDeepgramKeyInput('')
-                      setShowDeepgramInput(false)
-                    }
-                  }}
-                  disabled={!deepgramKeyInput.trim()}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 disabled:opacity-40"
-                  style={{
-                    backgroundColor: 'var(--accent)',
-                    color: '#fff',
-                  }}
-                >
-                  Save
-                </button>
-                {hasDeepgramKey && (
+        {/* Local subsection */}
+        {mode === 'local' && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Model
+              </span>
+              <div className="flex gap-1.5 mt-1">
+                {LOCAL_MODELS.map((m) => (
                   <button
-                    onClick={() => {
-                      setShowDeepgramInput(false)
-                      setDeepgramKeyInput('')
+                    key={m.id}
+                    onClick={() => setLocalModel(m.id)}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all text-center"
+                    style={{
+                      backgroundColor: localModel === m.id ? 'var(--accent)' : 'var(--surface)',
+                      color: localModel === m.id ? '#fff' : 'var(--text)',
+                      borderColor: localModel === m.id ? 'var(--accent)' : 'var(--border)',
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                   >
-                    Cancel
+                    <div>{m.label}</div>
+                    <div className="text-[9px] opacity-70">{m.detail}</div>
                   </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Language
+              </span>
+              <div className="flex gap-1.5 mt-1">
+                {(['en', 'multi'] as const).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setLanguage(l)}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all"
+                    style={{
+                      backgroundColor: language === l ? 'var(--accent)' : 'var(--surface)',
+                      color: language === l ? '#fff' : 'var(--text)',
+                      borderColor: language === l ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    {l === 'en' ? 'English only' : 'Multilingual'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {modelStatus && (
+              <div className="flex items-center justify-between">
+                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  {modelStatus.downloading
+                    ? `Downloading... ${modelStatus.progress}%`
+                    : modelStatus.available
+                      ? 'Model ready'
+                      : 'Model not downloaded'}
+                </span>
+                {modelStatus.downloading && (
+                  <div
+                    className="w-20 h-1 rounded-full overflow-hidden"
+                    style={{ backgroundColor: 'var(--border)' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        backgroundColor: 'var(--accent)',
+                        width: `${modelStatus.progress}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                {!modelStatus.downloading && !modelStatus.available && (
+                  <button
+                    onClick={() => window.electronAPI?.downloadWhisperModel?.()}
+                    className="text-[10px] px-2 py-0.5 rounded-md border"
+                    style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                  >
+                    Download
+                  </button>
+                )}
+                {modelStatus.available && !modelStatus.downloading && (
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--success) 15%, transparent)',
+                      color: 'var(--success)',
+                    }}
+                  >
+                    Ready
+                  </span>
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* Model status (hidden for Deepgram) */}
-        {!isDeepgram && modelStatus && (
-          <div className="flex items-center justify-between">
-            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              {modelStatus.downloading
-                ? `Downloading... ${modelStatus.progress}%`
-                : modelStatus.available
-                  ? 'Model ready'
-                  : 'Model not downloaded'}
-            </span>
-            {modelStatus.downloading && (
-              <div
-                className="w-20 h-1 rounded-full overflow-hidden"
-                style={{ backgroundColor: 'var(--border)' }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-300"
+        {/* Cloud subsection */}
+        {mode === 'cloud' && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Provider
+              </span>
+              <div className="flex gap-1.5 mt-1">
+                {CLOUD_PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setCloudProvider(p.id)}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all text-center"
+                    style={{
+                      backgroundColor: cloudProvider === p.id ? 'var(--accent)' : 'var(--surface)',
+                      color: cloudProvider === p.id ? '#fff' : 'var(--text)',
+                      borderColor: cloudProvider === p.id ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    <div>{p.label}</div>
+                    <div
+                      className="text-[9px] mt-0.5 font-normal"
+                      style={{
+                        opacity: 0.7,
+                        color: cloudProvider === p.id ? '#fff' : 'var(--text-muted)',
+                      }}
+                    >
+                      {p.detail}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {hasCloudModelSelect && (
+              <div>
+                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Model
+                </span>
+                <select
+                  value={transcription.cloudModel ?? cloudModels[0]?.id}
+                  onChange={(e) => setCloudModel(e.target.value)}
+                  className="w-full mt-1 px-2.5 py-1.5 rounded-lg text-[11px] border bg-transparent"
                   style={{
-                    backgroundColor: 'var(--accent)',
-                    width: `${modelStatus.progress}%`,
+                    borderColor: 'var(--border)',
+                    color: 'var(--text)',
                   }}
-                />
+                >
+                  {cloudModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
-            {!modelStatus.downloading && !modelStatus.available && (
-              <button
-                onClick={() => window.electronAPI?.downloadWhisperModel?.()}
-                className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
-                style={{
-                  borderColor: 'var(--accent)',
-                  color: 'var(--accent)',
-                }}
-              >
-                Download
-              </button>
-            )}
-            {modelStatus.available && !modelStatus.downloading && (
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-md"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--success) 15%, transparent)',
-                  color: 'var(--success)',
-                }}
-              >
-                Ready
+            <div>
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                Language
               </span>
-            )}
+              <div className="flex gap-1.5 mt-1">
+                {(['en', 'multi'] as const).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setLanguage(l)}
+                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all"
+                    style={{
+                      backgroundColor: language === l ? 'var(--accent)' : 'var(--surface)',
+                      color: language === l ? '#fff' : 'var(--text)',
+                      borderColor: language === l ? 'var(--accent)' : 'var(--border)',
+                    }}
+                  >
+                    {l === 'en' ? 'English only' : 'Multilingual'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <CloudApiKeyInput
+              label={`${CLOUD_PROVIDERS.find((p) => p.id === cloudProvider)?.label ?? cloudProvider} API Key`}
+              value={transcription.apiKeys?.[cloudProvider] ?? ''}
+              hasKey={hasCloudKey}
+              showInput={showCloudInput}
+              setShowInput={setShowCloudInput}
+              inputValue={cloudKeyInput}
+              setInputValue={setCloudKeyInput}
+              onSave={(v) => {
+                update({
+                  apiKeys: { ...(transcription.apiKeys ?? {}), [cloudProvider]: v },
+                })
+                setCloudKeyInput('')
+                setShowCloudInput(false)
+              }}
+              onCancel={() => {
+                setShowCloudInput(false)
+                setCloudKeyInput('')
+              }}
+            />
           </div>
         )}
 
-        {/* Chunk duration slider */}
-        <div className="space-y-1 pt-1">
-          <div className="flex items-center justify-between">
+        {/* Chunk duration (shared) */}
+        <div className="space-y-1 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex justify-between">
             <span className="text-[11px]" style={{ color: 'var(--text)' }}>
               Chunk duration
             </span>
-            <span
-              className="text-[11px] font-mono"
-              style={{ color: 'var(--text-muted)' }}
-            >
+            <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
               {transcription.chunkDurationSec ?? 2}s
             </span>
           </div>
@@ -526,21 +597,111 @@ function TranscriptionSection({
             max="10"
             step="1"
             value={transcription.chunkDurationSec ?? 2}
-            onChange={(e) =>
-              onUpdate({ ...transcription, chunkDurationSec: Number(e.target.value) })
-            }
+            onChange={(e) => update({ chunkDurationSec: Number(e.target.value) })}
             className="w-full accent-[var(--accent)] h-1"
           />
-          <div
-            className="flex justify-between text-[9px]"
-            style={{ color: 'var(--text-muted)' }}
-          >
+          <div className="flex justify-between text-[9px]" style={{ color: 'var(--text-muted)' }}>
             <span>1s (fast)</span>
             <span>10s (accurate)</span>
           </div>
         </div>
       </div>
     </Section>
+  )
+}
+
+function CloudApiKeyInput({
+  label,
+  hasKey,
+  showInput,
+  setShowInput,
+  inputValue,
+  setInputValue,
+  onSave,
+  onCancel,
+}: {
+  label: string
+  value: string
+  hasKey: boolean
+  showInput: boolean
+  setShowInput: (v: boolean) => void
+  inputValue: string
+  setInputValue: (v: string) => void
+  onSave: (v: string) => void
+  onCancel: () => void
+}) {
+  if (hasKey && !showInput) {
+    return (
+      <div className="space-y-1">
+        <span className="text-[11px]" style={{ color: 'var(--text)' }}>
+          {label}
+        </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success)' }} />
+            <span className="text-xs" style={{ color: 'var(--text)' }}>
+              API key configured
+            </span>
+          </div>
+          <button
+            onClick={() => setShowInput(true)}
+            className="text-[10px] px-2 py-0.5 rounded-md border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
+            Change
+          </button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <span className="text-[11px]" style={{ color: 'var(--text)' }}>
+        {label}
+      </span>
+      <div className="flex gap-2">
+        <input
+          type="password"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const v = inputValue.trim()
+              if (v) {
+                onSave(v)
+              }
+            }
+          }}
+          placeholder="Enter your API key"
+          className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border"
+          style={{
+            color: 'var(--text)',
+            borderColor: 'var(--input-border)',
+            backgroundColor: 'var(--input-bg)',
+          }}
+        />
+        <button
+          onClick={() => {
+            const v = inputValue.trim()
+            if (v) onSave(v)
+          }}
+          disabled={!inputValue.trim()}
+          className="px-3 py-1.5 rounded-lg text-[11px] font-medium disabled:opacity-40"
+          style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+        >
+          Save
+        </button>
+        {hasKey && (
+          <button
+            onClick={onCancel}
+            className="text-[10px] px-2 py-0.5 rounded-md border"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 

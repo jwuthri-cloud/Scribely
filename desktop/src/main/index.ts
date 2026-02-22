@@ -48,9 +48,14 @@ interface HotkeyConfig {
 }
 
 interface TranscriptionSettings {
-  provider: string
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string // legacy
   chunkDurationSec?: number
-  apiKeys?: { deepgram?: string }
+  apiKeys?: { deepgram?: string; assemblyai?: string; gladia?: string; revai?: string }
 }
 
 interface SummarizationSettings {
@@ -123,7 +128,11 @@ const store = new Store<AppSettings>({
     moveStepPx: 50,
     windowOpacity: 0.85,
     transcription: {
-      provider: 'local-fast',
+      mode: 'local',
+      localModel: 'fast',
+      cloudProvider: 'deepgram',
+      cloudModel: 'nova-3',
+      language: 'en',
       chunkDurationSec: 2,
       apiKeys: {},
     },
@@ -160,6 +169,22 @@ const store = new Store<AppSettings>({
 const storedHotkeys = store.get('hotkeys')
 if (!storedHotkeys.toggleMeeting) {
   store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
+}
+
+// Migrate: transcription from legacy (provider) to new (mode, localModel, cloudProvider)
+const storedTranscription = store.get('transcription') as TranscriptionSettings
+if (storedTranscription && 'provider' in storedTranscription && !('mode' in storedTranscription)) {
+  const p = (storedTranscription as { provider: string }).provider
+  const migrated: TranscriptionSettings = {
+    mode: p.startsWith('local-') ? 'local' : 'cloud',
+    localModel: p.startsWith('local-') ? (p.replace('local-', '') as 'fast' | 'balanced' | 'accurate') : undefined,
+    cloudProvider: !p.startsWith('local-') ? p : undefined,
+    cloudModel: p === 'deepgram' ? 'nova-3' : undefined,
+    language: 'en',
+    chunkDurationSec: storedTranscription.chunkDurationSec ?? 2,
+    apiKeys: storedTranscription.apiKeys ?? {},
+  }
+  store.set('transcription', migrated)
 }
 
 // ── Onboarding state (separate store) ────────────────────
@@ -334,8 +359,8 @@ function createWindow(): void {
   mainWindow.on('show', rebuildTrayMenu)
   mainWindow.on('hide', rebuildTrayMenu)
 
-  // Register all global hotkeys
-  registerAllHotkeys(mainWindow, store)
+  // Register all global hotkeys (store type assertion for cross-module AppSettings compatibility)
+  registerAllHotkeys(mainWindow, store as Parameters<typeof registerAllHotkeys>[1])
 }
 
 function createInsightsWindow(): void {
@@ -439,7 +464,7 @@ function registerIpcHandlers(): void {
 
     // Re-register hotkeys if hotkeys or moveStepPx changed
     if ((oldHotkeys !== newHotkeys || partial.moveStepPx !== undefined) && mainWindow && !mainWindow.isDestroyed()) {
-      reregisterHotkeys(mainWindow, store)
+      reregisterHotkeys(mainWindow, store as Parameters<typeof reregisterHotkeys>[1])
     }
 
     // Apply window opacity immediately
