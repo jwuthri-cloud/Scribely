@@ -65,6 +65,7 @@ export async function runWebSearch(
   client: OpenAI,
   query: string,
 ): Promise<WebSearchResult> {
+  log.info(`Web search: "${query}"`)
   try {
     const response = await (client as any).responses.create({
       model: WEB_SEARCH_MODEL,
@@ -90,9 +91,10 @@ export async function runWebSearch(
       }
     }
 
+    log.info(`Web search done: ${sources.length} sources`)
     return { content: content.trim() || 'No results found.', sources }
   } catch (err: any) {
-    log.error('Error:', err)
+    log.error('Web search error:', err)
     return {
       content: '',
       error: err?.message ?? 'Web search failed',
@@ -136,6 +138,7 @@ export async function runWebSearchStreaming(
   query: string,
   callbacks: WebSearchStreamCallbacks,
 ): Promise<void> {
+  log.info(`Web search (stream): "${query}"`)
   try {
     const stream = (client as any).responses.stream({
       model: WEB_SEARCH_MODEL,
@@ -178,9 +181,10 @@ export async function runWebSearchStreaming(
       sources = extractSourcesFromOutput(finalResponse.output)
     }
     const content = fullContent.trim() || 'No results found.'
+    log.info(`Web search (stream) done: ${sources.length} sources`)
     callbacks.onDone({ content, sources })
   } catch (err: any) {
-    log.error('Streaming error:', err)
+    log.error('Web search (stream) error:', err)
     callbacks.onError(err?.message ?? 'Web search failed')
   }
 }

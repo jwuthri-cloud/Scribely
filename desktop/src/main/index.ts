@@ -226,10 +226,15 @@ const insightEngine = new InsightEngine({
     if (!config.enabled) return null
     return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
   },
-  validateInsights: async (transcriptDelta, entry, triggeredTypes) => {
+  validateInsights: async (transcriptDelta, entry, triggeredTypes, previousTopic) => {
     const config = getInsightsConfig()
     if (!config.enabled) return null
-    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes)
+    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes, previousTopic)
+  },
+  generateSegmentTopic: async (entries) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return 'N/A'
+    return llmService.generateSegmentTopic(entries)
   },
   enrich: async (event) => {
     const config = getInsightsConfig()

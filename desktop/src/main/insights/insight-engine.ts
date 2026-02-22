@@ -23,6 +23,7 @@ import {
   getOrEmbed,
   clearCache,
 } from './embedding-service'
+import { TopicSegmentTracker } from './topic-segment-tracker'
 
 export interface TranscriptEntryLike {
   id: string
@@ -43,7 +44,10 @@ export interface InsightEngineConfig {
     transcriptDelta: string,
     entry: TranscriptEntryLike,
     triggeredTypes: DetectedEventType[],
+    previousTopic?: string,
   ) => Promise<UnifiedInsightOutput | null>
+  /** Optional: generate topic label for a transcript segment (used for previous-topic context). */
+  generateSegmentTopic?: (entries: TranscriptEntryLike[]) => Promise<string>
   /** Optional: enrich event via LLM. Returns enriched title/description/actions. */
   enrich?: (event: DetectedEvent) => Promise<{
     title?: string
@@ -100,10 +104,8 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
       break
     }
     case 'key_mention': {
-      const searchQuery =
-        event.metadata?.entity && typeof event.metadata.entity === 'string'
-          ? `${event.metadata.entity} ${event.metadata.amount || ''}`.trim()
-          : event.text
+      // Use full description for search (e.g. "sister Jeanette died four weeks") — not just entity name
+      const searchQuery = event.text
       actions.push({
         id: randomUUID(),
         label: 'Answer now',
@@ -111,15 +113,13 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
         payload: `Tell me more about: ${event.text}`,
         icon: 'sparkle',
       })
-      if (event.metadata?.entity || event.metadata?.amount) {
-        actions.push({
-          id: randomUUID(),
-          label: 'Search the web',
-          type: 'search',
-          payload: searchQuery,
-          icon: 'search',
-        })
-      }
+      actions.push({
+        id: randomUUID(),
+        label: 'Search the web',
+        type: 'search',
+        payload: searchQuery,
+        icon: 'search',
+      })
       break
     }
     case 'action_item':
@@ -204,6 +204,7 @@ function formatTranscriptDelta(entries: TranscriptEntryLike[]): string {
 export class InsightEngine {
   private detector: HeuristicDetector
   private config: InsightEngineConfig
+  private topicSegmentTracker: TopicSegmentTracker | null = null
   private disabledTypes: Set<DetectedEventType> = new Set()
   private lastEventByType: Map<string, number> = new Map()
   private lastEnrichmentTime = 0
@@ -218,6 +219,11 @@ export class InsightEngine {
   constructor(config: InsightEngineConfig) {
     this.config = config
     this.detector = new HeuristicDetector()
+    if (config.generateSegmentTopic) {
+      this.topicSegmentTracker = new TopicSegmentTracker({
+        generateTopic: config.generateSegmentTopic,
+      })
+    }
   }
 
   private buildTranscriptContext(): string {
@@ -241,6 +247,7 @@ export class InsightEngine {
   /** Process a new transcript entry. Call from pipeline callback. */
   onTranscriptEntry(entry: TranscriptEntryLike): void {
     log.debug(`New entry: [${entry.speaker}] "${entry.text.slice(0, 80)}"`)
+    this.topicSegmentTracker?.addEntry(entry)
     // Update transcript buffer
     this.recentTranscriptEntries.push(entry)
     const maxMs = this.config.maxContextMs ?? MAX_CONTEXT_MS
@@ -349,13 +356,19 @@ export class InsightEngine {
           ? `${header}\n${transcriptText}`
           : header
 
-      log.debug(`LLM validateInsights call — types: [${triggeredTypes.join(', ')}], delta entries: ${deltaEntries.length}`)
+      const previousTopic =
+        triggeredTypes.includes('topic_change') && this.topicSegmentTracker
+          ? this.topicSegmentTracker.getPreviousTopic()
+          : undefined
+
+      log.debug(`LLM validateInsights call — types: [${triggeredTypes.join(', ')}], delta entries: ${deltaEntries.length}${previousTopic !== undefined ? `, previousTopic: "${previousTopic}"` : ''}`)
 
       try {
         const result = await this.config.validateInsights(
           transcriptDelta,
           entry,
           triggeredTypes as DetectedEventType[],
+          previousTopic,
         )
 
         if (result) {
@@ -373,6 +386,13 @@ export class InsightEngine {
           if (result.topic !== 'N/A' && result.topic.trim()) {
             if (this.tryDebounce('topic_change', debounceMs)) {
               void this.emitInsightFromUnified('topic_change', result.topic.trim(), entry)
+            } else {
+              log.debug('topic_change debounced (too recent)')
+            }
+          } else if (nonQuestionCandidates.some((c) => c.type === 'topic_change')) {
+            // Heuristic detected topic change but LLM returned N/A — emit using entry text
+            if (this.tryDebounce('topic_change', debounceMs)) {
+              void this.emitInsightFromUnified('topic_change', entry.text.trim(), entry)
             } else {
               log.debug('topic_change debounced (too recent)')
             }
@@ -569,6 +589,7 @@ export class InsightEngine {
   /** Reset state when meeting session ends */
   reset(): void {
     this.detector.reset()
+    this.topicSegmentTracker?.reset()
     this.recentTranscriptEntries = []
     this.recentEmbeddingBuffer = []
     this.processQueue = []
