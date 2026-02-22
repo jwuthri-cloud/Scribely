@@ -17,10 +17,11 @@ import type {
 import type { HeuristicDetectorConfig } from './heuristic-detector'
 import { HeuristicDetector } from './heuristic-detector'
 import { classifyQuestion } from './question-classifier'
-import { checkTopicChangeWithEmbedding } from './topic-change-detector'
+import { checkTopicChangeWithSegment } from './topic-change-detector'
 import {
   actionItemSimilarity,
   getOrEmbed,
+  meanEmbedding,
   clearCache,
 } from './embedding-service'
 import { TopicSegmentTracker } from './topic-segment-tracker'
@@ -58,6 +59,8 @@ export interface InsightEngineConfig {
   enrichmentEnabled?: boolean
   /** Debounce window in ms for same-type events (default: 10000) */
   debounceMs?: number
+  /** Debounce for topic_change specifically (default: 2 min). Longer to avoid repeated triggers. */
+  topicChangeDebounceMs?: number
   /** Max enrichment calls per 15s (default: 1) */
   maxEnrichmentPerWindow?: number
   /** Max transcript context tokens for validation (default: 500) */
@@ -69,6 +72,7 @@ export interface InsightEngineConfig {
 }
 
 const DEFAULT_DEBOUNCE_MS = 10_000
+const DEFAULT_TOPIC_CHANGE_DEBOUNCE_MS = 2 * 60 * 1000 // 2 minutes
 const ENRICHMENT_WINDOW_MS = 15_000
 const MAX_CONTEXT_TOKENS = 500
 const MAX_CONTEXT_MS = 3 * 60 * 1000 // 3 minutes
@@ -185,7 +189,6 @@ function isUserSpeaker(speaker: string): boolean {
   return speaker.toLowerCase() === 'you'
 }
 
-const TOPIC_CHANGE_RECENT_WINDOW = 5
 const ACTION_ITEM_SIM_THRESHOLD = 0.55
 
 function formatTimestamp(ms: number): string {
@@ -211,8 +214,6 @@ export class InsightEngine {
   private enrichmentInProgress = false
   private recentTranscriptEntries: TranscriptEntryLike[] = []
   private lastSentEntryIds: Set<string> = new Set()
-  /** Rolling buffer of last N embeddings for topic-change (avoids re-embedding) */
-  private recentEmbeddingBuffer: Array<{ entryId: string; embedding: Float32Array }> = []
   private processQueue: TranscriptEntryLike[] = []
   private processQueueRunning = false
 
@@ -222,6 +223,14 @@ export class InsightEngine {
     if (config.generateSegmentTopic) {
       this.topicSegmentTracker = new TopicSegmentTracker({
         generateTopic: config.generateSegmentTopic,
+        getSegmentMeanEmbedding: async (entries) => {
+          const embeddings: Float32Array[] = []
+          for (const e of entries) {
+            const emb = await getOrEmbed(e.id, e.text)
+            if (emb) embeddings.push(emb)
+          }
+          return embeddings.length > 0 ? meanEmbedding(embeddings) : null
+        },
       })
     }
   }
@@ -313,20 +322,17 @@ export class InsightEngine {
         }
       }
 
-      // Topic change: embedding similarity vs recent mean (from rolling buffer)
-      if (!this.disabledTypes.has('topic_change')) {
-        const recentEmbeddings = this.recentEmbeddingBuffer.map((b) => b.embedding)
-        const topicEvent = checkTopicChangeWithEmbedding(entry, embedding, recentEmbeddings)
-        if (topicEvent) {
-          log.debug(`Topic change candidate: "${entry.text.slice(0, 60)}"`)
-          candidates.push(topicEvent)
+      // Topic change: compare vs segment baseline (3-5 min of transcript), not last 5 entries.
+      // Only runs after first segment is generated (first 5 min of meeting).
+      if (!this.disabledTypes.has('topic_change') && this.topicSegmentTracker) {
+        const segmentBaseline = this.topicSegmentTracker.getComparisonEmbedding()
+        if (segmentBaseline) {
+          const topicEvent = checkTopicChangeWithSegment(entry, embedding, segmentBaseline)
+          if (topicEvent) {
+            log.debug(`Topic change candidate (vs segment): "${entry.text.slice(0, 60)}"`)
+            candidates.push(topicEvent)
+          }
         }
-      }
-
-      // Push current embedding to rolling buffer for next entry's topic-change check
-      this.recentEmbeddingBuffer.push({ entryId: entry.id, embedding })
-      if (this.recentEmbeddingBuffer.length > TOPIC_CHANGE_RECENT_WINDOW) {
-        this.recentEmbeddingBuffer.shift()
       }
     } else {
       log.debug('Embedding unavailable — skipping action_item/topic_change detection')
@@ -340,6 +346,7 @@ export class InsightEngine {
     const questionCandidates = candidates.filter((c) => c.type === 'question')
 
     const debounceMs = this.config.debounceMs ?? DEFAULT_DEBOUNCE_MS
+    const topicChangeDebounceMs = this.config.topicChangeDebounceMs ?? DEFAULT_TOPIC_CHANGE_DEBOUNCE_MS
 
     // Unified LLM validation for non-question insights
     if (
@@ -384,15 +391,8 @@ export class InsightEngine {
             }
           }
           if (result.topic !== 'N/A' && result.topic.trim()) {
-            if (this.tryDebounce('topic_change', debounceMs)) {
-              void this.emitInsightFromUnified('topic_change', result.topic.trim(), entry)
-            } else {
-              log.debug('topic_change debounced (too recent)')
-            }
-          } else if (nonQuestionCandidates.some((c) => c.type === 'topic_change')) {
-            // Heuristic detected topic change but LLM returned N/A — emit using entry text
-            if (this.tryDebounce('topic_change', debounceMs)) {
-              void this.emitInsightFromUnified('topic_change', entry.text.trim(), entry)
+            if (this.tryDebounce('topic_change', topicChangeDebounceMs)) {
+              void this.emitInsightFromUnified('topic_change', result.topic.trim(), entry, undefined, embedding ?? undefined)
             } else {
               log.debug('topic_change debounced (too recent)')
             }
@@ -468,7 +468,11 @@ export class InsightEngine {
     text: string,
     entry: TranscriptEntryLike,
     metadata?: Record<string, unknown>,
+    topicChangeEmbedding?: Float32Array,
   ): Promise<void> {
+    if (type === 'topic_change' && topicChangeEmbedding && this.topicSegmentTracker) {
+      this.topicSegmentTracker.setComparisonBaseline(topicChangeEmbedding)
+    }
     const event: DetectedEvent = {
       type,
       confidence: 0.8,
@@ -591,7 +595,6 @@ export class InsightEngine {
     this.detector.reset()
     this.topicSegmentTracker?.reset()
     this.recentTranscriptEntries = []
-    this.recentEmbeddingBuffer = []
     this.processQueue = []
     this.lastSentEntryIds.clear()
     this.lastEventByType.clear()
