@@ -190,6 +190,12 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Rewrite', value: 'Rewrite this', icon: 'pencil' },
 ]
 
+/** Preset profile for quick configuration */
+export type InsightPreset = 'minimal' | 'recommended' | 'power' | 'custom'
+
+/** Speaker filter for insight detection */
+export type SpeakerFilter = 'you' | 'them' | 'both'
+
 /** Live Insights settings */
 export interface InsightsSettings {
   /** Enable live insights during meetings */
@@ -207,15 +213,67 @@ export interface InsightsSettings {
   extraQuestionVerbs: string[]
   /** Enable ML gate for gray-zone questions (default: true) */
   questionMlEnabled: boolean
+  /** Active preset profile */
+  insightPreset: InsightPreset
+  /** Speaker filter: detect insights from you, them, or both */
+  speakerFilter: SpeakerFilter
+}
+
+export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
+  label: string
+  description: string
+  config: Omit<InsightsSettings, 'enabled' | 'extraQuestionWords' | 'extraQuestionVerbs' | 'insightPreset'>
+}> = {
+  minimal: {
+    label: 'Minimal',
+    description: 'Questions only, no AI. Zero latency, zero cost.',
+    config: {
+      enrichmentEnabled: false,
+      detectQuestions: true,
+      detectTopicChanges: false,
+      detectActionItems: false,
+      detectKeyMentions: false,
+      questionMlEnabled: false,
+      speakerFilter: 'them',
+    },
+  },
+  recommended: {
+    label: 'Recommended',
+    description: 'Balanced detection with AI validation. Best for most meetings.',
+    config: {
+      enrichmentEnabled: true,
+      detectQuestions: true,
+      detectTopicChanges: true,
+      detectActionItems: true,
+      detectKeyMentions: false,
+      questionMlEnabled: true,
+      speakerFilter: 'both',
+    },
+  },
+  power: {
+    label: 'Power',
+    description: 'Everything on. Full AI enrichment and all detectors.',
+    config: {
+      enrichmentEnabled: true,
+      detectQuestions: true,
+      detectTopicChanges: true,
+      detectActionItems: true,
+      detectKeyMentions: true,
+      questionMlEnabled: true,
+      speakerFilter: 'both',
+    },
+  },
 }
 
 export const DEFAULT_INSIGHTS: InsightsSettings = {
   enabled: true,
+  insightPreset: 'recommended',
+  speakerFilter: 'both',
   enrichmentEnabled: true,
   detectQuestions: true,
   detectTopicChanges: true,
   detectActionItems: true,
-  detectKeyMentions: true,
+  detectKeyMentions: false,
   extraQuestionWords: [],
   extraQuestionVerbs: [],
   questionMlEnabled: true,

@@ -204,11 +204,14 @@ function formatTranscriptDelta(entries: TranscriptEntryLike[]): string {
     .join('\n')
 }
 
+export type SpeakerFilter = 'you' | 'them' | 'both'
+
 export class InsightEngine {
   private detector: HeuristicDetector
   private config: InsightEngineConfig
   private topicSegmentTracker: TopicSegmentTracker | null = null
   private disabledTypes: Set<DetectedEventType> = new Set()
+  private speakerFilter: SpeakerFilter = 'both'
   private lastEventByType: Map<string, number> = new Map()
   private lastEnrichmentTime = 0
   private enrichmentInProgress = false
@@ -256,6 +259,10 @@ export class InsightEngine {
   /** Process a new transcript entry. Call from pipeline callback. */
   onTranscriptEntry(entry: TranscriptEntryLike): void {
     log.debug(`New entry: [${entry.speaker}] "${entry.text.slice(0, 80)}"`)
+
+    if (this.speakerFilter === 'you' && !isUserSpeaker(entry.speaker)) return
+    if (this.speakerFilter === 'them' && isUserSpeaker(entry.speaker)) return
+
     this.topicSegmentTracker?.addEntry(entry)
     // Update transcript buffer
     this.recentTranscriptEntries.push(entry)
@@ -589,11 +596,21 @@ export class InsightEngine {
   }
 
   /** Update detector config and engine options when settings change */
-  updateSettings(config: HeuristicDetectorConfig & { questionMlEnabled?: boolean }): void {
+  updateSettings(config: HeuristicDetectorConfig & {
+    questionMlEnabled?: boolean
+    speakerFilter?: SpeakerFilter
+    enrichmentEnabled?: boolean
+  }): void {
     this.detector.updateConfig(config)
     if (config.disabledTypes) this.disabledTypes = config.disabledTypes
     if (typeof config.questionMlEnabled === 'boolean') {
       this.config.questionMlEnabled = config.questionMlEnabled
+    }
+    if (config.speakerFilter) {
+      this.speakerFilter = config.speakerFilter
+    }
+    if (typeof config.enrichmentEnabled === 'boolean') {
+      this.config.enrichmentEnabled = config.enrichmentEnabled
     }
   }
 

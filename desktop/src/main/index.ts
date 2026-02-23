@@ -499,6 +499,8 @@ function registerIpcHandlers(): void {
           ? insights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
           : [],
         questionMlEnabled: insights.questionMlEnabled !== false,
+        speakerFilter: (insights.speakerFilter as 'you' | 'them' | 'both') || 'both',
+        enrichmentEnabled: insights.enrichmentEnabled !== false,
       })
     }
 
@@ -905,6 +907,8 @@ app.whenReady().then(async () => {
       ? initialInsights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
       : [],
     questionMlEnabled: initialInsights.questionMlEnabled !== false,
+    speakerFilter: (initialInsights.speakerFilter as 'you' | 'them' | 'both') || 'both',
+    enrichmentEnabled: initialInsights.enrichmentEnabled !== false,
   })
 
   // Start Chrome extension WebSocket server

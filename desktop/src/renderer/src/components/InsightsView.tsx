@@ -6,23 +6,105 @@ import {
 import type { AppSettings } from '../types'
 import {
   DEFAULT_INSIGHTS,
+  INSIGHT_PRESETS,
   type InsightsSettings,
+  type InsightPreset,
+  type SpeakerFilter,
 } from '../types/settings'
 
-const DETECTOR_LABELS: Record<
-  keyof Pick<
-    InsightsSettings,
-    | 'detectQuestions'
-    | 'detectTopicChanges'
-    | 'detectActionItems'
-    | 'detectKeyMentions'
-  >,
-  string
-> = {
-  detectQuestions: 'Questions',
-  detectTopicChanges: 'Topic changes',
-  detectActionItems: 'Action items',
-  detectKeyMentions: 'Key mentions',
+// ── Preset definitions ──────────────────────────────────
+
+const PRESET_IDS: Exclude<InsightPreset, 'custom'>[] = ['minimal', 'recommended', 'power']
+
+const SPEAKER_OPTIONS: { value: SpeakerFilter; label: string }[] = [
+  { value: 'you', label: 'You' },
+  { value: 'them', label: 'Them' },
+  { value: 'both', label: 'Both' },
+]
+
+const DETECTORS: {
+  key: keyof Pick<InsightsSettings, 'detectQuestions' | 'detectTopicChanges' | 'detectActionItems' | 'detectKeyMentions'>
+  icon: string
+  label: string
+  description: string
+}[] = [
+  { key: 'detectQuestions', icon: '?', label: 'Questions', description: 'Catch questions asked during the meeting' },
+  { key: 'detectTopicChanges', icon: '~', label: 'Topic changes', description: 'Notice when the conversation shifts' },
+  { key: 'detectActionItems', icon: '\u2713', label: 'Action items', description: 'Spot tasks and commitments' },
+  { key: 'detectKeyMentions', icon: '@', label: 'Key mentions', description: 'Flag names, dates, amounts, and URLs' },
+]
+
+// ── Helpers ──────────────────────────────────────────────
+
+function detectPreset(s: InsightsSettings): InsightPreset {
+  for (const id of PRESET_IDS) {
+    const { config } = INSIGHT_PRESETS[id]
+    const match =
+      s.enrichmentEnabled === config.enrichmentEnabled &&
+      s.detectQuestions === config.detectQuestions &&
+      s.detectTopicChanges === config.detectTopicChanges &&
+      s.detectActionItems === config.detectActionItems &&
+      s.detectKeyMentions === config.detectKeyMentions &&
+      s.questionMlEnabled === config.questionMlEnabled &&
+      s.speakerFilter === config.speakerFilter
+    if (match) return id
+  }
+  return 'custom'
+}
+
+// ── Sub-components ───────────────────────────────────────
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
+        on ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+          on ? 'left-4' : 'left-0.5'
+        }`}
+      />
+    </button>
+  )
+}
+
+function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div
+      className="inline-flex rounded-lg p-0.5 gap-0.5"
+      style={{ backgroundColor: 'var(--overlay)' }}
+    >
+      {options.map((opt) => {
+        const active = opt.value === value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className="px-3 py-1 rounded-md text-[11px] font-medium transition-all"
+            style={{
+              backgroundColor: active ? 'var(--accent)' : 'transparent',
+              color: active ? 'white' : 'var(--text-muted)',
+            }}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -47,15 +129,46 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+function CollapseSection({
+  label,
+  children,
+  open,
+  onToggle,
+}: {
+  label: string
+  children: React.ReactNode
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-1.5 w-full py-1 text-[11px] font-medium"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <span
+          className="transition-transform inline-block text-[9px]"
+          style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        >
+          ▶
+        </span>
+        {label}
+      </button>
+      {open && <div className="pt-1 pl-1">{children}</div>}
+    </div>
+  )
+}
+
 function ChipList({
   items,
   onRemove,
-  removable = false,
 }: {
   items: string[]
-  onRemove?: (item: string) => void
-  removable?: boolean
+  onRemove: (item: string) => void
 }) {
+  if (items.length === 0) return null
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((item) => (
@@ -69,17 +182,15 @@ function ChipList({
           }}
         >
           {item}
-          {removable && onRemove && (
-            <button
-              type="button"
-              onClick={() => onRemove(item)}
-              className="ml-0.5 -mr-0.5 p-0.5 rounded hover:opacity-70"
-              style={{ color: 'var(--text-muted)' }}
-              aria-label={`Remove ${item}`}
-            >
-              ×
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onRemove(item)}
+            className="ml-0.5 -mr-0.5 p-0.5 rounded hover:opacity-70"
+            style={{ color: 'var(--text-muted)' }}
+            aria-label={`Remove ${item}`}
+          >
+            ×
+          </button>
         </span>
       ))}
     </div>
@@ -130,191 +241,257 @@ function AddChipRow({
   )
 }
 
+// ── Main component ───────────────────────────────────────
+
 export function InsightsView() {
   const [insights, setInsights] = useState<InsightsSettings>(DEFAULT_INSIGHTS)
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const [keywordsOpen, setKeywordsOpen] = useState(false)
 
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
-      const current = s?.llm?.insights ?? DEFAULT_INSIGHTS
+      const current = { ...DEFAULT_INSIGHTS, ...s?.llm?.insights }
       setInsights(current)
     })
   }, [])
 
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onSettingsChanged?.((s) => {
-      const current = s?.llm?.insights ?? DEFAULT_INSIGHTS
+      const current = { ...DEFAULT_INSIGHTS, ...s?.llm?.insights }
       setInsights(current)
     })
     return () => unsubscribe?.()
   }, [])
 
-  const updateInsights = useCallback((next: Partial<InsightsSettings>) => {
-    const merged = { ...insights, ...next }
-    setInsights(merged)
-    window.electronAPI?.updateSettings({ llm: { insights: merged } } as Partial<AppSettings>)
-  }, [insights])
+  const updateInsights = useCallback(
+    (next: Partial<InsightsSettings>) => {
+      const merged = { ...insights, ...next }
+      merged.insightPreset = detectPreset(merged)
+      setInsights(merged)
+      window.electronAPI?.updateSettings({ llm: { insights: merged } } as Partial<AppSettings>)
+    },
+    [insights],
+  )
 
-  const toggle = (key: keyof InsightsSettings, value: boolean) => {
-    updateInsights({ [key]: value })
-  }
+  const applyPreset = useCallback(
+    (presetId: Exclude<InsightPreset, 'custom'>) => {
+      const { config } = INSIGHT_PRESETS[presetId]
+      const merged: InsightsSettings = {
+        ...insights,
+        ...config,
+        insightPreset: presetId,
+      }
+      setInsights(merged)
+      window.electronAPI?.updateSettings({ llm: { insights: merged } } as Partial<AppSettings>)
+    },
+    [insights],
+  )
 
-  const addQuestionWord = (word: string) => {
-    const current = insights.extraQuestionWords ?? []
-    if (current.includes(word)) return
-    updateInsights({ extraQuestionWords: [...current, word] })
-  }
+  const activePreset = insights.insightPreset === 'custom'
+    ? detectPreset(insights)
+    : insights.insightPreset ?? detectPreset(insights)
 
-  const removeQuestionWord = (word: string) => {
-    const current = insights.extraQuestionWords ?? []
-    updateInsights({ extraQuestionWords: current.filter((w) => w !== word) })
-  }
+  const isSmart = insights.enrichmentEnabled
 
-  const addQuestionVerb = (verb: string) => {
-    const current = insights.extraQuestionVerbs ?? []
-    if (current.includes(verb)) return
-    updateInsights({ extraQuestionVerbs: [...current, verb] })
-  }
-
-  const removeQuestionVerb = (verb: string) => {
-    const current = insights.extraQuestionVerbs ?? []
-    updateInsights({ extraQuestionVerbs: current.filter((v) => v !== verb) })
-  }
+  const extraWords = insights.extraQuestionWords ?? []
+  const extraVerbs = insights.extraQuestionVerbs ?? []
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
+    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      {/* Master toggle */}
       <Section title="Live insights">
-        <div className="space-y-3">
-          {/* Master toggle */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--text)' }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-medium block" style={{ color: 'var(--text)' }}>
               Enable live insights
             </span>
-            <button
-              onClick={() => toggle('enabled', !insights.enabled)}
-              className={`relative w-9 h-5 rounded-full transition-colors ${
-                insights.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                  insights.enabled ? 'left-4' : 'left-0.5'
-                }`}
-              />
-            </button>
-          </div>
-
-            {/* LLM enrichment */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--text)' }}>
-                LLM enrichment
-              </span>
-              <button
-                onClick={() => toggle('enrichmentEnabled', !insights.enrichmentEnabled)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${
-                  insights.enrichmentEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    insights.enrichmentEnabled ? 'left-4' : 'left-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* ML question gate */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--text)' }}>
-                ML question filter
-              </span>
-              <button
-                onClick={() => toggle('questionMlEnabled', !(insights.questionMlEnabled ?? true))}
-                className={`relative w-9 h-5 rounded-full transition-colors ${
-                  insights.questionMlEnabled !== false ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                    insights.questionMlEnabled !== false ? 'left-4' : 'left-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-
-          {/* Per-detector toggles */}
-          <div className="pt-1 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
-            <span
-              className="text-[10px] font-medium uppercase tracking-wider"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              Event detectors
+            <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              Real-time detection of questions, decisions, and more
             </span>
-            {(Object.keys(DETECTOR_LABELS) as (keyof typeof DETECTOR_LABELS)[]).map((key) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-                  {DETECTOR_LABELS[key]}
-                </span>
-                <button
-                  onClick={() => toggle(key, !(insights[key] ?? true))}
-                  className={`relative w-9 h-5 rounded-full transition-colors ${
-                    insights[key] !== false ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                      insights[key] !== false ? 'left-4' : 'left-0.5'
-                    }`}
-                  />
-                </button>
-              </div>
-            ))}
           </div>
-
-          {/* Question detection — when Questions enabled */}
-          {insights.detectQuestions !== false && (
-            <div className="space-y-3 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
-              <span
-                className="text-[10px] font-medium uppercase tracking-wider block"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                Question detection
-              </span>
-
-              {/* Question words */}
-              <div className="space-y-1">
-                <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-                  Question words
-                </span>
-                <ChipList items={[...DEFAULT_QUESTION_WORDS]} removable={false} />
-                {(insights.extraQuestionWords ?? []).length > 0 && (
-                  <ChipList
-                    items={insights.extraQuestionWords ?? []}
-                    onRemove={removeQuestionWord}
-                    removable
-                  />
-                )}
-                <AddChipRow placeholder="Add word or phrase" onAdd={addQuestionWord} />
-              </div>
-
-              {/* Question verbs */}
-              <div className="space-y-1">
-                <span className="text-[11px]" style={{ color: 'var(--text)' }}>
-                  Question verbs
-                </span>
-                <ChipList items={[...DEFAULT_QUESTION_VERBS]} removable={false} />
-                {(insights.extraQuestionVerbs ?? []).length > 0 && (
-                  <ChipList
-                    items={insights.extraQuestionVerbs ?? []}
-                    onRemove={removeQuestionVerb}
-                    removable
-                  />
-                )}
-                <AddChipRow placeholder="Add verb" onAdd={addQuestionVerb} />
-              </div>
-            </div>
-          )}
+          <Toggle on={insights.enabled} onChange={(v) => updateInsights({ enabled: v })} />
         </div>
       </Section>
+
+      {insights.enabled && (
+        <>
+          {/* Preset profiles */}
+          <Section title="Profile">
+            <div className="space-y-2.5">
+              <div className="flex gap-2">
+                {PRESET_IDS.map((id) => {
+                  const preset = INSIGHT_PRESETS[id]
+                  const active = activePreset === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => applyPreset(id)}
+                      className="flex-1 rounded-lg px-2 py-2 text-center transition-all border"
+                      style={{
+                        backgroundColor: active ? 'var(--accent)' : 'var(--overlay)',
+                        borderColor: active ? 'var(--accent)' : 'var(--border)',
+                        color: active ? 'white' : 'var(--text)',
+                      }}
+                    >
+                      <span className="text-[11px] font-semibold block">{preset.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Description of active preset */}
+              <p className="text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>
+                {activePreset !== 'custom'
+                  ? INSIGHT_PRESETS[activePreset].description
+                  : 'Custom configuration'}
+              </p>
+            </div>
+          </Section>
+
+          {/* Speaker filter */}
+          <Section title="Detect insights from">
+            <div className="flex justify-center">
+              <SegmentedControl
+                options={SPEAKER_OPTIONS}
+                value={insights.speakerFilter ?? 'both'}
+                onChange={(v) => updateInsights({ speakerFilter: v })}
+              />
+            </div>
+          </Section>
+
+          {/* Customize (collapsed) */}
+          <Section title="Advanced">
+            <CollapseSection
+              label="Customize"
+              open={customizeOpen}
+              onToggle={() => setCustomizeOpen(!customizeOpen)}
+            >
+              <div className="space-y-4">
+                {/* Detection mode */}
+                <div className="space-y-1.5">
+                  <span
+                    className="text-[10px] font-medium uppercase tracking-wider block"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Detection mode
+                  </span>
+                  <SegmentedControl
+                    options={[
+                      { value: 'fast', label: 'Fast' },
+                      { value: 'smart', label: 'Smart' },
+                    ]}
+                    value={isSmart ? 'smart' : 'fast'}
+                    onChange={(v) =>
+                      updateInsights({
+                        enrichmentEnabled: v === 'smart',
+                        questionMlEnabled: v === 'smart',
+                      })
+                    }
+                  />
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    {isSmart
+                      ? 'AI validates and enriches detected events. Higher quality, uses API calls.'
+                      : 'Heuristics only. Instant results, zero API cost.'}
+                  </p>
+                </div>
+
+                {/* Per-detector toggles */}
+                <div className="space-y-1.5">
+                  <span
+                    className="text-[10px] font-medium uppercase tracking-wider block"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Detectors
+                  </span>
+                  <div className="space-y-1">
+                    {DETECTORS.map(({ key, icon, label, description }) => (
+                      <div
+                        key={key}
+                        className="flex items-center gap-2 py-1"
+                      >
+                        <span
+                          className="w-5 h-5 rounded flex items-center justify-center text-[11px] font-bold shrink-0"
+                          style={{
+                            backgroundColor: 'var(--overlay)',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {icon}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[11px] block" style={{ color: 'var(--text)' }}>
+                            {label}
+                          </span>
+                          <span className="text-[9px] block" style={{ color: 'var(--text-muted)' }}>
+                            {description}
+                          </span>
+                        </div>
+                        <Toggle
+                          on={insights[key] !== false}
+                          onChange={(v) => updateInsights({ [key]: v })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom keywords (nested collapse, only when questions enabled) */}
+                {insights.detectQuestions !== false && (
+                  <CollapseSection
+                    label={`Custom keywords (${DEFAULT_QUESTION_WORDS.length} built-in words, ${DEFAULT_QUESTION_VERBS.length} built-in verbs${extraWords.length + extraVerbs.length > 0 ? ` + ${extraWords.length + extraVerbs.length} custom` : ''})`}
+                    open={keywordsOpen}
+                    onToggle={() => setKeywordsOpen(!keywordsOpen)}
+                  >
+                    <div className="space-y-3 pt-1">
+                      {/* Extra question words */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                          Question words
+                          <span className="font-normal ml-1">
+                            ({DEFAULT_QUESTION_WORDS.length} built-in{extraWords.length > 0 ? ` + ${extraWords.length} custom` : ''})
+                          </span>
+                        </span>
+                        <ChipList items={extraWords} onRemove={(w) => {
+                          updateInsights({ extraQuestionWords: extraWords.filter((x) => x !== w) })
+                        }} />
+                        <AddChipRow
+                          placeholder="Add word or phrase"
+                          onAdd={(w) => {
+                            if (!extraWords.includes(w)) {
+                              updateInsights({ extraQuestionWords: [...extraWords, w] })
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Extra question verbs */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                          Question verbs
+                          <span className="font-normal ml-1">
+                            ({DEFAULT_QUESTION_VERBS.length} built-in{extraVerbs.length > 0 ? ` + ${extraVerbs.length} custom` : ''})
+                          </span>
+                        </span>
+                        <ChipList items={extraVerbs} onRemove={(v) => {
+                          updateInsights({ extraQuestionVerbs: extraVerbs.filter((x) => x !== v) })
+                        }} />
+                        <AddChipRow
+                          placeholder="Add verb"
+                          onAdd={(v) => {
+                            if (!extraVerbs.includes(v)) {
+                              updateInsights({ extraQuestionVerbs: [...extraVerbs, v] })
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </CollapseSection>
+                )}
+              </div>
+            </CollapseSection>
+          </Section>
+        </>
+      )}
     </div>
   )
 }
