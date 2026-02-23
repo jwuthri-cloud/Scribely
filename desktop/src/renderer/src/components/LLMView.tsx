@@ -54,6 +54,12 @@ export function LLMView() {
   const [showNewForm, setShowNewForm] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
+  // Default system prompt (editable override)
+  const [defaultSystemPromptOverride, setDefaultSystemPromptOverride] = useState<string | null>(null)
+  const [builtInDefaultPrompt, setBuiltInDefaultPrompt] = useState<string>('')
+  const [editingDefaultPrompt, setEditingDefaultPrompt] = useState(false)
+  const [defaultPromptDraft, setDefaultPromptDraft] = useState('')
+
   // Summarization
   const [summarization, setSummarization] = useState<SummarizationSettings>(DEFAULT_SUMMARIZATION)
   const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
@@ -91,7 +97,9 @@ export function LLMView() {
     api.getSettings().then((s) => {
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
       if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      if (s?.llm?.defaultSystemPromptOverride !== undefined) setDefaultSystemPromptOverride(s.llm.defaultSystemPromptOverride)
     })
+    api.llmGetBuiltInDefaultSystemPrompt?.().then(setBuiltInDefaultPrompt)
     api.llmGetUsageStats?.().then(setUsageStats)
   }, [])
 
@@ -186,11 +194,12 @@ export function LLMView() {
     window.electronAPI?.updateSettings({ llm: { summarization: next } } as any)
   }, [summarization])
 
-  // Refresh summarization and quick actions when settings change
+  // Refresh summarization, quick actions, and default prompt override when settings change
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
       if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      if (s?.llm?.defaultSystemPromptOverride !== undefined) setDefaultSystemPromptOverride(s.llm.defaultSystemPromptOverride)
     })
     return () => unsub?.()
   }, [])
@@ -706,28 +715,105 @@ export function LLMView() {
       {/* ── System Prompts ──────────────────────── */}
       <Section title="System Prompts">
         <div className="space-y-2">
-          {/* Default (no system prompt selected) */}
-          <button
-            onClick={() => handleSetActivePrompt(null)}
-            className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-150 border"
-            style={{
-              backgroundColor: activePromptId === null ? 'var(--accent)' : 'transparent',
-              color: activePromptId === null ? '#fff' : 'var(--text)',
-              borderColor: activePromptId === null ? 'var(--accent)' : 'var(--border)',
-            }}
-          >
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium">Default</div>
-              <div
-                className="text-[10px] mt-0.5 truncate"
+          {/* Default (no system prompt selected) — editable */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleSetActivePrompt(null)}
+                className="flex-1 flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all duration-150 border min-w-0"
                 style={{
-                  color: activePromptId === null ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
+                  backgroundColor: activePromptId === null ? 'var(--accent)' : 'transparent',
+                  color: activePromptId === null ? '#fff' : 'var(--text)',
+                  borderColor: activePromptId === null ? 'var(--accent)' : 'var(--border)',
                 }}
               >
-                Built-in meeting assistant prompt
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium">Default</div>
+                  <div
+                    className="text-[10px] mt-0.5 truncate"
+                    style={{
+                      color: activePromptId === null ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {defaultSystemPromptOverride
+                      ? 'Custom prompt (edited)'
+                      : 'Built-in meeting assistant prompt'}
+                  </div>
+                </div>
+              </button>
+              {!editingDefaultPrompt ? (
+                <button
+                  onClick={() => {
+                    setDefaultPromptDraft(defaultSystemPromptOverride ?? builtInDefaultPrompt ?? '')
+                    setEditingDefaultPrompt(true)
+                  }}
+                  className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center hover:bg-[var(--surface-hover)]"
+                  style={{ color: 'var(--text-muted)' }}
+                  title={defaultSystemPromptOverride ? 'Edit' : 'Customize'}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              ) : null}
             </div>
-          </button>
+            {editingDefaultPrompt && (
+              <div
+                className="rounded-lg border p-2.5 space-y-2"
+                style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--input-bg)' }}
+              >
+                <textarea
+                  value={defaultPromptDraft}
+                  onChange={(e) => setDefaultPromptDraft(e.target.value)}
+                  className="w-full bg-transparent outline-none text-[11px] resize-none rounded-lg border p-2 focus:border-[var(--accent)]"
+                  style={{
+                    color: 'var(--text)',
+                    borderColor: 'var(--input-border)',
+                    backgroundColor: 'var(--input-bg)',
+                    minHeight: '120px',
+                  }}
+                  placeholder="System prompt for the meeting assistant..."
+                />
+                <div className="flex gap-1.5 justify-end flex-wrap">
+                  {defaultSystemPromptOverride && (
+                    <button
+                      onClick={() => {
+                        setDefaultSystemPromptOverride(null)
+                        setDefaultPromptDraft(builtInDefaultPrompt)
+                        window.electronAPI?.updateSettings({ llm: { defaultSystemPromptOverride: null } } as any)
+                        setEditingDefaultPrompt(false)
+                      }}
+                      className="px-2 py-1 rounded-md text-[10px] border transition-colors"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      Restore to default
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingDefaultPrompt(false)}
+                    className="px-2 py-1 rounded-md text-[10px] border transition-colors"
+                    style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const trimmed = defaultPromptDraft.trim()
+                      const value = trimmed === builtInDefaultPrompt ? null : trimmed || null
+                      setDefaultSystemPromptOverride(value)
+                      window.electronAPI?.updateSettings({ llm: { defaultSystemPromptOverride: value } } as any)
+                      setEditingDefaultPrompt(false)
+                    }}
+                    className="px-2 py-1 rounded-md text-[10px] font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* User-created prompts */}
           {systemPrompts.map((prompt) => {

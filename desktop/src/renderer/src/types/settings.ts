@@ -287,6 +287,8 @@ export interface LLMSettings {
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
   activeSystemPromptId: string | null
+  /** Custom override for the default system prompt. null = use built-in. */
+  defaultSystemPromptOverride?: string | null
   /** User-created system prompts */
   systemPrompts: SystemPrompt[]
   /** Transcript summarization settings (Phase 2) */

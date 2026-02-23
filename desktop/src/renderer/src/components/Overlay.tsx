@@ -10,6 +10,7 @@ import { InsightsView } from './InsightsView'
 import { LLMView } from './LLMView'
 import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
+import { LiveInsightsSidePanel } from './LiveInsightsSidePanel'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
 import { useAudioCapture } from '../hooks/useAudioCapture'
@@ -122,6 +123,7 @@ export function Overlay() {
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryContent, setSummaryContent] = useState<string | null>(null)
   const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
+  const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -289,14 +291,15 @@ export function Overlay() {
     }
   }, [])
 
-  // ── Resize window when compact mode changes ──
+  // ── Resize window when compact mode or insights panel changes ──
   useEffect(() => {
+    const width = insightsPanelExpanded ? 800 : 480
     if (compactMode) {
-      window.electronAPI?.setWindowSize({ width: 480, height: 240 })
+      window.electronAPI?.setWindowSize({ width, height: 240 })
     } else {
-      window.electronAPI?.setWindowSize({ width: 480, height: 640 })
+      window.electronAPI?.setWindowSize({ width, height: 640 })
     }
-  }, [compactMode])
+  }, [compactMode, insightsPanelExpanded])
 
   // Toggle visibility from main process
   useEffect(() => {
@@ -494,6 +497,10 @@ export function Overlay() {
     window.electronAPI?.updateSettings?.({ compactMode: !compactMode })
   }, [compactMode])
 
+  const handleToggleInsightsPanel = useCallback(() => {
+    setInsightsPanelExpanded((v) => !v)
+  }, [])
+
   const handleReset = useCallback(() => {
     resetChat()
     setTimeout(() => {
@@ -546,6 +553,8 @@ export function Overlay() {
           ) : compactMode && view === 'chat' ? (
             /* ── Compact mode: single CompactChatView replaces the entire advanced layout ── */
             <>
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+              <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               <CompactChatView
                 messages={messages}
                 isLoading={isLoading}
@@ -557,6 +566,8 @@ export function Overlay() {
                 onToggleMeeting={handleToggleMeeting}
                 onSetView={handleSetView}
                 onReset={handleReset}
+                insightsPanelExpanded={insightsPanelExpanded}
+                onToggleInsightsPanel={handleToggleInsightsPanel}
                 quickActions={quickActions.length > 0 ? quickActions : undefined}
                 pendingScreenshot={pendingScreenshot}
                 onClearScreenshot={() => setPendingScreenshot(null)}
@@ -578,26 +589,33 @@ export function Overlay() {
                 summarizeFeedback={summarizeFeedback}
                 onViewSummaryClick={handleViewSummary}
               />
-
-              {/* Summary modal (still accessible in compact mode) */}
-              {showSummaryModal && (
+              </div>
+              {insightsPanelExpanded && (
+                <LiveInsightsSidePanel
+                  onSendToChat={handleSend}
+                  onClose={handleToggleInsightsPanel}
+                />
+              )}
+            </div>
+            {/* Summary modal (still accessible in compact mode) */}
+            {showSummaryModal && (
                 <SummaryModal
                   content={summaryContent}
                   onClose={() => setShowSummaryModal(false)}
                 />
               )}
 
-              {/* Source picker overlay */}
-              {recorder.pickerSources && (
-                <SourcePicker
-                  sources={recorder.pickerSources}
-                  onSelect={recorder.selectSource}
-                  onDismiss={async () => {
-                    await recorder.dismissPicker()
-                    handleStopMeeting()
-                  }}
-                />
-              )}
+            {/* Source picker overlay */}
+            {recorder.pickerSources && (
+              <SourcePicker
+                sources={recorder.pickerSources}
+                onSelect={recorder.selectSource}
+                onDismiss={async () => {
+                  await recorder.dismissPicker()
+                  handleStopMeeting()
+                }}
+              />
+            )}
             </>
           ) : (
             /* ── Advanced mode: full layout with TitleBar, ResponseCard, ActionChips, InputBar ── */
@@ -611,6 +629,8 @@ export function Overlay() {
                 onToggleMeeting={handleToggleMeeting}
                 compactMode={compactMode}
                 onToggleCompactMode={handleToggleCompactMode}
+                insightsPanelExpanded={insightsPanelExpanded}
+                onToggleInsightsPanel={handleToggleInsightsPanel}
               />
 
               {/* Subtle separator */}
@@ -619,6 +639,8 @@ export function Overlay() {
                 style={{ backgroundColor: 'var(--border)', opacity: 0.5 }}
               />
 
+              <div className="flex flex-1 min-h-0 overflow-hidden">
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               {view === 'chat' && (
                 <>
                   {/* Live transcript panel — visible when meeting is active */}
@@ -778,6 +800,14 @@ export function Overlay() {
               {view === 'llm' && <LLMView />}
               {view === 'settings' && <SettingsView onReRunSetup={handleReRunSetup} />}
               {view === 'insights' && <InsightsView />}
+                </div>
+                {insightsPanelExpanded && (
+                  <LiveInsightsSidePanel
+                    onSendToChat={handleSend}
+                    onClose={handleToggleInsightsPanel}
+                  />
+                )}
+              </div>
 
               {/* Source picker overlay */}
               {recorder.pickerSources && (

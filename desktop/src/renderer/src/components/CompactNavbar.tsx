@@ -83,6 +83,8 @@ interface CompactNavbarProps {
   onSetView: (view: ViewId) => void
   onClose: () => void
   onToggleCompactMode?: () => void
+  insightsPanelExpanded?: boolean
+  onToggleInsightsPanel?: () => void
 }
 
 /**
@@ -96,20 +98,15 @@ export function CompactNavbar({
   onSetView,
   onClose,
   onToggleCompactMode,
+  insightsPanelExpanded = false,
+  onToggleInsightsPanel,
 }: CompactNavbarProps) {
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
-  const [insightsWindowOpen, setInsightsWindowOpen] = useState(false)
 
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
-  }, [])
-
-  useEffect(() => {
-    window.electronAPI?.insightsWindowVisible?.().then(setInsightsWindowOpen)
-    const unsub = window.electronAPI?.onInsightsWindowChanged?.(setInsightsWindowOpen)
-    return () => unsub?.()
   }, [])
 
   const handleHideWindow = useCallback(() => {
@@ -276,13 +273,13 @@ export function CompactNavbar({
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         {/* Live Insights toggle — only when meeting active */}
-        {meetingActive && (
-          <TooltipWrap tooltip={insightsWindowOpen ? 'Hide insights' : 'Show live insights'}>
+        {meetingActive && onToggleInsightsPanel && (
+          <TooltipWrap tooltip={insightsPanelExpanded ? 'Hide insights' : 'Show live insights'}>
             <button
-              onClick={() => window.electronAPI?.toggleInsightsWindow?.()}
+              onClick={onToggleInsightsPanel}
               className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
               style={{
-                color: insightsWindowOpen ? 'var(--accent)' : 'var(--text-muted)',
+                color: insightsPanelExpanded ? 'var(--accent)' : 'var(--text-muted)',
               }}
               aria-label="Toggle live insights"
             >

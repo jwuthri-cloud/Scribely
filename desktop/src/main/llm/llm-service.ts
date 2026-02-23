@@ -443,6 +443,10 @@ export class LLMService {
       )
     })
 
+    ipcMain.handle('llm:get-built-in-default-system-prompt', () => {
+      return DEFAULT_SYSTEM_PROMPT
+    })
+
     // ── Summarization ──
     ipcMain.handle(
       'llm:trigger-summarize',
@@ -1320,13 +1324,15 @@ Rules for suggestedActions search payload:
   private resolveSystemPrompt(): string | null {
     const llm = this.store.get('llm') as {
       activeSystemPromptId?: string | null
+      defaultSystemPromptOverride?: string | null
       systemPrompts?: SystemPrompt[]
     } | undefined
 
     const activeId = llm?.activeSystemPromptId
     if (!activeId) {
-      // No system prompt selected — use default
-      return DEFAULT_SYSTEM_PROMPT
+      // No system prompt selected — use default (override or built-in)
+      const override = llm?.defaultSystemPromptOverride
+      return (override && override.trim()) ? override.trim() : DEFAULT_SYSTEM_PROMPT
     }
 
     const prompts = llm?.systemPrompts ?? []

@@ -190,6 +190,7 @@ export interface ElectronAPI {
   llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
   llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
   llmGetActiveSystemPrompt: () => Promise<string | null>
+  llmGetBuiltInDefaultSystemPrompt: () => Promise<string>
 
   // Summarization
   llmTriggerSummarize: (payload?: {
@@ -241,10 +242,6 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
-  toggleInsightsWindow: () => Promise<void>
-  insightsWindowVisible: () => Promise<boolean>
-  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
-  closeInsightsWindow: () => void
   sendToChat: (text: string) => void
   onChatMessageFromInsights: (callback: (text: string) => void) => () => void
 

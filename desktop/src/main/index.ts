@@ -199,7 +199,6 @@ const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
 })
 
 let mainWindow: BrowserWindow | null = null
-let insightsWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
 let tray: Tray | null = null
 let isMeetingActive = false
@@ -219,9 +218,6 @@ function getInsightsConfig() {
 
 const insightEngine = new InsightEngine({
   sendToRenderer: (channel, data) => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.webContents.send(channel, data)
-    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data)
     }
@@ -373,59 +369,6 @@ function createWindow(): void {
   registerAllHotkeys(mainWindow, store as Parameters<typeof registerAllHotkeys>[1])
 }
 
-function createInsightsWindow(): void {
-  if (insightsWindow && !insightsWindow.isDestroyed()) {
-    insightsWindow.focus()
-    return
-  }
-
-  insightsWindow = new BrowserWindow({
-    width: 340,
-    height: 500,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: true,
-    hasShadow: false,
-    visualEffectState: 'active',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  })
-
-  insightsWindow.setOpacity(store.get('windowOpacity'))
-  applyInvisibility(insightsWindow)
-  insightsWindow.setContentProtection(isInvisible)
-
-  insightsWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    insightsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '?view=insights')
-  } else {
-    insightsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-      query: { view: 'insights' },
-    })
-  }
-
-  insightsWindow.on('closed', () => {
-    insightsWindow = null
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('insights:window-changed', false)
-    }
-  })
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('insights:window-changed', true)
-  }
-}
-
 function registerIpcHandlers(): void {
   // ── Settings ──────────────────────────────────────
   ipcMain.handle('get-settings', () => {
@@ -530,23 +473,15 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
-  // ── Insights window ─────────────────────────────────
+  // ── Insights (panel now embedded in main window; keep send-to-chat for compatibility) ──
   ipcMain.handle('insights:toggle-window', () => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.close()
-    } else {
-      createInsightsWindow()
-    }
+    // No-op: insights panel is now embedded in main overlay
   })
 
-  ipcMain.handle('insights:window-visible', () => {
-    return !!(insightsWindow && !insightsWindow.isDestroyed())
-  })
+  ipcMain.handle('insights:window-visible', () => false)
 
   ipcMain.handle('insights:close-window', () => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.close()
-    }
+    // No-op: insights panel is now embedded in main overlay
   })
 
   ipcMain.handle('insights:send-to-chat', (_event, text: string) => {
@@ -568,9 +503,6 @@ function registerIpcHandlers(): void {
     if (!mainWindow) return isInvisible
     isInvisible = !isInvisible
     mainWindow.setContentProtection(isInvisible)
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.setContentProtection(isInvisible)
-    }
     return isInvisible
   })
 
@@ -941,7 +873,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // Null out windows early so async callbacks don't touch destroyed objects
   mainWindow = null
-  insightsWindow = null
 })
 
 app.on('will-quit', async (e) => {
