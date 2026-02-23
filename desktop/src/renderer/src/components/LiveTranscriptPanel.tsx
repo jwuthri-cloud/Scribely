@@ -176,95 +176,16 @@ export function LiveTranscriptPanel({
           </button>
         )}
 
-        {/* Exclude my mic toggle — transcript & recording show others only */}
-        {onToggleExcludeMyMic && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleExcludeMyMic()
-            }}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 transition-colors"
-            style={{
-              backgroundColor: excludeMyMic
-                ? 'color-mix(in srgb, var(--success) 20%, transparent)'
-                : 'var(--surface-hover)',
-              color: excludeMyMic ? 'var(--success)' : 'var(--text-muted)',
-            }}
-            title={
-              excludeMyMic
-                ? 'Recording others only — click to include your voice'
-                : 'Click to exclude your voice (transcript & recording will show others only)'
-            }
+        {/* Record state indicator when collapsed — expand to change */}
+        {onToggleExcludeMyMic && !expanded && (
+          <span
+            className="text-[9px] shrink-0"
+            style={{ color: 'var(--text-muted)' }}
+            title="Expand to change who is recorded"
           >
-            {excludeMyMic ? (
-              <>
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                  <line x1="2" y1="2" x2="22" y2="22" />
-                </svg>
-                Others only
-              </>
-            ) : (
-              <>
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                </svg>
-                Include me
-              </>
-            )}
-          </button>
+            Record: {excludeMyMic ? 'Others only' : 'Everyone'}
+          </span>
         )}
-
-        {/* Badges */}
-        <div className="flex items-center gap-1 shrink-0">
-          {micActive && (
-            <span
-              className="text-[9px] px-1 py-px rounded font-medium"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                color: 'var(--accent)',
-              }}
-            >
-              MIC
-            </span>
-          )}
-          {tabActive && (
-            <span
-              className="text-[9px] px-1 py-px rounded font-medium"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--success) 15%, transparent)',
-                color: 'var(--success)',
-              }}
-            >
-              TAB
-            </span>
-          )}
-          {captureMode === 'extension' && (
-            <span
-              className="text-[9px] px-1 py-px rounded font-medium"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--accent) 15%, transparent)',
-                color: 'var(--accent)',
-              }}
-            >
-              EXT
-            </span>
-          )}
-          {captureMode === 'hybrid' && (
-            <span
-              className="text-[9px] px-1 py-px rounded font-medium"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                color: 'var(--warning)',
-              }}
-            >
-              NATIVE
-            </span>
-          )}
-          <ModeBadge mode={transcriptionMode} />
-        </div>
 
         {/* Expand/collapse chevron */}
         <svg
@@ -292,6 +213,63 @@ export function LiveTranscriptPanel({
       {/* ── Expanded transcript ─────────────────────── */}
       {expanded && (
         <>
+          {/* Who to record — moved here for cleaner header */}
+          {onToggleExcludeMyMic && (
+            <div className="mx-3 mb-2 flex items-center gap-2">
+              <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                Record:
+              </span>
+              <div
+                className="flex rounded-lg p-0.5 border"
+                style={{
+                  backgroundColor: 'var(--input-bg)',
+                  borderColor: 'var(--border)',
+                }}
+                title="Choose whose voice to include in transcript and recording"
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (excludeMyMic) onToggleExcludeMyMic()
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all"
+                  style={{
+                    backgroundColor: !excludeMyMic ? 'var(--surface)' : 'transparent',
+                    color: !excludeMyMic ? 'var(--text)' : 'var(--text-muted)',
+                    boxShadow: !excludeMyMic ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  }}
+                  title="Include your voice in transcript and recording"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  </svg>
+                  Everyone
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!excludeMyMic) onToggleExcludeMyMic()
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all"
+                  style={{
+                    backgroundColor: excludeMyMic ? 'var(--surface)' : 'transparent',
+                    color: excludeMyMic ? 'var(--text)' : 'var(--text-muted)',
+                    boxShadow: excludeMyMic ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  }}
+                  title="Exclude your voice — transcript and recording show others only"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="2" y1="2" x2="22" y2="22" />
+                  </svg>
+                  Others only
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div
               className="mx-3 mb-2 text-[11px] px-2 py-1 rounded"
@@ -392,29 +370,3 @@ export function LiveTranscriptPanel({
   )
 }
 
-// ── Mode badge with provider-specific labels & colors ──────
-const MODE_BADGE_MAP: Record<string, { label: string; color: 'success' | 'warning' | 'accent' }> = {
-  'local-fast': { label: 'SMALL', color: 'success' },
-  'local-balanced': { label: 'MED', color: 'success' },
-  'local-accurate': { label: 'TURBO', color: 'success' },
-  deepgram: { label: 'NOVA', color: 'accent' },
-  assemblyai: { label: 'ASSEMBLY', color: 'accent' },
-  gladia: { label: 'GLADIA', color: 'accent' },
-  revai: { label: 'REV', color: 'accent' },
-  downloading: { label: 'DL...', color: 'accent' },
-}
-
-function ModeBadge({ mode }: { mode: string }) {
-  const info = MODE_BADGE_MAP[mode] || { label: mode.toUpperCase(), color: 'warning' as const }
-  return (
-    <span
-      className="text-[9px] px-1 py-px rounded font-medium"
-      style={{
-        backgroundColor: `color-mix(in srgb, var(--${info.color}) 15%, transparent)`,
-        color: `var(--${info.color})`,
-      }}
-    >
-      {info.label}
-    </span>
-  )
-}

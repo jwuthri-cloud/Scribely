@@ -349,8 +349,8 @@ export function TitleBar({
           </TitleBtn>
         )}
 
-        {/* Hotkey shortcuts menu — hidden in settings (hotkeys are configured there) */}
-        {view !== 'settings' && <HotkeyMenu tooltip="Keyboard shortcuts" />}
+        {/* Hotkey shortcuts menu — hidden in settings/LLM/insights (hotkeys configured in settings) */}
+        {view === 'chat' && <HotkeyMenu tooltip="Keyboard shortcuts" />}
 
         {/* Settings gear */}
         <TitleBtn

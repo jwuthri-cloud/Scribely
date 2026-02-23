@@ -65,7 +65,7 @@ export function LLMView() {
   const [editingSummarizerPrompt, setEditingSummarizerPrompt] = useState(false)
   const [summarizerPromptDraft, setSummarizerPromptDraft] = useState('')
 
-  // Quick actions (max 4 custom)
+  // Quick actions (unlimited; empty = use defaults)
   const [quickActions, setQuickActions] = useState<QuickAction[]>([])
   const [editingQuickAction, setEditingQuickAction] = useState<QuickAction | null>(null)
   const [editingQuickActionIndex, setEditingQuickActionIndex] = useState(-1)
@@ -491,7 +491,7 @@ export function LLMView() {
       <Section title="Quick Actions">
         <div className="space-y-2">
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Customize up to 4 quick action chips. Label = button text, Value = message sent.
+            Add quick action chips. Label = button text, Value = message sent.
           </p>
           {(quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS).map((a, i) => {
             const isEditing = editingQuickActionIndex === i
@@ -664,8 +664,8 @@ export function LLMView() {
                       value: newQuickActionValue.trim(),
                       icon: newQuickActionIcon,
                     }
-                    const base = quickActions.length > 0 ? quickActions : []
-                    const updated = [...base, newAction].slice(0, 4)
+                    const base = quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS
+                    const updated = [...base, newAction]
                     setQuickActions(updated)
                     window.electronAPI?.updateSettings({ llm: { quickActions: updated } } as any)
                     setNewQuickActionLabel('')
@@ -683,18 +683,16 @@ export function LLMView() {
             </div>
           ) : (
             <div className="flex gap-1.5">
-              {quickActions.length < 4 && (
-                <button
-                  onClick={() => setShowNewQuickAction(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] border border-dashed"
-                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                  Add quick action
-                </button>
-              )}
+              <button
+                onClick={() => setShowNewQuickAction(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] border border-dashed"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add quick action
+              </button>
               {quickActions.length > 0 && (
                 <button
                   onClick={() => {

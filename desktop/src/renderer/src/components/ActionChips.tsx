@@ -4,7 +4,7 @@ import { getQuickActionIcon } from './QuickActionIcons'
 
 interface ActionChipsProps {
   onAction: (action: string) => void
-  /** Custom quick actions (max 4). Empty/undefined = use defaults. */
+  /** Custom quick actions. Empty/undefined = use defaults. */
   customActions?: QuickAction[]
 }
 
@@ -12,13 +12,13 @@ export function ActionChips({
   onAction,
   customActions,
 }: ActionChipsProps) {
-  const actions = (customActions?.length ? customActions : DEFAULT_QUICK_ACTIONS).slice(0, 4)
+  const actions = customActions?.length ? customActions : DEFAULT_QUICK_ACTIONS
 
   return (
     <div className="flex gap-1.5 px-4 py-2 flex-wrap shrink-0 items-center">
-      {actions.map((a) => (
+      {actions.map((a, i) => (
         <button
-          key={a.value}
+          key={`${a.value}-${i}`}
           onClick={() => onAction(a.value)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 hover:brightness-125 active:scale-[0.97]"
           style={{

@@ -213,7 +213,7 @@ Key settings groups:
 - **LLM**: `llm.apiKey` (encrypted), `llm.defaultModel`, `llm.temperature`, `llm.systemPrompts[]`, `llm.activeSystemPromptId`
 - **Summarization**: `llm.summarization.autoSummarizeEnabled`, `stalenessMinutes`, `thresholdPercent`, `keepRawCount`
 - **Insights**: `llm.insights.enabled`, `enrichmentEnabled`, per-detector toggles, `extraQuestionKeywords`
-- **Quick Actions**: `llm.quickActions[]` (max 4, shown as chips in chat)
+- **Quick Actions**: `llm.quickActions[]` (unlimited, shown as chips in chat)
 
 Settings flow: renderer calls `updateSettings(partial)` → main deep-merges into store → re-registers hotkeys if changed → applies window opacity → notifies renderer via `settings-changed` event.
 
