@@ -10,6 +10,7 @@ import { InsightsView } from './InsightsView'
 import { LLMView } from './LLMView'
 import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
+import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 import { LiveInsightsSidePanel } from './LiveInsightsSidePanel'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
@@ -124,6 +125,7 @@ export function Overlay() {
   const [summaryContent, setSummaryContent] = useState<string | null>(null)
   const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
   const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
+  const [transcriptPanelExpanded, setTranscriptPanelExpanded] = useState(false)
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -291,15 +293,15 @@ export function Overlay() {
     }
   }, [])
 
-  // ── Resize window when compact mode or insights panel changes ──
+  // ── Resize window when compact mode or side panels change ──
   useEffect(() => {
-    const width = insightsPanelExpanded ? 800 : 480
+    const width = 480 + (transcriptPanelExpanded ? 320 : 0) + (insightsPanelExpanded ? 320 : 0)
     if (compactMode) {
       window.electronAPI?.setWindowSize({ width, height: 240 })
     } else {
       window.electronAPI?.setWindowSize({ width, height: 640 })
     }
-  }, [compactMode, insightsPanelExpanded])
+  }, [compactMode, insightsPanelExpanded, transcriptPanelExpanded])
 
   // Toggle visibility from main process
   useEffect(() => {
@@ -501,6 +503,10 @@ export function Overlay() {
     setInsightsPanelExpanded((v) => !v)
   }, [])
 
+  const handleToggleTranscriptPanel = useCallback(() => {
+    setTranscriptPanelExpanded((v) => !v)
+  }, [])
+
   const handleReset = useCallback(() => {
     resetChat()
     setTimeout(() => {
@@ -554,6 +560,28 @@ export function Overlay() {
             /* ── Compact mode: single CompactChatView replaces the entire advanced layout ── */
             <>
             <div className="flex flex-1 min-h-0 overflow-hidden">
+              {transcriptPanelExpanded && (
+                <LiveTranscriptSidePanel
+                  entries={transcript.entries}
+                  isActive={meetingActive}
+                  isRecording={recorder.isRecording}
+                  formattedDuration={formattedMeetingDuration}
+                  transcriptionMode={transcript.status.transcriptionMode}
+                  micActive={capture.micActive}
+                  tabActive={capture.tabActive}
+                  onStop={handleStopMeeting}
+                  excludeMyMic={excludeMyMic}
+                  onToggleExcludeMyMic={() => {
+                    const next = !excludeMyMic
+                    setExcludeMyMic(next)
+                    window.electronAPI?.setExcludeMyMic?.(next)
+                  }}
+                  error={meetingError || capture.error || recorder.error}
+                  modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                  modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                  onClose={handleToggleTranscriptPanel}
+                />
+              )}
               <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               <CompactChatView
                 messages={messages}
@@ -568,6 +596,8 @@ export function Overlay() {
                 onReset={handleReset}
                 insightsPanelExpanded={insightsPanelExpanded}
                 onToggleInsightsPanel={handleToggleInsightsPanel}
+                transcriptPanelExpanded={transcriptPanelExpanded}
+                onToggleTranscriptPanel={handleToggleTranscriptPanel}
                 quickActions={quickActions.length > 0 ? quickActions : undefined}
                 pendingScreenshot={pendingScreenshot}
                 onClearScreenshot={() => setPendingScreenshot(null)}
@@ -631,6 +661,8 @@ export function Overlay() {
                 onToggleCompactMode={handleToggleCompactMode}
                 insightsPanelExpanded={insightsPanelExpanded}
                 onToggleInsightsPanel={handleToggleInsightsPanel}
+                transcriptPanelExpanded={transcriptPanelExpanded}
+                onToggleTranscriptPanel={handleToggleTranscriptPanel}
               />
 
               {/* Subtle separator */}
@@ -640,11 +672,33 @@ export function Overlay() {
               />
 
               <div className="flex flex-1 min-h-0 overflow-hidden">
+                {transcriptPanelExpanded && (
+                  <LiveTranscriptSidePanel
+                    entries={transcript.entries}
+                    isActive={meetingActive}
+                    isRecording={recorder.isRecording}
+                    formattedDuration={formattedMeetingDuration}
+                    transcriptionMode={transcript.status.transcriptionMode}
+                    micActive={capture.micActive}
+                    tabActive={capture.tabActive}
+                    onStop={handleStopMeeting}
+                    excludeMyMic={excludeMyMic}
+                    onToggleExcludeMyMic={() => {
+                      const next = !excludeMyMic
+                      setExcludeMyMic(next)
+                      window.electronAPI?.setExcludeMyMic?.(next)
+                    }}
+                    error={meetingError || capture.error || recorder.error}
+                    modelDownloading={transcript.status.modelStatus?.whisperModel?.downloading}
+                    modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
+                    onClose={handleToggleTranscriptPanel}
+                  />
+                )}
                 <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               {view === 'chat' && (
                 <>
-                  {/* Live transcript panel — visible when meeting is active */}
-                  {meetingActive && (
+                  {/* Live transcript panel — visible when meeting is active and not expanded to side */}
+                  {meetingActive && !transcriptPanelExpanded && (
                     <>
                       <LiveTranscriptPanel
                         entries={transcript.entries}
@@ -667,6 +721,7 @@ export function Overlay() {
                         captureMode={capture.captureMode}
                         nativeAvailable={capture.nativeAvailable}
                         extensionConnected={capture.extensionConnected}
+                        onExpandToSidePanel={handleToggleTranscriptPanel}
                       />
 
                     </>

@@ -20,6 +20,7 @@ interface LiveTranscriptPanelProps {
   captureMode?: 'extension' | 'hybrid' | 'browser' | 'idle'
   nativeAvailable?: boolean
   extensionConnected?: boolean
+  onExpandToSidePanel?: () => void
 }
 
 function formatTime(ms: number): string {
@@ -61,6 +62,7 @@ export function LiveTranscriptPanel({
   captureMode = 'browser',
   nativeAvailable = false,
   extensionConnected = false,
+  onExpandToSidePanel,
 }: LiveTranscriptPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -185,6 +187,20 @@ export function LiveTranscriptPanel({
           >
             Record: {excludeMyMic ? 'Others only' : 'Everyone'}
           </span>
+        )}
+
+        {/* Expand to side panel button */}
+        {onExpandToSidePanel && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onExpandToSidePanel()
+            }}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium hover:bg-[var(--surface-hover)] flex items-center gap-1 shrink-0"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Expand
+          </button>
         )}
 
         {/* Expand/collapse chevron */}

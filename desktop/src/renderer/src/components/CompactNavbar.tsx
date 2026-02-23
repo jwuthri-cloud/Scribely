@@ -85,6 +85,8 @@ interface CompactNavbarProps {
   onToggleCompactMode?: () => void
   insightsPanelExpanded?: boolean
   onToggleInsightsPanel?: () => void
+  transcriptPanelExpanded?: boolean
+  onToggleTranscriptPanel?: () => void
 }
 
 /**
@@ -100,6 +102,8 @@ export function CompactNavbar({
   onToggleCompactMode,
   insightsPanelExpanded = false,
   onToggleInsightsPanel,
+  transcriptPanelExpanded = false,
+  onToggleTranscriptPanel,
 }: CompactNavbarProps) {
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
@@ -272,6 +276,25 @@ export function CompactNavbar({
         className="flex items-center gap-0.5"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
+        {/* Transcript expand toggle — only when meeting active */}
+        {meetingActive && onToggleTranscriptPanel && (
+          <TooltipWrap tooltip={transcriptPanelExpanded ? 'Collapse transcript' : 'Expand transcript'}>
+            <button
+              onClick={onToggleTranscriptPanel}
+              className="flex items-center justify-center w-6 h-6 rounded-md transition-all duration-150 hover:bg-[var(--surface-hover)]"
+              style={{
+                color: transcriptPanelExpanded ? 'var(--accent)' : 'var(--text-muted)',
+              }}
+              aria-label="Toggle transcript panel"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+              </svg>
+            </button>
+          </TooltipWrap>
+        )}
+
         {/* Live Insights toggle — only when meeting active */}
         {meetingActive && onToggleInsightsPanel && (
           <TooltipWrap tooltip={insightsPanelExpanded ? 'Hide insights' : 'Show live insights'}>

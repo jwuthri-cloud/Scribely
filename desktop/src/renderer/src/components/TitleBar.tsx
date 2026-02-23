@@ -47,6 +47,8 @@ interface TitleBarProps {
   onToggleCompactMode?: () => void
   insightsPanelExpanded?: boolean
   onToggleInsightsPanel?: () => void
+  transcriptPanelExpanded?: boolean
+  onToggleTranscriptPanel?: () => void
 }
 
 /** Small icon button used in the title bar with a custom tooltip */
@@ -112,6 +114,8 @@ export function TitleBar({
   onToggleCompactMode,
   insightsPanelExpanded = false,
   onToggleInsightsPanel,
+  transcriptPanelExpanded = false,
+  onToggleTranscriptPanel,
 }: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
   const [compactHovered, setCompactHovered] = useState(false)
@@ -299,8 +303,23 @@ export function TitleBar({
 
       <div className="flex-1" />
 
-      {/* Right side: insights + reset + LLM + gear */}
+      {/* Right side: transcript + insights + reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
+        {/* Transcript expand toggle — only when meeting active */}
+        {meetingActive && onToggleTranscriptPanel && (
+          <TitleBtn
+            onClick={onToggleTranscriptPanel}
+            label="Toggle transcript panel"
+            tooltip={transcriptPanelExpanded ? 'Collapse transcript' : 'Expand transcript'}
+            active={transcriptPanelExpanded}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </TitleBtn>
+        )}
+
         {/* Live Insights toggle — only when meeting active */}
         {meetingActive && onToggleInsightsPanel && (
           <TitleBtn

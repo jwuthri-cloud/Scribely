@@ -47,6 +47,8 @@ interface CompactChatViewProps {
   onViewSummaryClick?: () => void
   insightsPanelExpanded?: boolean
   onToggleInsightsPanel?: () => void
+  transcriptPanelExpanded?: boolean
+  onToggleTranscriptPanel?: () => void
 }
 
 /**
@@ -89,6 +91,8 @@ export function CompactChatView({
   onViewSummaryClick,
   insightsPanelExpanded = false,
   onToggleInsightsPanel,
+  transcriptPanelExpanded = false,
+  onToggleTranscriptPanel,
 }: CompactChatViewProps) {
 
   // Extract the last user message and last assistant message
@@ -140,6 +144,8 @@ export function CompactChatView({
         onToggleCompactMode={onToggleCompactMode}
         insightsPanelExpanded={insightsPanelExpanded}
         onToggleInsightsPanel={onToggleInsightsPanel}
+        transcriptPanelExpanded={transcriptPanelExpanded}
+        onToggleTranscriptPanel={onToggleTranscriptPanel}
       />
 
       {/* ── Thin separator ── */}
