@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
-  DEFAULT_QUESTION_VERBS,
-  DEFAULT_QUESTION_WORDS,
+  getAllBuiltInKeywords,
+  type TranscriptionLanguage,
 } from '../../../shared/insight-defaults'
 import type { AppSettings } from '../types'
 import {
@@ -21,6 +21,15 @@ const SPEAKER_OPTIONS: { value: SpeakerFilter; label: string }[] = [
   { value: 'them', label: 'Them' },
   { value: 'both', label: 'Both' },
 ]
+
+const LANG_LABELS: Record<string, string> = {
+  en: 'English',
+  fr: 'French',
+  es: 'Spanish',
+  de: 'German',
+  zh: 'Chinese',
+  vi: 'Vietnamese',
+}
 
 const DETECTORS: {
   key: keyof Pick<InsightsSettings, 'detectQuestions' | 'detectTopicChanges' | 'detectActionItems' | 'detectKeyMentions'>
@@ -247,11 +256,15 @@ export function InsightsView() {
   const [insights, setInsights] = useState<InsightsSettings>(DEFAULT_INSIGHTS)
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [keywordsOpen, setKeywordsOpen] = useState(false)
+  const [viewBuiltInOpen, setViewBuiltInOpen] = useState(false)
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState<TranscriptionLanguage>('en')
 
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
       const current = { ...DEFAULT_INSIGHTS, ...s?.llm?.insights }
       setInsights(current)
+      const lang = (s?.transcription as { language?: TranscriptionLanguage })?.language ?? 'en'
+      setTranscriptionLanguage(lang)
     })
   }, [])
 
@@ -259,6 +272,8 @@ export function InsightsView() {
     const unsubscribe = window.electronAPI?.onSettingsChanged?.((s) => {
       const current = { ...DEFAULT_INSIGHTS, ...s?.llm?.insights }
       setInsights(current)
+      const lang = (s?.transcription as { language?: TranscriptionLanguage })?.language ?? 'en'
+      setTranscriptionLanguage(lang)
     })
     return () => unsubscribe?.()
   }, [])
@@ -295,6 +310,9 @@ export function InsightsView() {
 
   const extraWords = insights.extraQuestionWords ?? []
   const extraVerbs = insights.extraQuestionVerbs ?? []
+  const builtIn = getAllBuiltInKeywords(transcriptionLanguage)
+  const builtInWordsCount = builtIn.words.length
+  const builtInVerbsCount = builtIn.verbs.length
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
@@ -438,17 +456,67 @@ export function InsightsView() {
                 {/* Custom keywords (nested collapse, only when questions enabled) */}
                 {insights.detectQuestions !== false && (
                   <CollapseSection
-                    label={`Custom keywords (${DEFAULT_QUESTION_WORDS.length} built-in words, ${DEFAULT_QUESTION_VERBS.length} built-in verbs${extraWords.length + extraVerbs.length > 0 ? ` + ${extraWords.length + extraVerbs.length} custom` : ''})`}
+                    label={`Custom keywords (${builtInWordsCount} built-in words, ${builtInVerbsCount} built-in verbs${extraWords.length + extraVerbs.length > 0 ? ` + ${extraWords.length + extraVerbs.length} custom` : ''})`}
                     open={keywordsOpen}
                     onToggle={() => setKeywordsOpen(!keywordsOpen)}
                   >
                     <div className="space-y-3 pt-1">
+                      {/* View built-in keywords affordance */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setViewBuiltInOpen(!viewBuiltInOpen)}
+                          className="text-[10px] font-medium underline"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {viewBuiltInOpen ? 'Hide built-in keywords' : 'View built-in keywords'}
+                        </button>
+                      </div>
+                      {viewBuiltInOpen && (
+                        <div
+                          className="rounded-lg p-2.5 max-h-48 overflow-y-auto space-y-2"
+                          style={{
+                            backgroundColor: 'var(--overlay)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          {builtIn.byLang ? (
+                            Object.entries(builtIn.byLang).map(([langCode, { words, verbs }]) => (
+                              <div key={langCode} className="space-y-1">
+                                <span className="text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                                  {LANG_LABELS[langCode] ?? langCode}
+                                </span>
+                                <div className="text-[10px]" style={{ color: 'var(--text)' }}>
+                                  <span className="font-medium">Words: </span>
+                                  <span>{words.join(', ')}</span>
+                                </div>
+                                <div className="text-[10px]" style={{ color: 'var(--text)' }}>
+                                  <span className="font-medium">Verbs: </span>
+                                  <span>{verbs.join(', ')}</span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              <div className="text-[10px]" style={{ color: 'var(--text)' }}>
+                                <span className="font-medium">Question words: </span>
+                                <span>{builtIn.words.join(', ')}</span>
+                              </div>
+                              <div className="text-[10px]" style={{ color: 'var(--text)' }}>
+                                <span className="font-medium">Question verbs: </span>
+                                <span>{builtIn.verbs.join(', ')}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+
                       {/* Extra question words */}
                       <div className="space-y-1">
                         <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
                           Question words
                           <span className="font-normal ml-1">
-                            ({DEFAULT_QUESTION_WORDS.length} built-in{extraWords.length > 0 ? ` + ${extraWords.length} custom` : ''})
+                            ({builtInWordsCount} built-in{extraWords.length > 0 ? ` + ${extraWords.length} custom` : ''})
                           </span>
                         </span>
                         <ChipList items={extraWords} onRemove={(w) => {
@@ -469,7 +537,7 @@ export function InsightsView() {
                         <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
                           Question verbs
                           <span className="font-normal ml-1">
-                            ({DEFAULT_QUESTION_VERBS.length} built-in{extraVerbs.length > 0 ? ` + ${extraVerbs.length} custom` : ''})
+                            ({builtInVerbsCount} built-in{extraVerbs.length > 0 ? ` + ${extraVerbs.length} custom` : ''})
                           </span>
                         </span>
                         <ChipList items={extraVerbs} onRemove={(v) => {

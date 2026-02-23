@@ -430,7 +430,16 @@ function registerIpcHandlers(): void {
       audioPipeline.onSettingsChanged(store.get('transcription'))
     }
 
-    // Update insight engine detector config when llm.insights changed
+    // Update insight engine when transcription language or llm.insights changed
+    const transcription = store.get('transcription') as { language?: 'en' | 'multi' } | undefined
+    const transcriptionLanguage = transcription?.language ?? 'en'
+
+    if (partial.transcription) {
+      insightEngine.updateSettings({
+        transcriptionLanguage,
+      })
+    }
+
     if (partial.llm && typeof partial.llm === 'object' && 'insights' in partial.llm) {
       const insights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
       const disabled = new Set<import('./insights/types').DetectedEventType>()
@@ -449,6 +458,7 @@ function registerIpcHandlers(): void {
         questionMlEnabled: insights.questionMlEnabled !== false,
         speakerFilter: (insights.speakerFilter as 'you' | 'them' | 'both') || 'both',
         enrichmentEnabled: insights.enrichmentEnabled !== false,
+        transcriptionLanguage,
       })
     }
 
@@ -829,6 +839,8 @@ app.whenReady().then(async () => {
   })
 
   // Apply initial insights detector config from store
+  const initialTranscription = store.get('transcription') as { language?: 'en' | 'multi' } | undefined
+  const initialTranscriptionLanguage = initialTranscription?.language ?? 'en'
   const initialInsights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
   const initialDisabled = new Set<import('./insights/types').DetectedEventType>()
   if (initialInsights.detectQuestions === false) initialDisabled.add('question')
@@ -846,6 +858,7 @@ app.whenReady().then(async () => {
     questionMlEnabled: initialInsights.questionMlEnabled !== false,
     speakerFilter: (initialInsights.speakerFilter as 'you' | 'them' | 'both') || 'both',
     enrichmentEnabled: initialInsights.enrichmentEnabled !== false,
+    transcriptionLanguage: initialTranscriptionLanguage,
   })
 
   // Start Chrome extension WebSocket server

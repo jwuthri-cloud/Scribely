@@ -69,6 +69,8 @@ export interface InsightEngineConfig {
   maxContextMs?: number
   /** Enable ML gate for gray-zone questions (default: true) */
   questionMlEnabled?: boolean
+  /** Transcription language: 'en' = use ML (English-only), 'multi' = skip ML */
+  transcriptionLanguage?: 'en' | 'multi'
 }
 
 const DEFAULT_DEBOUNCE_MS = 10_000
@@ -500,10 +502,13 @@ export class InsightEngine {
   }
 
   private async emitInsight(event: DetectedEvent): Promise<void> {
-    // ML gate for gray-zone questions (confidence 0.4–0.7)
+    // ML gate for gray-zone questions (confidence 0.4–0.7). Only when English — model is English-only.
+    const useMlGate =
+      (this.config.questionMlEnabled ?? true) &&
+      (this.config.transcriptionLanguage ?? 'en') === 'en'
     if (
       event.type === 'question' &&
-      (this.config.questionMlEnabled ?? true) &&
+      useMlGate &&
       event.confidence >= 0.4 &&
       event.confidence < 0.7
     ) {
@@ -600,6 +605,7 @@ export class InsightEngine {
     questionMlEnabled?: boolean
     speakerFilter?: SpeakerFilter
     enrichmentEnabled?: boolean
+    transcriptionLanguage?: 'en' | 'multi'
   }): void {
     this.detector.updateConfig(config)
     if (config.disabledTypes) this.disabledTypes = config.disabledTypes
@@ -611,6 +617,9 @@ export class InsightEngine {
     }
     if (typeof config.enrichmentEnabled === 'boolean') {
       this.config.enrichmentEnabled = config.enrichmentEnabled
+    }
+    if (config.transcriptionLanguage !== undefined) {
+      this.config.transcriptionLanguage = config.transcriptionLanguage
     }
   }
 

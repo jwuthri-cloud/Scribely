@@ -7,11 +7,7 @@ import nlp from 'compromise'
 import { createLogger } from '../logger'
 
 const log = createLogger('heuristic')
-import {
-  DEFAULT_DECISION_KEYWORDS,
-  DEFAULT_QUESTION_VERBS,
-  DEFAULT_QUESTION_WORDS,
-} from '../../shared/insight-defaults'
+import { getKeywordsForLanguage } from '../../shared/insight-defaults'
 import type { DetectedEvent, DetectedEventType } from './types'
 
 export interface TranscriptEntryLike {
@@ -150,6 +146,8 @@ function detectKeyMention(entry: TranscriptEntryLike): DetectedEvent | null {
 
 export interface HeuristicDetectorConfig {
   disabledTypes?: Set<DetectedEventType>
+  /** Transcription language: 'en' = English keywords only, 'multi' = all 6 languages */
+  transcriptionLanguage?: 'en' | 'multi'
   /** User-added question words (merged with defaults at runtime) */
   extraQuestionWords?: string[]
   /** User-added question verbs (merged with defaults at runtime) */
@@ -185,14 +183,10 @@ export class HeuristicDetector {
    */
   detectAll(entry: TranscriptEntryLike): DetectedEvent[] {
     const disabled = this.config.disabledTypes ?? new Set<DetectedEventType>()
-    const questionWords = [
-      ...DEFAULT_QUESTION_WORDS,
-      ...(this.config.extraQuestionWords ?? []),
-    ]
-    const questionVerbs = [
-      ...DEFAULT_QUESTION_VERBS,
-      ...(this.config.extraQuestionVerbs ?? []),
-    ]
+    const lang = this.config.transcriptionLanguage ?? 'en'
+    const { questionWords: baseWords, questionVerbs: baseVerbs, decisionKeywords } = getKeywordsForLanguage(lang)
+    const questionWords = [...baseWords, ...(this.config.extraQuestionWords ?? [])]
+    const questionVerbs = [...baseVerbs, ...(this.config.extraQuestionVerbs ?? [])]
     const candidates: DetectedEvent[] = []
 
     if (!disabled.has('question')) {
@@ -208,7 +202,7 @@ export class HeuristicDetector {
     }
 
     if (!disabled.has('decision')) {
-      const d = detectDecision(entry, DEFAULT_DECISION_KEYWORDS)
+      const d = detectDecision(entry, decisionKeywords)
       if (d) candidates.push(d)
     }
 
