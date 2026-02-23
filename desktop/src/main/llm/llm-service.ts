@@ -959,6 +959,11 @@ Return {"question": "na"} for ALL of these:
 - Vague/trivial: "what?", "huh?", "really?", "what about that?"
 - Questions that would NOT benefit from an AI answer or web search
 
+ACCEPT (return the question) when:
+- Phrase clearly seeks information: "I'm curious, where did he get...", "So what happened to...", "How did they..."
+- Incomplete but question intent is clear: "where did he get", "what's the timeline", "how could they"
+- Use transcript context to complete if needed for question_with_context
+
 Only if a genuine, substantive question remains, return:
 {"question": "<verbatim question from transcript>", "question_with_context": "<contextual rewrite>"}
 

@@ -396,6 +396,13 @@ export class InsightEngine {
             } else {
               log.debug('topic_change debounced (too recent)')
             }
+          } else if (nonQuestionCandidates.some((c) => c.type === 'topic_change')) {
+            // Heuristic detected topic change but LLM returned N/A — emit using entry text
+            if (this.tryDebounce('topic_change', topicChangeDebounceMs)) {
+              void this.emitInsightFromUnified('topic_change', entry.text.trim(), entry, undefined, embedding ?? undefined)
+            } else {
+              log.debug('topic_change debounced (too recent)')
+            }
           }
           if (result.key_mention) {
             if (this.tryDebounce('key_mention', debounceMs)) {
