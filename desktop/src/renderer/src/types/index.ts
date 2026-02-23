@@ -43,6 +43,8 @@ export interface ElectronAPI {
     sampleRate: number
     timestamp: number
   }) => void
+  /** Exclude user's mic from transcript and recording (others only) */
+  setExcludeMyMic: (value: boolean) => void
   /** Legacy: send a chunk directly for transcription (bypasses VAD) */
   transcribeAudioChunk: (payload: {
     source: string
@@ -165,6 +167,9 @@ export interface ElectronAPI {
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 
+  // Focus chat input
+  onFocusChatInput?: (callback: () => void) => () => void
+
   // LLM
   llmChat: (request: LLMChatRequest) => void
   llmCancel: (requestId: string) => void
@@ -185,6 +190,7 @@ export interface ElectronAPI {
   llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
   llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
   llmGetActiveSystemPrompt: () => Promise<string | null>
+  llmGetBuiltInDefaultSystemPrompt: () => Promise<string>
 
   // Summarization
   llmTriggerSummarize: (payload?: {
@@ -236,10 +242,6 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
-  toggleInsightsWindow: () => Promise<void>
-  insightsWindowVisible: () => Promise<boolean>
-  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
-  closeInsightsWindow: () => void
   sendToChat: (text: string) => void
   onChatMessageFromInsights: (callback: (text: string) => void) => () => void
 
@@ -300,6 +302,10 @@ export type {
   ChatAttachment,
   TranscriptionProvider,
   TranscriptionSettings,
+  TranscriptionMode,
+  LocalModel,
+  CloudProvider,
+  TranscriptionLanguage,
   SummarizationSettings,
   ModelId,
   ModelConfig,
@@ -316,6 +322,7 @@ export {
   DEFAULT_HOTKEYS,
   DEFAULT_SETTINGS,
   DEFAULT_TRANSCRIPTION,
+  deriveTranscriptionProvider,
   DEFAULT_LLM,
   DEFAULT_SUMMARIZATION,
   DEFAULT_SUMMARIZER_SYSTEM_PROMPT,

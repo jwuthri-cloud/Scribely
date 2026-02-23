@@ -8,6 +8,7 @@ export interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
 export const DEFAULT_HOTKEYS: HotkeyConfig = {
@@ -20,23 +21,65 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
   toggleAudio: 'Alt+A',
   resetChat: 'Alt+R',
   toggleMeeting: 'Alt+M',
+  focusChatInput: 'Alt+Enter',
 }
 
 // ── Transcription Provider Settings ─────────────────────
+export type TranscriptionMode = 'local' | 'cloud'
+
+export type LocalModel = 'fast' | 'balanced' | 'accurate'
+
+export type CloudProvider = 'deepgram' | 'assemblyai' | 'gladia' | 'revai'
+
+export type TranscriptionLanguage = 'en' | 'multi'
+
+/** Legacy provider string (for backward compat / derived value) */
 export type TranscriptionProvider =
-  | 'local-fast'     // whisper small.en (~488MB, Metal)
-  | 'local-balanced' // whisper medium.en (~1.5GB, Metal)
-  | 'local-accurate' // whisper large-v3-turbo (~1.6GB, Metal, multilingual)
+  | 'local-fast'
+  | 'local-balanced'
+  | 'local-accurate'
+  | 'deepgram'
+  | 'assemblyai'
+  | 'gladia'
+  | 'revai'
+
+/** Provider-specific model IDs */
+export type DeepgramModel = 'nova-3' | 'nova-2' | 'nova-3-general' | 'nova-3-medical'
+export type AssemblyAIModel = 'universal-2' | 'universal-1' | 'universal-3-pro'
 
 export interface TranscriptionSettings {
-  provider: TranscriptionProvider
+  mode: TranscriptionMode
+  localModel?: LocalModel
+  cloudProvider?: CloudProvider
+  cloudModel?: string
+  language: TranscriptionLanguage
   /** Transcription chunk duration in seconds (1–10). Lower = faster but noisier. */
   chunkDurationSec: number
+  apiKeys?: {
+    deepgram?: string
+    assemblyai?: string
+    gladia?: string
+    revai?: string
+  }
 }
 
 export const DEFAULT_TRANSCRIPTION: TranscriptionSettings = {
-  provider: 'local-fast',
+  mode: 'local',
+  localModel: 'fast',
+  cloudProvider: 'deepgram',
+  cloudModel: 'nova-3',
+  language: 'en',
   chunkDurationSec: 2,
+  apiKeys: {},
+}
+
+/** Derive legacy provider string from new settings (for pipeline/transcriber) */
+export function deriveTranscriptionProvider(settings: TranscriptionSettings): TranscriptionProvider {
+  if (settings.mode === 'local') {
+    const model = settings.localModel ?? 'fast'
+    return `local-${model}` as TranscriptionProvider
+  }
+  return (settings.cloudProvider ?? 'deepgram') as TranscriptionProvider
 }
 
 // ── LLM Settings ────────────────────────────────────────
@@ -149,6 +192,12 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Rewrite', value: 'Rewrite this', icon: 'pencil' },
 ]
 
+/** Preset profile for quick configuration */
+export type InsightPreset = 'minimal' | 'recommended' | 'power' | 'custom'
+
+/** Speaker filter for insight detection */
+export type SpeakerFilter = 'you' | 'them' | 'both'
+
 /** Live Insights settings */
 export interface InsightsSettings {
   /** Enable live insights during meetings */
@@ -166,15 +215,67 @@ export interface InsightsSettings {
   extraQuestionVerbs: string[]
   /** Enable ML gate for gray-zone questions (default: true) */
   questionMlEnabled: boolean
+  /** Active preset profile */
+  insightPreset: InsightPreset
+  /** Speaker filter: detect insights from you, them, or both */
+  speakerFilter: SpeakerFilter
+}
+
+export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
+  label: string
+  description: string
+  config: Omit<InsightsSettings, 'enabled' | 'extraQuestionWords' | 'extraQuestionVerbs' | 'insightPreset'>
+}> = {
+  minimal: {
+    label: 'Minimal',
+    description: 'Questions only, no AI. Zero latency, zero cost.',
+    config: {
+      enrichmentEnabled: false,
+      detectQuestions: true,
+      detectTopicChanges: false,
+      detectActionItems: false,
+      detectKeyMentions: false,
+      questionMlEnabled: false,
+      speakerFilter: 'them',
+    },
+  },
+  recommended: {
+    label: 'Recommended',
+    description: 'Balanced detection with AI validation. Best for most meetings.',
+    config: {
+      enrichmentEnabled: true,
+      detectQuestions: true,
+      detectTopicChanges: true,
+      detectActionItems: true,
+      detectKeyMentions: false,
+      questionMlEnabled: true,
+      speakerFilter: 'both',
+    },
+  },
+  power: {
+    label: 'Power',
+    description: 'Everything on. Full AI enrichment and all detectors.',
+    config: {
+      enrichmentEnabled: true,
+      detectQuestions: true,
+      detectTopicChanges: true,
+      detectActionItems: true,
+      detectKeyMentions: true,
+      questionMlEnabled: true,
+      speakerFilter: 'both',
+    },
+  },
 }
 
 export const DEFAULT_INSIGHTS: InsightsSettings = {
   enabled: true,
+  insightPreset: 'recommended',
+  speakerFilter: 'both',
   enrichmentEnabled: true,
   detectQuestions: true,
   detectTopicChanges: true,
   detectActionItems: true,
-  detectKeyMentions: true,
+  detectKeyMentions: false,
   extraQuestionWords: [],
   extraQuestionVerbs: [],
   questionMlEnabled: true,
@@ -186,6 +287,8 @@ export interface LLMSettings {
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
   activeSystemPromptId: string | null
+  /** Custom override for the default system prompt. null = use built-in. */
+  defaultSystemPromptOverride?: string | null
   /** User-created system prompts */
   systemPrompts: SystemPrompt[]
   /** Transcript summarization settings (Phase 2) */
@@ -310,4 +413,5 @@ export const HOTKEY_LABELS: Record<keyof HotkeyConfig, string> = {
   toggleAudio: 'Toggle Audio',
   resetChat: 'Reset Chat',
   toggleMeeting: 'Toggle Meeting',
+  focusChatInput: 'Focus Ask Anything',
 }

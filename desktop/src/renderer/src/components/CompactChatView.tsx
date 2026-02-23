@@ -45,6 +45,8 @@ interface CompactChatViewProps {
   /** Summarize feedback toast (success/error) */
   summarizeFeedback?: { type: 'success' | 'error'; message?: string } | null
   onViewSummaryClick?: () => void
+  insightsPanelExpanded?: boolean
+  onToggleInsightsPanel?: () => void
 }
 
 /**
@@ -85,6 +87,8 @@ export function CompactChatView({
   onViewSummary,
   summarizeFeedback,
   onViewSummaryClick,
+  insightsPanelExpanded = false,
+  onToggleInsightsPanel,
 }: CompactChatViewProps) {
 
   // Extract the last user message and last assistant message
@@ -134,6 +138,8 @@ export function CompactChatView({
         onSetView={onSetView}
         onClose={handleClose}
         onToggleCompactMode={onToggleCompactMode}
+        insightsPanelExpanded={insightsPanelExpanded}
+        onToggleInsightsPanel={onToggleInsightsPanel}
       />
 
       {/* ── Thin separator ── */}

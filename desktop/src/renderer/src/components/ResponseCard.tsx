@@ -185,7 +185,8 @@ function EmptyState({
           </motion.div>
         )}
 
-        {/* Hotkey reference */}
+        {/* Hotkey reference (hidden for now) */}
+        {false && (
         <motion.div
             className="rounded-xl p-2.5 space-y-0.5"
             style={{
@@ -222,6 +223,7 @@ function EmptyState({
               </motion.div>
             ))}
           </motion.div>
+        )}
 
         {/* Quick start tip on first open */}
         {/* <AnimatePresence>

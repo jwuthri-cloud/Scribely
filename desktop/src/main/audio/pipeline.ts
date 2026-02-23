@@ -13,15 +13,26 @@ const log = createLogger('pipeline')
 // ── Types ──────────────────────────────────────────────────
 
 interface TranscriptionSettings {
-  provider: string
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string // legacy
   chunkDurationSec?: number
+  apiKeys?: { deepgram?: string; assemblyai?: string; gladia?: string; revai?: string }
 }
 
-// Provider → whisper model ID mapping (matches transcriber.ts)
-const PROVIDER_MODEL_MAP: Record<string, string> = {
-  'local-fast': 'whisper-small.en',
-  'local-balanced': 'whisper-medium.en',
-  'local-accurate': 'whisper-large-v3-turbo',
+/** Derive provider string from settings (supports old and new format) */
+function deriveProvider(settings: TranscriptionSettings): string {
+  if (settings.mode === 'cloud') {
+    return settings.cloudProvider ?? 'deepgram'
+  }
+  if (settings.mode === 'local') {
+    return `local-${settings.localModel ?? 'fast'}`
+  }
+  // Legacy format
+  return settings.provider ?? 'local-fast'
 }
 
 const VAD_MODEL_ID = 'silero-vad-v5' as const
@@ -79,7 +90,7 @@ export class AudioPipeline {
 
   // ── Live Insights callbacks (optional) ────────────────
   private _onSessionStart: (() => void) | null = null
-  private _onSessionStop: (() => void) | null = null
+  private _onSessionStop: (() => void | Promise<void>) | null = null
   private _onTranscriptEntry: ((entry: {
     id: string
     speaker: string
@@ -88,6 +99,9 @@ export class AudioPipeline {
     endTime: number
     source: string
   }) => void) | null = null
+
+  // ── Exclude my mic (transcript + recording) ───────────
+  private _excludeMyMic = false
 
   // ── Native capture bridge ─────────────────────────────
   private nativeBridge: NativeHelperBridge | null = null
@@ -101,8 +115,12 @@ export class AudioPipeline {
 
   constructor(transcriptionSettings: TranscriptionSettings) {
     this.modelManager = new ModelManager()
+    const provider = deriveProvider(transcriptionSettings)
     this.transcriber = new Transcriber(this.modelManager, {
-      provider: transcriptionSettings.provider as any,
+      provider: provider as any,
+      language: transcriptionSettings.language ?? 'en',
+      cloudModel: transcriptionSettings.cloudModel,
+      apiKeys: transcriptionSettings.apiKeys,
     })
 
     // Apply initial chunk duration from settings
@@ -226,6 +244,7 @@ export class AudioPipeline {
     timestamp: number,
   ): void {
     if (pcm.length === 0) return
+    if (source === 'mic' && this._excludeMyMic) return
 
     // Resample to 16kHz if needed (system audio comes in at 48kHz)
     let resampled = pcm
@@ -264,6 +283,15 @@ export class AudioPipeline {
   /** Get the connected native bridge (if any) */
   getNativeBridge(): NativeHelperBridge | null {
     return this.nativeBridge
+  }
+
+  /** Exclude user's mic from transcript and recording */
+  setExcludeMyMic(value: boolean): void {
+    this._excludeMyMic = value
+  }
+
+  getExcludeMyMic(): boolean {
+    return this._excludeMyMic
   }
 
   // ── External audio frame (from Chrome extension WS) ────
@@ -317,7 +345,7 @@ export class AudioPipeline {
   // ── Settings changed ───────────────────────────────────
 
   async onSettingsChanged(settings: TranscriptionSettings): Promise<void> {
-    const provider = settings.provider as any
+    const provider = deriveProvider(settings)
     log.info(`Transcription provider changed to: ${provider}`)
 
     // Update chunk duration
@@ -326,10 +354,15 @@ export class AudioPipeline {
       log.info(`Chunk duration set to ${this._chunkDurationSec}s`)
     }
 
-    await this.transcriber.setProvider(provider)
+    await this.transcriber.setConfig({
+      provider: provider as any,
+      language: settings.language ?? 'en',
+      cloudModel: settings.cloudModel,
+      apiKeys: settings.apiKeys,
+    })
 
-    // Auto-download whisper model if needed
-    const modelId = PROVIDER_MODEL_MAP[provider]
+    // Auto-download whisper model if needed (skip for cloud providers)
+    const modelId = this.transcriber.requiredModelId
     if (modelId) {
       this._autoDownloadModel(modelId)
     }
@@ -532,19 +565,73 @@ export class AudioPipeline {
     await this._drainTranscribeQueue()
   }
 
+  /** Start session programmatically (e.g. when extension connects). Idempotent. */
+  async startSessionIfNeeded(): Promise<boolean> {
+    if (this.isActive) return true
+    const modelId = this.transcriber.requiredModelId
+    if (modelId) this._autoDownloadModel(modelId as any)
+
+    // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
+    if (!this.transcriber.isLoaded) {
+      await this.transcriber.reinit()
+      this.sendToRenderer('meeting:status-update', {
+        transcriptionMode: this.transcriber.mode,
+      })
+    }
+    if (!this.vadReady) {
+      await this._initVad()
+      if (this.vadReady) {
+        this.sendToRenderer('meeting:status-update', { vadReady: true })
+      }
+    }
+
+    this.isActive = true
+    this.sessionStartTime = Date.now()
+    this.segmentQueue = []
+    this.isProcessingQueue = false
+    this.fallbackBuffers.clear()
+    this._transcribeQueue = []
+    this.micVad?.flush()
+    this.tabVad?.flush()
+    this._onSessionStart?.()
+    log.success('Meeting session started (extension)')
+    return true
+  }
+
   // ── IPC Handlers ───────────────────────────────────────
 
   registerIpcHandlers(): void {
     // ── Start meeting session ────────────────────────────
     ipcMain.handle('meeting:start-session', async () => {
-      // Auto-download whisper model if needed
       const whisperModelId = this.transcriber.requiredModelId
       if (whisperModelId) {
         this._autoDownloadModel(whisperModelId)
       }
 
-      // VAD disabled — skip auto-download
-      // this._autoDownloadModel(VAD_MODEL_ID)
+      // Reuse start logic (idempotent if already active)
+      if (this.isActive) {
+        return {
+          sessionId: randomUUID(),
+          transcriptionMode: this.transcriber.mode,
+          vadEnabled: this.vadReady,
+        }
+      }
+
+      // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
+      if (!this.transcriber.isLoaded) {
+        await this.transcriber.reinit()
+        this.sendToRenderer('meeting:status-update', {
+          transcriptionMode: this.transcriber.mode,
+        })
+      }
+
+      // Re-init VAD if it was unloaded (VAD is currently disabled by default)
+      if (!this.vadReady) {
+        await this._initVad()
+        if (this.vadReady) {
+          this.sendToRenderer('meeting:status-update', { vadReady: true })
+        }
+      }
 
       this.isActive = true
       this.sessionStartTime = Date.now()
@@ -553,7 +640,6 @@ export class AudioPipeline {
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
 
-      // Reset VAD state for fresh session
       this.micVad?.flush()
       this.tabVad?.flush()
 
@@ -582,13 +668,24 @@ export class AudioPipeline {
       // Flush fallback buffers
       await this._flushFallbackBuffers()
 
+      this._excludeMyMic = false
       this.isActive = false
       this.segmentQueue = []
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
-      this._onSessionStop?.()
+      await this._onSessionStop?.()
 
-      log.info('Meeting session stopped')
+      // Unload ML models to free memory (~500MB–1.6GB for Whisper)
+      this.transcriber.unload()
+      if (this.vadReady) {
+        this.micVad?.destroy()
+        this.tabVad?.destroy()
+        this.micVad = null
+        this.tabVad = null
+        this.vadReady = false
+      }
+
+      log.info('Meeting session stopped (models unloaded)')
       return { success: true }
     })
 
@@ -607,6 +704,7 @@ export class AudioPipeline {
         },
       ) => {
         if (!this.isActive) return
+        if (payload.source === 'mic' && this._excludeMyMic) return
 
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length === 0) return
@@ -923,7 +1021,7 @@ export class AudioPipeline {
     this._onSessionStart = cb
   }
 
-  setOnSessionStop(cb: (() => void) | null): void {
+  setOnSessionStop(cb: (() => void | Promise<void>) | null): void {
     this._onSessionStop = cb
   }
 

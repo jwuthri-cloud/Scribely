@@ -15,11 +15,19 @@ interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
+// Must match main's TranscriptionSettings for Store compatibility
 interface TranscriptionSettings {
-  provider: string
-  chunkDurationSec: number
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string
+  chunkDurationSec?: number
+  apiKeys?: Record<string, string>
 }
 
 interface LLMSettings {
@@ -41,6 +49,7 @@ interface AppSettings {
   hotkeys: HotkeyConfig
   moveStepPx: number
   windowOpacity: number
+  fontSize?: 'small' | 'medium' | 'large'
   transcription: TranscriptionSettings
   llm: LLMSettings
 }
@@ -118,6 +127,16 @@ export function registerAllHotkeys(
   // Toggle meeting recording
   tryRegister(hotkeys.toggleMeeting, guard(() => {
     win.webContents.send('toggle-meeting')
+  }))
+
+  // Focus chat input ("Ask anything")
+  tryRegister(hotkeys.focusChatInput, guard(() => {
+    if (!win.isVisible()) {
+      win.show()
+      win.webContents.send('toggle-visibility', true)
+    }
+    win.focus()
+    win.webContents.send('focus-chat-input')
   }))
 }
 

@@ -36,6 +36,7 @@ export interface ElectronAPI {
   llmDeleteSystemPrompt: (id: string) => Promise<{ success: boolean }>
   llmSetActiveSystemPrompt: (id: string | null) => Promise<{ success: boolean }>
   llmGetActiveSystemPrompt: () => Promise<string | null>
+  llmGetBuiltInDefaultSystemPrompt: () => Promise<string>
   llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => Promise<{ success: boolean; error?: string }>
   llmGetSummarizationStatus: () => Promise<{
     hasSummary: boolean
@@ -69,10 +70,6 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   onLLMWebSearchError: (callback: (data: { requestId: string; error: string }) => void) => () => void
-  toggleInsightsWindow: () => Promise<void>
-  insightsWindowVisible: () => Promise<boolean>
-  onInsightsWindowChanged: (callback: (visible: boolean) => void) => () => void
-  closeInsightsWindow: () => void
   sendToChat: (text: string) => void
   onChatMessageFromInsights: (callback: (text: string) => void) => () => void
 
@@ -106,6 +103,8 @@ export interface ElectronAPI {
     sampleRate: number
     timestamp: number
   }) => void
+  /** Exclude user's mic from transcript and recording (others only) */
+  setExcludeMyMic: (value: boolean) => void
   /** Legacy: send a chunk directly for transcription (bypasses VAD) */
   transcribeAudioChunk: (payload: {
     source: string
@@ -210,6 +209,9 @@ export interface ElectronAPI {
 
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback: () => void) => () => void
+
+  // ── Focus chat input ─────────────────────────────
+  onFocusChatInput: (callback: () => void) => () => void
 
   // ── Invisibility ──────────────────────────────
   toggleInvisibility: () => Promise<boolean>
@@ -342,6 +344,10 @@ const api: ElectronAPI = {
     return ipcRenderer.invoke('llm:get-active-system-prompt')
   },
 
+  llmGetBuiltInDefaultSystemPrompt: () => {
+    return ipcRenderer.invoke('llm:get-built-in-default-system-prompt')
+  },
+
   llmTriggerSummarize: (payload?: { transcriptEntries?: unknown[] }) => {
     return ipcRenderer.invoke('llm:trigger-summarize', payload)
   },
@@ -421,14 +427,6 @@ const api: ElectronAPI = {
     ipcRenderer.on('llm:web-search-error', handler)
     return () => ipcRenderer.removeListener('llm:web-search-error', handler)
   },
-  toggleInsightsWindow: () => ipcRenderer.invoke('insights:toggle-window'),
-  insightsWindowVisible: () => ipcRenderer.invoke('insights:window-visible'),
-  onInsightsWindowChanged: (callback: (visible: boolean) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, visible: boolean) => callback(visible)
-    ipcRenderer.on('insights:window-changed', handler)
-    return () => ipcRenderer.removeListener('insights:window-changed', handler)
-  },
-  closeInsightsWindow: () => ipcRenderer.invoke('insights:close-window'),
   sendToChat: (text: string) => ipcRenderer.invoke('insights:send-to-chat', text),
   onChatMessageFromInsights: (callback: (text: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text)
@@ -493,6 +491,10 @@ const api: ElectronAPI = {
 
   streamAudioFrame: (payload) => {
     ipcRenderer.send('meeting:audio-frame', payload)
+  },
+
+  setExcludeMyMic: (value: boolean) => {
+    ipcRenderer.send('meeting:set-exclude-mic', value)
   },
 
   transcribeAudioChunk: (payload) => {
@@ -705,6 +707,13 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('reset-chat', handler)
     return () => ipcRenderer.removeListener('reset-chat', handler)
+  },
+
+  // ── Focus chat input ─────────────────────────────
+  onFocusChatInput: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('focus-chat-input', handler)
+    return () => ipcRenderer.removeListener('focus-chat-input', handler)
   },
 
   // ── Invisibility ──────────────────────────────

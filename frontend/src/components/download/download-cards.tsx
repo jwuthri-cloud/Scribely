@@ -78,7 +78,7 @@ export function DownloadCards() {
         </p>
 
         <Button className="w-full mb-6" size="lg" variant="secondary" asChild>
-          <a href="https://github.com/Jwuthri/Scribely-Release/blob/main/chrome-extension.zip" target="_blank" rel="noopener noreferrer">
+          <a href="https://chromewebstore.google.com/detail/scribely-tab-capture/moplnjdabcbkgnamdkmcebmfgkgeoief" target="_blank" rel="noopener noreferrer">
             <Chrome className="mr-2 h-4 w-4" />
             Add to Chrome
             <ArrowRight className="ml-2 h-4 w-4" />

@@ -17,6 +17,7 @@ const HOTKEY_ITEMS: {
   description: string
 }[] = [
   { key: 'toggleOverlay', description: 'Hide or show the overlay window' },
+  { key: 'focusChatInput', description: 'Focus the Ask anything input' },
   { key: 'takeScreenshot', description: 'Capture the current screen' },
   { key: 'toggleAudio', description: 'Start or stop voice input / microphone recording' },
   { key: 'resetChat', description: 'Clear the conversation' },

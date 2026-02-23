@@ -45,6 +45,8 @@ interface TitleBarProps {
   onToggleMeeting?: () => void
   compactMode?: boolean
   onToggleCompactMode?: () => void
+  insightsPanelExpanded?: boolean
+  onToggleInsightsPanel?: () => void
 }
 
 /** Small icon button used in the title bar with a custom tooltip */
@@ -108,21 +110,16 @@ export function TitleBar({
   onToggleMeeting,
   compactMode = false,
   onToggleCompactMode,
+  insightsPanelExpanded = false,
+  onToggleInsightsPanel,
 }: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
-  const [insightsWindowOpen, setInsightsWindowOpen] = useState(false)
 
   useEffect(() => {
     window.electronAPI?.getInvisibility().then(setInvisible)
-  }, [])
-
-  useEffect(() => {
-    window.electronAPI?.insightsWindowVisible?.().then(setInsightsWindowOpen)
-    const unsub = window.electronAPI?.onInsightsWindowChanged?.(setInsightsWindowOpen)
-    return () => unsub?.()
   }, [])
 
   const handleHideWindow = useCallback(() => {
@@ -305,12 +302,12 @@ export function TitleBar({
       {/* Right side: insights + reset + LLM + gear */}
       <div className="flex items-center gap-0.5">
         {/* Live Insights toggle — only when meeting active */}
-        {meetingActive && (
+        {meetingActive && onToggleInsightsPanel && (
           <TitleBtn
-            onClick={() => window.electronAPI?.toggleInsightsWindow?.()}
+            onClick={onToggleInsightsPanel}
             label="Toggle live insights"
-            tooltip={insightsWindowOpen ? 'Hide insights' : 'Show live insights'}
-            active={insightsWindowOpen}
+            tooltip={insightsPanelExpanded ? 'Hide insights' : 'Show live insights'}
+            active={insightsPanelExpanded}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" />
@@ -352,8 +349,8 @@ export function TitleBar({
           </TitleBtn>
         )}
 
-        {/* Hotkey shortcuts menu */}
-        <HotkeyMenu tooltip="Keyboard shortcuts" />
+        {/* Hotkey shortcuts menu — hidden in settings (hotkeys are configured there) */}
+        {view !== 'settings' && <HotkeyMenu tooltip="Keyboard shortcuts" />}
 
         {/* Settings gear */}
         <TitleBtn

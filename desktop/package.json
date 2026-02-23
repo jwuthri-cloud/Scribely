@@ -20,6 +20,7 @@
     "build:all": "npm run build:proto && npm run build:native && npm run build"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
     "@huggingface/transformers": "^3.8.1",
     "@langfuse/openai": "^4.6.1",
     "@langfuse/otel": "^4.6.1",
@@ -54,7 +55,11 @@
       "gatekeeperAssess": false,
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
-      "notarize": true
+      "notarize": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Scribely needs microphone access for meeting transcription and recording.",
+        "NSAudioCaptureUsageDescription": "Scribely needs system audio capture for recording meetings with participant audio."
+      }
     },
     "extraResources": [
       {

@@ -19,10 +19,20 @@ const MODELS = {
     filename: 'ggml-small.en.bin',
     size: 488_000_000, // ~488MB
   },
+  'whisper-small': {
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin',
+    filename: 'ggml-small.bin',
+    size: 466_000_000, // ~466MB, multilingual
+  },
   'whisper-medium.en': {
     url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin',
     filename: 'ggml-medium.en.bin',
     size: 1_530_000_000, // ~1.5GB
+  },
+  'whisper-medium': {
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin',
+    filename: 'ggml-medium.bin',
+    size: 1_530_000_000, // ~1.5GB, multilingual
   },
   'whisper-large-v3-turbo': {
     url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin',

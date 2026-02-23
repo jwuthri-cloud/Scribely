@@ -155,12 +155,18 @@ async function startCapture(streamId, wsPort) {
     // 2. Connect to Electron's WebSocket server
     ws = await connectWebSocket(wsPort)
 
-    // 3. Set up AudioWorklet for PCM extraction + low-latency playback
-    //    (playback goes through the AudioContext, NOT an <audio> element —
-    //    Chrome's <audio> in offscreen docs buffers aggressively, adding
-    //    seconds of delay.)
-    const audioTracks = mediaStream.getAudioTracks()
+    // 3. Send hello IMMEDIATELY so Electron sets captureClient before any audio.
+    //    Otherwise the first audio frames are dropped (server ignores audio from
+    //    non-capture clients). Sample rate may be updated after setupAudioCapture.
     let actualSampleRate = TARGET_SAMPLE_RATE
+    sendControl(ws, {
+      type: 'hello',
+      source: 'chrome-extension',
+      sampleRate: actualSampleRate,
+    })
+
+    // 4. Set up AudioWorklet for PCM extraction + low-latency playback
+    const audioTracks = mediaStream.getAudioTracks()
     if (audioTracks.length > 0) {
       await setupAudioCapture(mediaStream)
       if (audioContext) {
@@ -168,7 +174,7 @@ async function startCapture(streamId, wsPort) {
       }
     }
 
-    // 4. Try to capture local mic directly (works after user grants
+    // 5. Try to capture local mic directly (works after user grants
     //    permission via the permissions page — same extension origin).
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -177,13 +183,6 @@ async function startCapture(streamId, wsPort) {
       console.warn('[offscreen] Direct mic capture failed (' + err.name + ') — will use WS fallback')
       micStream = null
     }
-
-    // 5. Send hello with the real sample rate so Electron knows how to resample
-    sendControl(ws, {
-      type: 'hello',
-      source: 'chrome-extension',
-      sampleRate: actualSampleRate,
-    })
 
     // 6. Set up MediaRecorder with mixed audio (tab + mic) + tab video.
     //    If direct mic capture worked, mix it in directly.

@@ -44,11 +44,14 @@ export class ScreenRecorder {
    * Used when NOT recording.
    */
   _installDefaultHandler(): void {
-    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
       try {
         const sources = await desktopCapturer.getSources({ types: ['screen'] })
         if (sources.length > 0) {
-          callback({ video: sources[0], audio: 'loopback' })
+          callback({
+            video: sources[0],
+            audio: request.audioRequested ? 'loopback' : undefined,
+          })
         } else {
           callback({})
         }
@@ -61,22 +64,31 @@ export class ScreenRecorder {
 
   /**
    * Install a handler that auto-selects a specific source by ID.
+   * Requested audio is captured via system loopback (requires Chromium flags).
    */
   private _installSourceHandler(sourceId: string): void {
-    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
       try {
         const allSources = await desktopCapturer.getSources({
           types: ['screen', 'window'],
         })
         const match = allSources.find((s) => s.id === sourceId)
         if (match) {
-          log.info(`Auto-selecting source: ${match.name} (${match.id})`)
-          callback({ video: match, audio: 'loopback' })
+          log.info(
+            `Auto-selecting source: ${match.name} (${match.id}), audio=${request.audioRequested ? 'loopback' : 'none'}`,
+          )
+          callback({
+            video: match,
+            audio: request.audioRequested ? 'loopback' : undefined,
+          })
         } else {
           log.warn(`Source ${sourceId} not found, falling back to screen`)
           const screens = allSources.filter((s) => s.id.startsWith('screen:'))
           if (screens.length > 0) {
-            callback({ video: screens[0], audio: 'loopback' })
+            callback({
+              video: screens[0],
+              audio: request.audioRequested ? 'loopback' : undefined,
+            })
           } else {
             callback({})
           }

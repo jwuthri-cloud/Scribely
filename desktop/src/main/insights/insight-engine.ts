@@ -17,12 +17,14 @@ import type {
 import type { HeuristicDetectorConfig } from './heuristic-detector'
 import { HeuristicDetector } from './heuristic-detector'
 import { classifyQuestion } from './question-classifier'
-import { checkTopicChangeWithEmbedding } from './topic-change-detector'
+import { checkTopicChangeWithSegment } from './topic-change-detector'
 import {
   actionItemSimilarity,
   getOrEmbed,
+  meanEmbedding,
   clearCache,
 } from './embedding-service'
+import { TopicSegmentTracker } from './topic-segment-tracker'
 
 export interface TranscriptEntryLike {
   id: string
@@ -43,7 +45,10 @@ export interface InsightEngineConfig {
     transcriptDelta: string,
     entry: TranscriptEntryLike,
     triggeredTypes: DetectedEventType[],
+    previousTopic?: string,
   ) => Promise<UnifiedInsightOutput | null>
+  /** Optional: generate topic label for a transcript segment (used for previous-topic context). */
+  generateSegmentTopic?: (entries: TranscriptEntryLike[]) => Promise<string>
   /** Optional: enrich event via LLM. Returns enriched title/description/actions. */
   enrich?: (event: DetectedEvent) => Promise<{
     title?: string
@@ -54,6 +59,8 @@ export interface InsightEngineConfig {
   enrichmentEnabled?: boolean
   /** Debounce window in ms for same-type events (default: 10000) */
   debounceMs?: number
+  /** Debounce for topic_change specifically (default: 2 min). Longer to avoid repeated triggers. */
+  topicChangeDebounceMs?: number
   /** Max enrichment calls per 15s (default: 1) */
   maxEnrichmentPerWindow?: number
   /** Max transcript context tokens for validation (default: 500) */
@@ -65,6 +72,7 @@ export interface InsightEngineConfig {
 }
 
 const DEFAULT_DEBOUNCE_MS = 10_000
+const DEFAULT_TOPIC_CHANGE_DEBOUNCE_MS = 2 * 60 * 1000 // 2 minutes
 const ENRICHMENT_WINDOW_MS = 15_000
 const MAX_CONTEXT_TOKENS = 500
 const MAX_CONTEXT_MS = 3 * 60 * 1000 // 3 minutes
@@ -100,10 +108,8 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
       break
     }
     case 'key_mention': {
-      const searchQuery =
-        event.metadata?.entity && typeof event.metadata.entity === 'string'
-          ? `${event.metadata.entity} ${event.metadata.amount || ''}`.trim()
-          : event.text
+      // Use full description for search (e.g. "sister Jeanette died four weeks") — not just entity name
+      const searchQuery = event.text
       actions.push({
         id: randomUUID(),
         label: 'Answer now',
@@ -111,15 +117,13 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
         payload: `Tell me more about: ${event.text}`,
         icon: 'sparkle',
       })
-      if (event.metadata?.entity || event.metadata?.amount) {
-        actions.push({
-          id: randomUUID(),
-          label: 'Search the web',
-          type: 'search',
-          payload: searchQuery,
-          icon: 'search',
-        })
-      }
+      actions.push({
+        id: randomUUID(),
+        label: 'Search the web',
+        type: 'search',
+        payload: searchQuery,
+        icon: 'search',
+      })
       break
     }
     case 'action_item':
@@ -185,7 +189,6 @@ function isUserSpeaker(speaker: string): boolean {
   return speaker.toLowerCase() === 'you'
 }
 
-const TOPIC_CHANGE_RECENT_WINDOW = 5
 const ACTION_ITEM_SIM_THRESHOLD = 0.55
 
 function formatTimestamp(ms: number): string {
@@ -201,23 +204,38 @@ function formatTranscriptDelta(entries: TranscriptEntryLike[]): string {
     .join('\n')
 }
 
+export type SpeakerFilter = 'you' | 'them' | 'both'
+
 export class InsightEngine {
   private detector: HeuristicDetector
   private config: InsightEngineConfig
+  private topicSegmentTracker: TopicSegmentTracker | null = null
   private disabledTypes: Set<DetectedEventType> = new Set()
+  private speakerFilter: SpeakerFilter = 'both'
   private lastEventByType: Map<string, number> = new Map()
   private lastEnrichmentTime = 0
   private enrichmentInProgress = false
   private recentTranscriptEntries: TranscriptEntryLike[] = []
   private lastSentEntryIds: Set<string> = new Set()
-  /** Rolling buffer of last N embeddings for topic-change (avoids re-embedding) */
-  private recentEmbeddingBuffer: Array<{ entryId: string; embedding: Float32Array }> = []
   private processQueue: TranscriptEntryLike[] = []
   private processQueueRunning = false
 
   constructor(config: InsightEngineConfig) {
     this.config = config
     this.detector = new HeuristicDetector()
+    if (config.generateSegmentTopic) {
+      this.topicSegmentTracker = new TopicSegmentTracker({
+        generateTopic: config.generateSegmentTopic,
+        getSegmentMeanEmbedding: async (entries) => {
+          const embeddings: Float32Array[] = []
+          for (const e of entries) {
+            const emb = await getOrEmbed(e.id, e.text)
+            if (emb) embeddings.push(emb)
+          }
+          return embeddings.length > 0 ? meanEmbedding(embeddings) : null
+        },
+      })
+    }
   }
 
   private buildTranscriptContext(): string {
@@ -241,6 +259,11 @@ export class InsightEngine {
   /** Process a new transcript entry. Call from pipeline callback. */
   onTranscriptEntry(entry: TranscriptEntryLike): void {
     log.debug(`New entry: [${entry.speaker}] "${entry.text.slice(0, 80)}"`)
+
+    if (this.speakerFilter === 'you' && !isUserSpeaker(entry.speaker)) return
+    if (this.speakerFilter === 'them' && isUserSpeaker(entry.speaker)) return
+
+    this.topicSegmentTracker?.addEntry(entry)
     // Update transcript buffer
     this.recentTranscriptEntries.push(entry)
     const maxMs = this.config.maxContextMs ?? MAX_CONTEXT_MS
@@ -306,20 +329,17 @@ export class InsightEngine {
         }
       }
 
-      // Topic change: embedding similarity vs recent mean (from rolling buffer)
-      if (!this.disabledTypes.has('topic_change')) {
-        const recentEmbeddings = this.recentEmbeddingBuffer.map((b) => b.embedding)
-        const topicEvent = checkTopicChangeWithEmbedding(entry, embedding, recentEmbeddings)
-        if (topicEvent) {
-          log.debug(`Topic change candidate: "${entry.text.slice(0, 60)}"`)
-          candidates.push(topicEvent)
+      // Topic change: compare vs segment baseline (3-5 min of transcript), not last 5 entries.
+      // Only runs after first segment is generated (first 5 min of meeting).
+      if (!this.disabledTypes.has('topic_change') && this.topicSegmentTracker) {
+        const segmentBaseline = this.topicSegmentTracker.getComparisonEmbedding()
+        if (segmentBaseline) {
+          const topicEvent = checkTopicChangeWithSegment(entry, embedding, segmentBaseline)
+          if (topicEvent) {
+            log.debug(`Topic change candidate (vs segment): "${entry.text.slice(0, 60)}"`)
+            candidates.push(topicEvent)
+          }
         }
-      }
-
-      // Push current embedding to rolling buffer for next entry's topic-change check
-      this.recentEmbeddingBuffer.push({ entryId: entry.id, embedding })
-      if (this.recentEmbeddingBuffer.length > TOPIC_CHANGE_RECENT_WINDOW) {
-        this.recentEmbeddingBuffer.shift()
       }
     } else {
       log.debug('Embedding unavailable — skipping action_item/topic_change detection')
@@ -333,6 +353,7 @@ export class InsightEngine {
     const questionCandidates = candidates.filter((c) => c.type === 'question')
 
     const debounceMs = this.config.debounceMs ?? DEFAULT_DEBOUNCE_MS
+    const topicChangeDebounceMs = this.config.topicChangeDebounceMs ?? DEFAULT_TOPIC_CHANGE_DEBOUNCE_MS
 
     // Unified LLM validation for non-question insights
     if (
@@ -349,13 +370,19 @@ export class InsightEngine {
           ? `${header}\n${transcriptText}`
           : header
 
-      log.debug(`LLM validateInsights call — types: [${triggeredTypes.join(', ')}], delta entries: ${deltaEntries.length}`)
+      const previousTopic =
+        triggeredTypes.includes('topic_change') && this.topicSegmentTracker
+          ? this.topicSegmentTracker.getPreviousTopic()
+          : undefined
+
+      log.debug(`LLM validateInsights call — types: [${triggeredTypes.join(', ')}], delta entries: ${deltaEntries.length}${previousTopic !== undefined ? `, previousTopic: "${previousTopic}"` : ''}`)
 
       try {
         const result = await this.config.validateInsights(
           transcriptDelta,
           entry,
           triggeredTypes as DetectedEventType[],
+          previousTopic,
         )
 
         if (result) {
@@ -371,8 +398,15 @@ export class InsightEngine {
             }
           }
           if (result.topic !== 'N/A' && result.topic.trim()) {
-            if (this.tryDebounce('topic_change', debounceMs)) {
-              void this.emitInsightFromUnified('topic_change', result.topic.trim(), entry)
+            if (this.tryDebounce('topic_change', topicChangeDebounceMs)) {
+              void this.emitInsightFromUnified('topic_change', result.topic.trim(), entry, undefined, embedding ?? undefined)
+            } else {
+              log.debug('topic_change debounced (too recent)')
+            }
+          } else if (nonQuestionCandidates.some((c) => c.type === 'topic_change')) {
+            // Heuristic detected topic change but LLM returned N/A — emit using entry text
+            if (this.tryDebounce('topic_change', topicChangeDebounceMs)) {
+              void this.emitInsightFromUnified('topic_change', entry.text.trim(), entry, undefined, embedding ?? undefined)
             } else {
               log.debug('topic_change debounced (too recent)')
             }
@@ -448,7 +482,11 @@ export class InsightEngine {
     text: string,
     entry: TranscriptEntryLike,
     metadata?: Record<string, unknown>,
+    topicChangeEmbedding?: Float32Array,
   ): Promise<void> {
+    if (type === 'topic_change' && topicChangeEmbedding && this.topicSegmentTracker) {
+      this.topicSegmentTracker.setComparisonBaseline(topicChangeEmbedding)
+    }
     const event: DetectedEvent = {
       type,
       confidence: 0.8,
@@ -558,19 +596,29 @@ export class InsightEngine {
   }
 
   /** Update detector config and engine options when settings change */
-  updateSettings(config: HeuristicDetectorConfig & { questionMlEnabled?: boolean }): void {
+  updateSettings(config: HeuristicDetectorConfig & {
+    questionMlEnabled?: boolean
+    speakerFilter?: SpeakerFilter
+    enrichmentEnabled?: boolean
+  }): void {
     this.detector.updateConfig(config)
     if (config.disabledTypes) this.disabledTypes = config.disabledTypes
     if (typeof config.questionMlEnabled === 'boolean') {
       this.config.questionMlEnabled = config.questionMlEnabled
+    }
+    if (config.speakerFilter) {
+      this.speakerFilter = config.speakerFilter
+    }
+    if (typeof config.enrichmentEnabled === 'boolean') {
+      this.config.enrichmentEnabled = config.enrichmentEnabled
     }
   }
 
   /** Reset state when meeting session ends */
   reset(): void {
     this.detector.reset()
+    this.topicSegmentTracker?.reset()
     this.recentTranscriptEntries = []
-    this.recentEmbeddingBuffer = []
     this.processQueue = []
     this.lastSentEntryIds.clear()
     this.lastEventByType.clear()

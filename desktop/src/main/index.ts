@@ -31,6 +31,8 @@ import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
 import { InsightEngine } from './insights/insight-engine'
+import { unloadQuestionClassifier } from './insights/question-classifier'
+import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 
 interface HotkeyConfig {
@@ -43,11 +45,18 @@ interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
 interface TranscriptionSettings {
-  provider: string
-  chunkDurationSec: number
+  mode?: 'local' | 'cloud'
+  localModel?: 'fast' | 'balanced' | 'accurate'
+  cloudProvider?: string
+  cloudModel?: string
+  language?: 'en' | 'multi'
+  provider?: string // legacy
+  chunkDurationSec?: number
+  apiKeys?: { deepgram?: string; assemblyai?: string; gladia?: string; revai?: string }
 }
 
 interface SummarizationSettings {
@@ -116,12 +125,18 @@ const store = new Store<AppSettings>({
       toggleAudio: 'Alt+A',
       resetChat: 'Alt+R',
       toggleMeeting: 'Alt+M',
+      focusChatInput: 'Alt+Enter',
     },
     moveStepPx: 50,
     windowOpacity: 0.85,
     transcription: {
-      provider: 'local-fast',
+      mode: 'local',
+      localModel: 'fast',
+      cloudProvider: 'deepgram',
+      cloudModel: 'nova-3',
+      language: 'en',
       chunkDurationSec: 2,
+      apiKeys: {},
     },
     llm: {
       apiKey: '',
@@ -157,6 +172,25 @@ const storedHotkeys = store.get('hotkeys')
 if (!storedHotkeys.toggleMeeting) {
   store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
 }
+if (!storedHotkeys.focusChatInput) {
+  store.set('hotkeys.focusChatInput' as any, 'Alt+Enter')
+}
+
+// Migrate: transcription from legacy (provider) to new (mode, localModel, cloudProvider)
+const storedTranscription = store.get('transcription') as TranscriptionSettings
+if (storedTranscription && 'provider' in storedTranscription && !('mode' in storedTranscription)) {
+  const p = (storedTranscription as { provider: string }).provider
+  const migrated: TranscriptionSettings = {
+    mode: p.startsWith('local-') ? 'local' : 'cloud',
+    localModel: p.startsWith('local-') ? (p.replace('local-', '') as 'fast' | 'balanced' | 'accurate') : undefined,
+    cloudProvider: !p.startsWith('local-') ? p : undefined,
+    cloudModel: p === 'deepgram' ? 'nova-3' : undefined,
+    language: 'en',
+    chunkDurationSec: storedTranscription.chunkDurationSec ?? 2,
+    apiKeys: storedTranscription.apiKeys ?? {},
+  }
+  store.set('transcription', migrated)
+}
 
 // ── Onboarding state (separate store) ────────────────────
 const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
@@ -165,7 +199,6 @@ const onboardingStore = new Store<{ hasCompletedOnboarding: boolean }>({
 })
 
 let mainWindow: BrowserWindow | null = null
-let insightsWindow: BrowserWindow | null = null
 let isInvisible = true // starts invisible (content protection on)
 let tray: Tray | null = null
 let isMeetingActive = false
@@ -185,9 +218,6 @@ function getInsightsConfig() {
 
 const insightEngine = new InsightEngine({
   sendToRenderer: (channel, data) => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.webContents.send(channel, data)
-    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data)
     }
@@ -197,10 +227,15 @@ const insightEngine = new InsightEngine({
     if (!config.enabled) return null
     return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
   },
-  validateInsights: async (transcriptDelta, entry, triggeredTypes) => {
+  validateInsights: async (transcriptDelta, entry, triggeredTypes, previousTopic) => {
     const config = getInsightsConfig()
     if (!config.enabled) return null
-    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes)
+    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes, previousTopic)
+  },
+  generateSegmentTopic: async (entries) => {
+    const config = getInsightsConfig()
+    if (!config.enabled) return 'N/A'
+    return llmService.generateSegmentTopic(entries)
   },
   enrich: async (event) => {
     const config = getInsightsConfig()
@@ -249,11 +284,14 @@ app.commandLine.appendSwitch('password-store', 'basic')
 // ── Chromium flags for macOS audio loopback ────────────
 // These must be set before app.ready(). They enable system audio capture
 // even when output goes through Bluetooth (AirPods) or other non-default routes.
+// MacSckSystemAudioLoopbackOverride = ScreenCaptureKit path (macOS 13+)
+// MacCatapSystemAudioLoopbackCapture = Core Audio path (fallback when SCK fails)
 app.commandLine.appendSwitch(
   'enable-features',
   [
     'MacLoopbackAudioForScreenShare',
     'MacSckSystemAudioLoopbackOverride',
+    'MacCatapSystemAudioLoopbackCapture',
     'ScreenCaptureKitStreamPickerSonoma',
     'ScreenCaptureKitAudio',
   ].join(','),
@@ -327,61 +365,8 @@ function createWindow(): void {
   mainWindow.on('show', rebuildTrayMenu)
   mainWindow.on('hide', rebuildTrayMenu)
 
-  // Register all global hotkeys
-  registerAllHotkeys(mainWindow, store)
-}
-
-function createInsightsWindow(): void {
-  if (insightsWindow && !insightsWindow.isDestroyed()) {
-    insightsWindow.focus()
-    return
-  }
-
-  insightsWindow = new BrowserWindow({
-    width: 340,
-    height: 500,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: true,
-    hasShadow: false,
-    visualEffectState: 'active',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  })
-
-  insightsWindow.setOpacity(store.get('windowOpacity'))
-  applyInvisibility(insightsWindow)
-  insightsWindow.setContentProtection(isInvisible)
-
-  insightsWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
-    return { action: 'deny' }
-  })
-
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    insightsWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '?view=insights')
-  } else {
-    insightsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-      query: { view: 'insights' },
-    })
-  }
-
-  insightsWindow.on('closed', () => {
-    insightsWindow = null
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('insights:window-changed', false)
-    }
-  })
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('insights:window-changed', true)
-  }
+  // Register all global hotkeys (store type assertion for cross-module AppSettings compatibility)
+  registerAllHotkeys(mainWindow, store as Parameters<typeof registerAllHotkeys>[1])
 }
 
 function registerIpcHandlers(): void {
@@ -400,13 +385,14 @@ function registerIpcHandlers(): void {
         const current = store.get('hotkeys')
         store.set('hotkeys', { ...current, ...(value as Partial<HotkeyConfig>) })
       } else if (key === 'transcription' && typeof value === 'object') {
-        // Deep merge transcription settings
+        // Deep merge transcription settings (including apiKeys)
         const current = store.get('transcription')
         const incoming = value as Partial<TranscriptionSettings>
-        store.set('transcription', {
-          ...current,
-          ...incoming,
-        })
+        const merged: Record<string, unknown> = { ...current, ...incoming }
+        if (incoming.apiKeys && typeof incoming.apiKeys === 'object') {
+          merged.apiKeys = { ...(current?.apiKeys || {}), ...incoming.apiKeys }
+        }
+        store.set('transcription', merged)
       } else if (key === 'llm' && typeof value === 'object') {
         // Deep merge LLM settings (including nested summarization, insights)
         const current = (store.get('llm') || {}) as unknown as Record<string, unknown>
@@ -431,7 +417,7 @@ function registerIpcHandlers(): void {
 
     // Re-register hotkeys if hotkeys or moveStepPx changed
     if ((oldHotkeys !== newHotkeys || partial.moveStepPx !== undefined) && mainWindow && !mainWindow.isDestroyed()) {
-      reregisterHotkeys(mainWindow, store)
+      reregisterHotkeys(mainWindow, store as Parameters<typeof reregisterHotkeys>[1])
     }
 
     // Apply window opacity immediately
@@ -461,6 +447,8 @@ function registerIpcHandlers(): void {
           ? insights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
           : [],
         questionMlEnabled: insights.questionMlEnabled !== false,
+        speakerFilter: (insights.speakerFilter as 'you' | 'them' | 'both') || 'both',
+        enrichmentEnabled: insights.enrichmentEnabled !== false,
       })
     }
 
@@ -485,23 +473,15 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
-  // ── Insights window ─────────────────────────────────
+  // ── Insights (panel now embedded in main window; keep send-to-chat for compatibility) ──
   ipcMain.handle('insights:toggle-window', () => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.close()
-    } else {
-      createInsightsWindow()
-    }
+    // No-op: insights panel is now embedded in main overlay
   })
 
-  ipcMain.handle('insights:window-visible', () => {
-    return !!(insightsWindow && !insightsWindow.isDestroyed())
-  })
+  ipcMain.handle('insights:window-visible', () => false)
 
   ipcMain.handle('insights:close-window', () => {
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.close()
-    }
+    // No-op: insights panel is now embedded in main overlay
   })
 
   ipcMain.handle('insights:send-to-chat', (_event, text: string) => {
@@ -523,9 +503,6 @@ function registerIpcHandlers(): void {
     if (!mainWindow) return isInvisible
     isInvisible = !isInvisible
     mainWindow.setContentProtection(isInvisible)
-    if (insightsWindow && !insightsWindow.isDestroyed()) {
-      insightsWindow.setContentProtection(isInvisible)
-    }
     return isInvisible
   })
 
@@ -595,12 +572,15 @@ function initExtensionWsServer(): void {
     }
   }
 
-  extensionWsServer.on('connected', () => {
+  extensionWsServer.on('connected', async () => {
     extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
+    // Start pipeline immediately so we don't drop extension audio frames
+    // (renderer's handleStartMeeting is async and may lag)
+    await audioPipeline.startSessionIfNeeded()
     // Start external recording so video chunks are saved to disk
     screenRecorder.startExternalRecording()
-    // Auto-start meeting session when extension connects
+    // Tell renderer to start meeting UI (mic capture, etc.)
     safeSend('extension:auto-start-meeting', {})
   })
 
@@ -631,7 +611,11 @@ function initExtensionWsServer(): void {
       _event: Electron.IpcMainEvent,
       payload: { source: string; pcm: ArrayBuffer; sampleRate: number; timestamp: number },
     ) => {
-      if (payload.source === 'mic' && extensionWsServer.isClientConnected) {
+      if (
+        payload.source === 'mic' &&
+        extensionWsServer.isClientConnected &&
+        !audioPipeline.getExcludeMyMic()
+      ) {
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length > 0) {
           extensionWsServer.sendMicAudio(pcm)
@@ -639,6 +623,10 @@ function initExtensionWsServer(): void {
       }
     },
   )
+
+  ipcMain.on('meeting:set-exclude-mic', (_event, value: boolean) => {
+    audioPipeline.setExcludeMyMic(value)
+  })
 
   extensionWsServer.on('error', (err: Error) => {
     extensionWsLog.error(err)
@@ -831,9 +819,11 @@ app.whenReady().then(async () => {
     isMeetingActive = true
     rebuildTrayMenu()
   })
-  audioPipeline.setOnSessionStop(() => {
+  audioPipeline.setOnSessionStop(async () => {
     insightEngine.reset()
     llmService.resetInsightsValidation()
+    await unloadQuestionClassifier()
+    unloadEmbeddingService()
     isMeetingActive = false
     rebuildTrayMenu()
   })
@@ -854,6 +844,8 @@ app.whenReady().then(async () => {
       ? initialInsights.extraQuestionVerbs.filter((k): k is string => typeof k === 'string')
       : [],
     questionMlEnabled: initialInsights.questionMlEnabled !== false,
+    speakerFilter: (initialInsights.speakerFilter as 'you' | 'them' | 'both') || 'both',
+    enrichmentEnabled: initialInsights.enrichmentEnabled !== false,
   })
 
   // Start Chrome extension WebSocket server
@@ -881,7 +873,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // Null out windows early so async callbacks don't touch destroyed objects
   mainWindow = null
-  insightsWindow = null
 })
 
 app.on('will-quit', async (e) => {

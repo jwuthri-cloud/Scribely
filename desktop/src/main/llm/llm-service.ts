@@ -443,6 +443,10 @@ export class LLMService {
       )
     })
 
+    ipcMain.handle('llm:get-built-in-default-system-prompt', () => {
+      return DEFAULT_SYSTEM_PROMPT
+    })
+
     // ── Summarization ──
     ipcMain.handle(
       'llm:trigger-summarize',
@@ -776,6 +780,43 @@ export class LLMService {
   }
 
   /**
+   * Generate a short topic label for a transcript segment (last ~5 min).
+   * Used by TopicSegmentTracker to provide "previous topic" context for topic-change validation.
+   */
+  async generateSegmentTopic(
+    entries: Array<{ id: string; speaker: string; text: string; startTime: number }>,
+  ): Promise<string> {
+    if (!this.client || entries.length === 0) return 'N/A'
+
+    const formatEntry = (e: { speaker: string; text: string; startTime: number }) => {
+      const min = Math.floor(e.startTime / 60000)
+      const sec = Math.floor((e.startTime % 60000) / 1000)
+      return `[${min}:${String(sec).padStart(2, '0')}] ${e.speaker}: ${e.text}`
+    }
+    const transcriptText = entries.map(formatEntry).join('\n')
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-5-nano',
+        messages: [
+          {
+            role: 'user',
+            content: `Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation.\n\n${transcriptText}`,
+          },
+        ],
+        max_completion_tokens: 32,
+        reasoning_effort: 'low',
+      })
+
+      const content = response.choices?.[0]?.message?.content
+      return content?.trim() || 'N/A'
+    } catch (err) {
+      log.error('[llm-service] generateSegmentTopic error:', err)
+      return 'N/A'
+    }
+  }
+
+  /**
    * Unified LLM validation for non-question insights.
    * Maintains conversation history with transcript-delta-only user messages for prefix caching.
    * Returns structured JSON; null fields mean not valid for that modality.
@@ -784,6 +825,7 @@ export class LLMService {
     transcriptDelta: string,
     entry: { id: string; speaker: string; text: string; startTime: number },
     triggeredTypes: string[],
+    previousTopic?: string,
   ): Promise<{
     entities: Array<{ type: string; text: string; metadata?: Record<string, unknown> }>
     topic: string
@@ -811,17 +853,20 @@ Output format:
 
 Rules:
 - entities: extract named entities (person, amount, date, URL, org, place) from the utterance. Low risk — extract what you see.
-- topic: "N/A" unless the utterance CLEARLY starts a new, distinct topic. Default is "N/A". Only fire when the subject obviously changes (e.g. from budget to hiring). Do not fire on minor shifts or continuations.
+- topic: "N/A" unless the utterance introduces a new subject worth surfacing. previous_topic (if provided) was the main topic of the last ~5 minutes. Return a short topic label (2-5 words) ONLY when the utterance shifts to a genuinely different topic (e.g. previous "Q3 budget" → new "family update"). Return "N/A" for tangents, clarifications, or same-topic continuation.
 - action_item: must have a clear owner or action verb (e.g. "Sarah will send the deck by Friday"). Return null for vague intent: "we should think about it", "maybe we could", "let's see", "we need to figure that out" — these are NOT action items.
 - decision: must state a concrete, final choice (e.g. "We'll go with vendor B", "Budget approved at $2M"). Return null for soft agreement: "sounds good", "let's see", "yeah maybe", "I think so" — these are NOT decisions.
 - key_mention: must be 3+ words AND useful as a web search query or question. ALWAYS null for: single words ("Cadillac"), bare names ("Alice"), bare numbers ("690"), generic phrases ("next item", "the thing"). Good: "Q3 product launch timeline", "$2.5M marketing budget". If in doubt, null.
 - When unsure about ANY field, return null. Precision over recall.`
 
     const typesStr = triggeredTypes.join(', ')
-    const userContent =
+    const previousTopicLine = `Previous segment topic: ${previousTopic ?? 'N/A'}\n\n`
+    const transcriptBlock =
       transcriptDelta.trim().length > 0
-        ? `${transcriptDelta}\n\nCandidate utterance (speaker: ${entry.speaker}): "${entry.text}"\n\nTriggered modalities: ${typesStr}`
-        : `Candidate utterance (speaker: ${entry.speaker}): "${entry.text}"\n\nTriggered modalities: ${typesStr}`
+        ? `${transcriptDelta}\n\n`
+        : ''
+    const userContent =
+      `${previousTopicLine}${transcriptBlock}Candidate utterance (speaker: ${entry.speaker}): "${entry.text}"\n\nTriggered modalities: ${typesStr}`
 
     this.insightsValidationMessages.push({ role: 'user', content: userContent })
 
@@ -917,6 +962,11 @@ Return {"question": "na"} for ALL of these:
 - Questions from "You" (the user) — only validate questions from others
 - Vague/trivial: "what?", "huh?", "really?", "what about that?"
 - Questions that would NOT benefit from an AI answer or web search
+
+ACCEPT (return the question) when:
+- Phrase clearly seeks information: "I'm curious, where did he get...", "So what happened to...", "How did they..."
+- Incomplete but question intent is clear: "where did he get", "what's the timeline", "how could they"
+- Use transcript context to complete if needed for question_with_context
 
 Only if a genuine, substantive question remains, return:
 {"question": "<verbatim question from transcript>", "question_with_context": "<contextual rewrite>"}
@@ -1274,13 +1324,15 @@ Rules for suggestedActions search payload:
   private resolveSystemPrompt(): string | null {
     const llm = this.store.get('llm') as {
       activeSystemPromptId?: string | null
+      defaultSystemPromptOverride?: string | null
       systemPrompts?: SystemPrompt[]
     } | undefined
 
     const activeId = llm?.activeSystemPromptId
     if (!activeId) {
-      // No system prompt selected — use default
-      return DEFAULT_SYSTEM_PROMPT
+      // No system prompt selected — use default (override or built-in)
+      const override = llm?.defaultSystemPromptOverride
+      return (override && override.trim()) ? override.trim() : DEFAULT_SYSTEM_PROMPT
     }
 
     const prompts = llm?.systemPrompts ?? []

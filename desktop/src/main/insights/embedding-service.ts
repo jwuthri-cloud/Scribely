@@ -253,3 +253,17 @@ export function clearCache(): void {
   cache.clear()
   cacheOrder.length = 0
 }
+
+/**
+ * Unload the embedding model from memory.
+ * Call when meeting stops to free resources. Will reload on next embed/getOrEmbed call.
+ */
+export function unloadEmbeddingService(): void {
+  if (pipeline) {
+    pipeline = null
+    initPromise = null
+    seedMean = null
+    clearCache()
+    log.info('Embedding service unloaded')
+  }
+}

@@ -26,7 +26,7 @@ interface RecorderState {
  * 6. MediaRecorder sends chunks to main for incremental disk writes
  * 7. On stop, main sends 'recording:stop-capture'
  */
-export function useMeetingRecorder() {
+export function useMeetingRecorder(excludeMyMic = false) {
   const [state, setState] = useState<RecorderState>({
     isRecording: false,
     duration: 0,
@@ -43,6 +43,7 @@ export function useMeetingRecorder() {
   const streamRef = useRef<MediaStream | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
   const mixerCtxRef = useRef<AudioContext | null>(null)
+  const micGainRef = useRef<GainNode | null>(null)
 
   // Listen for main process signals
   useEffect(() => {
@@ -69,10 +70,14 @@ export function useMeetingRecorder() {
         console.log(
           `[recorder] Stream: ${tracks.length} tracks (video=${hasVideo}, audio=${hasAudio})`,
         )
+        if (!hasAudio) {
+          console.warn(
+            '[recorder] No system audio in display stream — recording will only have mic. ' +
+              'Ensure "Screen & System Audio Recording" permission is granted to Electron in macOS Privacy settings.',
+          )
+        }
 
         // ── Mix mic audio into the recording ──────────────
-        // Capture the local mic and combine it with display audio so the
-        // resulting WebM contains both system audio and the user's voice.
         let recordingStream = stream
         try {
           const micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -92,9 +97,13 @@ export function useMeetingRecorder() {
             displaySource.connect(dest)
           }
 
-          // Connect mic audio
+          // Connect mic audio through GainNode (allows muting during recording)
           const micSource = mixerCtx.createMediaStreamSource(micStream)
-          micSource.connect(dest)
+          const micGain = mixerCtx.createGain()
+          micGain.gain.value = excludeMyMic ? 0 : 1
+          micGainRef.current = micGain
+          micSource.connect(micGain)
+          micGain.connect(dest)
 
           // Keep AudioContext alive
           const silencer = mixerCtx.createGain()
@@ -186,7 +195,15 @@ export function useMeetingRecorder() {
       unsubStart?.()
       unsubStop?.()
     }
-  }, [])
+  }, [excludeMyMic])
+
+  // Update mic gain when excludeMyMic changes during recording
+  useEffect(() => {
+    const gain = micGainRef.current
+    if (gain) {
+      gain.gain.value = excludeMyMic ? 0 : 1
+    }
+  }, [excludeMyMic])
 
   const stopInternal = useCallback(() => {
     if (timerRef.current) {
@@ -216,6 +233,7 @@ export function useMeetingRecorder() {
     // Clean up mic stream & mixer
     micStreamRef.current?.getTracks().forEach((t) => t.stop())
     micStreamRef.current = null
+    micGainRef.current = null
     mixerCtxRef.current?.close().catch(() => {})
     mixerCtxRef.current = null
 

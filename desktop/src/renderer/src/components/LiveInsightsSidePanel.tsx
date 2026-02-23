@@ -262,13 +262,14 @@ function InsightCard({
   )
 }
 
-export function InsightsWindow() {
+export interface LiveInsightsSidePanelProps {
+  onSendToChat: (text: string) => void
+  onClose: () => void
+}
+
+export function LiveInsightsSidePanel({ onSendToChat, onClose }: LiveInsightsSidePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const liveInsights = useLiveInsights({
-    onSendToChat: (text) => {
-      window.electronAPI?.sendToChat?.(text)
-    },
-  })
+  const liveInsights = useLiveInsights({ onSendToChat })
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -278,20 +279,16 @@ export function InsightsWindow() {
 
   return (
     <div
-      className="w-full h-screen flex flex-col rounded-2xl border overflow-hidden"
+      className="w-80 shrink-0 flex flex-col h-full border-l overflow-hidden"
       style={{
-        backgroundColor: 'var(--overlay)',
+        backgroundColor: 'var(--surface)',
         borderColor: 'var(--border)',
       }}
     >
-      {/* Title bar — draggable, with close */}
+      {/* Header */}
       <div
-        className="flex items-center justify-between px-3 py-2 shrink-0 border-b select-none"
-        style={{
-          backgroundColor: 'var(--surface)',
-          borderColor: 'var(--border)',
-          WebkitAppRegion: 'drag',
-        } as React.CSSProperties}
+        className="flex items-center justify-between px-3 py-2 shrink-0 border-b"
+        style={{ borderColor: 'var(--border)' }}
       >
         <div className="flex items-center gap-2">
           <span
@@ -313,7 +310,7 @@ export function InsightsWindow() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="flex items-center gap-1">
           {liveInsights.insights.length > 0 && (
             <button
               onClick={liveInsights.clearAll}
@@ -324,7 +321,7 @@ export function InsightsWindow() {
             </button>
           )}
           <button
-            onClick={() => window.electronAPI?.closeInsightsWindow?.()}
+            onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
             style={{ color: 'var(--text-muted)' }}
             aria-label="Close"
@@ -337,7 +334,7 @@ export function InsightsWindow() {
       </div>
 
       {/* Content */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
         {liveInsights.insights.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center py-12 text-center"
@@ -374,7 +371,7 @@ export function InsightsWindow() {
                   onExecuteAction={liveInsights.executeAction}
                   onSearchWithQuery={liveInsights.searchWithQuery}
                   onDismiss={liveInsights.dismissInsight}
-                  onSendToChat={(text) => window.electronAPI?.sendToChat?.(text)}
+                  onSendToChat={onSendToChat}
                   getTypeIcon={getInsightTypeIcon}
                   getActionIcon={getActionIcon}
                 />

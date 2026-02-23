@@ -182,6 +182,14 @@ export function InputBar({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showModelPicker])
 
+  // Focus input when Option+Enter hotkey is pressed
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onFocusChatInput?.(() => {
+      inputRef.current?.focus()
+    })
+    return () => unsubscribe?.()
+  }, [])
+
   // Append STT transcript to input value
   useEffect(() => {
     if (sttTranscript) {
@@ -534,7 +542,7 @@ export function InputBar({
             className="text-[9px]"
             style={{ color: 'var(--text-muted)' }}
           >
-            Enter to send · Shift+Enter for new line
+            Enter to send · Shift+Enter for new line · ⌥↵ to focus
           </p>
           {hasMessages && onReset && (
             <button
