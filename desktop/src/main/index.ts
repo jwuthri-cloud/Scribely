@@ -45,6 +45,7 @@ interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
 interface TranscriptionSettings {
@@ -124,6 +125,7 @@ const store = new Store<AppSettings>({
       toggleAudio: 'Alt+A',
       resetChat: 'Alt+R',
       toggleMeeting: 'Alt+M',
+      focusChatInput: 'Alt+Enter',
     },
     moveStepPx: 50,
     windowOpacity: 0.85,
@@ -169,6 +171,9 @@ const store = new Store<AppSettings>({
 const storedHotkeys = store.get('hotkeys')
 if (!storedHotkeys.toggleMeeting) {
   store.set('hotkeys.toggleMeeting' as any, 'Alt+M')
+}
+if (!storedHotkeys.focusChatInput) {
+  store.set('hotkeys.focusChatInput' as any, 'Alt+Enter')
 }
 
 // Migrate: transcription from legacy (provider) to new (mode, localModel, cloudProvider)

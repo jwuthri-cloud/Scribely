@@ -8,6 +8,7 @@ export interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
 export const DEFAULT_HOTKEYS: HotkeyConfig = {
@@ -20,6 +21,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
   toggleAudio: 'Alt+A',
   resetChat: 'Alt+R',
   toggleMeeting: 'Alt+M',
+  focusChatInput: 'Alt+Enter',
 }
 
 // ── Transcription Provider Settings ─────────────────────
@@ -409,4 +411,5 @@ export const HOTKEY_LABELS: Record<keyof HotkeyConfig, string> = {
   toggleAudio: 'Toggle Audio',
   resetChat: 'Reset Chat',
   toggleMeeting: 'Toggle Meeting',
+  focusChatInput: 'Focus Ask Anything',
 }

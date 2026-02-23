@@ -213,6 +213,9 @@ export interface ElectronAPI {
   // ── Reset chat ──────────────────────────────────
   onResetChat: (callback: () => void) => () => void
 
+  // ── Focus chat input ─────────────────────────────
+  onFocusChatInput: (callback: () => void) => () => void
+
   // ── Invisibility ──────────────────────────────
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
@@ -711,6 +714,13 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('reset-chat', handler)
     return () => ipcRenderer.removeListener('reset-chat', handler)
+  },
+
+  // ── Focus chat input ─────────────────────────────
+  onFocusChatInput: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('focus-chat-input', handler)
+    return () => ipcRenderer.removeListener('focus-chat-input', handler)
   },
 
   // ── Invisibility ──────────────────────────────

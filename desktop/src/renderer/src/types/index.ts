@@ -167,6 +167,9 @@ export interface ElectronAPI {
   // Reset chat
   onResetChat: (callback: () => void) => () => void
 
+  // Focus chat input
+  onFocusChatInput?: (callback: () => void) => () => void
+
   // LLM
   llmChat: (request: LLMChatRequest) => void
   llmCancel: (requestId: string) => void

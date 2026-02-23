@@ -15,6 +15,7 @@ interface HotkeyConfig {
   toggleAudio: string
   resetChat: string
   toggleMeeting: string
+  focusChatInput: string
 }
 
 // Must match main's TranscriptionSettings for Store compatibility
@@ -126,6 +127,16 @@ export function registerAllHotkeys(
   // Toggle meeting recording
   tryRegister(hotkeys.toggleMeeting, guard(() => {
     win.webContents.send('toggle-meeting')
+  }))
+
+  // Focus chat input ("Ask anything")
+  tryRegister(hotkeys.focusChatInput, guard(() => {
+    if (!win.isVisible()) {
+      win.show()
+      win.webContents.send('toggle-visibility', true)
+    }
+    win.focus()
+    win.webContents.send('focus-chat-input')
   }))
 }
 
