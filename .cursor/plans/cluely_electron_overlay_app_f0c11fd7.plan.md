@@ -62,8 +62,8 @@ The app will live at `assistme/desktop/`.
 
 Two-layer approach using `nswindow-napi`:
 
-1. `**sharingType = .none**` - Prevents legacy window-capture APIs (`CGWindowListCreateImage`) from reading window content
-2. `**AssistiveTechHighWindowLevel**` - Moves window to assistive-tech z-index layer, hiding the black rectangle left by step 1
+1. `**sharingType = .none`** - Prevents legacy window-capture APIs (`CGWindowListCreateImage`) from reading window content
+2. `**AssistiveTechHighWindowLevel`** - Moves window to assistive-tech z-index layer, hiding the black rectangle left by step 1
 
 This works against browser-based screen sharing (Chrome, Firefox) and legacy capture. Modern tools like Zoom's latest ScreenCaptureKit-based capture can still see it -- this is the same limitation Cluely has. A toggle hotkey lets users quickly hide the window entirely when needed.
 

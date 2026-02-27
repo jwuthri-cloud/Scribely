@@ -143,6 +143,29 @@
       color: #fff;
     }
 
+    .btn-launch {
+      background: #2196f3;
+      color: #fff;
+    }
+
+    .launch-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .download-link {
+      font-size: 11px;
+      color: #888;
+      text-decoration: none;
+      text-align: center;
+    }
+
+    .download-link:hover {
+      color: #4caf50;
+    }
+
     .btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
@@ -189,6 +212,14 @@
   </div>
 
   <div id="errorBox" class="error" style="display:none"></div>
+
+  <div id="launchBar" class="launch-bar" style="display:none">
+    <button id="launchBtn" class="btn btn-launch">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span>Launch Scribely</span>
+    </button>
+    <a id="downloadLink" href="https://github.com/Jwuthri/Scribely-Release/releases" target="_blank" rel="noopener" class="download-link">Download Scribely</a>
+  </div>
 
   <button id="captureBtn" class="btn btn-start" disabled>
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">

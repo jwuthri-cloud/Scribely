@@ -297,6 +297,18 @@ app.commandLine.appendSwitch(
   ].join(','),
 )
 
+// ── Custom URL scheme (scribely://) for Chrome extension launch ──
+// Must be registered before app.ready. Only works when app is packaged.
+if (!process.defaultApp) {
+  app.setAsDefaultProtocolClient('scribely')
+}
+app.on('open-url', (_event, url) => {
+  if (url.startsWith('scribely://')) {
+    appLog.info('Launched via scribely:// URL:', url)
+    // App is brought to front by OS; no extra logic needed
+  }
+})
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 420,

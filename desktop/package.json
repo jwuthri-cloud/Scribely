@@ -58,7 +58,14 @@
       "notarize": true,
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Scribely needs microphone access for meeting transcription and recording.",
-        "NSAudioCaptureUsageDescription": "Scribely needs system audio capture for recording meetings with participant audio."
+        "NSAudioCaptureUsageDescription": "Scribely needs system audio capture for recording meetings with participant audio.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Scribely",
+            "CFBundleURLSchemes": ["scribely"],
+            "CFBundleTypeRole": "Editor"
+          }
+        ]
       }
     },
     "extraResources": [

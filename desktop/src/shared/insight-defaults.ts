@@ -114,7 +114,7 @@ const FR_QUESTION_VERBS = [
   'sont',
   'était',
   'étaient',
-  'a',
+  // 'a',
   'ont',
   'avait',
   'avaient',

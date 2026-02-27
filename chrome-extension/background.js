@@ -5,7 +5,10 @@
  * - Tab capture stream ID via chrome.tabCapture.getMediaStreamId()
  * - Creating/managing the offscreen document for media processing
  * - Message relay between popup and offscreen document
+ * - Meeting tab detection and badge
  */
+
+import { isMeetingUrl } from './meeting-detector.js'
 
 const OFFSCREEN_URL = 'offscreen.html'
 const WS_PORT = 9876
@@ -13,6 +16,52 @@ const WS_PORT = 9876
 // ── State ──────────────────────────────────────────────
 let isCapturing = false
 let capturedTabId = null
+let meetingTabId = null
+let meetingTabInfo = null
+
+// ── Meeting detection ──────────────────────────────────
+async function updateMeetingState() {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const allTabs = await chrome.tabs.query({})
+  const meetingTabs = allTabs.filter((t) => t.url && isMeetingUrl(t.url))
+  const activeIsMeeting = activeTab && meetingTabs.some((t) => t.id === activeTab.id)
+  const found = activeIsMeeting
+    ? { tabId: activeTab.id, title: activeTab.title || activeTab.url, url: activeTab.url }
+    : meetingTabs[0]
+      ? { tabId: meetingTabs[0].id, title: meetingTabs[0].title || meetingTabs[0].url, url: meetingTabs[0].url }
+      : null
+
+  meetingTabId = found?.tabId ?? null
+  meetingTabInfo = found ?? null
+
+  if (meetingTabId) {
+    await chrome.action.setBadgeText({ text: 'Rec' })
+    await chrome.action.setBadgeBackgroundColor({ color: '#4caf50' })
+  } else {
+    await chrome.action.setBadgeText({ text: '' })
+  }
+}
+
+function onTabUpdated(tabId, changeInfo, tab) {
+  if (changeInfo.status === 'loading' && !changeInfo.url) return
+  const url = changeInfo.url ?? tab?.url
+  if (url && isMeetingUrl(url)) {
+    updateMeetingState()
+  } else if (meetingTabId === tabId) {
+    updateMeetingState()
+  }
+}
+
+function onTabActivated() {
+  updateMeetingState()
+}
+
+chrome.tabs.onUpdated.addListener(onTabUpdated)
+chrome.tabs.onActivated.addListener(onTabActivated)
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (meetingTabId === tabId) updateMeetingState()
+})
+updateMeetingState()
 
 // ── Offscreen document management ─────────────────────
 async function ensureOffscreenDocument() {
@@ -95,12 +144,15 @@ async function stopCapture() {
 // ── Message handler ───────────────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   switch (message.type) {
-    case 'get-status':
+    case 'get-status': {
       sendResponse({
         isCapturing,
         capturedTabId,
+        meetingTabId,
+        meetingTabInfo,
       })
       return false
+    }
 
     case 'start-capture-request': {
       // From popup: start capturing the specified tab

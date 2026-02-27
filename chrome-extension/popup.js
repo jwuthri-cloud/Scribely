@@ -2,7 +2,8 @@
  * Popup UI for Scribely Tab Capture extension.
  *
  * Shows current tab info, connection status to the Electron app,
- * and a Start/Stop capture button.
+ * meeting detection, and a Start/Stop capture button.
+ * When desktop app is not running, offers "Launch Scribely" via scribely://.
  */
 
 const WS_PORT = 9876
@@ -17,36 +18,83 @@ const captureBtnText = document.getElementById('captureBtnText')
 const micBar = document.getElementById('micBar')
 const micStatus = document.getElementById('micStatus')
 const micGrantLink = document.getElementById('micGrantLink')
+const launchBar = document.getElementById('launchBar')
+const launchBtn = document.getElementById('launchBtn')
 
 let currentTabId = null
 let isCapturing = false
+let hasMeetingTab = false
 
 // ── Initialize ────────────────────────────────────────
 async function init() {
-  // Get current active tab
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (tab) {
-    currentTabId = tab.id
-    tabName.textContent = tab.title || tab.url || 'Unknown tab'
-    if (tab.favIconUrl) {
-      tabIcon.src = tab.favIconUrl
+  const status = await sendMessage({ type: 'get-status' })
+  const meetingTabId = status?.meetingTabId
+  const meetingTabInfo = status?.meetingTabInfo
+
+  hasMeetingTab = !!meetingTabId
+
+  // Prefer meeting tab for capture; otherwise use active tab
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (meetingTabId) {
+    currentTabId = meetingTabId
+    tabName.textContent = meetingTabInfo?.title || 'Meeting'
+    const meetingTab = await chrome.tabs.get(meetingTabId).catch(() => null)
+    if (meetingTab?.favIconUrl) {
+      tabIcon.src = meetingTab.favIconUrl
       tabIcon.style.display = 'block'
+    } else {
+      tabIcon.style.display = 'none'
+    }
+  } else if (activeTab) {
+    currentTabId = activeTab.id
+    tabName.textContent = activeTab.title || activeTab.url || 'Unknown tab'
+    if (activeTab.favIconUrl) {
+      tabIcon.src = activeTab.favIconUrl
+      tabIcon.style.display = 'block'
+    } else {
+      tabIcon.style.display = 'none'
     }
   }
 
-  // Check capture status
-  const status = await sendMessage({ type: 'get-status' })
   if (status?.isCapturing) {
     setCapturingState(true)
   }
 
-  // Check WebSocket connectivity
-  await checkDesktopConnection()
+  const connected = await checkDesktopConnection()
+  setLaunchBarVisibility(!connected)
 
-  // Check mic permission
   await checkMicPermission()
 
-  captureBtn.disabled = false
+  captureBtn.disabled = !connected
+  updateCaptureButtonLabel()
+}
+
+// ── Launch Scribely (scribely://) ───────────────────────
+launchBtn.addEventListener('click', async () => {
+  clearError()
+  launchBtn.disabled = true
+  try {
+    chrome.tabs.create({ url: 'scribely://launch' })
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1000))
+      const connected = await checkDesktopConnection()
+      if (connected) {
+        setLaunchBarVisibility(false)
+        captureBtn.disabled = false
+        break
+      }
+    }
+  } finally {
+    launchBtn.disabled = false
+  }
+})
+
+function setLaunchBarVisibility(show) {
+  launchBar.style.display = show ? 'flex' : 'none'
+}
+
+function updateCaptureButtonLabel() {
+  captureBtnText.textContent = hasMeetingTab ? 'Record Meeting' : 'Start Sharing'
 }
 
 // ── Check microphone permission status ────────────────
@@ -113,6 +161,7 @@ function setConnectionStatus(connected) {
     wsStatus.textContent = 'Not running'
     wsStatus.className = 'value err'
   }
+  setLaunchBarVisibility(!connected)
 }
 
 function setCapturingState(capturing) {
@@ -125,7 +174,7 @@ function setCapturingState(capturing) {
   } else {
     statusDot.className = 'dot connected'
     captureBtn.className = 'btn btn-start'
-    captureBtnText.textContent = 'Start Sharing'
+    captureBtnText.textContent = hasMeetingTab ? 'Record Meeting' : 'Start Sharing'
     captureBtn.querySelector('svg').innerHTML = '<circle cx="12" cy="12" r="8"/>'
   }
 }

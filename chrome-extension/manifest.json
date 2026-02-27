@@ -6,7 +6,8 @@
   "permissions": [
     "tabCapture",
     "offscreen",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "action": {
     "default_popup": "popup.html",
