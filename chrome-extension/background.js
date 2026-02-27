@@ -31,27 +31,12 @@ async function updateMeetingState() {
       ? { tabId: meetingTabs[0].id, title: meetingTabs[0].title || meetingTabs[0].url, url: meetingTabs[0].url }
       : null
 
-  const hadMeeting = !!meetingTabId
   meetingTabId = found?.tabId ?? null
   meetingTabInfo = found ?? null
 
   if (meetingTabId) {
     await chrome.action.setBadgeText({ text: 'Rec' })
     await chrome.action.setBadgeBackgroundColor({ color: '#4caf50' })
-    // Notify only when newly detecting a meeting (Chrome can't auto-open popup)
-    if (!hadMeeting) {
-      try {
-        await chrome.notifications.create({
-          type: 'basic',
-          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-          title: 'Meeting detected',
-          message: 'Click the Scribely icon to record this meeting.',
-          requireInteraction: false,
-        })
-      } catch {
-        // Ignore if notifications fail (e.g. duplicate, permission)
-      }
-    }
   } else {
     await chrome.action.setBadgeText({ text: '' })
   }

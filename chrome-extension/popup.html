@@ -50,6 +50,26 @@
       animation: pulse 1.5s infinite;
     }
 
+    .meeting-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+      color: #4caf50;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .meeting-banner-icon {
+      color: #4caf50;
+      font-size: 10px;
+      animation: pulse 1.5s infinite;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
@@ -193,6 +213,11 @@
   <div class="header">
     <div id="statusDot" class="dot"></div>
     <h1>Scribely Tab Capture</h1>
+  </div>
+
+  <div id="meetingBanner" class="meeting-banner" style="display:none">
+    <span class="meeting-banner-icon">●</span>
+    <span>Meeting detected — ready to record</span>
   </div>
 
   <div class="status-bar">

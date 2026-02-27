@@ -20,6 +20,7 @@ const micStatus = document.getElementById('micStatus')
 const micGrantLink = document.getElementById('micGrantLink')
 const launchBar = document.getElementById('launchBar')
 const launchBtn = document.getElementById('launchBtn')
+const meetingBanner = document.getElementById('meetingBanner')
 
 let currentTabId = null
 let isCapturing = false
@@ -67,6 +68,7 @@ async function init() {
 
   captureBtn.disabled = !connected
   updateCaptureButtonLabel()
+  meetingBanner.style.display = hasMeetingTab ? 'flex' : 'none'
 }
 
 // ── Launch Scribely (scribely://) ───────────────────────
