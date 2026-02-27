@@ -1,6 +1,6 @@
 import './instrumentation' // Must be first — Langfuse observability
 
-import { createLogger } from './logger'
+import { createLogger, silenceLoggers } from './logger'
 
 const permissionsLog = createLogger('permissions')
 const extensionWsLog = createLogger('extension-ws')
@@ -273,6 +273,16 @@ const extensionWsServer = new ExtensionWsServer()
 
 // ── Native Helper Bridge ───────────────────────────────
 let nativeBridge: NativeHelperBridge | null = null
+
+// ── Ignore EIO write errors during shutdown ─────────────
+// Consola (and other loggers) may try to write to stdout/stderr after they're
+// closed, causing "write EIO". Harmless during quit — suppress to avoid crash.
+process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EIO' && err.message?.includes('write')) {
+    return // Ignore — we're shutting down
+  }
+  throw err
+})
 
 // ── Suppress "Chromium Safe Storage" keychain prompt ───
 // Electron uses the system keychain to store its own encryption key, which
@@ -896,6 +906,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  // Silence logging to avoid EIO when stdout/stderr close during shutdown
+  silenceLoggers()
   // Null out windows early so async callbacks don't touch destroyed objects
   mainWindow = null
 })

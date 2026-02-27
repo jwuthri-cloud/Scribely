@@ -31,3 +31,11 @@ export function createLogger(tag: string) {
 
 /** Default logger for ad-hoc use. */
 export const log = base
+
+/**
+ * Silence all logging. Call during app shutdown to prevent EIO errors when
+ * stdout/stderr are closed but async cleanup still tries to log.
+ */
+export function silenceLoggers(): void {
+  base.level = 0 // 0 = silent — no output
+}
