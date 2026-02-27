@@ -1,6 +1,6 @@
 {
   "name": "scribely-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Scribely desktop overlay – invisible to screen sharing",
   "main": "./out/main/index.js",
   "scripts": {
@@ -62,7 +62,9 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "Scribely",
-            "CFBundleURLSchemes": ["scribely"],
+            "CFBundleURLSchemes": [
+              "scribely"
+            ],
             "CFBundleTypeRole": "Editor"
           }
         ]
