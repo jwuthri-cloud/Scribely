@@ -362,6 +362,11 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
                 <MarkdownContent
                   content={displayText}
                   color="var(--text-bright)"
+                  onListItemClick={
+                    msg.isFollowUp && onSend
+                      ? (text) => onSend(text)
+                      : undefined
+                  }
                 />
               </div>
             ) : (

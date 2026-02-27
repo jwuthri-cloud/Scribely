@@ -270,7 +270,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   // ── Send a message ──
   const sendMessage = useCallback(
-    (content: string, attachments?: ChatAttachment[]) => {
+    (content: string, attachments?: ChatAttachment[], options?: { isFollowUp?: boolean }) => {
       const api = window.electronAPI
       if (!api?.llmChat) {
         // Fallback for browser-only dev (no Electron)
@@ -328,6 +328,7 @@ export function useChat(options: UseChatOptions = {}) {
         role: 'assistant',
         content: '',
         timestamp: Date.now(),
+        isFollowUp: options?.isFollowUp,
       }
       setMessages((prev) => [...prev, userMsg, assistantPlaceholder])
       setIsLoading(true)

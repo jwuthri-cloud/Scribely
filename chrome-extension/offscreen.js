@@ -124,7 +124,7 @@ function sendVideoChunk(socket, data) {
   socket.send(msg.buffer)
 }
 
-// ── Start capture ─────────────────────────────────────
+// ── Start capture via tabCapture stream ID ─
 async function startCapture(streamId, wsPort) {
   isStopping = false // reset guard for new session
   try {

@@ -69,6 +69,26 @@ async function init() {
   captureBtn.disabled = !connected
   updateCaptureButtonLabel()
   meetingBanner.style.display = hasMeetingTab ? 'flex' : 'none'
+
+  // Auto-start when widget clicked Record and user opened popup (clicked icon)
+  if (
+    !status?.isCapturing &&
+    connected &&
+    status?.autoStartCapture
+  ) {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (activeTab?.id) {
+      const result = await sendMessage({
+        type: 'start-capture-request',
+        tabId: activeTab.id,
+      })
+      if (result?.success) {
+        setCapturingState(true)
+      } else {
+        showError(result?.error || 'Failed to start')
+      }
+    }
+  }
 }
 
 // ── Launch Scribely (scribely://) ───────────────────────
@@ -204,12 +224,14 @@ captureBtn.addEventListener('click', async () => {
         showError(result?.error || 'Failed to stop capture')
       }
     } else {
-      if (!currentTabId) {
+      // Must use the active tab in current window — that's the one we have
+      // activeTab permission for (user clicked extension icon).
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      if (!activeTab?.id) {
         showError('No active tab found')
         return
       }
 
-      // Verify desktop app is reachable first
       const connected = await checkDesktopConnection()
       if (!connected) {
         showError('Scribely desktop app is not running. Start it first.')
@@ -218,7 +240,7 @@ captureBtn.addEventListener('click', async () => {
 
       const result = await sendMessage({
         type: 'start-capture-request',
-        tabId: currentTabId,
+        tabId: activeTab.id,
       })
 
       if (result?.success) {

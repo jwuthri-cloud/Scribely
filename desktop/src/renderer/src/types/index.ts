@@ -232,6 +232,7 @@ export interface ElectronAPI {
     }) => void,
   ) => () => void
   llmWebSearch: (query: string) => Promise<import('./insights').WebSearchResult>
+  llmSuggestFollowUp: (payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> }) => Promise<{ content: string; error?: string }>
   llmWebSearchStream: (payload: { requestId: string; query: string }) => void
   onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
   onLLMWebSearchDone: (
@@ -294,6 +295,8 @@ export interface ChatMessage {
   }
   isError?: boolean
   retryable?: boolean
+  /** True when this assistant message is a follow-up questions response (list items are clickable) */
+  isFollowUp?: boolean
 }
 
 export type {

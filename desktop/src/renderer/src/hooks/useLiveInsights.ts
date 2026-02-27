@@ -1,12 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Insight, InsightAction, WebSearchResult } from '../types/insights'
+import type { TranscriptEntry } from '../types/transcript'
 
 const MAX_INSIGHTS = 50
 const INSIGHT_TTL_MS = 5 * 60 * 1000 // 5 minutes — remove insights after this
 
+export interface FollowUpResult {
+  content: string
+  error?: string
+}
+
 interface InsightWithResult extends Insight {
   searchResult?: WebSearchResult | null
   searchLoading?: boolean
+  followUpResult?: FollowUpResult | null
+  followUpLoading?: boolean
   receivedAt: number
 }
 
@@ -20,9 +28,10 @@ function filterExpired<T extends { receivedAt?: number }>(items: T[], ttlMs: num
 
 export function useLiveInsights(options?: {
   onSendToChat?: (text: string) => void
+  transcriptEntries?: TranscriptEntry[]
 }) {
   const [insights, setInsights] = useState<InsightWithResult[]>([])
-  const { onSendToChat } = options ?? {}
+  const { onSendToChat, transcriptEntries = [] } = options ?? {}
 
   useEffect(() => {
     const api = window.electronAPI
@@ -108,6 +117,55 @@ export function useLiveInsights(options?: {
     [],
   )
 
+  const runSuggestFollowUp = useCallback(
+    async (insightId: string, prompt: string) => {
+      const api = window.electronAPI
+      if (!api?.llmSuggestFollowUp || !prompt.trim()) return
+
+      setInsights((prev) =>
+        prev.map((i) =>
+          i.id === insightId ? { ...i, followUpLoading: true, followUpResult: null } : i,
+        ),
+      )
+      try {
+        const result = await api.llmSuggestFollowUp({
+          prompt: prompt.trim(),
+          transcriptEntries: transcriptEntries.map((e) => ({
+            id: e.id,
+            speaker: e.speaker,
+            text: e.text,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            source: e.source,
+          })),
+        })
+        setInsights((prev) =>
+          prev.map((i) =>
+            i.id === insightId
+              ? { ...i, followUpLoading: false, followUpResult: result }
+              : i,
+          ),
+        )
+      } catch (err) {
+        setInsights((prev) =>
+          prev.map((i) =>
+            i.id === insightId
+              ? {
+                  ...i,
+                  followUpLoading: false,
+                  followUpResult: {
+                    content: '',
+                    error: err instanceof Error ? err.message : 'Follow-up suggestions failed',
+                  },
+                }
+              : i,
+          ),
+        )
+      }
+    },
+    [transcriptEntries],
+  )
+
   const executeAction = useCallback(
     async (insightId: string, action: InsightAction) => {
       const api = window.electronAPI
@@ -115,16 +173,16 @@ export function useLiveInsights(options?: {
 
       if (action.type === 'search') {
         await runSearch(insightId, action.payload)
+      } else if (action.type === 'follow_up') {
+        await runSuggestFollowUp(insightId, action.payload)
       } else if (
-        (action.type === 'answer' ||
-          action.type === 'follow_up' ||
-          action.type === 'summarize') &&
+        (action.type === 'answer' || action.type === 'summarize') &&
         onSendToChat
       ) {
         onSendToChat(action.payload)
       }
     },
-    [onSendToChat, runSearch],
+    [onSendToChat, runSearch, runSuggestFollowUp],
   )
 
   /** Search the web with a custom follow-up query. Prepends insight context (e.g. entity name) when useful. */

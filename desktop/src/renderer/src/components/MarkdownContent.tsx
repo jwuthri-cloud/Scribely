@@ -77,6 +77,8 @@ interface MarkdownContentProps {
   className?: string
   /** Text color for the content */
   color?: string
+  /** When provided, list items become clickable and invoke this with the item text */
+  onListItemClick?: (text: string) => void
 }
 
 /** Renders markdown with proper styling. Links open in external browser. */
@@ -84,6 +86,7 @@ export function MarkdownContent({
   content,
   className = '',
   color = 'var(--text)',
+  onListItemClick,
 }: MarkdownContentProps) {
   const components: Components = {
     a: ({ href, children }) => {
@@ -115,9 +118,24 @@ export function MarkdownContent({
     ol: ({ children }) => (
       <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>
     ),
-    li: ({ children }) => (
-      <li className="ml-2">{children}</li>
-    ),
+    li: ({ children }) =>
+      onListItemClick ? (
+        <li className="ml-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              const text = (e.currentTarget as HTMLElement).innerText?.trim()
+              if (text) onListItemClick(text)
+            }}
+            className="w-full text-left cursor-pointer hover:underline transition-colors rounded px-0.5 -mx-0.5 py-0"
+            style={{ color: 'var(--accent)' }}
+          >
+            {children}
+          </button>
+        </li>
+      ) : (
+        <li className="ml-2">{children}</li>
+      ),
     strong: ({ children }) => (
       <strong className="font-semibold">{children}</strong>
     ),

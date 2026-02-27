@@ -143,14 +143,31 @@ export function CompactNavbar({
           <span />
         </NavBtn>
 
-        {/* Green: compact mode toggle (expand back to full view) */}
+        {/* Green: hide/show window */}
+        <TooltipWrap tooltip="Hide window (⌥T)">
+          <button
+            className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
+            style={{
+              backgroundColor: 'var(--success)',
+              boxShadow: hiddenHovered ? '0 0 6px var(--success)' : 'none',
+            } as React.CSSProperties}
+            onMouseEnter={() => setHiddenHovered(true)}
+            onMouseLeave={() => setHiddenHovered(false)}
+            onClick={handleHideWindow}
+            aria-label="Hide window"
+          >
+            <span />
+          </button>
+        </TooltipWrap>
+
+        {/* Blue: compact mode toggle (expand back to full view) */}
         {onToggleCompactMode && (
           <TooltipWrap tooltip="Advanced mode">
             <button
               className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
               style={{
-                backgroundColor: 'var(--success)',
-                boxShadow: compactHovered ? '0 0 6px var(--success)' : 'none',
+                backgroundColor: 'var(--accent)',
+                boxShadow: compactHovered ? '0 0 6px var(--accent)' : 'none',
               } as React.CSSProperties}
               onMouseEnter={() => setCompactHovered(true)}
               onMouseLeave={() => setCompactHovered(false)}
@@ -161,23 +178,6 @@ export function CompactNavbar({
             </button>
           </TooltipWrap>
         )}
-
-        {/* Blue: hide/show window */}
-        <TooltipWrap tooltip="Hide window (⌥T)">
-          <button
-            className="flex items-center justify-center w-3 h-3 rounded-full transition-all duration-150"
-            style={{
-              backgroundColor: 'var(--accent)',
-              boxShadow: hiddenHovered ? '0 0 6px var(--accent)' : 'none',
-            } as React.CSSProperties}
-            onMouseEnter={() => setHiddenHovered(true)}
-            onMouseLeave={() => setHiddenHovered(false)}
-            onClick={handleHideWindow}
-            aria-label="Hide window"
-          >
-            <span />
-          </button>
-        </TooltipWrap>
 
         {/* Invisible/show: screen share visibility */}
         <TooltipWrap

@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLiveInsights } from '../hooks/useLiveInsights'
 import type { Insight, InsightAction, WebSearchResult } from '../types/insights'
+import type { TranscriptEntry } from '../types/transcript'
 import { getQuickActionIcon } from './QuickActionIcons'
 import { MarkdownContent } from './MarkdownContent'
 
@@ -78,8 +79,18 @@ function getActionIcon(icon: string) {
   return map[icon] ?? getQuickActionIcon(icon, '')
 }
 
+interface FollowUpResult {
+  content: string
+  error?: string
+}
+
 interface InsightCardProps {
-  insight: Insight & { searchResult?: WebSearchResult | null; searchLoading?: boolean }
+  insight: Insight & {
+    searchResult?: WebSearchResult | null
+    searchLoading?: boolean
+    followUpResult?: FollowUpResult | null
+    followUpLoading?: boolean
+  }
   onExecuteAction: (insightId: string, action: InsightAction) => void
   onSearchWithQuery?: (insightId: string, query: string) => void
   onDismiss?: (id: string) => void
@@ -100,7 +111,8 @@ function InsightCard({
 }) {
   const [followUp, setFollowUp] = useState('')
   const hasSearchResult = insight.searchResult && (insight.searchResult.content || insight.searchResult.error)
-  const isLoading = insight.searchLoading
+  const hasFollowUpResult = insight.followUpResult && (insight.followUpResult.content || insight.followUpResult.error)
+  const isLoading = insight.searchLoading || insight.followUpLoading
   const hasSearchAction = insight.suggestedActions.some((a) => a.type === 'search')
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -168,10 +180,17 @@ function InsightCard({
         ))}
       </div>
 
-      {isLoading && (
+      {insight.searchLoading && (
         <div className="flex items-center gap-2 py-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
           <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
           Searching...
+        </div>
+      )}
+
+      {insight.followUpLoading && (
+        <div className="flex items-center gap-2 py-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
+          Suggesting follow-up questions...
         </div>
       )}
 
@@ -208,6 +227,32 @@ function InsightCard({
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {hasFollowUpResult && insight.followUpResult && (
+        <div
+          className="mt-2 pt-2 rounded-lg px-2.5 py-2 text-[11px] border-t"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--border) 60%, transparent)',
+            color: 'var(--text)',
+          }}
+        >
+          {insight.followUpResult.error ? (
+            <span style={{ color: 'var(--error)' }}>{insight.followUpResult.error}</span>
+          ) : (
+            <div className="leading-relaxed">
+              <MarkdownContent
+                content={insight.followUpResult.content}
+                color="var(--text)"
+                onListItemClick={
+                  onSendToChat
+                    ? (text) => onSendToChat(text)
+                    : undefined
+                }
+              />
+            </div>
           )}
         </div>
       )}
@@ -265,11 +310,12 @@ function InsightCard({
 export interface LiveInsightsSidePanelProps {
   onSendToChat: (text: string) => void
   onClose: () => void
+  transcriptEntries?: TranscriptEntry[]
 }
 
-export function LiveInsightsSidePanel({ onSendToChat, onClose }: LiveInsightsSidePanelProps) {
+export function LiveInsightsSidePanel({ onSendToChat, onClose, transcriptEntries = [] }: LiveInsightsSidePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const liveInsights = useLiveInsights({ onSendToChat })
+  const liveInsights = useLiveInsights({ onSendToChat, transcriptEntries })
 
   useEffect(() => {
     if (scrollRef.current) {

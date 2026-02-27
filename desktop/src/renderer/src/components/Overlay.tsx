@@ -464,8 +464,8 @@ export function Overlay() {
 
   // ── Chat handlers ─────────────────────────────────────
   const handleSend = useCallback(
-    (content: string, attachments?: ChatAttachment[]) => {
-      sendMessage(content, attachments)
+    (content: string, attachments?: ChatAttachment[], options?: { isFollowUp?: boolean }) => {
+      sendMessage(content, attachments, options)
       setPendingScreenshot(null)
     },
     [sendMessage],
@@ -624,6 +624,7 @@ export function Overlay() {
                 <LiveInsightsSidePanel
                   onSendToChat={handleSend}
                   onClose={handleToggleInsightsPanel}
+                  transcriptEntries={transcript.entries}
                 />
               )}
             </div>
@@ -860,6 +861,7 @@ export function Overlay() {
                   <LiveInsightsSidePanel
                     onSendToChat={handleSend}
                     onClose={handleToggleInsightsPanel}
+                    transcriptEntries={transcript.entries}
                   />
                 )}
               </div>

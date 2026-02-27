@@ -1,0 +1,38 @@
+name: Bump Desktop Version
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to push the version bump commit
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump patch version
+        run: |
+          cd desktop
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add desktop/package.json
+          git commit -m "chore(desktop): bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git push

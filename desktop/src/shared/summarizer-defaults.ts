@@ -45,5 +45,6 @@ Rules:
 - Keep excerpts short (1 - 3 sentences).
 - Include speaker attribution only if clearly available; otherwise use null.
 - Do not invent information not present in the transcript.
+- LANGUAGE: Write all output (topic titles, summaries, key excerpts) in the same language as the transcript. If the transcript is in French, output in French. If in English, output in English.
 
 Produce only the fenced JSON output.`;

@@ -1,11 +1,8 @@
 /**
- * Background service worker for Scribely Tab Capture extension.
+ * Background service worker for Scribely Tab Capture.
  *
- * Handles:
- * - Tab capture stream ID via chrome.tabCapture.getMediaStreamId()
- * - Creating/managing the offscreen document for media processing
- * - Message relay between popup and offscreen document
- * - Meeting tab detection and badge
+ * - Popup: tabCapture (user clicked icon → Record works)
+ * - Widget on meeting page: getDisplayMedia (shows tab picker, then records)
  */
 
 import { isMeetingUrl } from './meeting-detector.js'
@@ -13,13 +10,54 @@ import { isMeetingUrl } from './meeting-detector.js'
 const OFFSCREEN_URL = 'offscreen.html'
 const WS_PORT = 9876
 
-// ── State ──────────────────────────────────────────────
 let isCapturing = false
 let capturedTabId = null
 let meetingTabId = null
 let meetingTabInfo = null
+let desktopConnected = false
+let autoStartCapture = false
 
-// ── Meeting detection ──────────────────────────────────
+async function checkDesktopConnection() {
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${WS_PORT}`)
+      const t = setTimeout(() => {
+        ws.close()
+        resolve(false)
+      }, 2000)
+      ws.onopen = () => {
+        clearTimeout(t)
+        ws.close()
+        resolve(true)
+      }
+      ws.onerror = () => {
+        clearTimeout(t)
+        resolve(false)
+      }
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+function broadcastState() {
+  const payload = {
+    type: 'scribely:state-update',
+    connected: desktopConnected,
+    isCapturing,
+    capturedTabId,
+    meetingTabId,
+    meetingTabInfo,
+  }
+  chrome.tabs.query({}).then((tabs) => {
+    for (const tab of tabs) {
+      if (tab.id && tab.url && isMeetingUrl(tab.url)) {
+        chrome.tabs.sendMessage(tab.id, payload).catch(() => {})
+      }
+    }
+  })
+}
+
 async function updateMeetingState() {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
   const allTabs = await chrome.tabs.query({})
@@ -37,44 +75,43 @@ async function updateMeetingState() {
   if (meetingTabId) {
     await chrome.action.setBadgeText({ text: 'Rec' })
     await chrome.action.setBadgeBackgroundColor({ color: '#4caf50' })
+    desktopConnected = await checkDesktopConnection()
   } else {
     await chrome.action.setBadgeText({ text: '' })
   }
+  broadcastState()
 }
 
-function onTabUpdated(tabId, changeInfo, tab) {
-  // Re-scan when URL changes to/from a meeting, or when any tab finishes loading
-  // (catches cases where changeInfo.url wasn't present during loading)
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = changeInfo.url ?? tab?.url
-  const urlIsMeeting = url && isMeetingUrl(url)
-  const wasMeetingTab = meetingTabId === tabId
-  const justFinishedLoading = changeInfo.status === 'complete'
-
-  if (urlIsMeeting || wasMeetingTab || justFinishedLoading) {
+  if ((url && isMeetingUrl(url)) || meetingTabId === tabId || changeInfo.status === 'complete') {
     updateMeetingState()
   }
-}
-
-function onTabActivated() {
-  updateMeetingState()
-}
-
-chrome.tabs.onUpdated.addListener(onTabUpdated)
-chrome.tabs.onActivated.addListener(onTabActivated)
+})
+chrome.tabs.onActivated.addListener(() => updateMeetingState())
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (meetingTabId === tabId) updateMeetingState()
 })
 updateMeetingState()
 
-// ── Offscreen document management ─────────────────────
+setInterval(() => {
+  if (meetingTabId) {
+    checkDesktopConnection().then((conn) => {
+      if (conn !== desktopConnected) {
+        desktopConnected = conn
+        broadcastState()
+      }
+    })
+  }
+}, 5000)
+
+// ── Offscreen document ─────────────────────────────────
 async function ensureOffscreenDocument() {
   const contexts = await chrome.runtime.getContexts({
     contextTypes: ['OFFSCREEN_DOCUMENT'],
     documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
   })
-
-  if (contexts.length > 0) return // already exists
-
+  if (contexts.length > 0) return
   await chrome.offscreen.createDocument({
     url: OFFSCREEN_URL,
     reasons: ['USER_MEDIA'],
@@ -87,36 +124,19 @@ async function closeOffscreenDocument() {
     contextTypes: ['OFFSCREEN_DOCUMENT'],
     documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)],
   })
-
-  if (contexts.length > 0) {
-    await chrome.offscreen.closeDocument()
-  }
+  if (contexts.length > 0) await chrome.offscreen.closeDocument()
 }
 
-// ── Start tab capture ─────────────────────────────────
+// ── Popup path: tabCapture (icon was clicked) ─
 async function startCapture(tabId) {
-  if (isCapturing) {
-    console.log('[bg] Already capturing — stop first')
-    return { success: false, error: 'Already capturing' }
-  }
-
+  if (isCapturing) return { success: false, error: 'Already capturing' }
   try {
-    // Get a media stream ID for the target tab
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId })
-
-    // Ensure offscreen document is running
     await ensureOffscreenDocument()
-
-    // Tell offscreen document to start capture with the stream ID
-    chrome.runtime.sendMessage({
-      type: 'start-capture',
-      streamId,
-      tabId,
-      wsPort: WS_PORT,
-    })
-
+    chrome.runtime.sendMessage({ type: 'start-capture', streamId, tabId, wsPort: WS_PORT })
     isCapturing = true
     capturedTabId = tabId
+    broadcastState()
     return { success: true }
   } catch (err) {
     console.error('[bg] Tab capture failed:', err)
@@ -124,73 +144,88 @@ async function startCapture(tabId) {
   }
 }
 
-// ── Stop tab capture ──────────────────────────────────
 async function stopCapture() {
   if (!isCapturing) return { success: true }
-
   try {
     chrome.runtime.sendMessage({ type: 'stop-capture' })
-    // Give the offscreen doc time to clean up, then close it
-    setTimeout(async () => {
-      await closeOffscreenDocument()
-    }, 500)
-
+    setTimeout(() => closeOffscreenDocument(), 500)
     isCapturing = false
     capturedTabId = null
+    broadcastState()
     return { success: true }
   } catch (err) {
-    console.error('[bg] Stop capture failed:', err)
+    console.error('[bg] Stop failed:', err)
     return { success: false, error: err.message }
   }
 }
 
-// ── Message handler ───────────────────────────────────
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.type) {
-    case 'get-status': {
+    case 'get-status':
       sendResponse({
         isCapturing,
         capturedTabId,
         meetingTabId,
         meetingTabInfo,
+        autoStartCapture,
       })
       return false
-    }
 
-    case 'start-capture-request': {
-      // From popup: start capturing the specified tab
+    case 'start-capture-request':
+      autoStartCapture = false
       startCapture(message.tabId).then(sendResponse)
-      return true // async response
-    }
+      return true
 
     case 'stop-capture-request':
       stopCapture().then(sendResponse)
       return true
 
+    case 'content:get-status':
+      checkDesktopConnection().then((conn) => {
+        desktopConnected = conn
+        sendResponse({
+          connected: desktopConnected,
+          isCapturing,
+          capturedTabId,
+          meetingTabId,
+          meetingTabInfo,
+        })
+      })
+      return true
+
+    case 'content:request-capture': {
+      // Set flag so when user clicks extension icon, popup auto-starts capture.
+      // activeTab is only granted when user clicks the icon — no workaround.
+      autoStartCapture = true
+      sendResponse({ success: true })
+      return false
+    }
+
+    case 'content:launch-app':
+      chrome.tabs.create({ url: 'scribely://launch', active: false })
+      sendResponse({ success: true })
+      return false
+
     case 'capture-started':
-      // Confirmation from offscreen document
       isCapturing = true
-      console.log('[bg] Capture confirmed by offscreen doc')
+      capturedTabId = message.tabId ?? capturedTabId
+      broadcastState()
       return false
 
     case 'capture-stopped':
       isCapturing = false
       capturedTabId = null
-      console.log('[bg] Capture stopped by offscreen doc')
-      // Close the offscreen document so Chrome clears the tab capture
-      // indicator.  This is essential for Electron-initiated stops where
-      // the background's own stopCapture() is never called.
       closeOffscreenDocument().catch(() => {})
+      broadcastState()
       return false
 
     case 'capture-error':
-      console.error('[bg] Capture error:', message.error)
       isCapturing = false
       capturedTabId = null
+      broadcastState()
       return false
 
     case 'mic-permission-granted':
-      console.log('[bg] Mic permission granted via permissions page')
       return false
 
     default:

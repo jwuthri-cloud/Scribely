@@ -165,14 +165,28 @@ export function TitleBar({
               aria-label="Close"
             />
           </TooltipWrap>
-          {/* Green: compact mode toggle */}
+          {/* Green: hide/show window */}
+          <TooltipWrap tooltip="Hide window (⌥T)">
+            <button
+              className="w-3 h-3 rounded-full transition-all duration-150"
+              style={{
+                backgroundColor: 'var(--success)',
+                boxShadow: hiddenHovered ? '0 0 6px var(--success)' : 'none',
+              } as React.CSSProperties}
+              onMouseEnter={() => setHiddenHovered(true)}
+              onMouseLeave={() => setHiddenHovered(false)}
+              onClick={handleHideWindow}
+              aria-label="Hide window"
+            />
+          </TooltipWrap>
+          {/* Blue: compact mode toggle */}
           {onToggleCompactMode && (
             <TooltipWrap tooltip={compactMode ? 'Expand to full view' : 'Compact mode'}>
               <button
                 className="w-3 h-3 rounded-full transition-all duration-150"
                 style={{
-                  backgroundColor: 'var(--success)',
-                  boxShadow: compactHovered ? '0 0 6px var(--success)' : 'none',
+                  backgroundColor: 'var(--accent)',
+                  boxShadow: compactHovered ? '0 0 6px var(--accent)' : 'none',
                 } as React.CSSProperties}
                 onMouseEnter={() => setCompactHovered(true)}
                 onMouseLeave={() => setCompactHovered(false)}
@@ -181,20 +195,6 @@ export function TitleBar({
               />
             </TooltipWrap>
           )}
-          {/* Blue: hide/show window */}
-          <TooltipWrap tooltip="Hide window (⌥T)">
-            <button
-              className="w-3 h-3 rounded-full transition-all duration-150"
-              style={{
-                backgroundColor: 'var(--accent)',
-                boxShadow: hiddenHovered ? '0 0 6px var(--accent)' : 'none',
-              } as React.CSSProperties}
-              onMouseEnter={() => setHiddenHovered(true)}
-              onMouseLeave={() => setHiddenHovered(false)}
-              onClick={handleHideWindow}
-              aria-label="Hide window"
-            />
-          </TooltipWrap>
           {/* Invisible/show: screen share visibility */}
           <TooltipWrap
             tooltip={

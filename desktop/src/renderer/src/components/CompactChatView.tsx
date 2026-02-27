@@ -234,6 +234,11 @@ export function CompactChatView({
                     <MarkdownContent
                       content={lastAssistantMsg.content}
                       color="var(--text-bright)"
+                      onListItemClick={
+                        lastAssistantMsg.isFollowUp
+                          ? (text) => onSend(text)
+                          : undefined
+                      }
                     />
                   </div>
                 )}

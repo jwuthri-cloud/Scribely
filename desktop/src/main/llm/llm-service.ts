@@ -12,6 +12,7 @@ import { TokenCounter } from './token-counter'
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
+import { runSuggestFollowUp } from './follow-up-suggestions'
 
 // ── Types (mirrored from renderer for main process use) ──
 
@@ -156,6 +157,9 @@ TRANSCRIPT USAGE:
 FORMAT:
 - Use lightweight markdown only when it improves scan speed or asking for coding help.
 - Prioritize readability and quick comprehension.
+
+LANGUAGE:
+- Always respond in the same language as the user's query. If the user writes in French, respond in French. If in English, respond in English. Match the language of the transcript when the question references it.
 
 Your responses should feel immediate, focused, and optimized for real-time use.`;
 
@@ -507,6 +511,23 @@ export class LLMService {
       },
     )
 
+    ipcMain.handle(
+      'llm:suggest-follow-up',
+      async (
+        _event,
+        payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> },
+      ) => {
+        if (!this.client) {
+          return { content: '', error: 'API key not configured' }
+        }
+        const { prompt, transcriptEntries = [] } = payload ?? {}
+        if (!prompt?.trim()) {
+          return { content: '', error: 'Empty prompt' }
+        }
+        return runSuggestFollowUp(this.client, prompt.trim(), transcriptEntries)
+      },
+    )
+
     // Web search streaming (chat only): fire-and-forget, emits delta/done/error
     ipcMain.on(
       'llm:web-search-stream',
@@ -801,7 +822,7 @@ export class LLMService {
         messages: [
           {
             role: 'user',
-            content: `Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation.\n\n${transcriptText}`,
+            content: `Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation. Use the same language as the transcript (e.g. French transcript → French topic, English transcript → English topic).\n\n${transcriptText}`,
           },
         ],
         max_completion_tokens: 32,
@@ -857,7 +878,8 @@ Rules:
 - action_item: must have a clear owner or action verb (e.g. "Sarah will send the deck by Friday"). Return null for vague intent: "we should think about it", "maybe we could", "let's see", "we need to figure that out" — these are NOT action items.
 - decision: must state a concrete, final choice (e.g. "We'll go with vendor B", "Budget approved at $2M"). Return null for soft agreement: "sounds good", "let's see", "yeah maybe", "I think so" — these are NOT decisions.
 - key_mention: must be 3+ words AND useful as a web search query or question. ALWAYS null for: single words ("Cadillac"), bare names ("Alice"), bare numbers ("690"), generic phrases ("next item", "the thing"). Good: "Q3 product launch timeline", "$2.5M marketing budget". If in doubt, null.
-- When unsure about ANY field, return null. Precision over recall.`
+- When unsure about ANY field, return null. Precision over recall.
+- LANGUAGE: Produce all output (topic, action_item, decision, key_mention) in the same language as the transcript. If the transcript is in French, output in French. If in English, output in English.`
 
     const typesStr = triggeredTypes.join(', ')
     const previousTopicLine = `Previous segment topic: ${previousTopic ?? 'N/A'}\n\n`
@@ -974,7 +996,8 @@ Only if a genuine, substantive question remains, return:
 Rules for question_with_context:
 - If the transcript context adds useful specifics (names, topics, dates), rewrite the question to be self-contained. Example: "What's the timeline?" → "What is the timeline for the Q3 product launch?"
 - If context does NOT meaningfully change the question, return the EXACT same string as "question". Do NOT add fluff.
-- NEVER add parentheticals, meta-commentary, "In the meeting...", "Asking about...", or any explanation. Just the question.`
+- NEVER add parentheticals, meta-commentary, "In the meeting...", "Asking about...", or any explanation. Just the question.
+- Preserve the original language of the question. If the candidate is in French, output in French. If in English, output in English.`
 
     const userContent = `Recent transcript:\n${transcriptContext}\n\nCandidate utterance (speaker: ${speaker}): "${candidateText}"`
 
@@ -1042,7 +1065,9 @@ Rules for description:
 Rules for suggestedActions search payload:
 - Write an optimized web search query — not just the raw text. Add context to make it searchable.
   Example: raw text "What's the ROI?" → search payload "ROI calculation methodology business"
-- The answer payload should be the question or event text as-is.`
+- The answer payload should be the question or event text as-is.
+
+LANGUAGE: Produce all output (title, description, suggested action labels and payloads) in the same language as the transcript text. If the text is in French, output in French. If in English, output in English.`
 
     const userContent = `Event type: ${eventType}\nSpeaker: ${speaker}\nText: "${text}"`
 

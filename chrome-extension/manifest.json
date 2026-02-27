@@ -3,12 +3,7 @@
   "name": "Scribely Tab Capture",
   "version": "1.0.0",
   "description": "Captures tab audio and video for Scribely desktop transcription",
-  "permissions": [
-    "tabCapture",
-    "offscreen",
-    "activeTab",
-    "tabs"
-  ],
+  "permissions": ["tabCapture", "offscreen", "activeTab", "tabs"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -21,6 +16,24 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.google.com/*",
+        "https://*.zoom.us/*",
+        "https://*.zoom.com/*",
+        "https://teams.microsoft.com/*",
+        "https://teams.live.com/*",
+        "https://*.webex.com/*",
+        "https://app.goto.com/*",
+        "https://meet.goto.com/*",
+        "https://gotomeet.me/*",
+        "https://global.gotomeeting.com/*"
+      ],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

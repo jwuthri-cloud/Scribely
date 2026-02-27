@@ -60,6 +60,7 @@ export interface ElectronAPI {
   onInsightNew: (callback: (insight: unknown) => void) => () => void
   onInsightUpdate: (callback: (update: unknown) => void) => () => void
   llmWebSearch: (query: string) => Promise<unknown>
+  llmSuggestFollowUp: (payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> }) => Promise<{ content: string; error?: string }>
   llmWebSearchStream: (payload: { requestId: string; query: string }) => void
   onLLMWebSearchDelta: (callback: (data: { requestId: string; delta: string }) => void) => () => void
   onLLMWebSearchDone: (
@@ -397,6 +398,9 @@ const api: ElectronAPI = {
 
   llmWebSearch: (query: string) => {
     return ipcRenderer.invoke('llm:web-search', query)
+  },
+  llmSuggestFollowUp: (payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> }) => {
+    return ipcRenderer.invoke('llm:suggest-follow-up', payload)
   },
   llmWebSearchStream: (payload: { requestId: string; query: string }) => {
     ipcRenderer.send('llm:web-search-stream', payload)
