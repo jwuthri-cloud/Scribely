@@ -366,6 +366,19 @@ function stopCapture() {
   if (isStopping) return
   isStopping = true
 
+  // CRITICAL: Notify desktop app FIRST, before releasing any media tracks.
+  // Once we stop the tab capture tracks, Chrome may destroy the offscreen
+  // document (USER_MEDIA justification is lost), which tears down the
+  // WebSocket before we can send capture-stopped. Sending first ensures
+  // the desktop receives the signal and stops its recording.
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    sendControl(ws, { type: 'capture-stopped' })
+    ws.close()
+  }
+  ws = null
+
+  chrome.runtime.sendMessage({ type: 'capture-stopped' })
+
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
@@ -412,14 +425,6 @@ function stopCapture() {
     mediaStream.getTracks().forEach((t) => t.stop())
     mediaStream = null
   }
-
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    sendControl(ws, { type: 'capture-stopped' })
-    ws.close()
-  }
-  ws = null
-
-  chrome.runtime.sendMessage({ type: 'capture-stopped' })
   console.log('[offscreen] Capture stopped — all resources cleaned up')
   // NOTE: isStopping stays true to block late async callbacks (e.g.
   // track "ended" events fired after track.stop()).  It is reset at the

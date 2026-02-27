@@ -229,6 +229,11 @@ export class ExtensionWsServer extends EventEmitter {
       log.info('Capture client signaled stop')
       this.captureClient = null
       this.emit('disconnected')
+      try {
+        ws.close(1000, 'Stop acknowledged')
+      } catch {
+        // Client may have already closed
+      }
     }
   }
 }
