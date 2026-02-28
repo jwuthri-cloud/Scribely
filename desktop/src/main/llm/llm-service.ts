@@ -1,11 +1,20 @@
 import OpenAI from 'openai'
-import { observeOpenAI } from '@langfuse/openai'
 import { propagateAttributes } from '@langfuse/tracing'
 import { machineIdSync } from 'node-machine-id'
 import Store from 'electron-store'
 import { BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { createLogger } from '../logger'
 import { PromptAssembler } from './prompt-assembler'
+import {
+  type LLMProvider,
+  createLLMClient,
+  listLocalModels,
+  testLocalConnection,
+  PROVIDER_DEFAULTS,
+  DEFAULT_LOCAL_CONTEXT_WINDOW,
+  DEFAULT_LOCAL_MAX_RESPONSE_TOKENS,
+  type LocalModelInfo,
+} from './provider-config'
 
 const log = createLogger('llm-service')
 import { TokenCounter } from './token-counter'
@@ -19,13 +28,13 @@ import { runSuggestFollowUp } from './follow-up-suggestions'
 type ModelId = 'gpt5-nano' | 'gpt5-mini' | 'gpt-5.2'
 
 interface ModelConfig {
-  id: ModelId
+  id: string
   apiModel: string
   contextWindow: number
   maxResponseTokens: number
 }
 
-const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
+const OPENAI_MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
   'gpt5-nano': {
     id: 'gpt5-nano',
     apiModel: 'gpt-5-nano',
@@ -45,6 +54,9 @@ const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
     maxResponseTokens: 128000,
   },
 }
+
+/** Alias for backward compat */
+const MODEL_CONFIGS = OPENAI_MODEL_CONFIGS
 
 const MODEL_PRICING: Record<
   ModelId,
@@ -176,8 +188,11 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Current model (user-switchable, defaults to stored preference or gpt-5.2)
-  private currentModel: ModelId = 'gpt-5.2'
+  // Current model (user-switchable). For OpenAI: gpt5-nano, gpt5-mini, gpt-5.2. For local: model name from API.
+  private currentModel: string = 'gpt-5.2'
+
+  // Cached local models (context window, etc.) from Ollama/LM Studio API
+  private localModels: LocalModelInfo[] = []
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
@@ -216,16 +231,45 @@ export class LLMService {
     this.initClient()
 
     // Restore persisted model preference
-    const llm = this.store.get('llm') as { defaultModel?: ModelId } | undefined
-    if (llm?.defaultModel && MODEL_CONFIGS[llm.defaultModel]) {
-      this.currentModel = llm.defaultModel
+    const llm = this.store.get('llm') as { defaultModel?: string; provider?: LLMProvider } | undefined
+    const provider = this.getProvider()
+    if (llm?.defaultModel) {
+      if (provider === 'openai' && MODEL_CONFIGS[llm.defaultModel as ModelId]) {
+        this.currentModel = llm.defaultModel
+      } else if (provider !== 'openai') {
+        this.currentModel = llm.defaultModel
+      }
     }
+  }
+
+  /** Get effective model config for prompt assembly and API calls */
+  private getEffectiveModelConfig(): ModelConfig {
+    const provider = this.getProvider()
+    if (provider === 'openai') {
+      const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
+      if (cfg) return cfg
+      return MODEL_CONFIGS['gpt-5.2']
+    }
+    const local = this.localModels.find((m) => m.id === this.currentModel)
+    return {
+      id: this.currentModel,
+      apiModel: this.currentModel,
+      contextWindow: local?.contextWindow ?? DEFAULT_LOCAL_CONTEXT_WINDOW,
+      maxResponseTokens: local?.maxResponseTokens ?? DEFAULT_LOCAL_MAX_RESPONSE_TOKENS,
+    }
+  }
+
+  private isLocalProvider(): boolean {
+    return this.getProvider() !== 'openai'
   }
 
   /** Ensure new LLM settings fields exist in stored config */
   private migrateSettings(): void {
     const llm = this.store.get('llm') as Record<string, unknown> | undefined
     if (llm) {
+      if (!('provider' in llm)) {
+        this.store.set('llm.provider' as any, 'openai')
+      }
       if (!('activeSystemPromptId' in llm)) {
         this.store.set('llm.activeSystemPromptId' as any, null)
       }
@@ -267,11 +311,30 @@ export class LLMService {
     return { ...def, ...llm?.summarization }
   }
 
+  private getProvider(): LLMProvider {
+    const llm = this.store.get('llm') as { provider?: LLMProvider } | undefined
+    const p = llm?.provider
+    return p === 'ollama' || p === 'lmstudio' ? p : 'openai'
+  }
+
+  private getLocalBaseUrl(): string {
+    const llm = this.store.get('llm') as { localBaseUrl?: string; provider?: LLMProvider } | undefined
+    const url = llm?.localBaseUrl?.trim()
+    if (url) return url
+    const provider = this.getProvider()
+    return PROVIDER_DEFAULTS[provider].baseUrl
+  }
+
   private initClient(): void {
-    const apiKey = this.getDecryptedApiKey()
-    if (apiKey) {
-      const base = new OpenAI({ apiKey })
-      this.client = observeOpenAI(base) as unknown as OpenAI
+    const provider = this.getProvider()
+    if (provider === 'openai') {
+      const apiKey = this.getDecryptedApiKey()
+      this.client = createLLMClient('openai', { apiKey }) ?? null
+    } else {
+      this.client = createLLMClient(provider, {
+        baseUrl: this.getLocalBaseUrl(),
+        apiKey: null,
+      })
     }
   }
 
@@ -369,7 +432,13 @@ export class LLMService {
 
     // ── Usage stats (for LLM tab) ──
     ipcMain.handle('llm:get-usage-stats', () => {
-      const pricing = this.getModelPricing(this.currentModel)
+      if (this.isLocalProvider()) {
+        return {
+          ...this.sessionUsage,
+          estimatedCostUsd: 0,
+        }
+      }
+      const pricing = this.getModelPricing(this.currentModel as ModelId)
       const uncached = this.sessionUsage.promptTokens - this.sessionUsage.cachedTokens
       const inputCost = (uncached / 1_000_000) * pricing.inputPer1M
       const cachedCost = (this.sessionUsage.cachedTokens / 1_000_000) * pricing.cachedPer1M
@@ -384,15 +453,22 @@ export class LLMService {
     ipcMain.handle('llm:get-model', () => this.currentModel)
 
     ipcMain.handle('llm:set-model', (_event, modelId: string) => {
-      if (MODEL_CONFIGS[modelId as ModelId]) {
-        this.currentModel = modelId as ModelId
-        this.store.set('llm.defaultModel' as any, modelId)
-        return { success: true, model: this.currentModel }
+      const provider = this.getProvider()
+      if (provider === 'openai') {
+        if (MODEL_CONFIGS[modelId as ModelId]) {
+          this.currentModel = modelId
+          this.store.set('llm.defaultModel' as any, modelId)
+          return { success: true, model: this.currentModel }
+        }
+        return { success: false, model: this.currentModel }
       }
-      return { success: false, model: this.currentModel }
+      // Local: accept any model (user may have typed manually)
+      this.currentModel = modelId
+      this.store.set('llm.defaultModel' as any, modelId)
+      return { success: true, model: this.currentModel }
     })
 
-    // ── API key (encrypted via safeStorage) ──
+    // ── API key (encrypted via safeStorage; only for OpenAI) ──
     ipcMain.handle('llm:set-api-key', (_event, apiKey: string) => {
       this.setEncryptedApiKey(apiKey)
       this.initClient()
@@ -401,6 +477,44 @@ export class LLMService {
 
     ipcMain.handle('llm:has-api-key', () => {
       return !!this.client
+    })
+
+    // ── Provider (OpenAI vs Ollama vs LM Studio) ──
+    ipcMain.handle('llm:get-provider', () => this.getProvider())
+
+    ipcMain.handle('llm:set-provider', (_event, provider: LLMProvider) => {
+      this.store.set('llm.provider' as any, provider)
+      this.initClient()
+      return { success: true, provider }
+    })
+
+    ipcMain.handle('llm:get-local-base-url', () => this.getLocalBaseUrl())
+
+    ipcMain.handle('llm:set-local-base-url', (_event, baseUrl: string) => {
+      this.store.set('llm.localBaseUrl' as any, baseUrl?.trim() || null)
+      this.initClient()
+      return { success: true }
+    })
+
+    // ── Local models (Ollama / LM Studio) ──
+    ipcMain.handle('llm:list-local-models', async () => {
+      const provider = this.getProvider()
+      if (provider === 'openai') {
+        return { models: [], error: 'Not a local provider' }
+      }
+      const result = await listLocalModels(provider, this.getLocalBaseUrl())
+      if (result.models.length > 0) {
+        this.localModels = result.models
+      }
+      return result
+    })
+
+    ipcMain.handle('llm:test-local-connection', async () => {
+      const provider = this.getProvider()
+      if (provider === 'openai') {
+        return { ok: false, error: 'Not a local provider' }
+      }
+      return testLocalConnection(provider, this.getLocalBaseUrl())
     })
 
     // ── Temperature ──
@@ -471,7 +585,10 @@ export class LLMService {
           }
         }
         if (!this.client) {
-          return { success: false, error: 'API key not configured' }
+          const msg = this.getProvider() === 'openai'
+            ? 'API key not configured'
+            : 'Ollama or LM Studio not running. Start the app and try again.'
+          return { success: false, error: msg }
         }
         if (this.transcriptMemory.isSummarizationInProgress()) {
           return { success: false, error: 'Summarization already in progress' }
@@ -498,9 +615,13 @@ export class LLMService {
     })
 
     // ── Web search (streaming for chat, non-streaming for Live Insights) ──
+    // Web search uses OpenAI Responses API — not available for local providers
     ipcMain.handle(
       'llm:web-search',
       async (_event, query: string) => {
+        if (this.isLocalProvider()) {
+          return { content: '', error: 'Web search requires OpenAI. Switch to OpenAI in LLM settings.' }
+        }
         if (!this.client) {
           return { content: '', error: 'API key not configured' }
         }
@@ -518,7 +639,10 @@ export class LLMService {
         payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> },
       ) => {
         if (!this.client) {
-          return { content: '', error: 'API key not configured' }
+          const msg = this.getProvider() === 'openai'
+            ? 'API key not configured'
+            : 'Ollama or LM Studio not running.'
+          return { content: '', error: msg }
         }
         const { prompt, transcriptEntries = [] } = payload ?? {}
         if (!prompt?.trim()) {
@@ -538,6 +662,13 @@ export class LLMService {
           if (!sender.isDestroyed()) sender.send(channel, data)
         }
 
+        if (this.isLocalProvider()) {
+          send('llm:web-search-error', {
+            requestId,
+            error: 'Web search requires OpenAI. Switch to OpenAI in LLM settings.',
+          })
+          return
+        }
         if (!this.client) {
           send('llm:web-search-error', { requestId, error: 'API key not configured' })
           return
@@ -578,12 +709,10 @@ export class LLMService {
 
   private async handleChat(request: LLMChatRequest): Promise<void> {
     if (!this.client) {
-      this.sendError(
-        request.requestId,
-        'API key not configured. Open the LLM tab to set your OpenAI key.',
-        'API_ERROR',
-        false,
-      )
+      const msg = this.getProvider() === 'openai'
+        ? 'API key not configured. Open the LLM tab to set your OpenAI key.'
+        : 'Ollama or LM Studio not running. Start the app and try again.'
+      this.sendError(request.requestId, msg, 'API_ERROR', false)
       return
     }
 

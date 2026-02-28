@@ -83,7 +83,17 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 }
 
 // ── LLM Settings ────────────────────────────────────────
+export type LLMProvider = 'openai' | 'ollama' | 'lmstudio'
+
 export type ModelId = 'gpt5-nano' | 'gpt5-mini' | 'gpt-5.2'
+
+/** Local model info from Ollama/LM Studio API */
+export interface LocalModelInfo {
+  id: string
+  name: string
+  contextWindow: number
+  maxResponseTokens: number
+}
 
 export interface ModelConfig {
   id: ModelId
@@ -282,8 +292,13 @@ export const DEFAULT_INSIGHTS: InsightsSettings = {
 }
 
 export interface LLMSettings {
+  /** LLM provider: openai (cloud) or ollama/lmstudio (local) */
+  provider: LLMProvider
+  /** Base URL for local providers (e.g. http://localhost:11434) */
+  localBaseUrl?: string
   apiKey: string
-  defaultModel: ModelId
+  /** For OpenAI: gpt5-nano, gpt5-mini, gpt-5.2. For local: model name from API */
+  defaultModel: string
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
   activeSystemPromptId: string | null
@@ -300,6 +315,7 @@ export interface LLMSettings {
 }
 
 export const DEFAULT_LLM: LLMSettings = {
+  provider: 'openai',
   apiKey: '',
   defaultModel: 'gpt5-mini',
   temperature: 0.3,
@@ -388,7 +404,7 @@ export interface LLMChatDone {
   requestId: string
   fullContent: string
   usage: LLMUsage
-  model: ModelId
+  model: string
   /** Context window size for utilization display */
   contextWindow?: number
   /** Response latency in milliseconds */
