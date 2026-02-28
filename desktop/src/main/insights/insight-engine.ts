@@ -104,7 +104,7 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
         id: randomUUID(),
         label: 'Suggest follow-up questions',
         type: 'follow_up',
-        payload: `Suggest 2-3 follow-up questions for: ${contextQ}`,
+        payload: `Based on the context and transcript, suggest 2-3 follow-up questions for: ${contextQ}`,
         icon: 'chat',
       })
       break

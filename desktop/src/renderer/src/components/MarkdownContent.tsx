@@ -113,22 +113,42 @@ export function MarkdownContent({
       <p className="mb-2 last:mb-0">{children}</p>
     ),
     ul: ({ children }) => (
-      <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>
+      <ul
+        className={
+          onListItemClick
+            ? 'flex flex-wrap gap-1.5 mb-2 list-none pl-0'
+            : 'list-disc list-inside mb-2 space-y-0.5'
+        }
+      >
+        {children}
+      </ul>
     ),
     ol: ({ children }) => (
-      <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>
+      <ol
+        className={
+          onListItemClick
+            ? 'flex flex-wrap gap-1.5 mb-2 list-none pl-0'
+            : 'list-decimal list-inside mb-2 space-y-0.5'
+        }
+      >
+        {children}
+      </ol>
     ),
     li: ({ children }) =>
       onListItemClick ? (
-        <li className="ml-2">
+        <li className="list-none">
           <button
             type="button"
             onClick={(e) => {
               const text = (e.currentTarget as HTMLElement).innerText?.trim()
               if (text) onListItemClick(text)
             }}
-            className="w-full text-left cursor-pointer hover:underline transition-colors rounded px-0.5 -mx-0.5 py-0"
-            style={{ color: 'var(--accent)' }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 hover:brightness-125 active:scale-[0.97] text-left"
+            style={{
+              backgroundColor: 'var(--chip-bg)',
+              color: 'var(--chip-text)',
+              border: '1px solid var(--border)',
+            }}
           >
             {children}
           </button>
