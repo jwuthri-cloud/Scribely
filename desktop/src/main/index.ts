@@ -208,11 +208,12 @@ const llmService = new LLMService(store)
 
 // ── Live Insights Engine ───────────────────────────────
 function getInsightsConfig() {
-  const llm = store.get('llm') as { insights?: { enabled?: boolean; enrichmentEnabled?: boolean } } | undefined
+  const llm = store.get('llm') as { insights?: { enabled?: boolean; enrichmentEnabled?: boolean }; provider?: string } | undefined
   const insights = llm?.insights ?? {}
   return {
     enabled: insights.enabled !== false,
     enrichmentEnabled: insights.enrichmentEnabled !== false,
+    webSearchAvailable: llm?.provider === 'openai',
   }
 }
 
@@ -246,19 +247,24 @@ const insightEngine = new InsightEngine({
       event.speaker,
     )
     if (!result) return null
+    let suggestedActions = result.suggestedActions?.map((a) => ({
+      id: crypto.randomUUID(),
+      label: a.label,
+      type: a.type as import('./insights/types').InsightActionType,
+      payload: a.payload,
+      icon: a.icon,
+    }))
+    if (!config.webSearchAvailable && suggestedActions) {
+      suggestedActions = suggestedActions.filter((a) => a.type !== 'search')
+    }
     return {
       title: result.title,
       description: result.description,
-      suggestedActions: result.suggestedActions?.map((a) => ({
-        id: crypto.randomUUID(),
-        label: a.label,
-        type: a.type as import('./insights/types').InsightActionType,
-        payload: a.payload,
-        icon: a.icon,
-      })),
+      suggestedActions,
     }
   },
   enrichmentEnabled: getInsightsConfig().enrichmentEnabled,
+  webSearchAvailable: () => getInsightsConfig().webSearchAvailable,
   debounceMs: 10_000,
 })
 

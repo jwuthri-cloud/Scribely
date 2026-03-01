@@ -153,3 +153,33 @@ export async function testLocalConnection(
     error: result.error,
   }
 }
+
+/** Result of probing a single local provider */
+export interface LocalProviderProbeResult {
+  ok: boolean
+  models: LocalModelInfo[]
+  error?: string
+}
+
+/**
+ * Probe both Ollama and LM Studio to see if they're running and which models are available.
+ * Uses default URLs. Runs both probes in parallel.
+ */
+export async function probeLocalProviders(): Promise<{
+  ollama: LocalProviderProbeResult
+  lmstudio: LocalProviderProbeResult
+}> {
+  const [ollama, lmstudio] = await Promise.all([
+    listLocalModels('ollama', PROVIDER_DEFAULTS.ollama.baseUrl).then((r) => ({
+      ok: !r.error,
+      models: r.models,
+      error: r.error,
+    })),
+    listLocalModels('lmstudio', PROVIDER_DEFAULTS.lmstudio.baseUrl).then((r) => ({
+      ok: !r.error,
+      models: r.models,
+      error: r.error,
+    })),
+  ])
+  return { ollama, lmstudio }
+}

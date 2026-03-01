@@ -8,6 +8,7 @@ const features = [
   { name: "Chrome Extension", free: true, pro: true },
   { name: "Live Transcription", free: true, pro: true },
   { name: "AI Chat During Meetings", free: true, pro: true },
+  { name: "Fully Local AI (Ollama/LM Studio)", free: true, pro: true },
   { name: "Real-time Insights", free: true, pro: true },
   { name: "Screen-share Invisibility", free: true, pro: true },
   { name: "Local Audio Processing", free: true, pro: true },

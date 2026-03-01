@@ -174,10 +174,20 @@ export interface ElectronAPI {
   llmChat: (request: LLMChatRequest) => void
   llmCancel: (requestId: string) => void
   llmReset: () => void
-  llmSetModel: (modelId: ModelId) => Promise<{ success: boolean; model: ModelId }>
-  llmGetModel: () => Promise<ModelId>
+  llmSetModel: (modelId: string) => Promise<{ success: boolean; model: string }>
+  llmGetModel: () => Promise<string>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmGetProvider: () => Promise<string>
+  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') => Promise<{ success: boolean; provider: string }>
+  llmGetLocalBaseUrl: () => Promise<string>
+  llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>
+  llmListLocalModels: () => Promise<{ models: import('./settings').LocalModelInfo[]; error?: string }>
+  llmTestLocalConnection: () => Promise<{ ok: boolean; error?: string }>
+  llmProbeLocalProviders: () => Promise<{
+    ollama: { ok: boolean; models: import('./settings').LocalModelInfo[]; error?: string }
+    lmstudio: { ok: boolean; models: import('./settings').LocalModelInfo[]; error?: string }
+  }>
   llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
   onLLMChatDelta: (callback: (data: LLMChatDelta) => void) => () => void
   onLLMChatDone: (callback: (data: LLMChatDone) => void) => () => void

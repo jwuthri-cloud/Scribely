@@ -49,7 +49,7 @@ const pipeline = [
   {
     icon: Zap,
     title: "Analyze",
-    detail: "Real-time insights & AI chat",
+    detail: "Real-time insights & AI chat (Ollama, LM Studio, or OpenAI)",
     color: "from-blue-500/30 to-blue-600/30",
     iconColor: "text-blue-400",
   },
@@ -285,11 +285,11 @@ export default function AboutPage() {
               <p className="text-white/45 max-w-xl leading-relaxed mb-6">
                 Unlike cloud-based meeting tools, Scribely processes everything
                 locally. Audio never leaves your device. Transcripts are stored in
-                your filesystem. The only external call is when you actively use
-                AI chat — and even then, only text is sent, never audio.
+                your filesystem. Use Ollama or LM Studio for fully local AI chat —
+                nothing leaves your Mac. Or optionally use OpenAI (text only, never audio).
               </p>
               <div className="flex flex-wrap gap-3">
-                {["Local Whisper AI", "No cloud uploads", "macOS Keychain encryption", "No telemetry"].map((tag) => (
+                {["Local Whisper AI", "Ollama / LM Studio", "No cloud uploads", "macOS Keychain encryption", "No telemetry"].map((tag) => (
                   <Badge key={tag} variant="secondary">{tag}</Badge>
                 ))}
               </div>

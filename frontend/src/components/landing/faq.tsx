@@ -17,7 +17,7 @@ const faqs = [
   {
     question: "Does my audio data leave my computer?",
     answer:
-      "No. All audio processing and transcription happens locally on your Mac using on-device AI models (Whisper). No audio data is ever sent to external servers. The only network calls are to OpenAI for the AI chat feature, which sends text (not audio).",
+      "No. All audio processing and transcription happens locally on your Mac using on-device AI models (Whisper). No audio data is ever sent to external servers. For AI chat, you can use Ollama or LM Studio for fully local, free AI — nothing leaves your Mac. Or optionally use OpenAI for cloud-powered chat (sends text only, not audio).",
   },
   {
     question: "Which meeting platforms are supported?",
@@ -37,7 +37,12 @@ const faqs = [
   {
     question: "Is Scribely free?",
     answer:
-      "The core features — live transcription, AI chat, and real-time insights — are completely free. We offer a paid tier for post-meeting optimization features like enhanced summaries and action item extraction.",
+      "Yes. With Ollama or LM Studio, the core features — live transcription, AI chat, and real-time insights — are completely free and fully local. No API keys required. You can also use OpenAI for AI chat if you prefer. We offer a paid tier for post-meeting optimization features like enhanced summaries and action item extraction.",
+  },
+  {
+    question: "How do I set up Ollama or LM Studio for local AI?",
+    answer:
+      "For Ollama: Install from ollama.com, then in Terminal run 'ollama pull qwen3:1.7b'. For LM Studio: Install from lmstudio.ai, search for 'Qwen3 1.7B' in Discover, download and load it, then start the local server. In Scribely, go to Settings → LLM tab, select Ollama or LM Studio, and click Refresh to see your models. We recommend Qwen3 1.7B (best under 2B params); alternatives: qwen3:0.6b (lightweight) or qwen3:4b (higher quality).",
   },
   {
     question: "How accurate is the transcription?",

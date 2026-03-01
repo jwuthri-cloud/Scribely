@@ -71,6 +71,8 @@ export interface InsightEngineConfig {
   questionMlEnabled?: boolean
   /** Transcription language: 'en' = use ML (English-only), 'multi' = skip ML */
   transcriptionLanguage?: 'en' | 'multi'
+  /** Web search available (false when using Ollama/LM Studio). Used to hide "Search the web" action. */
+  webSearchAvailable?: () => boolean
 }
 
 const DEFAULT_DEBOUNCE_MS = 10_000
@@ -80,7 +82,11 @@ const MAX_CONTEXT_TOKENS = 500
 const MAX_CONTEXT_MS = 3 * 60 * 1000 // 3 minutes
 const CHARS_PER_TOKEN = 4 // rough estimate
 
-function buildDefaultActions(event: DetectedEvent, questionWithContext?: string): InsightAction[] {
+function buildDefaultActions(
+  event: DetectedEvent,
+  questionWithContext?: string,
+  webSearchAvailable = true,
+): InsightAction[] {
   const actions: InsightAction[] = []
 
   switch (event.type) {
@@ -93,13 +99,15 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
         payload: contextQ,
         icon: 'sparkle',
       })
-      actions.push({
-        id: randomUUID(),
-        label: 'Search the web',
-        type: 'search',
-        payload: contextQ,
-        icon: 'search',
-      })
+      if (webSearchAvailable) {
+        actions.push({
+          id: randomUUID(),
+          label: 'Search the web',
+          type: 'search',
+          payload: contextQ,
+          icon: 'search',
+        })
+      }
       actions.push({
         id: randomUUID(),
         label: 'Suggest follow-up questions',
@@ -119,13 +127,15 @@ function buildDefaultActions(event: DetectedEvent, questionWithContext?: string)
         payload: `Tell me more about: ${event.text}`,
         icon: 'sparkle',
       })
-      actions.push({
-        id: randomUUID(),
-        label: 'Search the web',
-        type: 'search',
-        payload: searchQuery,
-        icon: 'search',
-      })
+      if (webSearchAvailable) {
+        actions.push({
+          id: randomUUID(),
+          label: 'Search the web',
+          type: 'search',
+          payload: searchQuery,
+          icon: 'search',
+        })
+      }
       break
     }
     case 'action_item':
@@ -535,7 +545,8 @@ export class InsightEngine {
     }
     const title = buildDefaultTitle(eventToEmit)
     const description = eventToEmit.text
-    const suggestedActions = buildDefaultActions(eventToEmit, questionWithContext)
+    const webSearchOk = this.config.webSearchAvailable?.() ?? true
+    const suggestedActions = buildDefaultActions(eventToEmit, questionWithContext, webSearchOk)
 
     const insight: Insight = {
       id: randomUUID(),

@@ -10,6 +10,7 @@ import {
   createLLMClient,
   listLocalModels,
   testLocalConnection,
+  probeLocalProviders,
   PROVIDER_DEFAULTS,
   DEFAULT_LOCAL_CONTEXT_WINDOW,
   DEFAULT_LOCAL_MAX_RESPONSE_TOKENS,
@@ -104,7 +105,7 @@ interface ConversationMessage {
   transcriptDelta?: TranscriptEntry[]
   timestamp: number
   tokenCount: number
-  model?: ModelId
+  model?: string
   attachments?: ChatAttachment[]
 }
 
@@ -123,7 +124,7 @@ interface PersistedConversation {
   createdAt: number
   lastMessageAt: number
   systemPromptId: string | null
-  model: ModelId
+  model: string
 }
 
 // ── Default system prompt ─────────────────────────────────
@@ -517,6 +518,11 @@ export class LLMService {
       return testLocalConnection(provider, this.getLocalBaseUrl())
     })
 
+    // Probe both Ollama and LM Studio (for onboarding wizard)
+    ipcMain.handle('llm:probe-local-providers', async () => {
+      return probeLocalProviders()
+    })
+
     // ── Temperature ──
     ipcMain.handle('llm:set-temperature', (_event, temperature: number) => {
       this.store.set('llm.temperature' as any, temperature)
@@ -648,7 +654,10 @@ export class LLMService {
         if (!prompt?.trim()) {
           return { content: '', error: 'Empty prompt' }
         }
-        return runSuggestFollowUp(this.client, prompt.trim(), transcriptEntries)
+        return runSuggestFollowUp(this.client, prompt.trim(), transcriptEntries, {
+          model: this.getEffectiveModelConfig().apiModel,
+          stripOpenAIParams: this.isLocalProvider(),
+        })
       },
     )
 
@@ -736,7 +745,7 @@ export class LLMService {
     // The assembler receives the full conversation history where each user
     // message's content already includes its transcript delta. No separate
     // transcript block needed.
-    const modelConfig = MODEL_CONFIGS[this.currentModel]
+    const modelConfig = this.getEffectiveModelConfig()
     const transcriptSummary = this.transcriptMemory.getSummary()
     log.info(
       '[llm] Transcript summary:',
@@ -767,12 +776,6 @@ export class LLMService {
     const abortController = new AbortController()
     this.activeRequests.set(request.requestId, abortController)
 
-    // gpt-5.2 supports reasoning_effort: 'none' (disables thinking entirely)
-    // gpt-5-mini / gpt-5-nano support 'low' at minimum (no 'none')
-    const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
-
-    const isGpt52 = this.currentModel === 'gpt-5.2'
-
     const apiMessages = this.buildApiMessagesWithImages(
       assembled.messages,
       request.attachments,
@@ -784,10 +787,17 @@ export class LLMService {
       max_completion_tokens: modelConfig.maxResponseTokens,
       stream: true,
       stream_options: { include_usage: true },
-      prompt_cache_key: this.sessionId,
-      // prompt_cache_retention is only supported on gpt-5.2
-      ...(isGpt52 && { prompt_cache_retention: '24h' }),
-      reasoning_effort: reasoningEffort,
+    }
+
+    // OpenAI-specific params — omit for local providers
+    if (!this.isLocalProvider()) {
+      const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
+      const isGpt52 = this.currentModel === 'gpt-5.2'
+      Object.assign(requestParams, {
+        prompt_cache_key: this.sessionId,
+        ...(isGpt52 && { prompt_cache_retention: '24h' }),
+        reasoning_effort: reasoningEffort,
+      })
     }
 
     const startTime = Date.now()
@@ -945,18 +955,22 @@ export class LLMService {
     }
     const transcriptText = entries.map(formatEntry).join('\n')
 
+    const modelConfig = this.getEffectiveModelConfig()
+    const baseParams: Record<string, unknown> = {
+      model: modelConfig.apiModel,
+      messages: [
+        {
+          role: 'user',
+          content: `Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation. Use the same language as the transcript (e.g. French transcript → French topic, English transcript → English topic).\n\n${transcriptText}`,
+        },
+      ],
+      max_completion_tokens: 32,
+    }
+    if (!this.isLocalProvider()) {
+      ;(baseParams as any).reasoning_effort = 'low'
+    }
     try {
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-5-nano',
-        messages: [
-          {
-            role: 'user',
-            content: `Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation. Use the same language as the transcript (e.g. French transcript → French topic, English transcript → English topic).\n\n${transcriptText}`,
-          },
-        ],
-        max_completion_tokens: 32,
-        reasoning_effort: 'low',
-      })
+      const response = await this.client.chat.completions.create(baseParams as any)
 
       const content = response.choices?.[0]?.message?.content
       return content?.trim() || 'N/A'
@@ -1031,14 +1045,18 @@ Rules:
       { role: 'user', content: lastUser.content },
     ]
 
+    const modelConfig = this.getEffectiveModelConfig()
+    const baseParams: Record<string, unknown> = {
+      model: modelConfig.apiModel,
+      messages: apiMessages,
+      max_completion_tokens: 512,
+    }
+    if (!this.isLocalProvider()) {
+      ;(baseParams as any).reasoning_effort = 'low'
+      ;(baseParams as any).prompt_cache_key = `insights-${this.sessionId}`
+    }
     try {
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-5-nano',
-        messages: apiMessages,
-        max_completion_tokens: 512,
-        reasoning_effort: 'low',
-        prompt_cache_key: `insights-${this.sessionId}`,
-      })
+      const response = await this.client.chat.completions.create(baseParams as any)
 
       const content = response.choices?.[0]?.message?.content
       if (!content?.trim()) {
@@ -1130,16 +1148,20 @@ Rules for question_with_context:
 
     const userContent = `Recent transcript:\n${transcriptContext}\n\nCandidate utterance (speaker: ${speaker}): "${candidateText}"`
 
+    const modelConfig = this.getEffectiveModelConfig()
+    const baseParams: Record<string, unknown> = {
+      model: modelConfig.apiModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      max_completion_tokens: 2048,
+    }
+    if (!this.isLocalProvider()) {
+      ;(baseParams as any).reasoning_effort = 'low'
+    }
     try {
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-5-nano',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        max_completion_tokens: 2048,
-        reasoning_effort: 'low',
-      })
+      const response = await this.client.chat.completions.create(baseParams as any)
 
       const content = response.choices?.[0]?.message?.content
       if (!content?.trim()) {
@@ -1200,16 +1222,20 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
 
     const userContent = `Event type: ${eventType}\nSpeaker: ${speaker}\nText: "${text}"`
 
+    const modelConfig = this.getEffectiveModelConfig()
+    const baseParams: Record<string, unknown> = {
+      model: modelConfig.apiModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      max_completion_tokens: 512,
+    }
+    if (!this.isLocalProvider()) {
+      ;(baseParams as any).reasoning_effort = 'low'
+    }
     try {
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-5-nano',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent },
-        ],
-        max_completion_tokens: 512,
-        reasoning_effort: 'low',
-      })
+      const response = await this.client.chat.completions.create(baseParams as any)
 
       const content = response.choices?.[0]?.message?.content
       if (!content?.trim()) return null
@@ -1295,13 +1321,19 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     keepRawCount?: number,
   ): Promise<{ summary: string | null; error?: string }> {
     if (!this.client) {
-      return { summary: null, error: 'API key not configured' }
+      const msg = this.getProvider() === 'openai'
+        ? 'API key not configured'
+        : 'Ollama or LM Studio not running.'
+      return { summary: null, error: msg }
     }
     const { summarizerSystemPrompt } = this.getSummarizationConfig()
+    const modelConfig = this.getEffectiveModelConfig()
     return runBackgroundSummarization({
       client: this.client,
       transcriptMemory: this.transcriptMemory,
       entries,
+      model: modelConfig.apiModel,
+      stripOpenAIParams: this.isLocalProvider(),
       keepRawCount,
       systemPrompt: summarizerSystemPrompt,
       userId: this.getDeviceUserId(),
@@ -1372,12 +1404,14 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     return messages ? [...messages] : null
   }
 
-  private getModelPricing(modelId: ModelId): {
+  private getModelPricing(modelId: string): {
     inputPer1M: number
     outputPer1M: number
     cachedPer1M: number
   } {
-    return MODEL_PRICING[modelId] ?? MODEL_PRICING['gpt-5.2']
+    const p = MODEL_PRICING[modelId as ModelId]
+    if (p) return p
+    return { inputPer1M: 0, outputPer1M: 0, cachedPer1M: 0 }
   }
 
   private sendDone(
@@ -1397,7 +1431,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
         `[llm] Cache hit: ${usage.cachedTokens} cached / ${usage.promptTokens} prompt tokens (${hitRate}%)`,
       )
     }
-    const modelConfig = MODEL_CONFIGS[this.currentModel]
+    const modelConfig = this.getEffectiveModelConfig()
     const latencyMs = Date.now() - requestStartTime
     // OpenAI prompt caching requires 1024+ tokens; cached_tokens is 0 below that
     if (

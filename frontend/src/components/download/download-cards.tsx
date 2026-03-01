@@ -115,18 +115,24 @@ export function QuickStart() {
     },
     {
       number: "2",
+      title: "Choose Your AI Provider",
+      description:
+        "OpenAI API key for best results, or Ollama / LM Studio for free, fully local AI. In the app: Settings → LLM tab. For local: install Ollama (ollama.com) or LM Studio (lmstudio.ai). Recommended model: Qwen3 1.7B — run 'ollama pull qwen3:1.7b' or load Qwen3-1.7B-Instruct in LM Studio.",
+    },
+    {
+      number: "3",
       title: "Grant Permissions",
       description:
         "Allow microphone access and screen recording permissions when prompted.",
     },
     {
-      number: "3",
+      number: "4",
       title: "Install Extension (Optional)",
       description:
         "Add the Chrome extension for best audio quality in browser meetings.",
     },
     {
-      number: "4",
+      number: "5",
       title: "Start a Meeting",
       description:
         "Press Alt+M or click Start Meeting. Scribely begins transcribing automatically.",

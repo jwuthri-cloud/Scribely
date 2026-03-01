@@ -30,8 +30,9 @@ interface CompactChatViewProps {
   isRecording?: boolean
   onToggleRecording?: () => void
   onToggleCompactMode?: () => void
-  currentModel?: ModelId
-  onModelChange?: (modelId: ModelId) => void
+  currentModel?: string
+  onModelChange?: (modelId: string) => void
+  modelOptions?: Array<{ id: string; label: string }>
   /** Footer props (shared with advanced mode) */
   sttTranscript?: string
   onClearTranscript?: () => void
@@ -78,6 +79,7 @@ export function CompactChatView({
   onToggleCompactMode,
   currentModel = 'gpt-5.2',
   onModelChange,
+  modelOptions,
   sttTranscript,
   onClearTranscript,
   micLevel = 0,
@@ -364,6 +366,7 @@ export function CompactChatView({
       <InputBar
         onSend={onSend}
         onWebSearch={onWebSearch}
+        modelOptions={modelOptions}
         disabled={isLoading}
         isLoading={isLoading}
         onStop={onStop}

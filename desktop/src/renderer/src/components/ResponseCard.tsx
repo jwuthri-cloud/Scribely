@@ -469,7 +469,9 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
                       color: 'var(--text-muted)',
                     }}
                   >
-                    ~${estimateMessageCost(msg.usage, msg.model as ModelId).toFixed(4)}
+                    {estimateMessageCost(msg.usage, msg.model) > 0
+                      ? `~$${estimateMessageCost(msg.usage, msg.model).toFixed(4)}`
+                      : 'Free'}
                   </span>
                 )}
                 <button

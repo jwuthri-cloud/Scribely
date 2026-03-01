@@ -20,7 +20,6 @@ import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
 import { MarkdownContent } from './MarkdownContent'
 import type { ChatAttachment } from '../types'
-import type { ModelId } from '../types/settings'
 import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
 
 type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
@@ -114,7 +113,7 @@ export function Overlay() {
   const [windowOpacity, setWindowOpacity] = useState(1)
   const [fontSize, setFontSize] = useState<FontSize>('medium')
   const [compactMode, setCompactMode] = useState(false)
-  const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
+  const [currentModel, setCurrentModel] = useState<string>('gpt-5.2')
   const [summarizeInProgress, setSummarizeInProgress] = useState(false)
   const [summarizeFeedback, setSummarizeFeedback] = useState<{
     type: 'success' | 'error'
@@ -124,6 +123,12 @@ export function Overlay() {
   const [showSummaryModal, setShowSummaryModal] = useState(false)
   const [summaryContent, setSummaryContent] = useState<string | null>(null)
   const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
+  const [webSearchAvailable, setWebSearchAvailable] = useState(true)
+  const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([
+    { id: 'gpt5-nano', label: 'Nano' },
+    { id: 'gpt5-mini', label: 'Mini' },
+    { id: 'gpt-5.2', label: '5.2' },
+  ])
   const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
   const [transcriptPanelExpanded, setTranscriptPanelExpanded] = useState(false)
   const stt = useWhisperSTT()
@@ -197,7 +202,7 @@ export function Overlay() {
 
   // ── Load current model ──
   useEffect(() => {
-    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m as ModelId))
+    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5.2'))
   }, [])
 
   // ── Load summarization status ──
@@ -207,15 +212,38 @@ export function Overlay() {
     })
   }, [summarizeFeedback])
 
-  // ── Load quick actions ──
+  // ── Load quick actions and web search availability ──
   useEffect(() => {
-    window.electronAPI?.getSettings().then((s) => {
+    window.electronAPI?.getSettings().then(async (s) => {
       if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      const provider = (s?.llm as { provider?: string })?.provider
+      setWebSearchAvailable(provider === 'openai')
+      if (provider === 'ollama' || provider === 'lmstudio') {
+        const r = await window.electronAPI?.llmListLocalModels?.()
+        if (r?.models?.length) {
+          setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
+        }
+      }
     })
   }, [])
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
       if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      const provider = (s?.llm as { provider?: string })?.provider
+      setWebSearchAvailable(provider === 'openai')
+      if (provider === 'ollama' || provider === 'lmstudio') {
+        window.electronAPI?.llmListLocalModels?.().then((r) => {
+          if (r?.models?.length) {
+            setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
+          }
+        })
+      } else {
+        setModelOptions([
+          { id: 'gpt5-nano', label: 'Nano' },
+          { id: 'gpt5-mini', label: 'Mini' },
+          { id: 'gpt-5.2', label: '5.2' },
+        ])
+      }
     })
     return () => unsub?.()
   }, [])
@@ -230,7 +258,7 @@ export function Overlay() {
     return () => unsub?.()
   }, [])
 
-  const handleModelChange = useCallback(async (modelId: ModelId) => {
+  const handleModelChange = useCallback(async (modelId: string) => {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {
       setCurrentModel(modelId)
@@ -587,7 +615,7 @@ export function Overlay() {
                 messages={messages}
                 isLoading={isLoading}
                 onSend={handleSend}
-                onWebSearch={sendWebSearch}
+                onWebSearch={webSearchAvailable ? sendWebSearch : undefined}
                 onStop={stopGeneration}
                 meetingActive={meetingActive}
                 meetingDuration={formattedMeetingDuration}
@@ -607,6 +635,7 @@ export function Overlay() {
                 onToggleCompactMode={handleToggleCompactMode}
                 currentModel={currentModel}
                 onModelChange={handleModelChange}
+                modelOptions={modelOptions}
                 sttTranscript={stt.transcript}
                 onClearTranscript={stt.clearTranscript}
                 micLevel={stt.micLevel}
@@ -826,7 +855,7 @@ export function Overlay() {
 
                   <InputBar
                     onSend={handleSend}
-                    onWebSearch={sendWebSearch}
+                    onWebSearch={webSearchAvailable ? sendWebSearch : undefined}
                     disabled={isLoading}
                     isLoading={isLoading}
                     onStop={stopGeneration}
@@ -842,6 +871,7 @@ export function Overlay() {
                     modelProgress={transcript.status.modelStatus?.whisperModel?.progress}
                     currentModel={currentModel}
                     onModelChange={handleModelChange}
+                    modelOptions={modelOptions}
                     onSummarizeTranscript={handleSummarizeTranscript}
                     summarizeInProgress={summarizeInProgress}
                     hasSummary={hasSummary}

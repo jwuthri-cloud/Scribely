@@ -88,7 +88,7 @@ function IconBtnWithTooltip({
   )
 }
 
-const MODEL_OPTIONS: { id: ModelId; label: string }[] = [
+const DEFAULT_MODEL_OPTIONS: { id: string; label: string }[] = [
   { id: 'gpt5-nano', label: 'Nano' },
   { id: 'gpt5-mini', label: 'Mini' },
   { id: 'gpt-5.2', label: '5.2' },
@@ -124,8 +124,10 @@ interface InputBarProps {
   micLevel?: number
   modelDownloading?: boolean
   modelProgress?: number
-  currentModel?: ModelId
-  onModelChange?: (modelId: ModelId) => void
+  currentModel?: string
+  onModelChange?: (modelId: string) => void
+  /** Model options for picker. Defaults to OpenAI models. */
+  modelOptions?: Array<{ id: string; label: string }>
   /** When provided, shows a small Summarize button at bottom right */
   onSummarizeTranscript?: () => Promise<void>
   summarizeInProgress?: boolean
@@ -157,6 +159,7 @@ export function InputBar({
   modelProgress = 0,
   currentModel = 'gpt-5.2',
   onModelChange,
+  modelOptions: modelOptionsProp,
   onSummarizeTranscript,
   summarizeInProgress = false,
   hasSummary = false,
@@ -427,7 +430,7 @@ export function InputBar({
               <button
                 type="button"
                 onClick={() => setShowModelPicker((prev) => !prev)}
-                className="w-full px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110 max-w-[3.5rem] sm:max-w-none overflow-hidden"
+                className="w-full px-1.5 py-0.5 rounded-md text-[10px] font-medium transition-all duration-150 border hover:brightness-110 max-w-[4.5rem] sm:max-w-[8rem] overflow-hidden"
                 style={{
                   borderColor: 'var(--border)',
                   color: 'var(--text-muted)',
@@ -435,7 +438,7 @@ export function InputBar({
                 }}
               >
                 <span className="block truncate">
-                  {MODEL_CONFIGS[currentModel]?.label ?? currentModel}
+                  {(modelOptionsProp ?? DEFAULT_MODEL_OPTIONS).find((o) => o.id === currentModel)?.label ?? currentModel}
                 </span>
               </button>
             </WithTooltip>
@@ -446,12 +449,13 @@ export function InputBar({
                   backgroundColor: 'var(--surface)',
                   borderColor: 'var(--border)',
                   right: 0,
-                  minWidth: '10rem',
-                  maxWidth: 'min(calc(100vw - 32px), 18rem)',
+                  minWidth: '14rem',
+                  maxWidth: 'min(calc(100vw - 32px), 28rem)',
                 }}
               >
-                {MODEL_OPTIONS.map((opt) => {
+                {(modelOptionsProp ?? DEFAULT_MODEL_OPTIONS).map((opt) => {
                   const isActive = opt.id === currentModel
+                  const description = MODEL_CONFIGS[opt.id as ModelId]?.description
                   return (
                     <button
                       key={opt.id}
@@ -459,16 +463,21 @@ export function InputBar({
                         onModelChange?.(opt.id)
                         setShowModelPicker(false)
                       }}
-                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-3 shrink-0"
+                      title={opt.label}
+                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-[var(--surface-hover)] flex items-center gap-2 shrink-0"
                       style={{
                         color: isActive ? 'var(--accent)' : 'var(--text)',
                         fontWeight: isActive ? 600 : 400,
                       }}
                     >
-                      <span className="shrink-0 w-8">{opt.label}</span>
-                      <span className="text-[9px] truncate min-w-0" style={{ color: 'var(--text-muted)' }}>
-                        {MODEL_CONFIGS[opt.id]?.description}
+                      <span className="flex-1 min-w-0 truncate" style={{ lineHeight: 1.3 }}>
+                        {opt.label}
                       </span>
+                      {description && (
+                        <span className="text-[9px] shrink-0" style={{ color: 'var(--text-muted)' }}>
+                          {description}
+                        </span>
+                      )}
                     </button>
                   )
                 })}

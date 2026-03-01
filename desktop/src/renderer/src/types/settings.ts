@@ -143,9 +143,9 @@ export const MODEL_PRICING: Record<
 
 export function estimateMessageCost(
   usage: { promptTokens: number; completionTokens: number; cachedTokens: number },
-  modelId: ModelId,
+  modelId: string,
 ): number {
-  const pricing = MODEL_PRICING[modelId]
+  const pricing = MODEL_PRICING[modelId as ModelId]
   if (!pricing) return 0
   const uncachedInput = usage.promptTokens - usage.cachedTokens
   const inputCost = (uncachedInput / 1_000_000) * pricing.inputPer1M

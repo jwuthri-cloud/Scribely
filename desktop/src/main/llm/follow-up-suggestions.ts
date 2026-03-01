@@ -45,11 +45,20 @@ export interface FollowUpResult {
   error?: string
 }
 
+export interface FollowUpOptions {
+  /** Model to use (default gpt-5-nano for OpenAI) */
+  model?: string
+  /** Omit OpenAI-specific params for local providers */
+  stripOpenAIParams?: boolean
+}
+
 export async function runSuggestFollowUp(
   client: OpenAI,
   prompt: string,
   transcriptEntries: TranscriptEntryInput[] = [],
+  options: FollowUpOptions = {},
 ): Promise<FollowUpResult> {
+  const { model = FOLLOW_UP_MODEL, stripOpenAIParams = false } = options
   log.info(`Suggest follow-up: "${prompt.slice(0, 80)}..." (${transcriptEntries.length} transcript entries)`)
   try {
     const recent = transcriptEntries.slice(-MAX_TRANSCRIPT_ENTRIES)
@@ -61,13 +70,13 @@ export async function runSuggestFollowUp(
     const userContent = `${transcriptBlock}QUESTION/TOPIC TO EXPAND ON:\n${prompt}`
 
     const response = await client.chat.completions.create({
-      model: FOLLOW_UP_MODEL,
+      model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userContent },
       ],
       max_completion_tokens: 512,
-      reasoning_effort: 'low',
+      ...(stripOpenAIParams ? {} : { reasoning_effort: 'low' as const }),
     })
 
     const content = response.choices?.[0]?.message?.content

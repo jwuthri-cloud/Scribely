@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import type { SystemPrompt } from '../types'
 import {
   type ModelId,
+  type LLMProvider,
+  type LocalModelInfo,
   type SummarizationSettings,
   type QuickAction,
   DEFAULT_SUMMARIZATION,
@@ -10,10 +12,16 @@ import {
 } from '../types/settings'
 import { IconPicker, getQuickActionIcon } from './QuickActionIcons'
 
-const MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
+const OPENAI_MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
   { id: 'gpt5-nano', label: 'Nano', description: 'Fast, low cost' },
   { id: 'gpt5-mini', label: 'Mini', description: 'Balanced' },
   { id: 'gpt-5.2', label: '5.2', description: 'High intelligence' },
+]
+
+const PROVIDER_OPTIONS: { id: LLMProvider; label: string }[] = [
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'ollama', label: 'Ollama' },
+  { id: 'lmstudio', label: 'LM Studio' },
 ]
 
 // ── Section layout helper (matches SettingsView) ─────────
@@ -41,11 +49,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ── LLM View ─────────────────────────────────────────────
 export function LLMView() {
+  const [provider, setProvider] = useState<LLMProvider>('openai')
+  const [localBaseUrl, setLocalBaseUrl] = useState('')
+  const [localModels, setLocalModels] = useState<LocalModelInfo[]>([])
+  const [localConnectionStatus, setLocalConnectionStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle')
   const [hasApiKey, setHasApiKey] = useState(false)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [temperature, setTemperature] = useState(0.3)
-  const [currentModel, setCurrentModel] = useState<ModelId>('gpt-5.2')
+  const [currentModel, setCurrentModel] = useState<string>('gpt-5.2')
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([])
   const [activePromptId, setActivePromptId] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null)
@@ -87,8 +99,10 @@ export function LLMView() {
     const api = window.electronAPI
     if (!api) return
 
+    api.llmGetProvider().then((p) => setProvider((p as LLMProvider) || 'openai'))
+    api.llmGetLocalBaseUrl?.().then((url) => setLocalBaseUrl(url || ''))
     api.llmHasApiKey().then(setHasApiKey)
-    api.llmGetModel().then((m) => setCurrentModel(m as ModelId))
+    api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5.2'))
     api.getSettings().then((s) => {
       if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
     })
@@ -103,6 +117,18 @@ export function LLMView() {
     api.llmGetUsageStats?.().then(setUsageStats)
   }, [])
 
+  // Load local models when provider is local
+  useEffect(() => {
+    if (provider !== 'ollama' && provider !== 'lmstudio') return
+    const api = window.electronAPI
+    if (!api?.llmListLocalModels) return
+    setLocalConnectionStatus('checking')
+    api.llmListLocalModels().then((r) => {
+      setLocalModels(r.models || [])
+      setLocalConnectionStatus(r.error ? 'error' : 'ok')
+    })
+  }, [provider])
+
   // Refresh usage when it updates (after each chat response)
   useEffect(() => {
     const unsub = window.electronAPI?.onLLMUsageUpdated?.(() => {
@@ -111,8 +137,43 @@ export function LLMView() {
     return () => unsub?.()
   }, [])
 
+  // ── Provider selection ──
+  const handleProviderSelect = useCallback(async (p: LLMProvider) => {
+    const result = await window.electronAPI?.llmSetProvider?.(p)
+    if (result?.success) {
+      setProvider(p)
+      setHasApiKey(!!(await window.electronAPI?.llmHasApiKey?.()))
+      if (p === 'ollama' || p === 'lmstudio') {
+        const url = await window.electronAPI?.llmGetLocalBaseUrl?.()
+        setLocalBaseUrl(url || '')
+      }
+      window.electronAPI?.updateSettings?.({ llm: { provider: p } } as any)
+    }
+  }, [])
+
+  const handleLocalBaseUrlChange = useCallback((url: string) => {
+    setLocalBaseUrl(url)
+  }, [])
+
+  const handleLocalBaseUrlBlur = useCallback(async () => {
+    await window.electronAPI?.llmSetLocalBaseUrl?.(localBaseUrl)
+  }, [localBaseUrl])
+
+  const handleRefreshLocalModels = useCallback(async () => {
+    setLocalConnectionStatus('checking')
+    const r = await window.electronAPI?.llmListLocalModels?.()
+    setLocalModels(r?.models || [])
+    setLocalConnectionStatus(r?.error ? 'error' : 'ok')
+  }, [])
+
+  const handleTestLocalConnection = useCallback(async () => {
+    setLocalConnectionStatus('checking')
+    const r = await window.electronAPI?.llmTestLocalConnection?.()
+    setLocalConnectionStatus(r?.ok ? 'ok' : 'error')
+  }, [])
+
   // ── Model selection ──
-  const handleModelSelect = useCallback(async (modelId: ModelId) => {
+  const handleModelSelect = useCallback(async (modelId: string) => {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {
       setCurrentModel(modelId)
@@ -211,9 +272,35 @@ export function LLMView() {
     }
   }, [showNewForm])
 
+  const isLocal = provider === 'ollama' || provider === 'lmstudio'
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
-      {/* ── API Key ──────────────────────────────── */}
+      {/* ── Provider ──────────────────────────────── */}
+      <Section title="LLM Provider">
+        <div className="flex gap-1.5">
+          {PROVIDER_OPTIONS.map((opt) => {
+            const isActive = provider === opt.id
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleProviderSelect(opt.id)}
+                className="flex-1 px-2 py-2 rounded-lg text-center transition-all duration-150 border"
+                style={{
+                  backgroundColor: isActive ? 'var(--accent)' : 'transparent',
+                  color: isActive ? '#fff' : 'var(--text)',
+                  borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                }}
+              >
+                <span className="text-xs font-medium">{opt.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </Section>
+
+      {/* ── API Key (OpenAI only) ──────────────────────────────── */}
+      {!isLocal && (
       <Section title="OpenAI API Key">
         <div className="space-y-2">
           {hasApiKey ? (
@@ -275,6 +362,98 @@ export function LLMView() {
           )}
         </div>
       </Section>
+      )}
+
+      {/* ── Local config (Ollama / LM Studio) ──────────────────────────────── */}
+      {isLocal && (
+      <Section title={provider === 'ollama' ? 'Ollama' : 'LM Studio'}>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              Base URL
+            </span>
+            <span
+              className={`w-2 h-2 rounded-full ${
+                localConnectionStatus === 'ok' ? 'bg-[var(--success)]' : localConnectionStatus === 'error' ? 'bg-[var(--error)]' : 'bg-[var(--text-muted)]'
+              }`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={localBaseUrl}
+              onChange={(e) => handleLocalBaseUrlChange(e.target.value)}
+              onBlur={handleLocalBaseUrlBlur}
+              placeholder={provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234'}
+              className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border transition-colors focus:border-[var(--accent)]"
+              style={{
+                color: 'var(--text)',
+                borderColor: 'var(--input-border)',
+                backgroundColor: 'var(--input-bg)',
+              }}
+            />
+            <button
+              onClick={handleRefreshLocalModels}
+              disabled={localConnectionStatus === 'checking'}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors hover:brightness-110 disabled:opacity-50"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              {localConnectionStatus === 'checking' ? '...' : 'Refresh'}
+            </button>
+            <button
+              onClick={handleTestLocalConnection}
+              disabled={localConnectionStatus === 'checking'}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors hover:brightness-110 disabled:opacity-50"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              Test
+            </button>
+          </div>
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {provider === 'ollama'
+              ? 'Run Ollama and pull a model (e.g. ollama pull qwen3:1.7b)'
+              : 'Load a model in LM Studio and start the local server'}
+          </p>
+          {(provider === 'ollama' || provider === 'lmstudio') && (
+            <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <p className="text-[10px] font-medium" style={{ color: 'var(--text)' }}>
+                Setup instructions
+              </p>
+              {provider === 'ollama' ? (
+                <>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    1. Install Ollama from{' '}
+                    <button type="button" onClick={() => window.electronAPI?.openExternalUrl?.('https://ollama.com')} className="underline" style={{ color: 'var(--accent)' }}>ollama.com</button>
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    2. In Terminal, run: <code className="px-1 py-0.5 rounded text-[9px] font-mono" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', border: '1px solid' }}>ollama pull qwen3:1.7b</code>
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    Recommended: <strong>qwen3:1.7b</strong> (best under 2B). Alternatives: qwen3:0.6b (lightweight), qwen3:4b (higher quality).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    1. Install LM Studio from{' '}
+                    <button type="button" onClick={() => window.electronAPI?.openExternalUrl?.('https://lmstudio.ai')} className="underline" style={{ color: 'var(--accent)' }}>lmstudio.ai</button>
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    2. Search for &quot;Qwen3 1.7B&quot; in the Discover tab, download, and load it.
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    3. Start the local server (Developer → Local Server).
+                  </p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                    Recommended: <strong>Qwen3-1.7B-Instruct</strong>. Alternatives: Qwen3-0.6B-Instruct (lightweight), Qwen3-4B-Instruct (higher quality).
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </Section>
+      )}
 
       {/* ── Usage & Cost (Phase 3) ─────────────────── */}
       <Section title="Session Usage">
@@ -302,7 +481,7 @@ export function LLMView() {
           <div className="flex justify-between text-[11px] font-medium pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
             <span style={{ color: 'var(--text-muted)' }}>Est. cost</span>
             <span style={{ color: 'var(--text)' }}>
-              ${(usageStats?.estimatedCostUsd ?? 0).toFixed(4)}
+              {isLocal ? 'Free (local)' : `$${(usageStats?.estimatedCostUsd ?? 0).toFixed(4)}`}
             </span>
           </div>
           <p className="text-[9px] pt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -313,8 +492,35 @@ export function LLMView() {
 
       {/* ── Model Selection ────────────────────────── */}
       <Section title="Model">
+        {isLocal ? (
+          <div className="space-y-2">
+            <select
+              value={currentModel}
+              onChange={(e) => handleModelSelect(e.target.value)}
+              className="w-full bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border"
+              style={{
+                color: 'var(--text)',
+                borderColor: 'var(--input-border)',
+                backgroundColor: 'var(--input-bg)',
+              }}
+            >
+              {localModels.length === 0 ? (
+                <option value="">No models — click Refresh</option>
+              ) : (
+                localModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))
+              )}
+              {currentModel && !localModels.some((m) => m.id === currentModel) && (
+                <option value={currentModel}>{currentModel}</option>
+              )}
+            </select>
+          </div>
+        ) : (
         <div className="flex gap-1.5">
-          {MODEL_OPTIONS.map((opt) => {
+          {OPENAI_MODEL_OPTIONS.map((opt) => {
             const isActive = currentModel === opt.id
             return (
               <button
@@ -340,6 +546,7 @@ export function LLMView() {
             )
           })}
         </div>
+        )}
       </Section>
 
       {/* ── Temperature ─────────────────────────── */}

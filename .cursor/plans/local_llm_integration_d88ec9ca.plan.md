@@ -184,8 +184,8 @@ When provider is local, omit from all `chat.completions.create` calls:
 
 ## Recommended Local Models
 
-- **Ollama:** `llama3.2`, `mistral`, `phi3`, `llava` (vision), `qwen2.5` (good for non-English)
-- **LM Studio:** User loads any GGUF/MLX model; app uses whatever is loaded
+- **Ollama:** `qwen3:1.7b` (recommended, under 2B), `qwen3:0.6b` (lightweight), `qwen3:4b` (better quality), `llava` (vision)
+- **LM Studio:** Load Qwen3 GGUF models from Hugging Face; app uses whatever is loaded. Recommended: Qwen3-1.7B-Instruct
 
 ---
 

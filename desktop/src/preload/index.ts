@@ -24,6 +24,16 @@ export interface ElectronAPI {
   llmGetModel: () => Promise<string>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmGetProvider: () => Promise<string>
+  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') => Promise<{ success: boolean; provider: string }>
+  llmGetLocalBaseUrl: () => Promise<string>
+  llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>
+  llmListLocalModels: () => Promise<{ models: Array<{ id: string; name: string; contextWindow: number; maxResponseTokens: number }>; error?: string }>
+  llmTestLocalConnection: () => Promise<{ ok: boolean; error?: string }>
+  llmProbeLocalProviders: () => Promise<{
+    ollama: { ok: boolean; models: Array<{ id: string; name: string }>; error?: string }
+    lmstudio: { ok: boolean; models: Array<{ id: string; name: string }>; error?: string }
+  }>
   llmSetTemperature: (temperature: number) => Promise<{ success: boolean }>
   onLLMChatDelta: (callback: (data: any) => void) => () => void
   onLLMChatDone: (callback: (data: any) => void) => () => void
@@ -290,6 +300,16 @@ const api: ElectronAPI = {
   llmHasApiKey: () => {
     return ipcRenderer.invoke('llm:has-api-key')
   },
+
+  llmGetProvider: () => ipcRenderer.invoke('llm:get-provider'),
+  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') =>
+    ipcRenderer.invoke('llm:set-provider', provider),
+  llmGetLocalBaseUrl: () => ipcRenderer.invoke('llm:get-local-base-url'),
+  llmSetLocalBaseUrl: (baseUrl: string) =>
+    ipcRenderer.invoke('llm:set-local-base-url', baseUrl),
+  llmListLocalModels: () => ipcRenderer.invoke('llm:list-local-models'),
+  llmTestLocalConnection: () => ipcRenderer.invoke('llm:test-local-connection'),
+  llmProbeLocalProviders: () => ipcRenderer.invoke('llm:probe-local-providers'),
 
   onLLMChatDelta: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, data: any) => {

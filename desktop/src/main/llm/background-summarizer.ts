@@ -36,6 +36,10 @@ export interface SummarizerInput {
   client: OpenAI
   transcriptMemory: TranscriptMemory
   entries: TranscriptEntry[]
+  /** Model to use (e.g. gpt-5-nano for OpenAI, llama3.2 for Ollama) */
+  model?: string
+  /** Omit OpenAI-specific params (reasoning_effort) for local providers */
+  stripOpenAIParams?: boolean
   /** Number of most recent entries to keep unsummarized (default 25) */
   keepRawCount?: number
   /** Custom system prompt. Null/undefined = use default. */
@@ -62,6 +66,8 @@ export async function runBackgroundSummarization(
     client,
     transcriptMemory,
     entries,
+    model = GPT5_NANO_MODEL,
+    stripOpenAIParams = false,
     keepRawCount = DEFAULT_KEEP_RAW_COUNT,
     systemPrompt,
     userId,
@@ -110,16 +116,13 @@ export async function runBackgroundSummarization(
 
     const doSummarize = async () =>
       client.chat.completions.create({
-        model: GPT5_NANO_MODEL,
+        model,
         messages: [
           { role: 'system', content: summarizeSystem },
           { role: 'user', content: userContent },
         ],
-        // gpt-5-nano is a reasoning model — reasoning tokens + output tokens
-        // must both fit within max_completion_tokens. 1024 was entirely consumed
-        // by reasoning, leaving 0 for output. 4096 gives plenty of room.
-        max_completion_tokens: 4096,
-        reasoning_effort: 'low',
+        max_completion_tokens: 10000,
+        ...(stripOpenAIParams ? {} : { reasoning_effort: 'low' as const }),
       })
 
     const response = await (userId || sessionId

@@ -38,7 +38,7 @@ const comparisonRows = [
     feature: "Privacy",
     icon: Shield,
     scribely: "100% local",
-    scribelyDetail: "Audio never leaves your Mac",
+    scribelyDetail: "Ollama/LM Studio = fully local. Audio never leaves your Mac.",
     competitor: "Cloud-based",
     competitorDetail: "Audio sent to external servers for processing",
     scribelyWins: true,
@@ -197,7 +197,7 @@ export function Comparison() {
           <div className="rounded-xl glass p-5 text-center">
             <div className="text-2xl font-display font-bold text-gradient mb-1">0 bytes</div>
             <p className="text-xs text-white/40">
-              Your audio never leaves your Mac. Cluely sends everything to their servers.
+              With Ollama or LM Studio, nothing leaves your Mac. Cluely sends everything to their servers.
             </p>
           </div>
         </motion.div>

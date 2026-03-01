@@ -29,8 +29,8 @@ export function CTABanner() {
               Ready to transform your meetings?
             </h2>
             <p className="text-lg text-white/50 max-w-xl mx-auto mb-8">
-              Download Scribely for free and experience AI-powered meeting
-              assistance that respects your privacy.
+              Download Scribely for free. Use OpenAI for best results, or Ollama / LM Studio
+              with Qwen3 for fully local AI — no API keys needed.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Button size="xl" asChild>
