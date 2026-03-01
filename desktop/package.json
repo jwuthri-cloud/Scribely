@@ -1,6 +1,6 @@
 {
   "name": "scribely-desktop",
-  "version": "0.2.2",
+  "version": "1.0.1",
   "description": "Scribely desktop overlay – invisible to screen sharing",
   "main": "./out/main/index.js",
   "scripts": {
@@ -17,7 +17,8 @@
     "build:icon": "mkdir -p build && magick ../chrome-extension/icons/icon128.png -resize 512x512 build/icon.png",
     "export:question-classifier": "python scripts/export-question-classifier.py",
     "dist": "npm run build:all && electron-builder --mac",
-    "build:all": "npm run build:proto && npm run build:native && npm run build"
+    "build:all": "npm run build:proto && npm run build:native && npm run build",
+    "build:extension": "cd .. && ./scripts/pack-extension.sh"
   },
   "dependencies": {
     "@deepgram/sdk": "^4.11.3",

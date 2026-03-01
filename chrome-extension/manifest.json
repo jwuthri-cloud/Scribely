@@ -1,9 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Scribely Tab Capture",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Captures tab audio and video for Scribely desktop transcription",
-  "permissions": ["tabCapture", "offscreen", "activeTab", "tabs"],
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "activeTab",
+    "tabs"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -30,7 +35,9 @@
         "https://gotomeet.me/*",
         "https://global.gotomeeting.com/*"
       ],
-      "js": ["content-script.js"],
+      "js": [
+        "content-script.js"
+      ],
       "run_at": "document_idle"
     }
   ],

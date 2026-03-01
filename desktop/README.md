@@ -1,60 +1,64 @@
-# Scribely Desktop Overlay
+# Scribely Desktop
 
-A Cluely-style Electron overlay app that floats above all windows and is **invisible to screen sharing** on macOS.
+macOS-only Electron overlay app for real-time meeting assistance. Floats above all windows, invisible to screen sharing, with AI chat and live transcription (local Whisper).
 
-## Prerequisites
+## Requirements
 
-- **Node.js** >= 18
-- **macOS** (native window invisibility relies on `nswindow-napi`)
+- **macOS 13 (Ventura)** or later
+- **Node.js 18+**
+- **Apple Silicon (M1+)** recommended for best transcription performance
 
-## Getting Started
+## Quick Start
 
 ```bash
-cd scribely/desktop
-
-# Install dependencies
 npm install
-
-# Run in development mode (with hot-reload)
 npm run dev
 ```
 
-## Available Scripts
+## Commands
 
-| Script | Description |
-|---|---|
-| `npm run dev` | Start the app in dev mode with HMR |
-| `npm run build` | Build main, preload, and renderer for production |
-| `npm run preview` | Preview the production build locally |
-| `npm run typecheck` | Run TypeScript type checking across all layers |
-
-## Global Hotkey
-
-| Shortcut | Action |
-|---|---|
-| `Cmd + Shift + Space` | Toggle overlay visibility |
-
-## How It Works
-
-- **Frameless + transparent** Electron window with glassmorphism UI
-- **Screen-share invisibility** via two native macOS tricks:
-  1. `NSWindow.sharingType = .none` — hides content from legacy capture APIs
-  2. `AssistiveTechHighWindowLevel` — moves the window to an assistive-tech z-layer so no black rectangle is visible
-- **Drag region** at the top of the overlay to reposition the window
-- **No dock icon** — the app runs silently in the background
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev mode with HMR |
+| `npm run build` | Build main + preload + renderer |
+| `npm run preview` | Preview production build |
+| `npm run typecheck` | Type check all layers (main + renderer) |
+| `npm run typecheck:main` | Type check main/preload only |
+| `npm run typecheck:renderer` | Type check renderer only |
+| `npm run build:native` | Build Swift NativeHelper binary → `resources/native/` |
+| `npm run build:native:debug` | Build NativeHelper with debug symbols |
+| `npm run build:proto` | Compile `.proto` files to TypeScript (run if `.proto` changes) |
+| `npm run build:icon` | Generate app icon from extension icon |
+| `npm run build:all` | Proto + native + build (no packaging) |
+| `npm run dist` | Full macOS DMG distribution |
+| `npm run build:extension` | Pack Chrome extension to zip (from repo root) |
+| `npm run export:question-classifier` | Export ONNX question classifier model |
 
 ## Project Structure
 
 ```
-src/
-  main/           # Electron main process (window, hotkey, native mods)
-  preload/        # Secure IPC bridge (contextBridge)
-  renderer/src/   # React + Tailwind UI
-    components/   # Overlay, ResponseCard, InputBar, ActionChips, TitleBar
-    themes/       # Theme system (Atom Dark default, extensible)
-    hooks/        # useChat (placeholder for backend integration)
+desktop/
+├── src/main/           # Main process (Node.js)
+│   ├── index.ts        # App entry, IPC registration
+│   ├── audio/          # Whisper pipeline, VAD, transcriber
+│   ├── llm/            # OpenAI, Ollama, LM Studio
+│   └── insights/       # Live insight detection
+├── src/preload/        # IPC bridge (contextBridge)
+├── src/renderer/       # React 18 + Tailwind frontend
+├── native/             # Swift NativeHelper (ScreenCaptureKit)
+└── resources/          # Native binary, icons, entitlements
 ```
 
-## Theming
+## LLM Providers
 
-The default theme is **Atom Dark**. To add a new theme, create a file in `src/renderer/src/themes/` and register it in `registry.ts`. All components use CSS custom properties so they adapt automatically.
+- **OpenAI** — Best quality, requires API key
+- **Ollama** — Free, local. Recommended: `ollama pull qwen3:1.7b`
+- **LM Studio** — Free, local. Load Qwen3-1.7B-Instruct
+
+## Build for Distribution
+
+```bash
+npm run dist
+```
+
+Produces a signed DMG in `dist/`. Requires Apple Developer credentials for notarization.
