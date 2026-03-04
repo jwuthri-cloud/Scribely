@@ -1,6 +1,6 @@
 {
   "name": "scribely-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Scribely desktop overlay – invisible to screen sharing",
   "main": "./out/main/index.js",
   "scripts": {
