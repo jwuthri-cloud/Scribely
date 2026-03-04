@@ -1,0 +1,29 @@
+{
+  "name": "scribely-promo-video",
+  "version": "1.0.0",
+  "description": "Scribely promotional video built with Remotion",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion render PromoVideo --output out/promo.mp4",
+    "render": "remotion render PromoVideo --output out/promo.mp4",
+    "capture": "tsx capture.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.431",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/media": "^4.0.431",
+    "@remotion/transitions": "^4.0.0",
+    "playwright": "^1.58.2",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "remotion": "^4.0.0",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config": "^4.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

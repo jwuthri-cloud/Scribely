@@ -140,6 +140,7 @@ public/*
 !public/screenshots/
 !public/scribely-icon.png
 !public/logo.svg
+!public/demo.mp4
 
 # Storybook build outputs
 .out

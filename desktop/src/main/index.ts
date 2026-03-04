@@ -893,7 +893,11 @@ app.whenReady().then(async () => {
   initExtensionWsServer()
 
   // Start native helper bridge (non-blocking — falls back to browser capture on failure)
-  initNativeBridge()
+  if (!process.env.SCRIBELY_SKIP_NATIVE) {
+    initNativeBridge()
+  } else {
+    nativeBridgeLog.info('Skipping native bridge — SCRIBELY_SKIP_NATIVE is set')
+  }
 
   createWindow()
   createTray()
