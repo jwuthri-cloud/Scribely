@@ -10,6 +10,11 @@ import {
 
 const faqs = [
   {
+    question: "Do I need to install anything to get started?",
+    answer:
+      "No. Download Scribely, add your OpenAI API key (and optionally Deepgram for transcription), and you're ready. Cloud providers work immediately — no Ollama, LM Studio, or model downloads required. Use local options only if you prefer fully offline, private AI.",
+  },
+  {
     question: "Is Scribely really invisible to screen sharing?",
     answer:
       "Yes. Scribely uses native macOS APIs to hide itself from all screen capture and recording tools. When you share your screen on Zoom, Meet, or Teams, Scribely is completely invisible to other participants.",
@@ -17,7 +22,7 @@ const faqs = [
   {
     question: "Does my audio data leave my computer?",
     answer:
-      "No. All audio processing and transcription happens locally on your Mac using on-device AI models (Whisper). No audio data is ever sent to external servers. For AI chat, you can use Ollama or LM Studio for fully local, free AI — nothing leaves your Mac. Or optionally use OpenAI for cloud-powered chat (sends text only, not audio).",
+      "It depends on your setup. With cloud providers (Deepgram, Rev.ai for transcription; OpenAI for chat), audio/transcript is sent to their APIs. With local options (Whisper for transcription; Ollama or LM Studio for chat), nothing leaves your Mac. You choose — cloud for zero setup, or fully local for maximum privacy.",
   },
   {
     question: "Which meeting platforms are supported?",
@@ -37,7 +42,7 @@ const faqs = [
   {
     question: "Is Scribely free?",
     answer:
-      "Yes. With Ollama or LM Studio, the core features — live transcription, AI chat, and real-time insights — are completely free and fully local. No API keys required. You can also use OpenAI for AI chat if you prefer. We offer a paid tier for post-meeting optimization features like enhanced summaries and action item extraction.",
+      "Yes. The app is free to download. Use OpenAI and Deepgram with your own API keys (pay-as-you-go) — no installation, works immediately. Or use Ollama or LM Studio for fully local, free AI — no API keys needed. We offer a paid tier for post-meeting optimization features like enhanced summaries and action item extraction.",
   },
   {
     question: "How do I set up Ollama or LM Studio for local AI?",
@@ -47,7 +52,7 @@ const faqs = [
   {
     question: "How accurate is the transcription?",
     answer:
-      "Scribely uses OpenAI's Whisper models running locally. You can choose between three quality levels: Fast (small model), Balanced (medium model), and Accurate (large model). The large model provides near-human accuracy for English.",
+      "Choose local Whisper (Fast, Balanced, or Accurate) or cloud providers like Deepgram and Rev.ai. Local Whisper offers three quality levels; cloud providers typically offer higher accuracy with lower latency. Pick what fits your needs.",
   },
   {
     question: "Can I use Scribely for in-person meetings?",

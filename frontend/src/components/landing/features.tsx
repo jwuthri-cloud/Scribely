@@ -15,13 +15,13 @@ const features = [
     icon: Mic,
     title: "Live Transcription",
     description:
-      "Real-time, accurate transcription of your meetings with speaker identification. Powered by local Whisper models — no cloud needed.",
+      "Real-time, accurate transcription with speaker identification. Use Deepgram, Rev.ai, or local Whisper — no installation required for cloud.",
   },
   {
     icon: MessageSquare,
     title: "AI Chat",
     description:
-      "Ask questions about your meeting in real-time. Use Ollama or LM Studio with Qwen3 for fully local, free AI — or OpenAI for best cloud-powered results.",
+      "Ask questions about your meeting in real-time. Use OpenAI out of the box — just add your API key. Or run fully local with Ollama or LM Studio.",
   },
   {
     icon: Sparkles,
@@ -39,7 +39,7 @@ const features = [
     icon: Shield,
     title: "Privacy First",
     description:
-      "Fully local when using Ollama or LM Studio with Qwen3 — transcription and AI run entirely on your Mac. No audio or transcript data ever leaves your device.",
+      "Choose your level: cloud (OpenAI, Deepgram) for zero setup, or go fully local with Ollama/LM Studio — nothing leaves your Mac.",
   },
   {
     icon: Chrome,

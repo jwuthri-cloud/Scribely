@@ -61,8 +61,8 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-lg sm:text-xl text-white/50 max-w-2xl mx-auto mb-10"
         >
-          Live transcription, AI-powered Q&A, and real-time insights — fully
-          local on your Mac with Ollama or LM Studio (Qwen3). Completely invisible to screen sharing.
+          Live transcription, AI-powered Q&A, and real-time insights — works
+          out of the box with OpenAI and Deepgram, or go fully local with Ollama or LM Studio. Completely invisible to screen sharing.
         </motion.p>
 
         <motion.div

@@ -21,11 +21,11 @@ export const metadata: Metadata = {
     template: "%s | Scribely",
   },
   description:
-    "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac. Invisible to screen sharing.",
+    "Live transcription, AI-powered Q&A, and real-time insights — use OpenAI and Deepgram out of the box, or run fully local. Invisible to screen sharing.",
   openGraph: {
     title: "Scribely Your Invisible AI Meeting Assistant",
     description:
-      "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac.",
+      "Live transcription, AI-powered Q&A, and real-time insights — cloud or fully local. Invisible to screen sharing.",
     siteName: "Scribely",
     type: "website",
   },
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Scribely Your Invisible AI Meeting Assistant",
     description:
-      "Live transcription, AI-powered Q&A, and real-time insights — all running locally on your Mac.",
+      "Live transcription, AI-powered Q&A, and real-time insights — cloud or fully local. Invisible to screen sharing.",
   },
 }
 

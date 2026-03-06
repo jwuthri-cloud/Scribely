@@ -25,10 +25,10 @@ import { Badge } from "@/components/ui/badge"
 // SEO metadata is set via generateMetadata in the layout or via head.tsx
 
 const stats = [
-  { value: "100%", label: "Local processing" },
-  { value: "0 bytes", label: "Sent to the cloud" },
+  { value: "Cloud or local", label: "Your choice" },
   { value: "<1min", label: "Setup time" },
   { value: "∞", label: "Free meetings" },
+  { value: "0 install", label: "With cloud APIs" },
 ]
 
 const pipeline = [
@@ -42,14 +42,14 @@ const pipeline = [
   {
     icon: Brain,
     title: "Transcribe",
-    detail: "Whisper AI running on your Mac",
+    detail: "Local Whisper or cloud (Deepgram, Rev.ai)",
     color: "from-indigo-500/30 to-indigo-600/30",
     iconColor: "text-indigo-400",
   },
   {
     icon: Zap,
     title: "Analyze",
-    detail: "Real-time insights & AI chat (Ollama, LM Studio, or OpenAI)",
+    detail: "Real-time insights & AI chat (OpenAI, Ollama, or LM Studio)",
     color: "from-blue-500/30 to-blue-600/30",
     iconColor: "text-blue-400",
   },
@@ -283,13 +283,12 @@ export default function AboutPage() {
                 Your meetings stay on your Mac
               </h2>
               <p className="text-white/45 max-w-xl leading-relaxed mb-6">
-                Unlike cloud-based meeting tools, Scribely processes everything
-                locally. Audio never leaves your device. Transcripts are stored in
-                your filesystem. Use Ollama or LM Studio for fully local AI chat —
-                nothing leaves your Mac. Or optionally use OpenAI (text only, never audio).
+                Choose cloud (OpenAI, Deepgram) for zero setup — or go fully local
+                with Whisper and Ollama/LM Studio. Transcripts stay in your
+                filesystem. You control where your data goes.
               </p>
               <div className="flex flex-wrap gap-3">
-                {["Local Whisper AI", "Ollama / LM Studio", "No cloud uploads", "macOS Keychain encryption", "No telemetry"].map((tag) => (
+                {["OpenAI / Deepgram", "Local Whisper", "Ollama / LM Studio", "macOS Keychain encryption", "No telemetry"].map((tag) => (
                   <Badge key={tag} variant="secondary">{tag}</Badge>
                 ))}
               </div>
@@ -312,11 +311,11 @@ export default function AboutPage() {
               </div>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
-              Zero audio upload
+              Fully local option
             </h3>
             <p className="text-sm text-white/40">
-              Audio is processed by Whisper running natively on your Mac.
-              Not a single audio byte leaves your machine.
+              With Whisper + Ollama/LM Studio, nothing leaves your Mac.
+              Or use cloud APIs — your choice.
             </p>
           </motion.div>
         </div>

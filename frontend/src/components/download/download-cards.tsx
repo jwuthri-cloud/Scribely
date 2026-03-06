@@ -117,7 +117,7 @@ export function QuickStart() {
       number: "2",
       title: "Choose Your AI Provider",
       description:
-        "OpenAI API key for best results, or Ollama / LM Studio for free, fully local AI. In the app: Settings → LLM tab. For local: install Ollama (ollama.com) or LM Studio (lmstudio.ai). Recommended model: Qwen3 1.7B — run 'ollama pull qwen3:1.7b' or load Qwen3-1.7B-Instruct in LM Studio.",
+        "Cloud (easiest): add your OpenAI API key and optionally Deepgram for transcription — no installation. Or go fully local: install Ollama or LM Studio and use Qwen3. Settings → LLM and Transcription tabs.",
     },
     {
       number: "3",
