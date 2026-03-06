@@ -20,7 +20,7 @@ const testimonials = [
   },
   {
     quote:
-      "Privacy was my biggest concern with meeting AI tools. Scribely runs 100% locally — that sold me immediately.",
+      "Privacy was my biggest concern with meeting AI tools. I didn't want our conversations going to the cloud. Scribely runs 100% locally. Love it.",
     name: "Emily Park",
     role: "Engineering Lead",
     company: "SecureStack",
@@ -29,7 +29,7 @@ const testimonials = [
 
 export function Testimonials() {
   return (
-    <section className="relative py-32">
+    <section className="relative py-16 sm:py-20">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute bottom-0 left-1/4 w-[500px] h-[300px] bg-indigo-600/[0.05] rounded-full blur-[100px]" />
       </div>

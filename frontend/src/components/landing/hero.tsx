@@ -27,7 +27,7 @@ function AppMockup() {
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 pb-32 overflow-x-hidden">
+    <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 pb-16 overflow-x-hidden">
       {/* Background orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-glow-pulse" />

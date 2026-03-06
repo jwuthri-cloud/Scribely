@@ -92,7 +92,7 @@ const comparisonRows = [
 
 export function Comparison() {
   return (
-    <section className="relative py-32">
+    <section className="relative py-16 sm:py-20">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-1/2 left-1/4 w-[500px] h-[300px] bg-purple-600/[0.04] rounded-full blur-[100px]" />
       </div>
@@ -128,14 +128,26 @@ export function Comparison() {
             <div className="text-sm font-medium text-white/40" />
             <div className="text-center">
               <div className="inline-flex items-center gap-2">
-                <div className="h-6 w-6 rounded-md bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                  <span className="text-[10px] font-bold text-white">S</span>
-                </div>
+                <img
+                  src="/scribely-icon.png"
+                  alt="Scribely"
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 rounded-md object-contain"
+                />
                 <span className="text-sm font-semibold text-white">Scribely</span>
               </div>
             </div>
             <div className="text-center">
-              <span className="text-sm font-medium text-white/40">Cluely</span>
+              <div className="inline-flex items-center">
+                <img
+                  alt="Cluely"
+                  width={84}
+                  height={22}
+                  src="/cluely-wordmark.svg"
+                  className="shrink-0 opacity-40"
+                />
+              </div>
             </div>
           </div>
 
