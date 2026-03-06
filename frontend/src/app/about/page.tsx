@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 // export metadata from a separate file since this is now a client component
 // SEO metadata is set via generateMetadata in the layout or via head.tsx
 
+
 const stats = [
   { value: "Cloud or local", label: "Your choice" },
   { value: "<1min", label: "Setup time" },
