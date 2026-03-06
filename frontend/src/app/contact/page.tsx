@@ -141,7 +141,7 @@ export default function ContactPage() {
                 <p className="text-sm text-red-400">
                   Something went wrong. Please try again or{" "}
                   <a
-                    href={`mailto:hello@scribely.app?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(
+                    href={`mailto:hello@scribely.xyz?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(
                       `From: ${formData.name} <${formData.email}>\n\n${formData.message}`
                     )}`}
                     className="underline hover:text-red-300"
@@ -178,11 +178,11 @@ export default function ContactPage() {
           className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-6 text-white/40"
         >
           <a
-            href="mailto:hello@scribely.app"
+            href="mailto:hello@scribely.xyz"
             className="flex items-center gap-2 hover:text-white transition-colors"
           >
             <Mail className="h-4 w-4" />
-            hello@scribely.app
+            hello@scribely.xyz
           </a>
           <span className="hidden sm:inline text-white/20">|</span>
           <Link href="/" className="flex items-center gap-2 hover:text-white transition-colors">

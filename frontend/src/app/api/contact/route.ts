@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     // const res = await fetch("https://api.resend.com/emails", {
     //   method: "POST",
     //   headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-    //   body: JSON.stringify({ from: "contact@scribely.app", to: "hello@scribely.app", subject, html: `<p>From: ${name} &lt;${email}&gt;</p><p>${message}</p>` }),
+    //   body: JSON.stringify({ from: "contact@scribely.app", to: "hello@scribely.xyz", subject, html: `<p>From: ${name} &lt;${email}&gt;</p><p>${message}</p>` }),
     // })
 
     // For now, log and return success (form will fall back to mailto if this fails)

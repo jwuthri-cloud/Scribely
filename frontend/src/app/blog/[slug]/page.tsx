@@ -1,36 +1,14 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Calendar } from "lucide-react"
+import { ArrowLeft, Calendar, ChevronRight } from "lucide-react"
+import { BlogArticleContent } from "@/components/blog/blog-article-content"
 import { blogPosts } from "@/lib/blog-posts"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 interface PageProps {
   params: { slug: string }
-}
-
-// Placeholder content for each post — replace with MDX or CMS content later
-const postContent: Record<string, string> = {
-  "introducing-scribely": `
-    <p>We built Scribely because we were tired of choosing between paying attention in meetings and capturing what mattered.</p>
-    <p>Every meeting tool before Scribely forced a tradeoff: take notes and miss the conversation, or focus on the conversation and lose the details. We wanted both.</p>
-    <p>Scribely is an AI meeting assistant that floats above your screen — completely invisible to everyone else when you share. It transcribes in real time, answers your questions about the conversation, and surfaces insights as they happen.</p>
-    <p>You can use it with cloud providers (OpenAI, Deepgram) for zero setup, or run everything locally with Whisper and Ollama. Your choice.</p>
-    <p>We're just getting started. Download Scribely and let us know what you think.</p>
-  `,
-  "cloud-or-local-your-choice": `
-    <p>Scribely gives you two paths: cloud or fully local. Both work great — it depends on your priorities.</p>
-    <p><strong>Cloud (zero setup):</strong> Add your OpenAI API key and optionally Deepgram for transcription. No installation, no model downloads. Works immediately.</p>
-    <p><strong>Fully local:</strong> Use Whisper for transcription and Ollama or LM Studio for AI chat. Nothing leaves your Mac. Free, private, and works offline.</p>
-    <p>Many users start with cloud to try Scribely quickly, then switch to local for sensitive meetings. You can mix and match — local transcription with cloud LLM, or vice versa.</p>
-    <p>Head to Settings → LLM and Transcription tabs to configure your setup.</p>
-  `,
-  "invisible-to-screen-sharing": `
-    <p>When you share your screen on Zoom, Google Meet, or Teams, most apps show up. That's a problem if you're using an AI assistant during a client call.</p>
-    <p>Scribely uses native macOS APIs to hide itself from all screen capture and recording tools. When you share your screen, Scribely is completely invisible to other participants.</p>
-    <p>That means you can ask questions, get real-time insights, and capture action items — without anyone knowing you have help. Your AI assistant stays private.</p>
-    <p>This isn't a hack or workaround. It's built into how Scribely works from day one.</p>
-  `,
 }
 
 export function generateStaticParams() {
@@ -48,47 +26,84 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default function BlogPostPage({ params }: PageProps) {
   const post = blogPosts.find((p) => p.slug === params.slug)
-  const content = post ? postContent[post.slug] : null
 
-  if (!post || !content) notFound()
+  if (!post) notFound()
 
   return (
-    <div className="pt-32 pb-16">
-      <article className="mx-auto max-w-3xl px-6 lg:px-8">
+    <div className="relative overflow-hidden pt-32 pb-20">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute left-1/2 top-12 h-[360px] w-[680px] -translate-x-1/2 rounded-full bg-purple-600/10 blur-[140px]" />
+        <div className="absolute right-0 top-72 h-[260px] w-[360px] rounded-full bg-indigo-600/10 blur-[120px]" />
+        <div className="absolute left-0 top-[32rem] h-[300px] w-[320px] rounded-full bg-cyan-500/10 blur-[120px]" />
+      </div>
+
+      <article className="relative mx-auto max-w-4xl px-6 lg:px-8">
         <Link
           href="/blog"
-          className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white mb-8 transition-colors"
+          className="mb-8 inline-flex items-center gap-2 text-sm text-white/50 transition-colors hover:text-white"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to blog
         </Link>
 
-        <header className="mb-12">
-          <span className="text-xs text-white/30 flex items-center gap-1 mb-4">
-            <Calendar className="h-3.5 w-3.5" />
-            {new Date(post.date).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-            <span className="mx-2">·</span>
-            {post.readTime}
-          </span>
-          <h1 className="text-4xl sm:text-5xl font-display font-bold text-white mb-4 leading-tight">
+        <header className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8 shadow-[0_0_80px_-50px_rgba(168,85,247,0.7)] sm:p-10">
+          <div className="mb-5 flex flex-wrap items-center gap-3">
+            <Badge className="border border-white/10 bg-white/[0.06] text-white/90">
+              {post.category}
+            </Badge>
+            <span className="inline-flex items-center gap-1 text-xs text-white/40">
+              <Calendar className="h-3.5 w-3.5" />
+              {new Date(post.date).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </span>
+            <span className="text-xs text-white/20">•</span>
+            <span className="text-xs text-white/40">{post.readTime}</span>
+          </div>
+
+          <h1 className="max-w-3xl text-4xl font-display font-bold leading-tight text-white sm:text-5xl">
             {post.title}
           </h1>
-          <p className="text-lg text-white/50">{post.author}</p>
+
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-white/55">
+            {post.excerpt}
+          </p>
+
+          <div className="mt-8 flex items-center gap-4 border-t border-white/[0.08] pt-6">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.08] bg-gradient-to-br from-purple-500/25 to-indigo-500/20 text-sm font-semibold text-white">
+              ST
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white/80">{post.author}</p>
+              <p className="text-sm text-white/40">Notes, product updates, and practical guides</p>
+            </div>
+          </div>
         </header>
 
-        <div
-          className="prose prose-invert prose-lg max-w-none
-            prose-p:text-white/70 prose-p:leading-relaxed prose-p:mb-6
-            prose-strong:text-white
-            prose-a:text-purple-400 prose-a:no-underline hover:prose-a:underline"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
+        <div className="mt-6 flex items-center gap-2 text-sm text-white/40">
+          <Link href="/blog" className="transition-colors hover:text-white/70">
+            Blog
+          </Link>
+          <ChevronRight className="h-4 w-4" />
+          <span>{post.category}</span>
+        </div>
 
-        <div className="mt-16 pt-8 border-t border-white/[0.06]">
+        <div
+          className="mt-12 max-w-none
+            [&_a]:transition-colors
+            [&_blockquote]:border-l-2 [&_blockquote]:border-purple-400/50 [&_blockquote]:pl-5 [&_blockquote]:text-white/65
+            [&_li]:text-white/72
+            [&_ol]:space-y-3 [&_ol]:pl-5 [&_ol]:text-white/72
+            [&_p]:text-lg [&_p]:leading-8 [&_p]:text-white/72
+            [&_strong]:font-semibold [&_strong]:text-white
+            [&_ul]:space-y-3 [&_ul]:pl-5"
+        >
+          <BlogArticleContent slug={post.slug} />
+        </div>
+
+        <div className="mt-16 border-t border-white/[0.06] pt-8">
           <Button variant="secondary" asChild>
             <Link href="/blog">
               <ArrowLeft className="mr-2 h-4 w-4" />
