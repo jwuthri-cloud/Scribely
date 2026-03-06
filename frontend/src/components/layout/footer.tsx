@@ -9,6 +9,7 @@ const footerLinks = {
     { label: "Features", href: "/#features" },
     { label: "Pricing", href: "/pricing" },
     { label: "Download", href: "/download" },
+    { label: "Setup Guide", href: "/setup" },
     { label: "Changelog", href: "#" },
   ],
   Company: [
