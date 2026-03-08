@@ -19,6 +19,93 @@ import {
 
 const log = createLogger('llm-service')
 import { TokenCounter } from './token-counter'
+
+/** Overlap in ms before summary end_time — include entries from (end_time - OVERLAP_MS) onward */
+const TRANSCRIPT_SUMMARY_OVERLAP_MS = 10_000
+
+/**
+ * Parse time string "MM:SS" or "HH:MM:SS" to milliseconds.
+ * Returns 0 if parsing fails.
+ */
+function parseTimeToMs(timeStr: string): number {
+  if (!timeStr || typeof timeStr !== 'string') return 0
+  const parts = timeStr.trim().split(':').map(Number)
+  if (parts.some(isNaN)) return 0
+  if (parts.length === 2) {
+    const [min, sec] = parts
+    return min * 60 * 1000 + sec * 1000
+  }
+  if (parts.length === 3) {
+    const [hr, min, sec] = parts
+    return hr * 3600 * 1000 + min * 60 * 1000 + sec * 1000
+  }
+  return 0
+}
+
+/**
+ * Extract max end_time from transcript summary JSON.
+ * Summary may be wrapped in ```json ... ```. Returns 0 if not found.
+ */
+function getSummaryEndTimeMs(summary: string): number {
+  if (!summary?.trim()) return 0
+  let jsonStr = summary.trim()
+  const fence = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fence) jsonStr = fence[1].trim()
+  try {
+    const data = JSON.parse(jsonStr) as { topics?: Array<{ end_time?: string }> }
+    const topics = data?.topics
+    if (!Array.isArray(topics) || topics.length === 0) return 0
+    let maxMs = 0
+    for (const t of topics) {
+      const ms = parseTimeToMs(t?.end_time ?? '')
+      if (ms > maxMs) maxMs = ms
+    }
+    return maxMs
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * When a transcript summary exists, filter transcript delta to only include
+ * entries after (summary_end_time - overlap). Rebuild message content with
+ * filtered entries.
+ */
+function filterTranscriptDeltaForSummary(
+  summary: string,
+  transcriptDelta: TranscriptEntry[],
+  rawMessage: string,
+  rawQuery: string,
+): { content: string; transcriptDelta: TranscriptEntry[] } {
+  const endTimeMs = getSummaryEndTimeMs(summary)
+  if (endTimeMs <= 0 || transcriptDelta.length === 0) {
+    return { content: rawMessage, transcriptDelta }
+  }
+  const cutoffMs = Math.max(0, endTimeMs - TRANSCRIPT_SUMMARY_OVERLAP_MS)
+  const filtered = transcriptDelta.filter((e) => e.startTime >= cutoffMs)
+  if (filtered.length === transcriptDelta.length) {
+    return { content: rawMessage, transcriptDelta }
+  }
+  log.info(
+    `[llm] Filtered transcript: ${transcriptDelta.length} → ${filtered.length} entries (summary ends at ${endTimeMs}ms, cutoff ${cutoffMs}ms)`,
+  )
+  const queryBlock = `<user_query>\n${rawQuery}\n</user_query>`
+  if (filtered.length === 0) {
+    return { content: queryBlock, transcriptDelta: [] }
+  }
+  const header = 'NEW TRANSCRIPT SINCE LAST MESSAGE:'
+  const formatTimestamp = (ms: number) => {
+    const totalSec = Math.floor(ms / 1000)
+    const min = Math.floor(totalSec / 60)
+    const sec = totalSec % 60
+    return `${min}:${String(sec).padStart(2, '0')}`
+  }
+  const transcriptText = filtered
+    .map((e) => `[${formatTimestamp(e.startTime)}] ${e.speaker}: ${e.text}`)
+    .join('\n')
+  const content = `<transcript>\n${header}\n${transcriptText}\n</transcript>\n\n${queryBlock}`
+  return { content, transcriptDelta: filtered }
+}
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
@@ -725,15 +812,31 @@ export class LLMService {
       return
     }
 
+    // ── When we have a transcript summary, filter transcript delta to only include
+    //    entries after (summary end_time - 10s overlap). Avoids sending duplicate content. ──
+    const transcriptSummary = this.transcriptMemory.getSummary()
+    let content = request.message
+    let transcriptDelta = request.transcriptDelta
+    if (transcriptSummary && transcriptDelta.length > 0) {
+      const filtered = filterTranscriptDeltaForSummary(
+        transcriptSummary,
+        transcriptDelta,
+        request.message,
+        request.rawQuery,
+      )
+      content = filtered.content
+      transcriptDelta = filtered.transcriptDelta
+    }
+
     // ── Store user message (content already has transcript delta embedded by useChat) ──
     const userMsg: ConversationMessage = {
       id: request.requestId,
       role: 'user',
-      content: request.message,
+      content,
       rawQuery: request.rawQuery,
-      transcriptDelta: request.transcriptDelta,
+      transcriptDelta,
       timestamp: Date.now(),
-      tokenCount: this.tokenCounter.count(request.message),
+      tokenCount: this.tokenCounter.count(content),
       attachments: request.attachments,
     }
     this.conversationMessages.push(userMsg)
@@ -746,7 +849,6 @@ export class LLMService {
     // message's content already includes its transcript delta. No separate
     // transcript block needed.
     const modelConfig = this.getEffectiveModelConfig()
-    const transcriptSummary = this.transcriptMemory.getSummary()
     log.info(
       '[llm] Transcript summary:',
       transcriptSummary ? `INCLUDED (${transcriptSummary.length} chars)` : 'MISSING — click "Summarize now" first',

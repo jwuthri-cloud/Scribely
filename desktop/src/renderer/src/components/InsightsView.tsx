@@ -36,11 +36,12 @@ const DETECTORS: {
   icon: string
   label: string
   description: string
+  wip?: boolean
 }[] = [
   { key: 'detectQuestions', icon: '?', label: 'Questions', description: 'Catch questions asked during the meeting' },
-  { key: 'detectTopicChanges', icon: '~', label: 'Topic changes', description: 'Notice when the conversation shifts' },
-  { key: 'detectActionItems', icon: '\u2713', label: 'Action items', description: 'Spot tasks and commitments' },
-  { key: 'detectKeyMentions', icon: '@', label: 'Key mentions', description: 'Flag names, dates, amounts, and URLs' },
+  { key: 'detectTopicChanges', icon: '~', label: 'Topic changes', description: 'Notice when the conversation shifts', wip: true },
+  { key: 'detectActionItems', icon: '\u2713', label: 'Action items', description: 'Spot tasks and commitments', wip: true },
+  { key: 'detectKeyMentions', icon: '@', label: 'Key mentions', description: 'Flag names, dates, amounts, and URLs', wip: true },
 ]
 
 // ── Helpers ──────────────────────────────────────────────
@@ -422,7 +423,7 @@ export function InsightsView() {
                     Detectors
                   </span>
                   <div className="space-y-1">
-                    {DETECTORS.map(({ key, icon, label, description }) => (
+                    {DETECTORS.map(({ key, icon, label, description, wip }) => (
                       <div
                         key={key}
                         className="flex items-center gap-2 py-1"
@@ -436,13 +437,27 @@ export function InsightsView() {
                         >
                           {icon}
                         </span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[11px] block" style={{ color: 'var(--text)' }}>
-                            {label}
-                          </span>
-                          <span className="text-[9px] block" style={{ color: 'var(--text-muted)' }}>
-                            {description}
-                          </span>
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          {wip && (
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0"
+                              style={{
+                                backgroundColor: 'var(--overlay)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border)',
+                              }}
+                            >
+                              WIP
+                            </span>
+                          )}
+                          <div>
+                            <span className="text-[11px] block" style={{ color: 'var(--text)' }}>
+                              {label}
+                            </span>
+                            <span className="text-[9px] block" style={{ color: 'var(--text-muted)' }}>
+                              {description}
+                            </span>
+                          </div>
                         </div>
                         <Toggle
                           on={insights[key] !== false}
