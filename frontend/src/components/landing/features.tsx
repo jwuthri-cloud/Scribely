@@ -9,6 +9,7 @@ import {
   Shield,
   Chrome,
 } from "lucide-react"
+import { RotatingText } from "@/components/ui/rotating-text"
 
 const features = [
   {
@@ -79,7 +80,21 @@ export function Features() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl font-display font-bold text-white mb-4">
-            Everything you need in meetings
+            Everything you need for{" "}
+            <RotatingText
+              words={[
+                "transcription",
+                "AI chat",
+                "insights",
+                "privacy",
+                "invisibility",
+                "Chrome",
+              ]}
+              mode="slide"
+              interval={2500}
+              className="text-white"
+            />{" "}
+            meetings
           </h2>
           <p className="text-lg text-white/40 max-w-2xl mx-auto">
             A complete AI toolkit that runs silently alongside your meetings,

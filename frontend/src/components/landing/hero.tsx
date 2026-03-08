@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Apple, Chrome, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { RotatingText } from "@/components/ui/rotating-text"
 
 function AppMockup() {
   return (
@@ -52,7 +53,17 @@ export function Hero() {
           className="text-5xl sm:text-6xl lg:text-7xl font-display font-bold tracking-tight mb-6"
         >
           Your Invisible AI{" "}
-          <span className="text-gradient">Meeting Assistant</span>
+          <RotatingText
+            words={[
+              "Meeting Assistant",
+              "Transcription Assistant",
+              "Q&A Assistant",
+              "Insights Engine",
+            ]}
+            mode="slide"
+            interval={3000}
+            className="text-gradient"
+          />
         </motion.h1>
 
         <motion.p
