@@ -1,5 +1,6 @@
 export type BlogCategory = "Comparison" | "Guide" | "Privacy" | "Product"
 
+
 export interface BlogPost {
   slug: string
   title: string
