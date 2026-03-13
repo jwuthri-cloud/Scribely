@@ -34,6 +34,7 @@ import { InsightEngine } from './insights/insight-engine'
 import { unloadQuestionClassifier } from './insights/question-classifier'
 import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
+import { AuthService } from './auth/auth-service'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -206,6 +207,9 @@ let isMeetingActive = false
 // ── LLM Service ─────────────────────────────────────────
 const llmService = new LLMService(store)
 
+// ── Auth Service ─────────────────────────────────────────
+const authService = new AuthService()
+
 // ── Live Insights Engine ───────────────────────────────
 function getInsightsConfig() {
   const llm = store.get('llm') as { insights?: { enabled?: boolean; enrichmentEnabled?: boolean }; provider?: string } | undefined
@@ -321,7 +325,14 @@ if (!process.defaultApp) {
 app.on('open-url', (_event, url) => {
   if (url.startsWith('scribely://')) {
     appLog.info('Launched via scribely:// URL:', url)
-    // App is brought to front by OS; no extra logic needed
+
+    if (authService.handleOpenUrl(url)) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+      return
+    }
   }
 })
 
@@ -369,10 +380,11 @@ function createWindow(): void {
     return allowed.includes(permission)
   })
 
-  // Connect pipeline, recorder, and LLM service to window
+  // Connect pipeline, recorder, LLM service, and auth service to window
   audioPipeline.setWindow(mainWindow)
   screenRecorder.setWindow(mainWindow)
   llmService.setWindow(mainWindow)
+  authService.setWindow(mainWindow)
 
   // Install the default display media handler.
   // The ScreenRecorder swaps this to auto-select the user's chosen source when recording.
@@ -387,6 +399,7 @@ function createWindow(): void {
 
   // Clear reference when window is closed (prevents "Object has been destroyed" in hotkeys)
   mainWindow.on('closed', () => {
+    authService.setWindow(null)
     mainWindow = null
   })
 
@@ -527,6 +540,9 @@ function registerIpcHandlers(): void {
       mainWindow.webContents.send('chat:message-from-insights', text)
     }
   })
+
+  // ── Auth Service ────────────────────────────────────
+  authService.registerIpcHandlers()
 
   // ── LLM Service ──────────────────────────────────────
   // The LLM service registers its own IPC handlers for:
@@ -927,6 +943,7 @@ app.on('will-quit', async (e) => {
   extensionWsServer.stop()
   audioPipeline.destroy()
   llmService.destroy()
+  authService.destroy()
 
   // Flush Langfuse traces before exit (Electron is short-lived)
   await flushLangfuse()

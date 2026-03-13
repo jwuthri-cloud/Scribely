@@ -11,6 +11,7 @@ import type {
   TranscriptionMode,
   TranscriptionLanguage,
 } from '../types'
+import type { AuthUser, AuthState } from '../types'
 import {
   DEFAULT_HOTKEYS,
   HOTKEY_LABELS,
@@ -27,6 +28,33 @@ export interface SettingsViewProps {
 export function SettingsView({ onReRunSetup }: SettingsViewProps) {
   const { theme, themeIds, setThemeId } = useTheme()
   const [settings, setSettings] = useState<AppSettings | null>(null)
+  const [authState, setAuthState] = useState<AuthState | null>(null)
+  const [signingIn, setSigningIn] = useState(false)
+
+  // Load auth state on mount
+  useEffect(() => {
+    window.electronAPI?.authGetState?.().then(setAuthState)
+  }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onAuthStateChanged?.((state) => {
+      setAuthState(state)
+      setSigningIn(false)
+    })
+    return () => unsub?.()
+  }, [])
+
+  const handleSignIn = useCallback(async () => {
+    setSigningIn(true)
+    const result = await window.electronAPI?.authStartSignIn()
+    if (result && !result.success) {
+      setSigningIn(false)
+    }
+  }, [])
+
+  const handleSignOut = useCallback(async () => {
+    await window.electronAPI?.authSignOut()
+  }, [])
 
   // Load settings on mount
   useEffect(() => {
@@ -78,6 +106,69 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
+      {/* ── Account ────────────────────────────── */}
+      <Section title="Account">
+        {authState?.mode === 'authenticated' && authState.user ? (
+          <div className="flex items-center gap-3">
+            {authState.user.imageUrl ? (
+              <img
+                src={authState.user.imageUrl}
+                alt=""
+                className="w-8 h-8 rounded-full shrink-0"
+              />
+            ) : (
+              <div
+                className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-semibold"
+                style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+              >
+                {(authState.user.firstName?.[0] || authState.user.email[0] || '?').toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                {authState.user.fullName || authState.user.email}
+              </div>
+              {authState.user.fullName && (
+                <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                  {authState.user.email}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors hover:brightness-110"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Not signed in
+            </span>
+            <button
+              onClick={handleSignIn}
+              disabled={signingIn}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all hover:brightness-110 disabled:opacity-50"
+              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+            >
+              {signingIn ? (
+                <div className="w-3 h-3 border-[1.5px] border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+              )}
+              {signingIn ? 'Opening...' : 'Sign in with Google'}
+            </button>
+          </div>
+        )}
+      </Section>
+
       {/* ── Hotkeys ─────────────────────────────── */}
       <Section title="Hotkeys">
         <div className="space-y-2.5">

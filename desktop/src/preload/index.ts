@@ -84,6 +84,14 @@ export interface ElectronAPI {
   sendToChat: (text: string) => void
   onChatMessageFromInsights: (callback: (text: string) => void) => () => void
 
+  // ── Auth ──────────────────────────────────────────
+  authStartSignIn: () => Promise<{ success: boolean; error?: string }>
+  authSkip: () => Promise<void>
+  authGetState: () => Promise<{ mode: 'guest' | 'authenticated'; user: { id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null }>
+  authSignOut: () => Promise<void>
+  authGetUserProfile: () => Promise<{ id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null>
+  onAuthStateChanged: (callback: (state: { mode: 'guest' | 'authenticated'; user: { id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null }) => void) => () => void
+
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
   updateSettings: (partial: Partial<AppSettings>) => void
@@ -456,6 +464,33 @@ const api: ElectronAPI = {
     const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text)
     ipcRenderer.on('chat:message-from-insights', handler)
     return () => ipcRenderer.removeListener('chat:message-from-insights', handler)
+  },
+
+  // ── Auth ──────────────────────────────────────────
+  authStartSignIn: () => {
+    return ipcRenderer.invoke('auth:start-sign-in')
+  },
+
+  authSkip: () => {
+    return ipcRenderer.invoke('auth:skip')
+  },
+
+  authGetState: () => {
+    return ipcRenderer.invoke('auth:get-state')
+  },
+
+  authSignOut: () => {
+    return ipcRenderer.invoke('auth:sign-out')
+  },
+
+  authGetUserProfile: () => {
+    return ipcRenderer.invoke('auth:get-user-profile')
+  },
+
+  onAuthStateChanged: (callback: (state: { mode: 'guest' | 'authenticated'; user: { id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
+    ipcRenderer.on('auth:state-changed', handler)
+    return () => ipcRenderer.removeListener('auth:state-changed', handler)
   },
 
   // ── Settings ────────────────────────────────────

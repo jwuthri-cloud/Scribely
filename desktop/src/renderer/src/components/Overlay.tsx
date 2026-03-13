@@ -19,8 +19,11 @@ import { useMeetingTranscript } from '../hooks/useMeetingTranscript'
 import { useMeetingRecorder } from '../hooks/useMeetingRecorder'
 import { SourcePicker } from './SourcePicker'
 import { MarkdownContent } from './MarkdownContent'
+import { AuthGate } from './AuthGate'
 import type { ChatAttachment } from '../types'
 import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
+
+type AppPhase = 'loading' | 'auth' | 'onboarding' | 'app'
 
 type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
 
@@ -107,7 +110,7 @@ function SummaryModal({ content, onClose }: { content: string | null; onClose: (
 
 export function Overlay() {
   const [visible, setVisible] = useState(true)
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null) // null = not yet checked
+  const [phase, setPhase] = useState<AppPhase>('loading')
   const [view, setView] = useState<ViewId>('chat')
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
   const [windowOpacity, setWindowOpacity] = useState(1)
@@ -182,22 +185,55 @@ export function Overlay() {
     transcriptEntries: transcript.entries,
   })
 
-  // ── Onboarding: show wizard on first run ─────────────────
+  // ── Phase initialization: auth -> onboarding -> app ─────
   useEffect(() => {
-    window.electronAPI?.onboardingGetCompleted?.().then((completed) => {
-      setShowOnboarding(!completed)
-    }).catch(() => {
-      setShowOnboarding(true) // default to showing wizard if check fails
+    async function initPhase() {
+      try {
+        const authState = await window.electronAPI?.authGetState()
+        if (authState?.mode === 'authenticated') {
+          const onboarded = await window.electronAPI?.onboardingGetCompleted?.()
+          setPhase(onboarded ? 'app' : 'onboarding')
+        } else {
+          setPhase('auth')
+        }
+      } catch {
+        setPhase('auth')
+      }
+    }
+    initPhase()
+  }, [])
+
+  // Listen for auth state changes (e.g. user signs in from browser)
+  useEffect(() => {
+    const unsub = window.electronAPI?.onAuthStateChanged?.((state) => {
+      if (state.mode === 'authenticated') {
+        window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
+          setPhase(onboarded ? 'app' : 'onboarding')
+        }).catch(() => setPhase('onboarding'))
+      }
     })
+    return () => unsub?.()
+  }, [])
+
+  const handleAuthSignedIn = useCallback(() => {
+    window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
+      setPhase(onboarded ? 'app' : 'onboarding')
+    }).catch(() => setPhase('onboarding'))
+  }, [])
+
+  const handleAuthSkip = useCallback(() => {
+    window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
+      setPhase(onboarded ? 'app' : 'onboarding')
+    }).catch(() => setPhase('onboarding'))
   }, [])
 
   const handleOnboardingComplete = useCallback(() => {
-    setShowOnboarding(false)
+    setPhase('app')
   }, [])
 
   const handleReRunSetup = useCallback(async () => {
     await window.electronAPI?.onboardingSetCompleted?.(false)
-    setShowOnboarding(true)
+    setPhase('onboarding')
   }, [])
 
   // ── Load current model ──
@@ -582,7 +618,9 @@ export function Overlay() {
             ),
           } as React.CSSProperties}
         >
-          {showOnboarding === null ? null : showOnboarding ? (
+          {phase === 'loading' ? null : phase === 'auth' ? (
+            <AuthGate onSignedIn={handleAuthSignedIn} onSkip={handleAuthSkip} />
+          ) : phase === 'onboarding' ? (
             <OnboardingView onComplete={handleOnboardingComplete} />
           ) : compactMode && view === 'chat' ? (
             /* ── Compact mode: single CompactChatView replaces the entire advanced layout ── */

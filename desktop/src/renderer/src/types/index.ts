@@ -1,5 +1,19 @@
 import type { ChatAttachment, AppSettings, LLMChatRequest, LLMChatDelta, LLMChatDone, LLMChatError, ModelId } from './settings'
 
+export interface AuthUser {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  fullName: string | null
+  imageUrl: string | null
+}
+
+export interface AuthState {
+  mode: 'guest' | 'authenticated'
+  user: AuthUser | null
+}
+
 /**
  * ElectronAPI exposed via contextBridge in the preload script.
  * Defined here (not imported from preload) to avoid rootDir issues.
@@ -12,6 +26,14 @@ export interface ElectronAPI {
   sendMessage: (message: string) => void
   onMessage: (callback: (response: string) => void) => () => void
   cancelResponse: () => void
+
+  // Auth
+  authStartSignIn: () => Promise<{ success: boolean; error?: string }>
+  authSkip: () => Promise<void>
+  authGetState: () => Promise<AuthState>
+  authSignOut: () => Promise<void>
+  authGetUserProfile: () => Promise<AuthUser | null>
+  onAuthStateChanged: (callback: (state: AuthState) => void) => () => void
 
   // Settings
   getSettings: () => Promise<AppSettings>
