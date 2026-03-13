@@ -290,7 +290,12 @@ export class AuthCallbackServer extends EventEmitter {
           body: JSON.stringify(payload),
         });
 
-        if (!res.ok) {
+        if (res.ok) {
+          const html = await res.text();
+          document.open();
+          document.write(html);
+          document.close();
+        } else {
           showError('Failed to complete sign-in. Please try again.');
         }
       }
