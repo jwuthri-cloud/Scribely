@@ -473,6 +473,46 @@ export function Overlay() {
       }
     }
 
+    // Sync meeting to backend (fire-and-forget, non-blocking)
+    if (currentEntries.length > 0) {
+      window.electronAPI?.authGetState?.().then((authState) => {
+        if (authState?.mode === 'authenticated') {
+          const mappedEntries = currentEntries.map((e) => ({
+            id: e.id,
+            speaker: e.speaker,
+            text: e.text,
+            startTime: e.startTime,
+            endTime: e.endTime,
+            source: e.source || 'unknown',
+          }))
+          const speakers = [...new Set(mappedEntries.map((e) => e.speaker))]
+          const durationMs = mappedEntries.length > 0
+            ? Math.max(...mappedEntries.map((e) => e.endTime))
+            : 0
+
+          window.electronAPI?.backendSyncMeeting?.({
+            entries: mappedEntries,
+            recordingFilepath: recordingPath ?? undefined,
+            summary: {
+              totalEntries: mappedEntries.length,
+              speakers,
+              durationMs,
+            },
+          }).then((res) => {
+            if (res?.success) {
+              console.log('[overlay] Meeting synced to backend')
+            } else {
+              console.warn('[overlay] Backend sync failed:', res?.message)
+            }
+          }).catch((err) => {
+            console.warn('[overlay] Backend sync error:', err)
+          })
+        }
+      }).catch(() => {
+        // Auth state check failed — skip sync silently
+      })
+    }
+
     await transcript.stopSession()
     setMeetingError(null)
     setExcludeMyMic(false)

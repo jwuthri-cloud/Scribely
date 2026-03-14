@@ -125,6 +125,7 @@ celerybeat.pid
 .env.development
 .env.test
 .env.production
+!.env.template
 .venv
 env/
 venv/
@@ -181,7 +182,7 @@ tmp/
 Thumbs.db
 
 # Docker
-.dockerignore
+!.dockerignore
 
 # Database
 *.sql

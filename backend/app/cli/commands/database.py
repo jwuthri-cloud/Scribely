@@ -2,14 +2,18 @@
 Database management commands.
 """
 
+import asyncio
 import subprocess
 from pathlib import Path
 
 import click
 from app.config import get_settings
-from app.database.base import SessionLocal, create_tables, drop_tables
-from app.database.models import User
-from app.database.repositories import UserRepository
+from app.database.session import (
+    DatabaseManager,
+    get_async_session,
+    get_database_manager,
+)
+from app.database.repositories.user import UserRepository
 from app.utils.logging import (
     get_logger,
     print_error,
@@ -36,7 +40,6 @@ def init():
     print_info("Initializing database schema...")
 
     try:
-        # Check if we should use migrations instead
         alembic_path = Path("alembic")
         if alembic_path.exists():
             print_warning("Alembic migrations found. Consider using 'database migrate' instead.")
@@ -44,18 +47,11 @@ def init():
                 print_info("Cancelled. Use 'database migrate' for production setups.")
                 return
 
-        # Create all tables
-        create_tables()
+        db_manager = get_database_manager()
+        asyncio.get_event_loop().run_until_complete(db_manager.create_tables())
 
         print_success("Database schema created successfully!")
         print_info("Consider running 'database seed' to add initial data.")
-
-        # Show table information
-        with SessionLocal() as db:
-            from sqlalchemy import text
-            result = db.execute(text("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"))
-            table_count = result.scalar()
-            print_info(f"Created {table_count} tables")
 
     except Exception as e:
         print_error(f"Database initialization failed: {str(e)}")
@@ -68,14 +64,12 @@ def migrate(revision: str):
     """Run database migrations using Alembic."""
     print_info(f"Running database migrations to revision: {revision}")
 
-    # Check if Alembic is set up
     alembic_ini = Path("alembic.ini")
     if not alembic_ini.exists():
         print_error("alembic.ini not found. Initialize Alembic first with: alembic init alembic")
         return
 
     try:
-        # Run Alembic upgrade
         result = subprocess.run(
             ["alembic", "upgrade", revision],
             capture_output=True,
@@ -133,7 +127,7 @@ def reset(force: bool):
     """Reset database (WARNING: This will delete all data)."""
     if not force:
         print_warning("This will delete ALL data in the database!")
-        print_info("Tables that will be dropped: users, chat_sessions, chat_messages, completions, api_keys, task_results")
+        print_info("Tables that will be dropped: users")
 
         if not click.confirm("Are you absolutely sure you want to continue?"):
             print_info("Database reset cancelled.")
@@ -141,19 +135,16 @@ def reset(force: bool):
 
     try:
         print_info("Resetting database...")
+        db_manager = get_database_manager()
 
-        # Drop all tables
-        drop_tables()
+        asyncio.get_event_loop().run_until_complete(db_manager.drop_tables())
         print_success("All tables dropped")
 
-        # Recreate schema
-        create_tables()
+        asyncio.get_event_loop().run_until_complete(db_manager.create_tables())
         print_success("Schema recreated")
 
-        # Run initial migration if Alembic is available
         if Path("alembic.ini").exists():
             try:
-                # Mark as up to date with initial migration
                 result = subprocess.run(
                     ["alembic", "stamp", "head"],
                     capture_output=True,
@@ -166,7 +157,6 @@ def reset(force: bool):
                 print_warning("Could not update migration history")
 
         print_success("Database reset completed successfully!")
-        print_info("Consider running 'database seed' to add initial data.")
 
     except Exception as e:
         print_error(f"Database reset failed: {str(e)}")
@@ -178,23 +168,26 @@ def status():
     """Check database connection and schema status."""
     print_info("Checking database status...")
 
-    try:
-        # Test database connection
-        with SessionLocal() as db:
-            from sqlalchemy import text
-            db.execute(text("SELECT 1"))
+    async def _check():
+        db_manager = get_database_manager()
+        healthy = await db_manager.health_check()
+        if healthy:
             print_success("Database connection: OK")
+        else:
+            print_error("Database connection: FAILED")
+            return
 
-            # Check if tables exist
+        from sqlalchemy import text
+        async with get_async_session() as session:
             if settings.database_url and "postgresql" in settings.database_url:
-                result = db.execute(text("""
+                result = await session.execute(text("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'public'
                     ORDER BY table_name
                 """))
             else:
-                result = db.execute(text("""
+                result = await session.execute(text("""
                     SELECT name as table_name
                     FROM sqlite_master
                     WHERE type='table' AND name NOT LIKE 'sqlite_%'
@@ -206,90 +199,78 @@ def status():
             if tables:
                 print_success(f"Found {len(tables)} tables")
 
-                # Show table info
-                table = Table(title="Database Tables")
-                table.add_column("Table Name", style="cyan")
-                table.add_column("Record Count", style="green")
+                table_display = Table(title="Database Tables")
+                table_display.add_column("Table Name", style="cyan")
+                table_display.add_column("Record Count", style="green")
 
                 for table_name in tables:
                     try:
-                        count_result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                        count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
                         count = count_result.scalar()
-                        table.add_row(table_name, str(count))
+                        table_display.add_row(table_name, str(count))
                     except Exception:
-                        table.add_row(table_name, "Error")
+                        table_display.add_row(table_name, "Error")
 
-                console.print(table)
+                console.print(table_display)
             else:
                 print_warning("No tables found. Run 'database init' or 'database migrate'.")
 
-            # Check migration status if Alembic is available
-            if Path("alembic.ini").exists():
-                try:
-                    result = subprocess.run(
-                        ["alembic", "current"],
-                        capture_output=True,
-                        text=True,
-                        check=False
-                    )
-                    if result.returncode == 0:
-                        current_revision = result.stdout.strip()
-                        if current_revision:
-                            print_success(f"Current migration: {current_revision}")
-                        else:
-                            print_warning("No migrations applied yet")
-                except Exception:
-                    print_warning("Could not check migration status")
+        if Path("alembic.ini").exists():
+            try:
+                result = subprocess.run(
+                    ["alembic", "current"],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if result.returncode == 0:
+                    current_revision = result.stdout.strip()
+                    if current_revision:
+                        print_success(f"Current migration: {current_revision}")
+                    else:
+                        print_warning("No migrations applied yet")
+            except Exception:
+                print_warning("Could not check migration status")
 
+    try:
+        asyncio.get_event_loop().run_until_complete(_check())
     except Exception as e:
-        print_error(f"Database connection failed: {str(e)}")
+        print_error(f"Database status check failed: {str(e)}")
         logger.error(f"Database status error: {str(e)}")
 
 
 @database.command()
 def seed():
-    """Seed database with initial/sample data."""
+    """Seed database with a sample admin user."""
     print_info("Seeding database with initial data...")
 
-    try:
-        with SessionLocal() as db:
-            user_repo = UserRepository()
-
-            # Check if we already have data
-            existing_users = db.query(User).limit(1).first()
-            if existing_users:
-                print_warning("Database already contains data.")
+    async def _seed():
+        async with get_async_session() as session:
+            existing = await UserRepository.get_by_clerk_id(session, "clerk_seed_admin")
+            if existing:
+                print_warning("Database already contains seed data.")
                 if not click.confirm("Continue seeding anyway?"):
                     print_info("Seeding cancelled.")
                     return
 
-            # Create a sample admin user
-            admin_user = user_repo.create(
-                db=db,
+            await UserRepository.create(
+                session,
+                clerk_id="clerk_seed_admin",
                 email="admin@example.com",
                 username="admin",
                 full_name="Administrator",
                 is_superuser=True,
+                role="admin",
                 preferences={"theme": "dark", "language": "en"},
-                metadata={"created_by": "seed_command"}
+                extra_metadata={"created_by": "seed_command"},
             )
-
-            # Create a sample regular user
-            regular_user = user_repo.create(
-                db=db,
-                email="user@example.com",
-                username="user",
-                full_name="Sample User",
-                preferences={"theme": "light", "language": "en"},
-                metadata={"created_by": "seed_command"}
-            )
+            await session.commit()
 
         print_success("Database seeded successfully!")
-        print_info("Created:")
-        print_info(f"  - Admin user: admin@example.com (admin/admin)")
-        print_info(f"  - Regular user: user@example.com (user/user)")
-        print_info(f"  - Sample chat session with 2 messages")
+        print_info("Created: Admin user (admin@example.com, clerk_id=clerk_seed_admin)")
 
+    try:
+        asyncio.get_event_loop().run_until_complete(_seed())
     except Exception as e:
         print_error(f"Database seeding failed: {str(e)}")
         logger.error(f"Database seed error: {str(e)}")

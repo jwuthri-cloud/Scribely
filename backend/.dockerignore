@@ -1,0 +1,152 @@
+# AssistMe Backend - Docker Ignore
+# Exclude files and directories that shouldn't be copied to Docker build context
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Development tools
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Testing
+tests/
+test_*
+*_test.py
+.pytest_cache/
+htmlcov/
+
+# Documentation
+docs/
+*.md
+!README.md
+CHANGELOG*
+LICENSE*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Environment files (sensitive data)
+.env*
+!config_template.env
+
+# Development scripts
+scripts/
+*.sh
+Makefile
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Data and uploads
+data/
+uploads/
+*.sqlite
+*.db
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node.js (if any frontend tools are used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Performance and profiling
+*.prof
+*.pstats
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Alembic
+alembic.ini
+!alembic/
+alembic/versions/*.py
+!alembic/versions/001_initial_migration.py
+
+# Examples (don't include in production)
+examples/
+demo_*
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Local configuration
+local_*
+dev_*

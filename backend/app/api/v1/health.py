@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from app.config import Settings, get_settings
+from app.database.session import get_database_manager
 from app.infrastructure.circuit_breaker import get_circuit_breaker_stats
 from app.models.base import HealthResponse
 from fastapi import APIRouter, Depends
@@ -20,27 +21,49 @@ async def health_check(
     """
     Health check for the application.
     """
+    db_manager = get_database_manager()
+    db_healthy = await db_manager.health_check()
+    services = {"database": "healthy" if db_healthy else "unhealthy"}
+
     return HealthResponse(
-        status="healthy",
+        status="healthy" if db_healthy else "unhealthy",
         timestamp=datetime.now().isoformat(),
         service=settings.app_name,
         version=settings.app_version,
         environment="development" if settings.debug else "production",
+        services=services,
     )
 
 
-@router.get("/ready")
-async def readiness_check(
-) -> Dict[str, Any]:
+@router.get("/database")
+async def database_health_check() -> Dict[str, Any]:
     """
-    Readiness check - returns 200 only if critical services are available.
+    Database-specific health check.
     """
-    response = {
-        "ready": True,
+    db_manager = get_database_manager()
+    healthy = await db_manager.health_check()
+    return {
+        "service": "database",
+        "status": "healthy" if healthy else "unhealthy",
         "timestamp": datetime.now().isoformat(),
     }
 
-    return response
+
+@router.get("/ready")
+async def readiness_check() -> Dict[str, Any]:
+    """
+    Readiness check - returns 200 only if critical services are available.
+    """
+    from fastapi.responses import JSONResponse
+
+    db_manager = get_database_manager()
+    db_ready = await db_manager.health_check()
+    payload = {
+        "ready": db_ready,
+        "timestamp": datetime.now().isoformat(),
+        "services": {"database": db_ready},
+    }
+    return JSONResponse(content=payload, status_code=200 if db_ready else 503)
 
 
 @router.get("/live")

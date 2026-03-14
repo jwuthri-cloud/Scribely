@@ -390,9 +390,10 @@ class TestTrainingIntegration:
             model_name="test-model",
         )
         
-        # Mock the create_agent import
-        with patch("app.training.litagent.customer_support.create_agent") as mock_create:
-            mock_create.return_value = MagicMock()
+        # Mock langchain's create_agent (used inside the method)
+        with patch("langchain.agents.create_agent") as mock_create:
+            mock_wrapped = MagicMock()
+            mock_create.return_value = mock_wrapped
             
             wrapped = agent.create_agent(system_prompt="Test prompt")
             

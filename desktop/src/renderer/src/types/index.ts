@@ -35,6 +35,27 @@ export interface ElectronAPI {
   authGetUserProfile: () => Promise<AuthUser | null>
   onAuthStateChanged: (callback: (state: AuthState) => void) => () => void
 
+  // Backend Sync
+  backendSyncMeeting: (payload: {
+    sessionId?: string
+    recordingFilepath?: string
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    summary?: {
+      totalEntries: number
+      speakers: string[]
+      durationMs: number
+    }
+  }) => Promise<{ success: boolean; message: string; meetingId?: string }>
+
+  backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>
+
   // Settings
   getSettings: () => Promise<AppSettings>
   updateSettings: (partial: Partial<AppSettings>) => void

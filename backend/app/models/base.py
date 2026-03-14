@@ -2,24 +2,17 @@
 Base models for Scribely.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class HealthResponse(BaseModel):
     """Health check response model."""
 
-    status: Literal["healthy", "unhealthy"] = Field(..., description="Service health status")
-    timestamp: str = Field(..., description="Health check timestamp")
-    service: str = Field(..., description="Service name")
-    version: Optional[str] = Field(default=None, description="Service version")
-    environment: Optional[str] = Field(default=None, description="Environment")
-    services: Optional[Dict[str, str]] = Field(default=None, description="Individual service statuses")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "timestamp": "2024-01-01T12:00:00.000Z",
@@ -31,19 +24,21 @@ class HealthResponse(BaseModel):
                 }
             }
         }
+    )
+
+    status: Literal["healthy", "unhealthy"] = Field(..., description="Service health status")
+    timestamp: str = Field(..., description="Health check timestamp")
+    service: str = Field(..., description="Service name")
+    version: Optional[str] = Field(default=None, description="Service version")
+    environment: Optional[str] = Field(default=None, description="Environment")
+    services: Optional[Dict[str, str]] = Field(default=None, description="Individual service statuses")
 
 
 class ErrorResponse(BaseModel):
     """Standard error response model."""
 
-    error: str = Field(..., description="Error type or code")
-    message: str = Field(..., description="Human-readable error message")
-    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional error details")
-    request_id: Optional[str] = Field(default=None, description="Request identifier for tracking")
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat(), description="Error timestamp")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "ValidationError",
                 "message": "The message field is required",
@@ -52,18 +47,20 @@ class ErrorResponse(BaseModel):
                 "timestamp": "2024-01-01T12:00:00.000Z"
             }
         }
+    )
+
+    error: str = Field(..., description="Error type or code")
+    message: str = Field(..., description="Human-readable error message")
+    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional error details")
+    request_id: Optional[str] = Field(default=None, description="Request identifier for tracking")
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="Error timestamp")
 
 
 class PaginatedResponse(BaseModel):
     """Base model for paginated responses."""
 
-    total: int = Field(..., description="Total number of items")
-    limit: int = Field(..., description="Items per page")
-    offset: int = Field(..., description="Items skipped")
-    has_more: bool = Field(..., description="Whether there are more items")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total": 150,
                 "limit": 50,
@@ -71,19 +68,19 @@ class PaginatedResponse(BaseModel):
                 "has_more": True
             }
         }
+    )
+
+    total: int = Field(..., description="Total number of items")
+    limit: int = Field(..., description="Items per page")
+    offset: int = Field(..., description="Items skipped")
+    has_more: bool = Field(..., description="Whether there are more items")
 
 
 class APIInfo(BaseModel):
     """API information model."""
 
-    name: str = Field(..., description="API name")
-    version: str = Field(..., description="API version")
-    description: str = Field(..., description="API description")
-    docs_url: str = Field(..., description="Documentation URL")
-    health_url: str = Field(..., description="Health check URL")
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Scribely API",
                 "version": "0.1.0",
@@ -92,6 +89,13 @@ class APIInfo(BaseModel):
                 "health_url": "/health"
             }
         }
+    )
+
+    name: str = Field(..., description="API name")
+    version: str = Field(..., description="API version")
+    description: str = Field(..., description="API description")
+    docs_url: str = Field(..., description="Documentation URL")
+    health_url: str = Field(..., description="Health check URL")
 
 
 class ErrorDetail(BaseModel):
@@ -110,16 +114,9 @@ class ValidationErrorDetail(ErrorDetail):
 
 class EnhancedErrorResponse(BaseModel):
     """Enhanced standardized error response."""
-    error: str = Field(..., description="Error type/category")
-    message: str = Field(..., description="Main error message")
-    details: List[ErrorDetail] = Field(default_factory=list, description="Detailed error information")
-    request_id: Optional[str] = Field(None, description="Request identifier for tracing")
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Error timestamp")
-    path: Optional[str] = Field(None, description="Request path that caused the error")
-    method: Optional[str] = Field(None, description="HTTP method that caused the error")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "ValidationError",
                 "message": "Input validation failed",
@@ -137,18 +134,22 @@ class EnhancedErrorResponse(BaseModel):
                 "method": "POST"
             }
         }
+    )
+
+    error: str = Field(..., description="Error type/category")
+    message: str = Field(..., description="Main error message")
+    details: List[ErrorDetail] = Field(default_factory=list, description="Detailed error information")
+    request_id: Optional[str] = Field(None, description="Request identifier for tracing")
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="Error timestamp")
+    path: Optional[str] = Field(None, description="Request path that caused the error")
+    method: Optional[str] = Field(None, description="HTTP method that caused the error")
 
 
 class SuccessResponse(BaseModel):
     """Standardized success response."""
-    success: bool = Field(True, description="Operation success status")
-    message: str = Field(..., description="Success message")
-    data: Optional[Any] = Field(None, description="Response data")
-    request_id: Optional[str] = Field(None, description="Request identifier for tracing")
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat(), description="Response timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Operation completed successfully",
@@ -157,19 +158,28 @@ class SuccessResponse(BaseModel):
                 "timestamp": "2024-01-01T12:00:00.000Z"
             }
         }
+    )
+
+    success: bool = Field(True, description="Operation success status")
+    message: str = Field(..., description="Success message")
+    data: Optional[Any] = Field(None, description="Response data")
+    request_id: Optional[str] = Field(None, description="Request identifier for tracing")
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="Response timestamp")
 
 
 class StatusResponse(BaseModel):
     """Status operation response."""
-    status: str = Field(..., description="Operation status")
-    message: str = Field(..., description="Status message")
-    data: Optional[Dict[str, Any]] = Field(None, description="Additional status data")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "processing",
                 "message": "Task is being processed",
                 "data": {"progress": 75, "estimated_completion": "2024-01-01T12:05:00.000Z"}
             }
         }
+    )
+
+    status: str = Field(..., description="Operation status")
+    message: str = Field(..., description="Status message")
+    data: Optional[Dict[str, Any]] = Field(None, description="Additional status data")

@@ -4,13 +4,11 @@ User model for Scribely.
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, Column, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import String
-
-from sqlalchemy.orm import relationship
 
 from ..base import Base
 
@@ -34,7 +32,6 @@ class User(Base):
     status = Column(SQLEnum(UserStatusEnum), default=UserStatusEnum.ACTIVE)
     is_superuser = Column(Boolean, default=False)
 
-    # Role for RBAC (synced from Clerk public_metadata)
     role = Column(String(50), default="user")
 
     @property
@@ -42,19 +39,12 @@ class User(Base):
         """Check if user is active based on status."""
         return self.status == UserStatusEnum.ACTIVE
 
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     last_login_at = Column(DateTime, nullable=True)
 
-    # User preferences and metadata
     preferences = Column(JSON, default={})
     extra_metadata = Column(JSON, default={})
-
-    # Relationships
-    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
-    agents = relationship("Agent", back_populates="creator")
-    agent_runs = relationship("AgentRun", back_populates="user")
 
     def __repr__(self):
         return f"<User(id={self.id}, clerk_id={self.clerk_id}, email={self.email}, status={self.status})>"

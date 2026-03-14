@@ -92,6 +92,27 @@ export interface ElectronAPI {
   authGetUserProfile: () => Promise<{ id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null>
   onAuthStateChanged: (callback: (state: { mode: 'guest' | 'authenticated'; user: { id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null }) => void) => () => void
 
+  // ── Backend Sync ─────────────────────────────────
+  backendSyncMeeting: (payload: {
+    sessionId?: string
+    recordingFilepath?: string
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    summary?: {
+      totalEntries: number
+      speakers: string[]
+      durationMs: number
+    }
+  }) => Promise<{ success: boolean; message: string; meetingId?: string }>
+
+  backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>
+
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
   updateSettings: (partial: Partial<AppSettings>) => void
@@ -491,6 +512,31 @@ const api: ElectronAPI = {
     const handler = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
     ipcRenderer.on('auth:state-changed', handler)
     return () => ipcRenderer.removeListener('auth:state-changed', handler)
+  },
+
+  // ── Backend Sync ─────────────────────────────────
+  backendSyncMeeting: (payload: {
+    sessionId?: string
+    recordingFilepath?: string
+    entries: Array<{
+      id: string
+      speaker: string
+      text: string
+      startTime: number
+      endTime: number
+      source: string
+    }>
+    summary?: {
+      totalEntries: number
+      speakers: string[]
+      durationMs: number
+    }
+  }) => {
+    return ipcRenderer.invoke('backend:sync-meeting', payload)
+  },
+
+  backendValidateAuth: () => {
+    return ipcRenderer.invoke('backend:validate-auth')
   },
 
   // ── Settings ────────────────────────────────────

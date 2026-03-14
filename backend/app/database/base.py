@@ -7,7 +7,7 @@ from typing import Generator
 
 from app.config import get_settings
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
 # Get settings

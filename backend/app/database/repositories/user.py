@@ -2,7 +2,7 @@
 User repository for Scribely.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy import or_, select
@@ -74,7 +74,7 @@ class UserRepository:
             if hasattr(user, key):
                 setattr(user, key, value)
 
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await db.flush()
         await db.refresh(user)
         return user
@@ -96,8 +96,8 @@ class UserRepository:
         """Update user's last login timestamp."""
         user = await UserRepository.get_by_id(db, user_id)
         if user:
-            user.last_login_at = datetime.utcnow()
-            user.updated_at = datetime.utcnow()
+            user.last_login_at = datetime.now(timezone.utc)
+            user.updated_at = datetime.now(timezone.utc)
             await db.flush()
             await db.refresh(user)
         return user

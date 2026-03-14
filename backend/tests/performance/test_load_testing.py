@@ -250,6 +250,7 @@ class TestBasicPerformance:
         assert summary["response_times"]["p95"] < 0.1  # 100ms
         assert summary["error_rate"] == 0  # No errors expected
 
+    @pytest.mark.skip(reason="Chat endpoint requires Clerk auth; no ChatService in current architecture")
     @patch('app.services.chat_service.ChatService')
     def test_chat_endpoint_performance(self, mock_chat_service, client: TestClient):
         """Test chat endpoint performance."""
@@ -306,6 +307,7 @@ class TestBasicPerformance:
 class TestLoadTesting:
     """Comprehensive load testing."""
 
+    @pytest.mark.skip(reason="Chat endpoint requires Clerk auth; no ChatService in current architecture")
     @patch('app.services.chat_service.ChatService')
     def test_sustained_load(self, mock_chat_service, client: TestClient):
         """Test sustained load over time."""
@@ -564,7 +566,7 @@ class TestStressTesting:
             def stress_request():
                 start_time = time.time()
                 try:
-                    response = client.get("/api/v1/health/", timeout=5)
+                    response = client.get("/api/v1/health/")
                     success = response.status_code == 200
                 except:
                     success = False
@@ -647,5 +649,3 @@ class TestPerformanceRegression:
         assert baseline_metrics["p95_response_time"] < 1.0  # 1 second
         assert baseline_metrics["error_rate"] == 0  # No errors in baseline
         assert baseline_metrics["rps"] > 5  # At least 5 RPS
-
-        return baseline_metrics

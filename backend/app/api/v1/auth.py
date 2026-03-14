@@ -15,7 +15,7 @@ from app.security.clerk_auth import (
 )
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = get_logger("auth_api")
 
@@ -24,19 +24,9 @@ router = APIRouter()
 
 class UserProfileResponse(BaseModel):
     """User profile response model."""
-    id: str = Field(..., description="User ID")
-    email: str = Field(..., description="User email address")
-    username: str = Field("", description="Username")
-    first_name: str = Field("", description="First name")
-    last_name: str = Field("", description="Last name")
-    full_name: str = Field("", description="Full name")
-    image_url: str = Field("", description="Profile image URL")
-    created_at: Optional[str] = Field(None, description="Account creation timestamp")
-    updated_at: Optional[str] = Field(None, description="Last update timestamp")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="User metadata")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "user_2abc123xyz",
                 "email": "john.doe@example.com",
@@ -50,15 +40,25 @@ class UserProfileResponse(BaseModel):
                 "metadata": {"preferences": {"theme": "dark"}}
             }
         }
+    )
+
+    id: str = Field(..., description="User ID")
+    email: str = Field(..., description="User email address")
+    username: str = Field("", description="Username")
+    first_name: str = Field("", description="First name")
+    last_name: str = Field("", description="Last name")
+    full_name: str = Field("", description="Full name")
+    image_url: str = Field("", description="Profile image URL")
+    created_at: Optional[str] = Field(None, description="Account creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="User metadata")
 
 
 class AuthStatusResponse(BaseModel):
     """Authentication status response."""
-    authenticated: bool = Field(..., description="Whether user is authenticated")
-    user: Optional[UserProfileResponse] = Field(None, description="User profile if authenticated")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "authenticated": True,
                 "user": {
@@ -70,18 +70,17 @@ class AuthStatusResponse(BaseModel):
                 }
             }
         }
+    )
+
+    authenticated: bool = Field(..., description="Whether user is authenticated")
+    user: Optional[UserProfileResponse] = Field(None, description="User profile if authenticated")
 
 
 class ClerkConfigResponse(BaseModel):
     """Clerk configuration response for frontend."""
-    publishable_key: str = Field(..., description="Clerk publishable key")
-    sign_in_url: str = Field(..., description="Sign in URL")
-    sign_up_url: str = Field(..., description="Sign up URL")
-    after_sign_in_url: str = Field(..., description="Redirect URL after sign in")
-    after_sign_up_url: str = Field(..., description="Redirect URL after sign up")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "publishable_key": "pk_test_...",
                 "sign_in_url": "/sign-in",
@@ -90,6 +89,13 @@ class ClerkConfigResponse(BaseModel):
                 "after_sign_up_url": "/chat"
             }
         }
+    )
+
+    publishable_key: str = Field(..., description="Clerk publishable key")
+    sign_in_url: str = Field(..., description="Sign in URL")
+    sign_up_url: str = Field(..., description="Sign up URL")
+    after_sign_in_url: str = Field(..., description="Redirect URL after sign in")
+    after_sign_up_url: str = Field(..., description="Redirect URL after sign up")
 
 
 @router.get("/me", response_model=UserProfileResponse)

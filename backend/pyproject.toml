@@ -22,60 +22,46 @@ dependencies = [
     # FastAPI and ASGI server
     "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
-    
     # Data validation and settings
     "pydantic[email]>=2.5.0",
     "pydantic-settings>=2.1.0",
-    
     # Database support
-    
     "asyncpg>=0.29.0",
     "psycopg2-binary>=2.9.7",
-    
     "sqlalchemy[asyncio]>=2.0.23",
     "alembic>=1.13.0",
-    
     # CORS and multipart support
     "python-multipart>=0.0.6",
-    
     # Environment and configuration
     "python-dotenv>=1.0.0",
-    
     # HTTP client
     "httpx>=0.25.2",
     "requests>=2.31.0",
-    
     # Authentication and JWT
     "pyjwt>=2.8.0",
     "cryptography>=41.0.0",
-    
     # LangChain for LLM integration
     "langchain>=1.2.6",
     "langchain-openai>=1.1.7",
     "langchain-core>=1.2.7",
     "langgraph>=1.0.5",
-    
     # LLM Observability
     "langfuse>=3.12.0",
-    
     # Agent Training (APO, VERL, SFT)
     "agentlightning>=0.3.0",
-    
     # Logging
     "rich>=13.7.0",
     "python-json-logger>=2.0.7",
-
     # Rate limiting
     "slowapi>=0.1.9",
-
     # Vector database (LangChain integration)
-    
     "langchain-pinecone>=0.2.0",
-    
+    "aiosqlite>=0.22.1",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "poethepoet>=0.25.0",
     "pytest>=7.4.3",
     "pytest-asyncio>=0.21.1",
     "pytest-cov>=4.1.0",
@@ -139,3 +125,12 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
 addopts = "--cov=app --cov-report=html --cov-report=term-missing"
+
+[tool.poe.tasks]
+run = { cmd = "scribely server start --reload", help = "Start the FastAPI server with hot reload" }
+migrate = { cmd = "scribely database migrate", help = "Run Alembic migrations (create/update schema)" }
+db-status = { cmd = "scribely database status", help = "Check database connection and schema status" }
+db-reset = { cmd = "scribely database reset --force", help = "Reset database (drop all tables, recreate schema)" }
+db-seed = { cmd = "scribely database seed", help = "Seed database with sample data" }
+test = { cmd = "pytest", help = "Run tests" }
+test-cov = { cmd = "pytest --cov=app --cov-report=term-missing", help = "Run tests with coverage report" }

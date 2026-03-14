@@ -35,6 +35,7 @@ import { unloadQuestionClassifier } from './insights/question-classifier'
 import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
+import { BackendClient } from './backend-client'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -209,6 +210,9 @@ const llmService = new LLMService(store)
 
 // ── Auth Service ─────────────────────────────────────────
 const authService = new AuthService()
+
+// ── Backend Client ───────────────────────────────────────
+const backendClient = new BackendClient(authService)
 
 // ── Live Insights Engine ───────────────────────────────
 function getInsightsConfig() {
@@ -543,6 +547,21 @@ function registerIpcHandlers(): void {
 
   // ── Auth Service ────────────────────────────────────
   authService.registerIpcHandlers()
+
+  // ── Backend Client ─────────────────────────────────
+  ipcMain.handle('backend:sync-meeting', async (_event, payload) => {
+    if (!backendClient.isConfigured) {
+      return { success: false, message: 'BACKEND_API_URL not configured' }
+    }
+    return backendClient.syncMeeting(payload)
+  })
+
+  ipcMain.handle('backend:validate-auth', async () => {
+    if (!backendClient.isConfigured) {
+      return { authenticated: false }
+    }
+    return backendClient.validateAuth()
+  })
 
   // ── LLM Service ──────────────────────────────────────
   // The LLM service registers its own IPC handlers for:
