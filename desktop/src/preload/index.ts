@@ -94,21 +94,12 @@ export interface ElectronAPI {
 
   // ── Backend Sync ─────────────────────────────────
   backendSyncMeeting: (payload: {
-    sessionId?: string
+    /** Absolute path to the saved transcript JSON file (required) */
+    transcriptFilepath: string
+    /** Absolute path to the webm recording file (optional) */
     recordingFilepath?: string
-    entries: Array<{
-      id: string
-      speaker: string
-      text: string
-      startTime: number
-      endTime: number
-      source: string
-    }>
-    summary?: {
-      totalEntries: number
-      speakers: string[]
-      durationMs: number
-    }
+    /** Meeting session ID (optional) */
+    sessionId?: string
   }) => Promise<{ success: boolean; message: string; meetingId?: string }>
 
   backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>
@@ -242,7 +233,7 @@ export interface ElectronAPI {
   ) => () => void
   onExtensionAutoStartMeeting: (callback: () => void) => () => void
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
-  stopExtensionCapture: () => Promise<{ success: boolean }>
+  stopExtensionCapture: () => Promise<{ success: boolean; filepath?: string }>
 
   // ── Meeting toggle ─────────────────────────────
   onToggleMeeting: (callback: () => void) => () => void
@@ -516,21 +507,9 @@ const api: ElectronAPI = {
 
   // ── Backend Sync ─────────────────────────────────
   backendSyncMeeting: (payload: {
-    sessionId?: string
+    transcriptFilepath: string
     recordingFilepath?: string
-    entries: Array<{
-      id: string
-      speaker: string
-      text: string
-      startTime: number
-      endTime: number
-      source: string
-    }>
-    summary?: {
-      totalEntries: number
-      speakers: string[]
-      durationMs: number
-    }
+    sessionId?: string
   }) => {
     return ipcRenderer.invoke('backend:sync-meeting', payload)
   },

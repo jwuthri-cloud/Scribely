@@ -57,6 +57,8 @@ dependencies = [
     # Vector database (LangChain integration)
     "langchain-pinecone>=0.2.0",
     "aiosqlite>=0.22.1",
+    # Async file I/O for meeting upload storage
+    "aiofiles>=24.1.0",
 ]
 
 [project.optional-dependencies]

@@ -711,11 +711,13 @@ function initExtensionWsServer(): void {
   })
 
   // IPC handler to tell the extension to stop capturing.
-  // Uses stopCaptureClient() which also closes the socket from our side
-  // to guarantee the 'disconnected' event fires even if the client is slow.
-  ipcMain.handle('extension:stop-capture', () => {
+  // Stops the external recording first (so we have the filepath) then closes
+  // the socket. The 'disconnected' handler may call stopExternalRecording
+  // again — that is safe (it returns the stored filepath when already stopped).
+  ipcMain.handle('extension:stop-capture', async () => {
+    const { filepath } = await screenRecorder.stopExternalRecording()
     extensionWsServer.stopCaptureClient()
-    return { success: true }
+    return { success: true, filepath: filepath ?? undefined }
   })
 
   extensionWsServer.start()

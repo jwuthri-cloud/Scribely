@@ -441,10 +441,11 @@ export function Overlay() {
 
     // In extension mode, tell the extension to stop capturing and skip
     // the Electron screen recorder (it was never started).
+    // stopExtensionCapture now returns the filepath of the external recording.
     let recordingPath: string | null | undefined
     if (wasExtensionMode) {
-      // Signal the extension to stop via the WS server
-      await window.electronAPI?.stopExtensionCapture?.()
+      const result = await window.electronAPI?.stopExtensionCapture?.()
+      recordingPath = result?.filepath ?? null
     } else {
       recordingPath = await recorder.stopRecording()
     }
@@ -473,34 +474,17 @@ export function Overlay() {
       }
     }
 
-    // Sync meeting to backend (fire-and-forget, non-blocking)
-    if (currentEntries.length > 0) {
+    // Sync meeting files to backend (fire-and-forget, non-blocking)
+    // Requires the user to be authenticated and the transcript to have been saved.
+    if (transcriptPath) {
       window.electronAPI?.authGetState?.().then((authState) => {
         if (authState?.mode === 'authenticated') {
-          const mappedEntries = currentEntries.map((e) => ({
-            id: e.id,
-            speaker: e.speaker,
-            text: e.text,
-            startTime: e.startTime,
-            endTime: e.endTime,
-            source: e.source || 'unknown',
-          }))
-          const speakers = [...new Set(mappedEntries.map((e) => e.speaker))]
-          const durationMs = mappedEntries.length > 0
-            ? Math.max(...mappedEntries.map((e) => e.endTime))
-            : 0
-
           window.electronAPI?.backendSyncMeeting?.({
-            entries: mappedEntries,
+            transcriptFilepath: transcriptPath!,
             recordingFilepath: recordingPath ?? undefined,
-            summary: {
-              totalEntries: mappedEntries.length,
-              speakers,
-              durationMs,
-            },
           }).then((res) => {
             if (res?.success) {
-              console.log('[overlay] Meeting synced to backend')
+              console.log(`[overlay] Meeting synced to backend (id=${res.meetingId})`)
             } else {
               console.warn('[overlay] Backend sync failed:', res?.message)
             }

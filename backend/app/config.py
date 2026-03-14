@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     clerk_secret_key: str = ""
     clerk_publishable_key: Optional[str] = None
 
+    # File uploads
+    upload_dir: str = "./uploads"
+    # Max upload sizes in bytes (defaults: 1024 video, 16MB transcript)
+    max_video_size_bytes: int = 1024 * 1024 * 1024
+    max_transcript_size_bytes: int = 16 * 1024 * 1024
+
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:8000"
     cors_allow_credentials: bool = True
