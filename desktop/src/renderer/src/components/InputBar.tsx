@@ -115,8 +115,8 @@ interface InputBarProps {
   isLoading?: boolean
   onStop?: () => void
   onScreenshot?: () => void
-  pendingScreenshot?: string | null
-  onClearScreenshot?: () => void
+  pendingScreenshots?: string[]
+  onRemoveScreenshot?: (index: number) => void
   isRecording?: boolean
   onToggleRecording?: () => void
   sttTranscript?: string
@@ -148,8 +148,8 @@ export function InputBar({
   isLoading,
   onStop,
   onScreenshot,
-  pendingScreenshot,
-  onClearScreenshot,
+  pendingScreenshots = [],
+  onRemoveScreenshot,
   isRecording,
   onToggleRecording,
   sttTranscript,
@@ -214,10 +214,11 @@ export function InputBar({
     const trimmed = value.trim()
     if (!trimmed || disabled) return
 
-    const attachments: ChatAttachment[] = []
-    if (pendingScreenshot) {
-      attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
-    }
+    const attachments: ChatAttachment[] = pendingScreenshots.map((data, i) => ({
+      type: 'image' as const,
+      data,
+      label: `Screenshot ${i + 1}`,
+    }))
 
     onSend(trimmed, attachments.length > 0 ? attachments : undefined)
     setValue('')
@@ -267,26 +268,30 @@ export function InputBar({
         </div>
       )}
 
-      {/* Screenshot preview */}
-      {pendingScreenshot && (
-        <div className="relative inline-block">
-          <img
-            src={pendingScreenshot}
-            alt="Screenshot preview"
-            className="h-16 rounded-lg border object-cover"
-            style={{ borderColor: 'var(--border)' }}
-          />
-          <button
-            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
-            style={{
-              backgroundColor: 'var(--error)',
-              color: '#fff',
-            }}
-            onClick={onClearScreenshot}
-            aria-label="Remove screenshot"
-          >
-            x
-          </button>
+      {/* Screenshot previews */}
+      {pendingScreenshots.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {pendingScreenshots.map((dataUrl, idx) => (
+            <div key={idx} className="relative inline-block">
+              <img
+                src={dataUrl}
+                alt={`Screenshot ${idx + 1}`}
+                className="h-16 rounded-lg border object-cover"
+                style={{ borderColor: 'var(--border)' }}
+              />
+              <button
+                className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
+                style={{
+                  backgroundColor: 'var(--error)',
+                  color: '#fff',
+                }}
+                onClick={() => onRemoveScreenshot?.(idx)}
+                aria-label={`Remove screenshot ${idx + 1}`}
+              >
+                x
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -353,8 +358,8 @@ export function InputBar({
             <IconBtnWithTooltip
               tooltip="Screenshot (⌥S)"
               onClick={onScreenshot ?? (() => {})}
-              active={!!pendingScreenshot}
-              color={pendingScreenshot ? 'var(--accent)' : undefined}
+              active={pendingScreenshots.length > 0}
+              color={pendingScreenshots.length > 0 ? 'var(--accent)' : undefined}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />

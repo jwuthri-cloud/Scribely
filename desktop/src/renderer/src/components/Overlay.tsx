@@ -112,7 +112,7 @@ export function Overlay() {
   const [visible, setVisible] = useState(true)
   const [phase, setPhase] = useState<AppPhase>('loading')
   const [view, setView] = useState<ViewId>('chat')
-  const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
+  const [pendingScreenshots, setPendingScreenshots] = useState<string[]>([])
   const [windowOpacity, setWindowOpacity] = useState(1)
   const [fontSize, setFontSize] = useState<FontSize>('medium')
   const [compactMode, setCompactMode] = useState(false)
@@ -380,7 +380,7 @@ export function Overlay() {
   // Screenshot from hotkey
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
-      setPendingScreenshot(dataUrl)
+      setPendingScreenshots((prev) => [...prev, dataUrl])
       if (view !== 'chat') setView('chat')
     })
     return () => {
@@ -530,7 +530,7 @@ export function Overlay() {
   const handleSend = useCallback(
     (content: string, attachments?: ChatAttachment[], options?: { isFollowUp?: boolean }) => {
       sendMessage(content, attachments, options)
-      setPendingScreenshot(null)
+      setPendingScreenshots([])
     },
     [sendMessage],
   )
@@ -548,11 +548,15 @@ export function Overlay() {
     try {
       const dataUrl = await window.electronAPI?.takeScreenshot()
       if (dataUrl) {
-        setPendingScreenshot(dataUrl)
+        setPendingScreenshots((prev) => [...prev, dataUrl])
       }
     } catch (err) {
       console.error('Screenshot failed:', err)
     }
+  }, [])
+
+  const handleRemoveScreenshot = useCallback((index: number) => {
+    setPendingScreenshots((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const handleSetView = useCallback((v: ViewId) => {
@@ -665,8 +669,8 @@ export function Overlay() {
                 transcriptPanelExpanded={transcriptPanelExpanded}
                 onToggleTranscriptPanel={handleToggleTranscriptPanel}
                 quickActions={quickActions.length > 0 ? quickActions : undefined}
-                pendingScreenshot={pendingScreenshot}
-                onClearScreenshot={() => setPendingScreenshot(null)}
+                pendingScreenshots={pendingScreenshots}
+                onRemoveScreenshot={handleRemoveScreenshot}
                 onScreenshot={handleScreenshot}
                 isRecording={stt.isRecording}
                 onToggleRecording={stt.toggleRecording}
@@ -874,10 +878,11 @@ export function Overlay() {
 
                   <ActionChips
                     onAction={(action) => {
-                      const attachments: ChatAttachment[] = []
-                      if (pendingScreenshot) {
-                        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
-                      }
+                      const attachments: ChatAttachment[] = pendingScreenshots.map((data, i) => ({
+                        type: 'image',
+                        data,
+                        label: `Screenshot ${i + 1}`,
+                      }))
                       handleSend(action, attachments.length > 0 ? attachments : undefined)
                     }}
                     customActions={quickActions.length > 0 ? quickActions : undefined}
@@ -898,8 +903,8 @@ export function Overlay() {
                     isLoading={isLoading}
                     onStop={stopGeneration}
                     onScreenshot={handleScreenshot}
-                    pendingScreenshot={pendingScreenshot}
-                    onClearScreenshot={() => setPendingScreenshot(null)}
+                    pendingScreenshots={pendingScreenshots}
+                    onRemoveScreenshot={handleRemoveScreenshot}
                     isRecording={stt.isRecording}
                     onToggleRecording={stt.toggleRecording}
                     sttTranscript={stt.transcript}

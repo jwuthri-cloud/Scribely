@@ -266,6 +266,7 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
   const [promptModal, setPromptModal] = useState<{
     requestId: string
     messages: Array<{ role: string; content: string }>
+    attachmentCount: number
   } | null>(null)
   const [promptExpandedIndices, setPromptExpandedIndices] = useState<Set<number>>(new Set())
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
@@ -505,10 +506,14 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
                 </button>
                 <button
                   onClick={async () => {
-                    const prompt = await window.electronAPI?.llmGetPromptForRequest?.(msg.id)
-                    if (prompt) {
+                    const result = await window.electronAPI?.llmGetPromptForRequest?.(msg.id)
+                    if (result) {
                       setPromptExpandedIndices(new Set())
-                      setPromptModal({ requestId: msg.id, messages: prompt })
+                      setPromptModal({
+                        requestId: msg.id,
+                        messages: result.messages,
+                        attachmentCount: result.attachmentCount,
+                      })
                     }
                   }}
                   className="p-0.5 rounded hover:bg-[var(--surface-hover)] transition-colors"
@@ -582,6 +587,9 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
                 const displayContent = isLong && !expanded
                   ? m.content.slice(0, TRUNCATE_LENGTH) + '\n\n… truncated'
                   : m.content
+                const isLastUser =
+                  m.role === 'user' &&
+                  i === promptModal.messages.findLastIndex((msg) => msg.role === 'user')
                 return (
                   <div key={i} className="space-y-1">
                     <div
@@ -616,6 +624,21 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
                       >
                         Show full ({m.content.length.toLocaleString()} chars)
                       </button>
+                    )}
+                    {isLastUser && promptModal.attachmentCount > 0 && (
+                      <div
+                        className="text-[10px] px-2 py-1 rounded-md inline-flex items-center gap-1"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        {promptModal.attachmentCount} image{promptModal.attachmentCount > 1 ? 's' : ''} attached — sent to model
+                      </div>
                     )}
                   </div>
                 )

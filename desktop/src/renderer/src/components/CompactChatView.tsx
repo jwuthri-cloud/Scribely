@@ -24,8 +24,8 @@ interface CompactChatViewProps {
   onSetView: (view: ViewId) => void
   onReset: () => void
   quickActions?: QuickAction[]
-  pendingScreenshot?: string | null
-  onClearScreenshot?: () => void
+  pendingScreenshots?: string[]
+  onRemoveScreenshot?: (index: number) => void
   onScreenshot?: () => void
   isRecording?: boolean
   onToggleRecording?: () => void
@@ -71,8 +71,8 @@ export function CompactChatView({
   onSetView,
   onReset,
   quickActions,
-  pendingScreenshot,
-  onClearScreenshot,
+  pendingScreenshots = [],
+  onRemoveScreenshot,
   onScreenshot,
   isRecording = false,
   onToggleRecording,
@@ -117,13 +117,14 @@ export function CompactChatView({
 
   const handleActionClick = useCallback(
     (actionValue: string) => {
-      const attachments: ChatAttachment[] = []
-      if (pendingScreenshot) {
-        attachments.push({ type: 'image', data: pendingScreenshot, label: 'Screenshot' })
-      }
+      const attachments: ChatAttachment[] = pendingScreenshots.map((data, i) => ({
+        type: 'image' as const,
+        data,
+        label: `Screenshot ${i + 1}`,
+      }))
       onSend(actionValue, attachments.length > 0 ? attachments : undefined)
     },
-    [onSend, pendingScreenshot],
+    [onSend, pendingScreenshots],
   )
 
   // Auto-scroll response area when streaming
@@ -371,8 +372,8 @@ export function CompactChatView({
         isLoading={isLoading}
         onStop={onStop}
         onScreenshot={onScreenshot}
-        pendingScreenshot={pendingScreenshot}
-        onClearScreenshot={onClearScreenshot}
+        pendingScreenshots={pendingScreenshots}
+        onRemoveScreenshot={onRemoveScreenshot}
         isRecording={isRecording}
         onToggleRecording={onToggleRecording}
         sttTranscript={sttTranscript}

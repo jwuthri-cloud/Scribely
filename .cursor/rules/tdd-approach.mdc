@@ -1,0 +1,52 @@
+---
+description: Use TDD (test-first) when coding frontend and backend features
+globs: ["backend/**/*.py", "frontend/**/*.ts", "frontend/**/*.tsx", "desktop/src/renderer/**/*.tsx", "desktop/src/main/**/*.ts"]
+alwaysApply: false
+---
+
+# TDD Approach
+
+Use **Test-Driven Development** when adding or changing frontend and backend logic.
+
+## When to Use TDD
+
+- **New features**: API endpoints, services, components, hooks
+- **Bug fixes**: Write a failing test that reproduces the bug, then fix
+- **Refactors**: Ensure tests pass before and after
+
+## When to Skip
+
+- Config files, migrations, one-off scripts
+- Prototypes or throwaway code
+- Trivial UI tweaks with no logic
+
+## Flow
+
+1. **Red**: Write a failing test that defines expected behavior
+2. **Green**: Implement minimal code to pass
+3. **Refactor**: Improve code while keeping tests green
+
+## Backend (Python)
+
+```python
+# tests/unit/test_my_service.py — write first
+def test_returns_result_when_valid_input():
+    result = my_service.process("valid")
+    assert result == expected
+```
+
+Tests: `backend/tests/unit/`, `backend/tests/integration/`. Use pytest, fixtures from `conftest.py`.
+
+## Frontend / Desktop (TypeScript)
+
+```typescript
+// ComponentName.test.tsx — write first
+it('calls onSave when form is submitted', async () => {
+  const onSave = vi.fn()
+  render(<MyForm onSave={onSave} />)
+  await userEvent.click(screen.getByRole('button', { name: /save/i }))
+  expect(onSave).toHaveBeenCalled()
+})
+```
+
+Tests: colocate `*.test.tsx` or use `__tests__/`. Use Vitest + Testing Library.

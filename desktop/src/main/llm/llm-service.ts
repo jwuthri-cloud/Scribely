@@ -302,7 +302,10 @@ export class LLMService {
   private static readonly MAX_STORED_PROMPTS = 10
   private storedPrompts = new Map<
     string,
-    Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+    {
+      messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+      attachmentCount: number
+    }
   >()
 
   // Conversation state (in-memory, also persisted to electron-store)
@@ -863,13 +866,17 @@ export class LLMService {
       transcriptSummary,
     })
 
-    this.storePromptForRequest(request.requestId, assembled.messages)
+    this.storePromptForRequest(request.requestId, assembled.messages, request.attachments)
 
     const hasSummaryInPrompt = assembled.messages.some(
       (m) => m.role === 'system' && m.content.includes('<transcript_summary>'),
     )
     log.info('[llm] Summary in assembled messages:', hasSummaryInPrompt ? 'YES' : 'NO')
     log.info('[llm] Full prompt:', JSON.stringify(assembled.messages, null, 2))
+    if (request.attachments?.length) {
+      const imgCount = request.attachments.filter((a) => a.type === 'image').length
+      log.info(`[llm] User message includes ${imgCount} image attachment(s)`)
+    }
 
     // Persist user message to disk
     this.persistConversation()
@@ -1491,8 +1498,10 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
   private storePromptForRequest(
     requestId: string,
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    attachments?: ChatAttachment[],
   ): void {
-    this.storedPrompts.set(requestId, messages)
+    const attachmentCount = attachments?.filter((a) => a.type === 'image').length ?? 0
+    this.storedPrompts.set(requestId, { messages, attachmentCount })
     if (this.storedPrompts.size > LLMService.MAX_STORED_PROMPTS) {
       const oldest = this.storedPrompts.keys().next().value
       if (oldest) this.storedPrompts.delete(oldest)
@@ -1501,9 +1510,10 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
 
   private getStoredPrompt(
     requestId: string,
-  ): Array<{ role: string; content: string }> | null {
-    const messages = this.storedPrompts.get(requestId)
-    return messages ? [...messages] : null
+  ): { messages: Array<{ role: string; content: string }>; attachmentCount: number } | null {
+    const stored = this.storedPrompts.get(requestId)
+    if (!stored) return null
+    return { messages: [...stored.messages], attachmentCount: stored.attachmentCount }
   }
 
   private getModelPricing(modelId: string): {
