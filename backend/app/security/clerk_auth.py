@@ -2,6 +2,8 @@
 Clerk authentication integration for Scribely.
 """
 
+import base64
+import re
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any, Dict, Optional
@@ -95,6 +97,22 @@ class ClerkUser:
         }
 
 
+def _derive_jwks_url_from_publishable_key(publishable_key: Optional[str]) -> Optional[str]:
+    """Derive JWKS URL from Clerk publishable key (pk_test_<base64> or pk_live_<base64>)."""
+    if not publishable_key or not publishable_key.startswith("pk_"):
+        return None
+    try:
+        raw = re.sub(r"^pk_(test|live)_", "", publishable_key)
+        if not raw:
+            return None
+        decoded = base64.b64decode(raw).decode("utf-8").rstrip("$")
+        if decoded.startswith("http"):
+            return f"{decoded.rstrip('/')}/.well-known/jwks.json"
+        return None
+    except Exception:
+        return None
+
+
 class ClerkAuthProvider:
     """Clerk authentication provider for JWT verification."""
 
@@ -102,7 +120,12 @@ class ClerkAuthProvider:
         self.settings = settings
         self.jwks_cache: Optional[Dict[str, Any]] = None
         self.jwks_cache_expiry: Optional[datetime] = None
-        self.jwks_url = "https://clerk.dev/.well-known/jwks.json"
+        self.jwks_url = (
+            settings.clerk_jwks_url
+            or _derive_jwks_url_from_publishable_key(settings.clerk_publishable_key)
+            or "https://clerk.dev/.well-known/jwks.json"
+        )
+        logger.info(f"Using Clerk JWKS URL: {self.jwks_url}")
 
     async def get_jwks(self) -> Dict[str, Any]:
         """Get JWKS (JSON Web Key Set) from Clerk, with caching."""

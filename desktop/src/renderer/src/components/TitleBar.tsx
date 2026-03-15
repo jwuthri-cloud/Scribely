@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { HotkeyMenu } from './HotkeyMenu'
 
-type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
+type ViewId = 'chat' | 'llm' | 'settings' | 'insights' | 'sync'
 
 /** Wraps content with a hover tooltip */
 function TooltipWrap({
@@ -49,6 +49,8 @@ interface TitleBarProps {
   onToggleInsightsPanel?: () => void
   transcriptPanelExpanded?: boolean
   onToggleTranscriptPanel?: () => void
+  /** Number of failed or pending sync items — shows a badge on the sync button */
+  syncBadgeCount?: number
 }
 
 /** Small icon button used in the title bar with a custom tooltip */
@@ -116,6 +118,7 @@ export function TitleBar({
   onToggleInsightsPanel,
   transcriptPanelExpanded = false,
   onToggleTranscriptPanel,
+  syncBadgeCount = 0,
 }: TitleBarProps) {
   const [closeHovered, setCloseHovered] = useState(false)
   const [compactHovered, setCompactHovered] = useState(false)
@@ -370,6 +373,30 @@ export function TitleBar({
 
         {/* Hotkey shortcuts menu — hidden in settings/LLM/insights (hotkeys configured in settings) */}
         {view === 'chat' && <HotkeyMenu tooltip="Keyboard shortcuts" />}
+
+        {/* Sync tab — always visible, shows badge when uploads are pending/failed */}
+        <div className="relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <TitleBtn
+            onClick={() => onSetView(view === 'sync' ? 'chat' : 'sync')}
+            label={view === 'sync' ? 'Back to chat' : 'Sync history'}
+            tooltip={view === 'sync' ? 'Back to chat' : 'Meeting sync history'}
+            active={view === 'sync'}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </TitleBtn>
+          {syncBadgeCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] px-0.5 rounded-full text-[8px] font-bold flex items-center justify-center pointer-events-none"
+              style={{ backgroundColor: 'var(--error)', color: '#fff' }}
+            >
+              {syncBadgeCount > 9 ? '9+' : syncBadgeCount}
+            </span>
+          )}
+        </div>
 
         {/* Settings gear */}
         <TitleBtn

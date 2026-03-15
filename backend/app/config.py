@@ -1,6 +1,6 @@
 """Application settings loaded from environment variables."""
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,12 +34,6 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
     
-    # LangSmith Tracing (optional)
-    langsmith_tracing: bool = False
-    langsmith_endpoint: str = "https://api.smith.langchain.com"
-    langsmith_api_key: str = ""
-    langsmith_project: str = ""
-    
     # Vector Database (optional)
     vector_db_api_key: str = ""
     vector_db_url: str = ""
@@ -62,12 +56,21 @@ class Settings(BaseSettings):
     # Clerk Authentication
     clerk_secret_key: str = ""
     clerk_publishable_key: Optional[str] = None
+    # JWKS URL for JWT verification. If unset, derived from clerk_publishable_key.
+    clerk_jwks_url: Optional[str] = None
 
     # File uploads
     upload_dir: str = "./uploads"
     # Max upload sizes in bytes (defaults: 1024 video, 16MB transcript)
     max_video_size_bytes: int = 1024 * 1024 * 1024
     max_transcript_size_bytes: int = 16 * 1024 * 1024
+
+    # Diarization & speaker attribution
+    deepgram_api_key: str = ""
+    assemblyai_api_key: str = ""
+    diarization_provider: str = "deepgram"  # "deepgram" or "assemblyai"
+    speaker_id_vision_model: str = "openai/gpt-5.2"  # OpenRouter model ID
+    frames_per_speaker: int = 10
 
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:8000"

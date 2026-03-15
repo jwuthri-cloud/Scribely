@@ -268,7 +268,11 @@ export class AuthCallbackServer extends EventEmitter {
 
       async function sendComplete(clerk) {
         const user = clerk.user;
-        const token = await clerk.session?.getToken();
+        // Request a token from the JWT template (use CLERK_JWT_TEMPLATE env var).
+        // Template name must match what you set in Clerk Dashboard → JWT Templates.
+        // Create a template with Token lifetime = 604800 seconds for 1-week tokens.
+        const templateName = ${JSON.stringify(process.env.CLERK_JWT_TEMPLATE || 'scribely')};
+        const token = await clerk.session?.getToken({ template: templateName });
         const container = document.getElementById('clerk-auth');
         container.innerHTML = '<div class="spinner"></div>';
 

@@ -181,6 +181,7 @@ tmp/
 .DS_Store
 Thumbs.db
 
+uploads/
 # Docker
 !.dockerignore
 

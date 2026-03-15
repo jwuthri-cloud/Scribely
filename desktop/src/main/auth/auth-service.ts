@@ -29,6 +29,8 @@ export class AuthService {
   private store: Store<AuthStoreSchema>
   private callbackServer: AuthCallbackServer
   private window: BrowserWindow | null = null
+  /** Called after a fresh sign-in (new token stored). Used to flush upload queue. */
+  private onSignedInCallback: (() => void) | null = null
 
   constructor() {
     this.store = new Store<AuthStoreSchema>({
@@ -44,6 +46,10 @@ export class AuthService {
 
   setWindow(window: BrowserWindow | null): void {
     this.window = window
+  }
+
+  setOnSignedIn(cb: (() => void) | null): void {
+    this.onSignedInCallback = cb
   }
 
   getState(): AuthState {
@@ -78,6 +84,16 @@ export class AuthService {
 
   private clearSessionToken(): void {
     this.store.set('sessionTokenEncrypted', null)
+  }
+
+  /**
+   * Invalidate the stored token (e.g. after a 401 from the backend).
+   * Keeps user profile and mode so the UI still shows "signed in", but
+   * API calls will fail until the user signs in again to get a fresh token.
+   */
+  invalidateToken(): void {
+    log.info('Token invalidated (likely expired) — user must sign in again for API access')
+    this.clearSessionToken()
   }
 
   getSessionToken(): string | null {
@@ -125,6 +141,7 @@ export class AuthService {
     }
 
     this.notifyRenderer()
+    this.onSignedInCallback?.()
   }
 
   async signOut(): Promise<void> {

@@ -91,6 +91,7 @@ export interface ElectronAPI {
   authSignOut: () => Promise<void>
   authGetUserProfile: () => Promise<{ id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null>
   onAuthStateChanged: (callback: (state: { mode: 'guest' | 'authenticated'; user: { id: string; email: string; firstName: string | null; lastName: string | null; fullName: string | null; imageUrl: string | null } | null }) => void) => () => void
+  onAuthTokenExpired: (callback: () => void) => () => void
 
   // ── Backend Sync ─────────────────────────────────
   backendSyncMeeting: (payload: {
@@ -103,6 +104,13 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; message: string; meetingId?: string }>
 
   backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>
+
+  // ── Upload Queue ─────────────────────────────────
+  uploadQueueGetHistory: () => Promise<any[]>
+  uploadQueueRetryItem: (id: string) => Promise<void>
+  uploadQueueClearItem: (id: string) => Promise<void>
+  uploadQueueClearAll: () => Promise<void>
+  onUploadQueueChanged: (callback: (items: any[]) => void) => () => void
 
   // ── Settings ────────────────────────────────────
   getSettings: () => Promise<AppSettings>
@@ -505,6 +513,12 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener('auth:state-changed', handler)
   },
 
+  onAuthTokenExpired: (callback: () => void) => {
+    const handler = (_event: Electron.IpcRendererEvent) => callback()
+    ipcRenderer.on('auth:token-expired', handler)
+    return () => ipcRenderer.removeListener('auth:token-expired', handler)
+  },
+
   // ── Backend Sync ─────────────────────────────────
   backendSyncMeeting: (payload: {
     transcriptFilepath: string
@@ -516,6 +530,31 @@ const api: ElectronAPI = {
 
   backendValidateAuth: () => {
     return ipcRenderer.invoke('backend:validate-auth')
+  },
+
+  // ── Upload Queue ─────────────────────────────────
+  uploadQueueGetHistory: () => {
+    return ipcRenderer.invoke('upload-queue:get-history')
+  },
+
+  uploadQueueRetryItem: (id: string) => {
+    return ipcRenderer.invoke('upload-queue:retry-item', id)
+  },
+
+  uploadQueueClearItem: (id: string) => {
+    return ipcRenderer.invoke('upload-queue:clear-item', id)
+  },
+
+  uploadQueueClearAll: () => {
+    return ipcRenderer.invoke('upload-queue:clear-all')
+  },
+
+  onUploadQueueChanged: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, items: any[]) => {
+      callback(items)
+    }
+    ipcRenderer.on('upload-queue:changed', handler)
+    return () => ipcRenderer.removeListener('upload-queue:changed', handler)
   },
 
   // ── Settings ────────────────────────────────────

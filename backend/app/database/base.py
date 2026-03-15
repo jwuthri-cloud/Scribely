@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session, sessionmaker
 # Get settings
 settings = get_settings()
 
-# Configure logging
+# Configure logging - WARNING to suppress verbose SQL query logs
 logging.basicConfig()
-logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 
 # Create Base class for declarative models (shared between sync and async)
 Base = declarative_base()

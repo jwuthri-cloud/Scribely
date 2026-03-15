@@ -5,6 +5,11 @@ User repository for Scribely.
 from datetime import datetime, timezone
 from typing import List, Optional
 
+
+def _utc_naive() -> datetime:
+    """Return naive UTC datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,7 +79,7 @@ class UserRepository:
             if hasattr(user, key):
                 setattr(user, key, value)
 
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = _utc_naive()
         await db.flush()
         await db.refresh(user)
         return user
@@ -96,8 +101,8 @@ class UserRepository:
         """Update user's last login timestamp."""
         user = await UserRepository.get_by_id(db, user_id)
         if user:
-            user.last_login_at = datetime.now(timezone.utc)
-            user.updated_at = datetime.now(timezone.utc)
+            user.last_login_at = _utc_naive()
+            user.updated_at = _utc_naive()
             await db.flush()
             await db.refresh(user)
         return user

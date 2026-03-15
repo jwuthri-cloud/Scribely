@@ -36,6 +36,7 @@ import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
 import { BackendClient } from './backend-client'
+import { UploadQueueService } from './upload-queue'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -213,6 +214,9 @@ const authService = new AuthService()
 
 // ── Backend Client ───────────────────────────────────────
 const backendClient = new BackendClient(authService)
+
+// ── Upload Queue ─────────────────────────────────────────
+const uploadQueueService = new UploadQueueService(backendClient, authService)
 
 // ── Live Insights Engine ───────────────────────────────
 function getInsightsConfig() {
@@ -548,12 +552,13 @@ function registerIpcHandlers(): void {
   // ── Auth Service ────────────────────────────────────
   authService.registerIpcHandlers()
 
-  // ── Backend Client ─────────────────────────────────
-  ipcMain.handle('backend:sync-meeting', async (_event, payload) => {
+  // ── Backend Client / Upload Queue ──────────────────
+  ipcMain.handle('backend:sync-meeting', (_event, payload) => {
     if (!backendClient.isConfigured) {
       return { success: false, message: 'BACKEND_API_URL not configured' }
     }
-    return backendClient.syncMeeting(payload)
+    const queueId = uploadQueueService.enqueue(payload)
+    return { success: true, message: 'Queued for upload', queueId }
   })
 
   ipcMain.handle('backend:validate-auth', async () => {
@@ -561,6 +566,23 @@ function registerIpcHandlers(): void {
       return { authenticated: false }
     }
     return backendClient.validateAuth()
+  })
+
+  // ── Upload Queue IPC ────────────────────────────────
+  ipcMain.handle('upload-queue:get-history', () => {
+    return uploadQueueService.getHistory()
+  })
+
+  ipcMain.handle('upload-queue:retry-item', (_event, id: string) => {
+    return uploadQueueService.retryItem(id)
+  })
+
+  ipcMain.handle('upload-queue:clear-item', (_event, id: string) => {
+    uploadQueueService.clearItem(id)
+  })
+
+  ipcMain.handle('upload-queue:clear-all', () => {
+    uploadQueueService.clearAll()
   })
 
   // ── LLM Service ──────────────────────────────────────
@@ -938,6 +960,37 @@ app.whenReady().then(async () => {
 
   createWindow()
   createTray()
+
+  // When user signs in, flush any pending uploads (fresh token available)
+  authService.setOnSignedIn(() => {
+    uploadQueueService.flushPending()
+  })
+
+  // Forward upload queue state changes to renderer
+  uploadQueueService.on('changed', (items) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('upload-queue:changed', items)
+    }
+  })
+
+  // Token expired (401) — notify renderer so user can re-sign in
+  uploadQueueService.on('token-expired', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auth:token-expired')
+    }
+  })
+
+  // Flush any uploads that failed during a previous session (5s delay to let
+  // the renderer load and the auth session token to be read from disk).
+  setTimeout(() => {
+    uploadQueueService.flushPending()
+  }, 5000)
+
+  // Retry pending uploads every 5 minutes (covers network reconnects and
+  // token refresh scenarios without needing a platform-specific online event).
+  setInterval(() => {
+    uploadQueueService.flushPending()
+  }, 5 * 60 * 1000)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

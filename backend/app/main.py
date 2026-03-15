@@ -10,7 +10,6 @@ from app.api.v1.router import api_router
 from app.config import get_settings
 from app.database.session import cleanup_database, initialize_database
 from app.exceptions import setup_exception_handlers
-from app.infrastructure.langchain_tracing import initialize_langchain_tracing
 from app.infrastructure.langfuse_handler import flush_langfuse, shutdown_langfuse
 from app.middleware import setup_middleware
 from app.models.base import APIInfo
@@ -28,9 +27,6 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     try:
-        # Initialize LangChain tracing (LangSmith)
-        initialize_langchain_tracing()
-        
         # Initialize database
         await initialize_database()
         logger.info("Database initialized successfully")

@@ -1,5 +1,22 @@
 import type { ChatAttachment, AppSettings, LLMChatRequest, LLMChatDelta, LLMChatDone, LLMChatError, ModelId } from './settings'
 
+export type UploadStatus = 'pending' | 'uploading' | 'success' | 'failed'
+
+export interface UploadQueueItem {
+  id: string
+  transcriptFilepath: string
+  recordingFilepath?: string
+  sessionId?: string
+  createdAt: number
+  status: UploadStatus
+  error?: string
+  attemptCount: number
+  lastAttemptAt?: number
+  meetingId?: string
+  displayName: string
+  hasRecording: boolean
+}
+
 export interface AuthUser {
   id: string
   email: string
@@ -34,6 +51,7 @@ export interface ElectronAPI {
   authSignOut: () => Promise<void>
   authGetUserProfile: () => Promise<AuthUser | null>
   onAuthStateChanged: (callback: (state: AuthState) => void) => () => void
+  onAuthTokenExpired: (callback: () => void) => () => void
 
   // Backend Sync
   backendSyncMeeting: (payload: {
@@ -46,6 +64,13 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean; message: string; meetingId?: string }>
 
   backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>
+
+  // Upload Queue
+  uploadQueueGetHistory: () => Promise<UploadQueueItem[]>
+  uploadQueueRetryItem: (id: string) => Promise<void>
+  uploadQueueClearItem: (id: string) => Promise<void>
+  uploadQueueClearAll: () => Promise<void>
+  onUploadQueueChanged: (callback: (items: UploadQueueItem[]) => void) => () => void
 
   // Settings
   getSettings: () => Promise<AppSettings>

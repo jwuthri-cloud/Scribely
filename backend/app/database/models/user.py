@@ -13,6 +13,11 @@ from sqlalchemy import String
 from ..base import Base
 
 
+def _utc_naive() -> datetime:
+    """Return naive UTC datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class UserStatusEnum(str, enum.Enum):
     """User account status."""
     ACTIVE = "active"
@@ -39,8 +44,8 @@ class User(Base):
         """Check if user is active based on status."""
         return self.status == UserStatusEnum.ACTIVE
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=_utc_naive, nullable=False)
+    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
 
     preferences = Column(JSON, default={})

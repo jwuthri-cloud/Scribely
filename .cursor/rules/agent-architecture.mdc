@@ -1,0 +1,123 @@
+---
+description: Agent and LLM call architecture - enforces LangChain + OpenRouter via the agents framework
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Agent & LLM Call Architecture
+
+All LLM calls and AI agents in the backend **must** use LangChain + OpenRouter through the existing agent framework. Never use the OpenAI SDK directly.
+
+## Required Stack
+
+- **LLM provider**: `OpenRouterProvider` from `app.infrastructure.llm_provider`
+- **LLM class**: `langchain_openai.ChatOpenAI` (configured via `OpenRouterProvider.get_llm()`)
+- **Agent creation**: `langchain.agents.create_agent` or `llm.with_structured_output()`
+- **Observability**: Langfuse via `get_langfuse_config()` / `get_langfuse_callbacks()`
+- **Resilience**: Circuit breaker via `get_llm_circuit_breaker()`
+
+## File Organization
+
+New agents follow this structure under `backend/app/agents/`:
+
+```
+agents/
+├── agents/<name>.py              # Agent class
+├── prompt/<name>.py              # SYSTEM_PROMPT string
+├── structured_output/<name>.py   # Pydantic response models
+└── tool/<name>.py                # @tool functions (if needed)
+```
+
+## Creating a New Agent
+
+### 1. Define structured output (`structured_output/<name>.py`)
+
+```python
+from pydantic import BaseModel, Field
+
+class MyResponse(BaseModel):
+    answer: str = Field(default="", description="...")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+```
+
+### 2. Define prompt (`prompt/<name>.py`)
+
+```python
+SYSTEM_PROMPT = """You are ..."""
+```
+
+### 3. Implement agent (`agents/<name>.py`)
+
+**Option A** — with tools (use `create_agent`):
+
+```python
+from langchain.agents import create_agent
+from app.infrastructure.llm_provider import OpenRouterProvider
+from app.agents.prompt.my_agent import SYSTEM_PROMPT
+from app.agents.structured_output.my_agent import MyResponse
+from app.agents.tool.my_agent import MY_TOOLS
+
+provider = OpenRouterProvider()
+llm = provider.get_llm(model_name="openai/gpt-4o-mini")
+agent = create_agent(
+    model=llm,
+    system_prompt=SYSTEM_PROMPT,
+    tools=MY_TOOLS,
+    response_format=MyResponse,
+)
+```
+
+**Option B** — no tools (use `with_structured_output`):
+
+```python
+from app.infrastructure.llm_provider import OpenRouterProvider
+from app.agents.structured_output.my_agent import MyResponse
+
+provider = OpenRouterProvider()
+llm = provider.get_llm(model_name="openai/gpt-4o-mini")
+structured_llm = llm.with_structured_output(MyResponse)
+result = await structured_llm.ainvoke(messages)
+```
+
+**Option C** — inherit from `BaseAgent` for full lifecycle:
+
+```python
+from app.agents.base import SimpleAgent, AgentConfig
+from app.agents.registry import AgentRegistry
+
+@AgentRegistry.register("my_agent")
+class MyAgent(SimpleAgent[MyResponse]):
+    name = "my_agent"
+    description = "Does X"
+    system_prompt = SYSTEM_PROMPT
+    response_model = MyResponse
+    tools = [...]
+```
+
+## Prohibited Patterns
+
+```python
+# ❌ Direct OpenAI SDK
+from openai import OpenAI
+client = OpenAI(api_key=...)
+
+# ❌ Direct ChatOpenAI without OpenRouterProvider
+from langchain_openai import ChatOpenAI
+llm = ChatOpenAI(model="gpt-4o", api_key=os.environ["OPENAI_API_KEY"])
+
+# ❌ Inline prompts without a prompt file
+agent = create_agent(model=llm, system_prompt="You are a helpful...")
+
+# ❌ Unstructured dict responses instead of Pydantic models
+result = llm.invoke("...").content  # raw string
+```
+
+## Checklist for New Agents
+
+- [ ] Prompt in `agents/prompt/<name>.py`
+- [ ] Pydantic response model in `agents/structured_output/<name>.py`
+- [ ] Tools (if any) in `agents/tool/<name>.py`
+- [ ] Agent class in `agents/agents/<name>.py`
+- [ ] Uses `OpenRouterProvider.get_llm()` — never direct `ChatOpenAI` or `openai` SDK
+- [ ] Langfuse config passed to `.ainvoke()` / `.invoke()`
+- [ ] Circuit breaker wrapping LLM calls

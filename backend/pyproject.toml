@@ -59,6 +59,9 @@ dependencies = [
     "aiosqlite>=0.22.1",
     # Async file I/O for meeting upload storage
     "aiofiles>=24.1.0",
+    # Diarization providers
+    "deepgram-sdk>=3.0.0",
+    "assemblyai>=0.30.0",
 ]
 
 [project.optional-dependencies]
@@ -136,3 +139,5 @@ db-reset = { cmd = "scribely database reset --force", help = "Reset database (dr
 db-seed = { cmd = "scribely database seed", help = "Seed database with sample data" }
 test = { cmd = "pytest", help = "Run tests" }
 test-cov = { cmd = "pytest --cov=app --cov-report=term-missing", help = "Run tests with coverage report" }
+diarize = { cmd = "python scripts/test_diarization.py", help = "Test diarization on a media file (e.g. poe diarize /path/to/file.mp4 --provider deepgram)" }
+diarize-full = { cmd = "python scripts/test_diarization.py --full", help = "Full pipeline: diarize + frames + LLM speaker ID (e.g. poe diarize-full /path/to/file.mp4)" }

@@ -8,6 +8,7 @@ import { CompactChatView } from './CompactChatView'
 import { SettingsView } from './SettingsView'
 import { InsightsView } from './InsightsView'
 import { LLMView } from './LLMView'
+import { MeetingSyncHistoryView } from './MeetingSyncHistoryView'
 import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
 import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
@@ -25,7 +26,7 @@ import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
 
 type AppPhase = 'loading' | 'auth' | 'onboarding' | 'app'
 
-type ViewId = 'chat' | 'llm' | 'settings' | 'insights'
+type ViewId = 'chat' | 'llm' | 'settings' | 'insights' | 'sync'
 
 function SummaryModal({ content, onClose }: { content: string | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
@@ -134,6 +135,7 @@ export function Overlay() {
   ])
   const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
   const [transcriptPanelExpanded, setTranscriptPanelExpanded] = useState(false)
+  const [syncBadgeCount, setSyncBadgeCount] = useState(0)
   const stt = useWhisperSTT()
 
   // ── Meeting hooks (live inside the chat view) ─────────
@@ -184,6 +186,21 @@ export function Overlay() {
   const { messages, isLoading, sendMessage, sendWebSearch, resetChat, stopGeneration, contextUsage } = useChat({
     transcriptEntries: transcript.entries,
   })
+
+  // ── Upload queue badge ────────────────────────────────────
+  useEffect(() => {
+    const calcBadge = (items: { status: string }[]) =>
+      items.filter((i) => i.status === 'failed' || i.status === 'pending').length
+
+    window.electronAPI?.uploadQueueGetHistory?.().then((items) => {
+      if (items) setSyncBadgeCount(calcBadge(items as { status: string }[]))
+    })
+
+    const unsub = window.electronAPI?.onUploadQueueChanged?.((items) => {
+      setSyncBadgeCount(calcBadge(items as { status: string }[]))
+    })
+    return () => unsub?.()
+  }, [])
 
   // ── Phase initialization: auth -> onboarding -> app ─────
   useEffect(() => {
@@ -759,6 +776,7 @@ export function Overlay() {
                 onToggleInsightsPanel={handleToggleInsightsPanel}
                 transcriptPanelExpanded={transcriptPanelExpanded}
                 onToggleTranscriptPanel={handleToggleTranscriptPanel}
+                syncBadgeCount={syncBadgeCount}
               />
 
               {/* Subtle separator */}
@@ -953,6 +971,7 @@ export function Overlay() {
               {view === 'llm' && <LLMView />}
               {view === 'settings' && <SettingsView onReRunSetup={handleReRunSetup} />}
               {view === 'insights' && <InsightsView />}
+              {view === 'sync' && <MeetingSyncHistoryView />}
                 </div>
                 {insightsPanelExpanded && (
                   <LiveInsightsSidePanel
