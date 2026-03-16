@@ -25,6 +25,12 @@ A clean, simple FastAPI backend with LangChain integration for LLM-powered appli
 - **Context Management**: Built-in context management agent
 - **Tool Support**: LangChain tools for agent workflows
 
+### Meeting Processing & Speaker Attribution
+- **Post-meeting diarization**: Deepgram Nova-3 and AssemblyAI Universal-2 support
+- **Speaker identification**: LLM vision analysis of video frames to map anonymous speakers to real names
+- **Background processing**: Automatic pipeline triggered on meeting upload
+- **Meeting upload API**: Transcript + recording sync from the desktop app
+
 ## 🏗️ Architecture
 
 ```
@@ -37,6 +43,7 @@ app/
 │   ├── v1/
 │   │   ├── router.py         # Main API router
 │   │   ├── auth.py           # Clerk authentication endpoints
+│   │   ├── meetings.py       # Meeting upload + diarization endpoints
 │   │   ├── health.py         # Health check endpoints
 │   │   └── metrics.py        # Metrics endpoints
 │   ├── deps.py               # API-specific dependencies
@@ -44,13 +51,16 @@ app/
 │
 ├── agents/                    # LangChain agents framework
 │   ├── agents/               # Agent implementations
-│   │   └── customer_support.py
+│   │   ├── customer_support.py
+│   │   └── speaker_identifier.py  # LLM vision speaker ID
 │   ├── prompt/               # Prompt templates
-│   │   └── customer_support.py
+│   │   ├── customer_support.py
+│   │   └── speaker_identifier.py
 │   ├── tool/                 # LangChain tools
 │   │   └── customer_support.py
 │   └── structured_output/    # Pydantic output models
-│       └── customer_support.py
+│       ├── customer_support.py
+│       └── speaker_identifier.py
 │
 ├── database/                  # Database layer
 │   ├── base.py               # SQLAlchemy base
@@ -60,6 +70,14 @@ app/
 │   │   └── user.py           # User model (Clerk-based auth)
 │   └── repositories/         # Data access layer
 │       └── user.py           # User repository
+│
+├── services/                  # Business logic services
+│   ├── audio_extractor.py    # ffmpeg: WebM/MP4 → WAV extraction
+│   ├── diarization.py        # Deepgram / AssemblyAI diarization
+│   ├── frame_extractor.py    # ffmpeg: video frame extraction per speaker
+│   ├── speaker_identifier.py # Service wrapper for speaker ID agent
+│   ├── meeting_processor.py  # Post-meeting processing orchestrator
+│   └── task_runner.py        # Async background task runner
 │
 ├── infrastructure/            # Infrastructure layer
 │   ├── llm_provider.py       # OpenRouter LLM provider & embeddings
@@ -81,6 +99,9 @@ app/
 │   ├── exceptions.py         # Exception utilities
 │   ├── helpers.py            # Helper functions
 │   └── retry.py              # Retry logic
+│
+├── scripts/                   # Standalone utility scripts
+│   └── test_diarization.py   # CLI for testing diarization pipeline
 │
 ├── cli/                       # CLI commands
 │   ├── commands/             # CLI command modules
@@ -495,6 +516,91 @@ print(f"Context length: {limits['context_length']}")
 print(f"Max completion: {limits['max_completion_tokens']}")
 ```
 
+## Meeting Processing & Speaker Attribution
+
+After a meeting ends, the desktop app uploads the transcript and recording to the backend. A background pipeline then runs diarization and speaker identification.
+
+### How It Works
+
+1. **Audio extraction** -- ffmpeg converts the WebM/MP4 recording to 16 kHz mono WAV
+2. **Diarization** -- Deepgram Nova-3 or AssemblyAI Universal-2 transcribes with speaker labels (`Speaker 0`, `Speaker 1`, ...)
+3. **Frame extraction** -- ffmpeg grabs ~10 video frames per speaker at moments when they were talking
+4. **Speaker identification** -- An LLM vision model (via OpenRouter) analyses all frames in a single call to map anonymous labels to real names
+5. **Enriched transcript** -- Results saved as `transcript_enriched.json` alongside the original
+
+### Prerequisites
+
+- **ffmpeg** must be installed (`brew install ffmpeg` on macOS)
+- **Deepgram API key** and/or **AssemblyAI API key** (set in `.env`)
+- **OpenRouter API key** (for the LLM vision step)
+
+### Configuration
+
+```bash
+# In .env
+DIARIZATION_PROVIDER=deepgram          # or "assemblyai"
+DEEPGRAM_API_KEY=your-key-here
+ASSEMBLYAI_API_KEY=your-key-here       # only needed if using assemblyai
+OPENROUTER_API_KEY=your-key-here       # used for vision speaker identification
+# SPEAKER_ID_VISION_MODEL=openai/gpt-4o  # default vision model
+# FRAMES_PER_SPEAKER=10                   # frames extracted per speaker
+```
+
+### CLI Commands
+
+Test diarization on any audio/video file without starting the server:
+
+```bash
+# Diarization only (transcribe + speaker labels)
+poe diarize /path/to/meeting.mp4
+poe diarize /path/to/meeting.webm --provider assemblyai
+
+# Full pipeline (diarize + frame extraction + LLM vision speaker ID)
+poe diarize-full /path/to/meeting.mp4
+poe diarize-full /path/to/meeting.mp4 --provider assemblyai
+```
+
+Results are saved next to the input file as `diarization_<provider>.json` (or `diarization_full_<provider>.json` for the full pipeline).
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/meetings/` | Upload meeting (transcript + optional recording). Triggers background processing automatically when a recording is included. |
+| `GET` | `/api/v1/meetings/{id}/status` | Poll diarization processing status (`pending` / `processing` / `completed` / `failed`) |
+| `GET` | `/api/v1/meetings/{id}/transcript` | Get enriched transcript (falls back to original if not yet processed) |
+| `POST` | `/api/v1/meetings/{id}/reprocess` | Re-trigger processing, optionally with a different provider (`?provider=assemblyai`) |
+
+### Pipeline Architecture
+
+```
+WebM/MP4 recording
+    │
+    ▼
+┌──────────────────┐
+│  Audio Extraction │  ffmpeg → 16kHz mono WAV
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│   Diarization    │  Deepgram Nova-3 / AssemblyAI Universal-2
+│                  │  → Speaker 0, Speaker 1, ... with timestamps
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│ Frame Extraction │  ffmpeg → ~10 JPEG frames per speaker
+│                  │  at midpoints of their utterances
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  LLM Vision ID   │  Single OpenRouter call with all frames
+│                  │  → { "Speaker 0": "Alice", "Speaker 1": "Bob" }
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│ Enriched Output  │  transcript_enriched.json
+└──────────────────┘
+```
+
 ## 🧪 Testing
 
 ### Running Tests
@@ -688,6 +794,11 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 CLERK_SECRET_KEY=sk_test_...
 CLERK_PUBLISHABLE_KEY=pk_test_...
 
+# Diarization & Speaker Attribution
+DIARIZATION_PROVIDER=deepgram
+DEEPGRAM_API_KEY=your-deepgram-key
+ASSEMBLYAI_API_KEY=your-assemblyai-key
+
 # CORS (comma-separated origins)
 CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 
@@ -777,6 +888,9 @@ Optional:
 - `LANGFUSE_SECRET_KEY`: Langfuse secret key
 - `LANGFUSE_PUBLIC_KEY`: Langfuse public key
 - `LANGFUSE_BASE_URL`: Langfuse host URL (default: https://cloud.langfuse.com)
+- `DEEPGRAM_API_KEY`: Deepgram API key (for diarization)
+- `ASSEMBLYAI_API_KEY`: AssemblyAI API key (for diarization)
+- `DIARIZATION_PROVIDER`: `deepgram` or `assemblyai` (default: `deepgram`)
 - `DEBUG`: Set to `false` in production
 - `LOG_LEVEL`: Logging level (INFO, WARNING, ERROR)
 

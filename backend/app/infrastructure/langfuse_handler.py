@@ -10,108 +10,105 @@ logger = get_logger("langfuse_handler")
 _langfuse_handler = None
 
 
+def _ensure_langfuse_client():
+    """Ensure the Langfuse client is initialized (singleton). Returns True if ready."""
+    settings = get_settings()
+
+    if not settings.langfuse_enabled:
+        return False
+
+    if not settings.langfuse_secret_key or not settings.langfuse_public_key:
+        logger.warning(
+            "Langfuse is enabled but langfuse_secret_key or langfuse_public_key is not set. "
+            "Skipping Langfuse integration."
+        )
+        return False
+
+    try:
+        from langfuse import Langfuse
+
+        Langfuse(
+            public_key=settings.langfuse_public_key,
+            secret_key=settings.langfuse_secret_key,
+            host=settings.langfuse_base_url,
+        )
+        return True
+    except ImportError:
+        logger.warning(
+            "Langfuse package not installed. Install it with: pip install langfuse"
+        )
+        return False
+    except Exception as e:
+        logger.error(f"Failed to initialize Langfuse: {e}")
+        return False
+
+
 def get_langfuse_handler(force_new: bool = False):
     """
     Get or create Langfuse callback handler for LangChain.
     
-    This function initializes Langfuse if enabled in settings and returns a CallbackHandler
-    that can be used with LangChain chains. Configure via settings:
+    A fresh ``CallbackHandler`` is created per call by default to avoid
+    OpenTelemetry context-token conflicts across async boundaries.  Pass
+    ``force_new=False`` only when you are certain the handler will be used
+    in the same async context it was created in.
+    
+    Configure via settings:
     - langfuse_enabled: Enable/disable Langfuse
     - langfuse_secret_key: Langfuse secret key
     - langfuse_public_key: Langfuse public key
     - langfuse_base_url: Langfuse host URL
     
     Args:
-        force_new: If True, create a new handler even if one exists
+        force_new: If True, create a new handler even if one exists.
+            Defaults to False for backward compat, but
+            ``get_langfuse_callbacks`` always creates a fresh handler.
         
     Returns:
         Langfuse CallbackHandler instance if Langfuse is enabled, None otherwise
-        
-    Example:
-        ```python
-        from app.infrastructure.langfuse_handler import get_langfuse_handler
-        
-        handler = get_langfuse_handler()
-        if handler:
-            llm = provider.get_llm(callbacks=[handler])
-        ```
     """
     global _langfuse_handler
-    
-    settings = get_settings()
-    
-    # Check if Langfuse is enabled via settings
-    if not settings.langfuse_enabled:
+
+    if not _ensure_langfuse_client():
         return None
-    
-    if not settings.langfuse_secret_key or not settings.langfuse_public_key:
-        logger.warning(
-            "Langfuse is enabled but langfuse_secret_key or langfuse_public_key is not set. "
-            "Skipping Langfuse integration."
-        )
-        return None
-    
-    # Return cached handler if exists and not forcing new
+
     if _langfuse_handler is not None and not force_new:
         return _langfuse_handler
-    
+
     try:
-        from langfuse import Langfuse
         from langfuse.langchain import CallbackHandler
-        
-        # Initialize Langfuse client with settings
-        _langfuse_client = Langfuse(
-            public_key=settings.langfuse_public_key,
-            secret_key=settings.langfuse_secret_key,
-            host=settings.langfuse_base_url,
-        )
-        logger.info(
-            f"Langfuse initialized with host: {settings.langfuse_base_url}"
-        )
-        
-        # Create callback handler
-        # CallbackHandler automatically uses the initialized Langfuse client
-        _langfuse_handler = CallbackHandler()
+
+        handler = CallbackHandler()
+        _langfuse_handler = handler
         logger.debug("Langfuse callback handler created")
-        
-        return _langfuse_handler
-        
+        return handler
     except ImportError:
-        logger.warning(
-            "Langfuse package not installed. Install it with: pip install langfuse"
-        )
         return None
     except Exception as e:
-        logger.error(f"Failed to initialize Langfuse: {e}")
+        logger.error(f"Failed to create Langfuse handler: {e}")
         return None
 
 
 def get_langfuse_callbacks(additional_callbacks: Optional[List] = None) -> List:
     """
     Get list of Langfuse callbacks, optionally combined with additional callbacks.
+
+    A **fresh** ``CallbackHandler`` is created on every call so that each
+    LangChain invocation gets its own OpenTelemetry context, avoiding the
+    ``"Token was created in a different Context"`` error that occurs when a
+    singleton handler is shared across async boundaries.
     
     Args:
         additional_callbacks: Optional list of additional callback handlers
         
     Returns:
         List of callback handlers (includes Langfuse if enabled)
-        
-    Example:
-        ```python
-        from app.infrastructure.langfuse_handler import get_langfuse_callbacks
-        
-        callbacks = get_langfuse_callbacks()
-        llm = provider.get_llm(callbacks=callbacks)
-        ```
     """
     callbacks = []
     
-    # Add Langfuse handler if enabled
-    langfuse_handler = get_langfuse_handler()
+    langfuse_handler = get_langfuse_handler(force_new=True)
     if langfuse_handler:
         callbacks.append(langfuse_handler)
     
-    # Add additional callbacks if provided
     if additional_callbacks:
         callbacks.extend(additional_callbacks)
     

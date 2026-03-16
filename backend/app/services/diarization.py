@@ -121,7 +121,7 @@ async def _diarize_assemblyai(audio_path: Path, api_key: str) -> list[DiarizedUt
 
     aai.settings.api_key = api_key
 
-    config = aai.TranscriptionConfig(speaker_labels=True)
+    config = aai.TranscriptionConfig(speaker_labels=True, speech_models=["universal-3-pro", "universal-2"], language_detection=True, speakers_expected=None)
     transcriber = aai.Transcriber(config=config)
 
     # assemblyai SDK is synchronous — run in a thread so we don't block the loop
