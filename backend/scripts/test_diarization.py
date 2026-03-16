@@ -34,8 +34,8 @@ load_dotenv(backend_dir / ".env")
 
 
 async def run_diarization_only(file_path: Path, provider: str) -> None:
-    from app.services.audio_extractor import extract_audio
-    from app.services.diarization import diarize
+    from app.infrastructure.audio_extractor import extract_audio
+    from app.infrastructure.diarization import diarize
 
     # If the file is already a WAV, skip extraction
     if file_path.suffix.lower() == ".wav":
@@ -67,9 +67,9 @@ async def run_diarization_only(file_path: Path, provider: str) -> None:
 
 
 async def run_full_pipeline(file_path: Path, provider: str) -> None:
-    from app.services.audio_extractor import extract_audio
-    from app.services.diarization import diarize
-    from app.services.frame_extractor import extract_speaker_frames
+    from app.infrastructure.audio_extractor import extract_audio
+    from app.infrastructure.diarization import diarize
+    from app.infrastructure.frame_extractor import extract_speaker_frames
     from app.services.speaker_identifier import identify_speakers
     from app.config import get_settings
 

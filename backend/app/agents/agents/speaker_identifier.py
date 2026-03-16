@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.infrastructure.circuit_breaker import get_llm_circuit_breaker
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
-from app.services.diarization import DiarizedUtterance
+from app.infrastructure.diarization import DiarizedUtterance
 from app.utils.logging import get_logger
 
 logger = get_logger("speaker_identifier_agent")

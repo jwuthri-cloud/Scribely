@@ -1,0 +1,80 @@
+---
+description: Backend architecture, file organization, and data flow
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend Architecture (FastAPI)
+
+Scribely backend is a FastAPI app that receives meeting uploads from the desktop app, runs diarization/speaker identification, and exposes APIs for chat, auth, and metrics.
+
+## File Organization
+
+```
+backend/
+├── app/
+│   ├── main.py              # FastAPI app entry, lifespan, middleware
+│   ├── config.py            # Pydantic Settings (env vars)
+│   ├── exceptions.py        # Custom exceptions + handlers
+│   ├── api/
+│   │   ├── deps.py          # FastAPI dependencies (auth, db session)
+│   │   ├── response_wrapper.py
+│   │   └── v1/              # Versioned API routes
+│   │       ├── router.py     # Aggregates all v1 routers
+│   │       ├── auth.py       # Clerk JWT verification
+│   │       ├── chat.py       # Chat endpoints
+│   │       ├── health.py     # Health checks
+│   │       ├── meetings.py   # Meeting sync, upload, processing status
+│   │       └── metrics.py    # Metrics/monitoring
+│   ├── agents/              # LLM agents (LangChain + OpenRouter)
+│   │   ├── base.py          # BaseAgent, SimpleAgent
+│   │   ├── registry.py      # AgentRegistry
+│   │   ├── agents/<name>.py  # Agent implementations
+│   │   ├── prompt/<name>.py  # SYSTEM_PROMPT strings
+│   │   ├── structured_output/<name>.py  # Pydantic response models
+│   │   └── tool/<name>.py    # @tool functions
+│   ├── database/
+│   │   ├── base.py          # SQLAlchemy Base
+│   │   ├── session.py       # Async session, get_async_session
+│   │   ├── models/          # SQLAlchemy models (User, etc.)
+│   │   └── repositories/    # Data access layer
+│   ├── services/            # Business logic / pipeline orchestration
+│   │   ├── meeting_processor.py  # Orchestrates: audio → diarize → frames → speaker ID
+│   │   ├── speaker_identifier.py # Thin wrapper around SpeakerIdentifierAgent
+│   │   └── task_runner.py        # Async background task scheduling
+│   ├── infrastructure/      # External integrations
+│   │   ├── llm_provider.py   # OpenRouterProvider
+│   │   ├── langfuse_handler.py
+│   │   ├── circuit_breaker.py
+│   │   ├── diarization/      # Speaker diarization (base + providers)
+│   │   │   ├── base.py       # BaseDiarizer ABC
+│   │   │   ├── types.py      # DiarizedUtterance dataclass
+│   │   │   ├── deepgram.py   # DeepgramDiarizer
+│   │   │   └── assemblyai.py # AssemblyAIDiarizer
+│   │   ├── audio_extractor/  # WebM → WAV via ffmpeg
+│   │   │   └── ffmpeg.py     # FfmpegAudioExtractor
+│   │   └── frame_extractor/  # Video frame extraction via ffmpeg
+│   │       └── ffmpeg.py     # FfmpegFrameExtractor
+│   ├── middleware/          # Rate limit, CORS, etc.
+│   ├── security/            # Clerk auth
+│   ├── models/              # Pydantic API models (not DB)
+│   └── utils/               # Logging, exceptions, helpers
+├── alembic/                 # Migrations
+├── tests/
+└── pyproject.toml
+```
+
+## Data Flow: Meeting Sync
+
+1. **Desktop app** uploads `transcript.json` + `recording.webm` via `POST /api/v1/meetings`
+2. Files stored at `{upload_dir}/{user_id}/{meeting_id}/`
+3. `schedule_processing()` enqueues background task (or runs inline)
+4. **MeetingProcessor** pipeline: extract audio → diarize (Deepgram/AssemblyAI) → extract frames → speaker ID (LLM vision) → save `transcript_enriched.json`
+5. Client polls `GET /api/v1/meetings/{id}/status` for processing status
+
+## Key Patterns
+
+- **Dependencies**: `get_async_db_session`, `get_current_user_with_db` in `api/deps.py`
+- **Config**: `get_settings()` from `config.py`; env vars via Pydantic
+- **Agents**: Use `OpenRouterProvider.get_llm()`; never direct OpenAI SDK (see agent-architecture.mdc)
+- **Database**: SQLAlchemy async; SQLite default, PostgreSQL in Docker

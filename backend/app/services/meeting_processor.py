@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from app.config import get_settings
-from app.services.audio_extractor import extract_audio
-from app.services.diarization import DiarizedUtterance, diarize
-from app.services.frame_extractor import extract_speaker_frames
+from app.infrastructure.audio_extractor import extract_audio
+from app.infrastructure.diarization import DiarizedUtterance, diarize
+from app.infrastructure.frame_extractor import extract_speaker_frames
 from app.services.speaker_identifier import identify_speakers
 from app.utils.logging import get_logger
 

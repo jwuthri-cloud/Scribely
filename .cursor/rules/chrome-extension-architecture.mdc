@@ -1,0 +1,56 @@
+---
+description: Chrome extension architecture and WebSocket communication with desktop
+globs: chrome-extension/**/*
+alwaysApply: false
+---
+
+# Chrome Extension Architecture
+
+Scribely Tab Capture is a Manifest V3 Chrome extension that captures tab audio/video from browser meetings and streams it to the desktop app over a local WebSocket. No build step — plain JS, loaded as unpacked extension.
+
+## File Organization
+
+```
+chrome-extension/
+├── manifest.json       # Permissions: tabCapture, offscreen, activeTab, tabs
+├── background.js       # Service worker: lifecycle, offscreen, state, WS check
+├── popup.html / popup.js   # Extension popup: connection status, start/stop
+├── offscreen.html / offscreen.js  # Hidden doc: media capture, WebSocket stream
+├── permissions.html / permissions.js  # Mic permission request
+├── content-script.js   # Injected on meeting URLs (Google Meet, Zoom, etc.)
+├── meeting-detector.js  # isMeetingUrl() for URL matching
+├── pcm-worklet.js      # AudioWorklet: tab audio → 16kHz PCM
+├── pcm-injector-worklet.js  # Upsamples Electron-relayed mic PCM
+└── icons/
+```
+
+## Communication Flow
+
+1. **Background** checks desktop: `ws://127.0.0.1:9876` (2s timeout)
+2. User clicks "Start Sharing" → `background.js` gets `tabCapture` stream ID
+3. Creates offscreen document → `offscreen.js` captures tab media + connects WS
+4. Sends `{ type: 'hello', source: 'chrome-extension', sampleRate: 16000 }`
+5. Desktop `ExtensionWsServer` emits `connected` → auto-starts meeting
+6. Audio: `pcm-worklet.js` extracts 16kHz PCM → WebSocket binary
+7. Video: MediaRecorder (VP9, 2.5 Mbps, 1s chunks) → WebSocket
+8. On stop: `capture-stopped` → desktop auto-stops
+
+## Binary Protocol (Desktop ↔ Extension)
+
+| Byte | Type | Direction | Payload |
+|------|------|-----------|---------|
+| 0x01 | Audio PCM | ext → desktop | Float32Array (16kHz) |
+| 0x02 | Video chunk | ext → desktop | WebM blob |
+| 0x03 | Control | bidirectional | JSON (hello, stop-capture, capture-stopped) |
+| 0x04 | Mic PCM | desktop → ext | Float32Array (fallback mic relay) |
+
+## Content Scripts
+
+`manifest.json` injects `content-script.js` on meeting URLs (Google Meet, Zoom, Teams, Webex, GoToMeeting). Used for widget/state sync; background broadcasts `scribely:state-update` to meeting tabs.
+
+## Key Patterns
+
+- **No build**: Load as unpacked extension in Chrome
+- **Offscreen document**: Required for `tabCapture` + MediaRecorder in MV3
+- **Meeting detection**: `meeting-detector.js` defines `isMeetingUrl()`
+- **Mic fallback**: If offscreen can't get mic, desktop relays mic PCM via 0x04

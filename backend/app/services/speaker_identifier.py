@@ -10,7 +10,7 @@ from pathlib import Path
 
 from app.agents.agents.speaker_identifier import SpeakerIdentifierAgent
 from app.config import get_settings
-from app.services.diarization import DiarizedUtterance
+from app.infrastructure.diarization import DiarizedUtterance
 from app.utils.logging import get_logger
 
 logger = get_logger("speaker_identifier")

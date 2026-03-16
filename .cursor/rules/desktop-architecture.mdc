@@ -1,0 +1,78 @@
+---
+description: Desktop (Electron) app architecture, IPC, and file organization
+globs: desktop/**/*
+alwaysApply: false
+---
+
+# Desktop Architecture (Electron)
+
+Scribely desktop is a macOS-only Electron overlay app. It floats above all windows, is invisible to screen sharing, and provides live transcription (local Whisper), AI chat, and real-time insights.
+
+## File Organization
+
+```
+desktop/
+├── src/
+│   ├── main/                   # Main process (Node.js)
+│   │   ├── index.ts            # Entry: window, IPC registration, lifecycle
+│   │   ├── hotkey.ts           # Global hotkeys (Alt+T, Alt+M)
+│   │   ├── invisibility.ts     # NSWindow screen-share hiding
+│   │   ├── ws-server.ts        # WebSocket server (port 9876) for Chrome extension
+│   │   ├── native-bridge.ts    # Unix socket → Swift NativeHelper
+│   │   ├── screen-recorder.ts  # ScreenCaptureKit
+│   │   ├── audio/              # Audio pipeline
+│   │   │   ├── pipeline.ts     # VAD + Whisper + frame routing
+│   │   │   ├── transcriber.ts  # Local Whisper
+│   │   │   └── vad.ts
+│   │   ├── llm/                # OpenAI SDK (direct, not OpenRouter)
+│   │   │   ├── llm-service.ts   # Chat, streaming, system prompts
+│   │   │   ├── prompt-assembler.ts
+│   │   │   └── background-summarizer.ts
+│   │   └── insights/           # Live Insights
+│   │       ├── insight-engine.ts
+│   │       └── heuristic-detector.ts
+│   ├── preload/index.ts        # contextBridge → ElectronAPI
+│   └── renderer/src/           # React 18 frontend
+│       ├── components/          # Overlay, LiveTranscriptPanel, InputBar, etc.
+│       ├── hooks/               # useChat, useAudioCapture, useMeetingTranscript
+│       ├── types/               # ElectronAPI, settings, transcript
+│       └── themes/              # Theme registry
+├── native/                     # Swift NativeHelper (ScreenCaptureKit)
+└── package.json
+```
+
+## Three-Process Model
+
+| Process | Role |
+|---------|------|
+| **Main** | Owns AudioPipeline, LLMService, InsightEngine, ExtensionWsServer, electron-store, hotkeys |
+| **Preload** | Secure bridge via `contextBridge`; exposes `window.electronAPI` |
+| **Renderer** | React UI; all data via `window.electronAPI` |
+
+## IPC Patterns
+
+| Pattern | Direction | Example |
+|---------|------------|---------|
+| `invoke` | renderer → main → renderer | `llm:set-model`, `meeting:start-session` |
+| `send` | renderer → main | `llm:chat`, `update-settings`, `meeting:audio-frame` |
+| `on` | main → renderer | `llm:chat-delta`, `meeting:transcript-entry`, `insight:new` |
+
+**Adding a new IPC channel**: Update `main/index.ts`, `preload/index.ts`, and `renderer/src/types/index.ts`.
+
+## Audio Pipeline
+
+Three capture modes (priority: extension > native > browser):
+1. **Extension** — Chrome extension streams 16kHz PCM over WebSocket
+2. **Native** — Swift NativeHelper (ScreenCaptureKit) + mic via getUserMedia
+3. **Browser** — getUserMedia + getDisplayMedia fallback
+
+Flow: PCM → resample 16kHz → energy gate → 2s chunks → Whisper → transcript entry → renderer
+
+## Commands
+
+```bash
+npm run dev          # Dev with HMR
+npm run build        # Build main + preload + renderer
+npm run build:native # Build Swift NativeHelper
+npm run typecheck
+```

@@ -1,0 +1,69 @@
+---
+description: Frontend (Next.js marketing site) architecture and file organization
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend Architecture (Next.js)
+
+Scribely frontend is a Next.js 14 marketing website (landing, blog, pricing, download, contact). It uses the App Router and does not run the desktop app — that is a separate Electron project.
+
+## File Organization
+
+```
+frontend/
+├── src/
+│   ├── app/                    # App Router (Next.js 14)
+│   │   ├── layout.tsx          # Root layout: Navbar, Footer, fonts
+│   │   ├── page.tsx            # Home: Hero, Features, HowItWorks, etc.
+│   │   ├── globals.css         # Tailwind + CSS variables
+│   │   ├── (app)/              # Route group
+│   │   │   └── layout.tsx
+│   │   ├── about/
+│   │   ├── blog/               # Blog listing + [slug] dynamic route
+│   │   ├── contact/
+│   │   ├── download/           # Download page
+│   │   ├── pricing/
+│   │   ├── privacy/
+│   │   ├── setup/              # Setup guide
+│   │   ├── terms/
+│   │   └── api/                # API routes (e.g. contact form)
+│   │       └── contact/route.ts
+│   ├── components/
+│   │   ├── layout/             # Navbar, Footer
+│   │   ├── landing/            # Hero, Features, HowItWorks, FAQ, CTA, etc.
+│   │   ├── pricing/            # Pricing cards, feature table
+│   │   ├── blog/               # Blog components
+│   │   ├── download/           # Download cards
+│   │   ├── setup/              # Setup guide
+│   │   └── ui/                 # Reusable: Button, Accordion, Badge, ShaderBackground
+│   └── lib/
+│       ├── utils.ts            # cn(), etc.
+│       └── blog-posts.ts        # Blog content/metadata
+├── package.json
+└── tailwind.config.ts
+```
+
+## Tech Stack
+
+- **Next.js 14** with App Router
+- **React 18**, **Tailwind CSS**, **Framer Motion**
+- **Radix UI** (Accordion, NavigationMenu, Separator, Slot)
+- **Lucide React** for icons
+- **class-variance-authority** + **clsx** + **tailwind-merge** for component variants
+
+## Key Patterns
+
+- **Layout**: Root layout wraps all pages with Navbar + Footer; dark theme by default
+- **Fonts**: Inter (body), Space Grotesk (headings) via `next/font/google`
+- **Metadata**: Centralized in `layout.tsx`; `metadataBase` for scribely.app
+- **API routes**: Server actions or Route Handlers in `app/api/`
+- **Styling**: Tailwind + `@/components/ui` for shared primitives
+
+## Commands
+
+```bash
+npm run dev      # localhost:3000
+npm run build
+npm run lint
+```
