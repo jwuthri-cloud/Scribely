@@ -1,0 +1,53 @@
+---
+description: Workflow orchestration, task management, and core development principles
+alwaysApply: true
+---
+
+# Workflow Orchestration
+
+## Plan Node Default
+- Plan in detail for non-trivial tasks
+- Re-plan immediately if issues arise
+- Use plan mode for verification
+- Write detailed specifications upfront
+
+## Subagent Strategy
+- Use subagents to manage context and offload complex work
+- Assign one specific task per subagent for focused execution
+- Delegate research and parallel analysis to subagents
+
+## Self-Improvement Loop
+- After any user correction, update `tasks/lessons.md`
+- Write self-enforcing rules to prevent repeat mistakes
+- Iterate ruthlessly on lessons to reduce error rates
+- Review lessons at the start of relevant project sessions
+
+## Verification Before Done
+- Never mark a task complete without proving functionality
+- Diff changes against main branch
+- Ask: "Would a staff engineer approve?"
+- Demonstrate correctness through tests and logs
+
+## Demand Elegance (Balanced)
+- Pause to seek more elegant solutions for non-trivial changes or hacky fixes
+- Avoid over-engineering for simple problems
+- Challenge your own work
+
+## Autonomous Bug Fixing
+- Fix bug reports without explicit hand-holding
+- Use logs, errors, and failing tests as starting points
+- Zero context switching from the user
+- Proactively fix failing CI tests
+
+## Task Management
+1. **Plan First**: Write a plan in `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check the plan before implementation
+3. **Track Progress**: Mark items complete as work progresses
+4. **Explain Changes**: Provide a high-level summary at each step
+5. **Document Results**: Add a review section to `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+## Core Principles
+- **Simplicity First**: Make changes as simple as possible, minimal code impact
+- **No Laziness**: Identify root causes, avoid temporary fixes, adhere to senior developer standards
+- **Minimal Impact**: Changes should only affect what's necessary to avoid introducing bugs
