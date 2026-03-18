@@ -93,7 +93,7 @@ def get_model_context_limit(
     
     Args:
         provider: OpenRouterProvider instance
-        model_name: Model name (e.g., "openai/gpt-4o-mini")
+        model_name: Model name (e.g., "openai/gpt-5.4-mini")
         use_cache: Whether to use cached models
     
     Returns:
@@ -114,7 +114,7 @@ def get_model_max_completion(
     
     Args:
         provider: OpenRouterProvider instance
-        model_name: Model name (e.g., "openai/gpt-4o-mini")
+        model_name: Model name (e.g., "openai/gpt-5.4-mini")
         use_cache: Whether to use cached models
     
     Returns:
@@ -133,7 +133,7 @@ def get_model_limits(
     
     Args:
         provider: OpenRouterProvider instance
-        model_name: Model name (e.g., "openai/gpt-4o-mini")
+        model_name: Model name (e.g., "openai/gpt-5.4-mini")
         use_cache: Whether to use cached models
     
     Returns:

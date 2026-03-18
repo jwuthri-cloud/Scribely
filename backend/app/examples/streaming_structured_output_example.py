@@ -21,6 +21,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from app.agents.agents import CustomerSupportAgent
 from app.agents.structured_output.customer_support import CustomerSupportResponse
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GEMINI_PRO, GROK_FAST
 from app.utils.logging import get_logger
 
 from langfuse import propagate_attributes
@@ -30,10 +31,10 @@ console = Console()
 
 # Models to test for each provider
 PROVIDER_MODELS = {
-    "Anthropic": "anthropic/claude-4.5-sonnet",
-    "OpenAI": "openai/gpt-4o-mini",
-    "Google": "google/gemini-3-pro-preview",
-    "xAI": "x-ai/grok-4-fast",
+    "Anthropic": CLAUDE_SONNET,
+    "OpenAI": DEFAULT_TRAINING,
+    "Google": GEMINI_PRO,
+    "xAI": GROK_FAST,
 }
 
 

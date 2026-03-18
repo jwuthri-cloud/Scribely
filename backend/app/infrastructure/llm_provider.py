@@ -9,6 +9,14 @@ from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 from app.infrastructure.langfuse_handler import get_langfuse_callbacks
+from app.model_name import (
+    CLAUDE_SONNET,
+    DEFAULT_TRAINING,
+    EMBEDDING_SMALL,
+    GPT_MINI,
+    MIXTRAL,
+    MYTHOMAX,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger("llm_provider")
@@ -35,7 +43,7 @@ class OpenRouterProvider:
     
     def get_llm(
         self,
-        model_name: str = "openai/gpt-4o-mini",
+        model_name: str = DEFAULT_TRAINING,
         temperature: float = 0,
         callbacks: Optional[List] = None,
         fallback_models: Optional[List[str]] = None,
@@ -46,7 +54,7 @@ class OpenRouterProvider:
         Get configured OpenRouter LLM instance.
         
         Args:
-            model_name: OpenRouter model name (e.g., "openai/gpt-4o-mini")
+            model_name: OpenRouter model name (e.g., "openai/gpt-5.4-mini")
             temperature: Model temperature (0-2)
             callbacks: Optional list of callback handlers (Langfuse is added automatically if enabled)
             fallback_models: Optional list of fallback model names. If provided, OpenRouter
@@ -67,13 +75,13 @@ class OpenRouterProvider:
             ```python
             # With fallback models (Langfuse automatically enabled if configured)
             llm = provider.get_llm(
-                model_name="anthropic/claude-3.5-sonnet",
-                fallback_models=["openai/gpt-4o-mini", "gryphe/mythomax-l2-13b"]
+                model_name=CLAUDE_SONNET,
+                fallback_models=[GPT_MINI, MYTHOMAX]
             )
             
             # With provider routing
             llm = provider.get_llm(
-                model_name="mistralai/mixtral-8x7b-instruct",
+                model_name=MIXTRAL,
                 provider_config={
                     "order": ["openai", "together"],
                     "allow_fallbacks": True
@@ -82,7 +90,7 @@ class OpenRouterProvider:
             
             # Disable Langfuse for this specific call
             llm = provider.get_llm(
-                model_name="openai/gpt-4o-mini",
+                model_name=GPT_MINI,
                 enable_langfuse=False
             )
             ```
@@ -129,7 +137,7 @@ class OpenRouterProvider:
         
         Args:
             models: List of model names in priority order (e.g., 
-                ["anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"])
+                [CLAUDE_SONNET, GPT_MINI])
             temperature: Model temperature (0-2)
             callbacks: Optional list of callback handlers
             provider_config: Optional provider routing configuration (see get_llm for details)
@@ -143,9 +151,9 @@ class OpenRouterProvider:
         Example:
             ```python
             llm = provider.get_llm_with_fallbacks([
-                "anthropic/claude-3.5-sonnet",
-                "openai/gpt-4o-mini",
-                "gryphe/mythomax-l2-13b"
+                CLAUDE_SONNET,
+                GPT_MINI,
+                MYTHOMAX,
             ])
             ```
         """
@@ -245,7 +253,7 @@ class OpenRouterProvider:
         Get model context limit from OpenRouter models cache.
         
         Args:
-            model_name: Model name (e.g., "openai/gpt-4o-mini")
+            model_name: Model name (e.g., "openai/gpt-5.4-mini")
             use_cache: Whether to use cached models
         
         Returns:
@@ -275,7 +283,7 @@ class OpenRouterProvider:
         Get model max completion tokens from OpenRouter models cache.
         
         Args:
-            model_name: Model name (e.g., "openai/gpt-4o-mini")
+            model_name: Model name (e.g., "openai/gpt-5.4-mini")
             use_cache: Whether to use cached models
         
         Returns:
@@ -300,7 +308,7 @@ class OpenRouterProvider:
 class OpenRouterEmbeddings(Embeddings):
     """OpenRouter embeddings implementation using direct HTTP requests."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "openai/text-embedding-3-small"):
+    def __init__(self, api_key: Optional[str] = None, model: str = EMBEDDING_SMALL):
         """
         Initialize OpenRouter embeddings.
 

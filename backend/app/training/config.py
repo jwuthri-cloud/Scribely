@@ -5,6 +5,8 @@ from typing import Literal, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.model_name import DEFAULT_TRAINING
+
 
 class TrainingSettings(BaseSettings):
     """Settings for agent-lightning training algorithms."""
@@ -23,11 +25,11 @@ class TrainingSettings(BaseSettings):
         description="Enable APO training algorithm"
     )
     apo_gradient_model: str = Field(
-        default="openai/gpt-5-mini",
+        default=DEFAULT_TRAINING,
         description="Model for computing textual gradients in APO"
     )
     apo_apply_edit_model: str = Field(
-        default="openai/gpt-5-mini",
+        default=DEFAULT_TRAINING,
         description="Model for applying edits based on gradients"
     )
     apo_beam_width: int = Field(

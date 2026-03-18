@@ -1,7 +1,7 @@
 /**
  * Background transcript summarizer for Phase 2 scaling.
  *
- * Runs async using gpt5-nano. Processes entries[0] through entries[length - 25],
+ * Runs async using gpt-5.4-nano. Processes entries[0] through entries[length - 25],
  * keeping the last 25 as raw. Incremental: each run includes the previous summary
  * as context. Does not block chat.
  */
@@ -22,7 +22,7 @@ interface TranscriptEntry {
 }
 
 const log = createLogger('background-summarizer')
-const GPT5_NANO_MODEL = 'gpt-5-nano'
+const GPT5_NANO_MODEL = 'gpt-5.4-nano'
 const DEFAULT_KEEP_RAW_COUNT = 5
 
 function formatEntry(entry: TranscriptEntry): string {
@@ -36,7 +36,7 @@ export interface SummarizerInput {
   client: OpenAI
   transcriptMemory: TranscriptMemory
   entries: TranscriptEntry[]
-  /** Model to use (e.g. gpt-5-nano for OpenAI, llama3.2 for Ollama) */
+  /** Model to use (e.g. gpt-5.4-nano for OpenAI, llama3.2 for Ollama) */
   model?: string
   /** Omit OpenAI-specific params (reasoning_effort) for local providers */
   stripOpenAIParams?: boolean

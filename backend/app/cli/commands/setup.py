@@ -93,7 +93,7 @@ REDIS_URL=redis://localhost:6379/0
 # LLM Configuration
 # OpenRouter (provides access to 500+ models)
 OPENROUTER_API_KEY=your-openrouter-api-key
-DEFAULT_MODEL=openai/gpt-4o-mini
+DEFAULT_MODEL=openai/gpt-5.4-mini
 
 # Rate Limiting
 RATE_LIMIT_PER_MINUTE=60

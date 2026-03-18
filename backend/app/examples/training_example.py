@@ -35,6 +35,7 @@ from app.training.rewards.base import (
     create_weighted_reward,
     customer_support_reward,
 )
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 logger = get_logger("training_example")
@@ -167,7 +168,7 @@ async def basic_training_example():
     
     # 2. Create LitAgent
     lit_agent = LitCustomerSupportAgent(
-        model_name="openai/gpt-5-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.7,
         reward_fn=customer_support_reward,
     )
@@ -253,7 +254,7 @@ async def advanced_training_example():
     
     # 3. Create LitAgent with custom reward
     lit_agent = LitCustomerSupportAgent(
-        model_name="openai/gpt-5-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.7,
         reward_fn=weighted_reward,
         include_langfuse=True,  # Enable Langfuse for observability
@@ -338,7 +339,7 @@ async def evaluate_prompt(prompt: str, tasks: list):
     from app.agents.tool.customer_support import CUSTOMER_SUPPORT_TOOLS
     
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-5-mini", temperature=0.7)
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING, temperature=0.7)
     
     agent = create_agent(
         model=llm,

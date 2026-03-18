@@ -88,7 +88,7 @@ When provider is local, omit from all `chat.completions.create` calls:
 
 ### 3. Model Configuration
 
-**Current:** Fixed `gpt5-nano`, `gpt5-mini`, `gpt-5.2` with 400k context.
+**Current:** Fixed `gpt5-nano`, `gpt5-mini`, `gpt-5.4` with 400k context.
 
 **Local:** Dynamic model list with smaller context windows (typically 4k–128k).
 

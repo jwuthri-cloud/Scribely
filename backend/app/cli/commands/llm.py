@@ -9,6 +9,8 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GPT_MINI, MYTHOMAX
+
 console = Console()
 
 
@@ -69,8 +71,8 @@ def list():
 @llm.command()
 @click.option(
     "--model",
-    default="openai/gpt-4o-mini",
-    help="OpenRouter model to use (e.g., 'openai/gpt-4o-mini')"
+    default=DEFAULT_TRAINING,
+    help=f"OpenRouter model to use (e.g., '{DEFAULT_TRAINING}')"
 )
 @click.option(
     "--fallback",
@@ -136,8 +138,8 @@ def chat(model, fallback):
 @click.argument("prompt")
 @click.option(
     "--model",
-    default="openai/gpt-4o-mini",
-    help="OpenRouter model to use (e.g., 'openai/gpt-4o-mini')"
+    default=DEFAULT_TRAINING,
+    help=f"OpenRouter model to use (e.g., '{DEFAULT_TRAINING}')"
 )
 @click.option(
     "--temperature",
@@ -198,7 +200,7 @@ def config():
     console.print("[bold blue]OpenRouter Configuration[/bold blue]\n")
 
     api_key = Prompt.ask("OpenRouter API Key", password=True)
-    default_model = Prompt.ask("Default model", default="openai/gpt-4o-mini")
+    default_model = Prompt.ask("Default model", default=DEFAULT_TRAINING)
 
     console.print(f"\n[green]✓ Configuration saved![/green]")
     console.print(f"[dim]Default model: {default_model}[/dim]")
@@ -220,7 +222,7 @@ def chat_fallback(models, temperature):
     The first model is primary, others are fallbacks.
     
     Example:
-        llm chat-fallback anthropic/claude-3.5-sonnet openai/gpt-4o-mini gryphe/mythomax-l2-13b
+        llm chat-fallback anthropic/claude-4.6-sonnet openai/gpt-5.4-mini gryphe/mythomax-l2-13b
     """
     if not models:
         console.print("[red]✗ At least one model must be provided[/red]")

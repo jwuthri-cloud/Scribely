@@ -52,7 +52,7 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 provider = OpenRouterProvider()
 agent = CustomerSupportAgent(
     llm_provider=provider,
-    model_name="openai/gpt-4o-mini",
+    model_name="openai/gpt-5.4-mini",
     temperature=0.7
 )
 
@@ -94,7 +94,7 @@ order_info = check_order_status.invoke({"order_id": "ORD-123"})
 from app.infrastructure.llm_provider import OpenRouterProvider
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-4o-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
 llm_with_tools = llm.bind_tools(CUSTOMER_SUPPORT_TOOLS)
 
 # LLM can now use these tools when needed

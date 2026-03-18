@@ -104,10 +104,10 @@ scribely llm list
 scribely llm test
 
 # Interactive chat
-scribely llm chat --model openai/gpt-4o-mini
+scribely llm chat --model openai/gpt-5.4-mini
 
 # Single completion
-scribely llm complete "Hello, world!" --model openai/gpt-4o-mini
+scribely llm complete "Hello, world!" --model openai/gpt-5.4-mini
 
 # Configure OpenRouter API key
 scribely llm config

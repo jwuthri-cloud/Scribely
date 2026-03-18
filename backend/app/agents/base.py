@@ -18,6 +18,7 @@ from app.infrastructure.circuit_breaker import (
 )
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 logger = get_logger("base_agent")
@@ -28,7 +29,7 @@ T = TypeVar("T", bound=BaseModel)
 
 class AgentConfig(BaseModel):
     """Configuration for an agent."""
-    model_name: str = "openai/gpt-4o-mini"
+    model_name: str = DEFAULT_TRAINING
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     fallback_models: List[str] = []

@@ -113,7 +113,7 @@ import { runSuggestFollowUp } from './follow-up-suggestions'
 
 // ── Types (mirrored from renderer for main process use) ──
 
-type ModelId = 'gpt5-nano' | 'gpt5-mini' | 'gpt-5.2'
+type ModelId = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-5.4'
 
 interface ModelConfig {
   id: string
@@ -123,23 +123,23 @@ interface ModelConfig {
 }
 
 const OPENAI_MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt5-nano': {
-    id: 'gpt5-nano',
-    apiModel: 'gpt-5-nano',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
+  'gpt-5.4-nano': {
+    id: 'gpt-5.4-nano',
+    apiModel: 'gpt-5.4-nano',
+    contextWindow: 400_000,
+    maxResponseTokens: 128_000,
   },
-  'gpt5-mini': {
-    id: 'gpt5-mini',
-    apiModel: 'gpt-5-mini',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
+  'gpt-5.4-mini': {
+    id: 'gpt-5.4-mini',
+    apiModel: 'gpt-5.4-mini',
+    contextWindow: 400_000,
+    maxResponseTokens: 128_000,
   },
-  'gpt-5.2': {
-    id: 'gpt-5.2',
-    apiModel: 'gpt-5.2',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
+  'gpt-5.4': {
+    id: 'gpt-5.4',
+    apiModel: 'gpt-5.4',
+    contextWindow: 1_050_000,
+    maxResponseTokens: 128_000,
   },
 }
 
@@ -150,9 +150,9 @@ const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt5-nano': { inputPer1M: 0.05, outputPer1M: 0.4, cachedPer1M: 0.025 },
-  'gpt5-mini': { inputPer1M: 0.25, outputPer1M: 2.0, cachedPer1M: 0.125 },
-  'gpt-5.2': { inputPer1M: 1.75, outputPer1M: 14.0, cachedPer1M: 0.875 },
+  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
 }
 
 interface TranscriptEntry {
@@ -276,8 +276,8 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Current model (user-switchable). For OpenAI: gpt5-nano, gpt5-mini, gpt-5.2. For local: model name from API.
-  private currentModel: string = 'gpt-5.2'
+  // Current model (user-switchable). For OpenAI: gpt-5.4-nano, gpt-5.4-mini, gpt-5.4. For local: model name from API.
+  private currentModel: string = 'gpt-5.4'
 
   // Cached local models (context window, etc.) from Ollama/LM Studio API
   private localModels: LocalModelInfo[] = []
@@ -339,7 +339,7 @@ export class LLMService {
     if (provider === 'openai') {
       const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
       if (cfg) return cfg
-      return MODEL_CONFIGS['gpt-5.2']
+      return MODEL_CONFIGS['gpt-5.4']
     }
     const local = this.localModels.find((m) => m.id === this.currentModel)
     return {
@@ -900,8 +900,8 @@ export class LLMService {
 
     // OpenAI-specific params — omit for local providers
     if (!this.isLocalProvider()) {
-      const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
-      const isGpt52 = this.currentModel === 'gpt-5.2'
+      const reasoningEffort = this.currentModel === 'gpt-5.4' ? 'none' : 'low'
+      const isGpt52 = this.currentModel === 'gpt-5.4'
       Object.assign(requestParams, {
         prompt_cache_key: this.sessionId,
         ...(isGpt52 && { prompt_cache_retention: '24h' }),
@@ -1215,7 +1215,7 @@ Rules:
 
   /**
    * Validate whether a candidate utterance is a genuine question from another person.
-   * Uses gpt5-nano with last ~500 tokens of transcript context.
+   * Uses gpt-5.4-nano with last ~500 tokens of transcript context.
    * Returns both the raw question and a self-contained contextual rewrite, or null if not a real question.
    */
   async validateQuestion(
@@ -1296,7 +1296,7 @@ Rules for question_with_context:
 
   /**
    * One-shot completion for Live Insights enrichment.
-   * Uses gpt5-nano. Returns parsed JSON or null on failure.
+   * Uses gpt-5.4-nano. Returns parsed JSON or null on failure.
    */
   async enrichForInsight(
     eventType: string,

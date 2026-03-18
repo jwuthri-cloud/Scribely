@@ -17,6 +17,7 @@ from app.infrastructure.circuit_breaker import (
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.middleware.rate_limit import RateLimits, limiter
+from app.model_name import DEFAULT_TRAINING
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -33,7 +34,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     """Chat request model."""
     message: str = Field(..., min_length=1, description="User message")
-    model: Optional[str] = Field("openai/gpt-4o-mini", description="OpenRouter model name")
+    model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
     session_id: Optional[str] = Field(None, description="Session ID for grouping related traces in Langfuse")
 
@@ -126,7 +127,7 @@ async def chat(
 class StreamingChatRequest(BaseModel):
     """Chat request model for streaming endpoint."""
     message: str = Field(..., min_length=1, description="User message")
-    model: Optional[str] = Field("openai/gpt-4o-mini", description="OpenRouter model name")
+    model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
     session_id: Optional[str] = Field(None, description="Session ID for grouping related traces")
 

@@ -17,6 +17,7 @@ from app.agents.tool.customer_support import (
     CUSTOMER_SUPPORT_TOOLS,
 )
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 logger = get_logger("tool_example")
@@ -53,7 +54,7 @@ def tool_with_llm():
     
     # Initialize provider
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-4o-mini", temperature=0)
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING, temperature=0)
     
     # Bind tools to LLM
     llm_with_tools = llm.bind_tools(CUSTOMER_SUPPORT_TOOLS)

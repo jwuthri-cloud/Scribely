@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.model_name import DEFAULT_TRAINING
+
 from ...utils.logging import get_logger
 from ..models.agent import Agent
 
@@ -23,7 +25,7 @@ class AgentRepository:
         name: str,
         agent_type: str,
         system_prompt: Optional[str] = None,
-        model_name: str = "openai/gpt-4o-mini",
+        model_name: str = DEFAULT_TRAINING,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         tools: Optional[List[str]] = None,

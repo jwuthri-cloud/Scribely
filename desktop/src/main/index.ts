@@ -143,7 +143,7 @@ const store = new Store<AppSettings>({
     },
     llm: {
       apiKey: '',
-      defaultModel: 'gpt5-mini',
+      defaultModel: 'gpt-5.4-mini',
       temperature: 0.3,
       activeSystemPromptId: null,
       systemPrompts: [],

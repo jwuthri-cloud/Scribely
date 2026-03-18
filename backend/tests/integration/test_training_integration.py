@@ -20,6 +20,7 @@ from app.training.datasets.base import (
     load_dataset_from_list,
 )
 from app.training.litagent.base import LitLangChainAgent
+from app.model_name import DEFAULT_TRAINING, GPT_NORMAL
 from app.training.litagent.customer_support import (
     LitCustomerSupportAgent,
     create_lit_customer_support_agent,
@@ -299,23 +300,23 @@ class TestLitAgents:
     def test_lit_customer_support_agent_creation(self):
         """Test LitCustomerSupportAgent can be created."""
         agent = LitCustomerSupportAgent(
-            model_name="openai/gpt-5-mini",
+            model_name=DEFAULT_TRAINING,
             temperature=0.7,
         )
         
         assert agent is not None
-        assert agent._model_name == "openai/gpt-5-mini"
+        assert agent._model_name == DEFAULT_TRAINING
         assert agent._temperature == 0.7
     
     def test_lit_agent_factory_function(self):
         """Test factory function creates agent correctly."""
         agent = create_lit_customer_support_agent(
-            model_name="openai/gpt-5",
+            model_name=GPT_NORMAL,
             temperature=0.5,
         )
         
         assert isinstance(agent, LitCustomerSupportAgent)
-        assert agent._model_name == "openai/gpt-5"
+        assert agent._model_name == GPT_NORMAL
     
     def test_lit_agent_custom_reward(self):
         """Test LitAgent with custom reward function."""

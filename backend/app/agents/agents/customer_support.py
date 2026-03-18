@@ -10,6 +10,7 @@ from app.agents.structured_output.customer_support import CustomerSupportRespons
 from app.agents.tool.customer_support import CUSTOMER_SUPPORT_TOOLS
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 from app.utils.structured_streaming import (
     StructuredStreamingHandler,
@@ -30,7 +31,7 @@ class CustomerSupportAgent:
     def __init__(
         self,
         llm_provider: OpenRouterProvider,
-        model_name: str = "openai/gpt-4o-mini",
+        model_name: str = DEFAULT_TRAINING,
         temperature: float = 0.7,
     ):
         """

@@ -19,6 +19,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.model_name import DEFAULT_TRAINING
+
 import agentlightning as agl
 from openai import AsyncOpenAI
 
@@ -147,7 +149,7 @@ async def run_apo_training(
     
     # 2. Create the LitAgent wrapper
     lit_agent = LitCustomerSupportAgent(
-        model_name="openai/gpt-5-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.7,
         reward_fn=customer_support_reward,
         include_langfuse=True,
@@ -311,7 +313,7 @@ async def compare_prompts(original: str, optimized: str, test_tasks: list):
     from app.agents.tool.customer_support import CUSTOMER_SUPPORT_TOOLS
     
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-5-mini", temperature=0.7)
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING, temperature=0.7)
     
     async def evaluate_prompt(prompt: str, name: str):
         agent = create_agent(

@@ -89,9 +89,9 @@ function IconBtnWithTooltip({
 }
 
 const DEFAULT_MODEL_OPTIONS: { id: string; label: string }[] = [
-  { id: 'gpt5-nano', label: 'Nano' },
-  { id: 'gpt5-mini', label: 'Mini' },
-  { id: 'gpt-5.2', label: '5.2' },
+  { id: 'gpt-5.4-nano', label: 'Nano' },
+  { id: 'gpt-5.4-mini', label: 'Mini' },
+  { id: 'gpt-5.4', label: 'Normal' },
 ]
 
 const SUMMARIZE_ICON = (
@@ -157,7 +157,7 @@ export function InputBar({
   micLevel = 0,
   modelDownloading,
   modelProgress = 0,
-  currentModel = 'gpt-5.2',
+  currentModel = 'gpt-5.4',
   onModelChange,
   modelOptions: modelOptionsProp,
   onSummarizeTranscript,

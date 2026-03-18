@@ -22,6 +22,7 @@ from rich.table import Table
 from app.agents.agents import CustomerSupportAgent
 from app.agents.structured_output.customer_support import CustomerSupportResponse
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 from langfuse import propagate_attributes
@@ -40,7 +41,7 @@ class ConversationTurn:
 
 
 async def multi_turn_conversation_demo(
-    model_name: str = "openai/gpt-4o-mini",
+    model_name: str = DEFAULT_TRAINING,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
 ):

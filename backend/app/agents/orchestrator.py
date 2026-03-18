@@ -18,6 +18,7 @@ from app.infrastructure.circuit_breaker import (
 )
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 logger = get_logger("agent_orchestrator")
@@ -93,7 +94,7 @@ User message: {message}"""
     def __init__(
         self,
         llm_provider: Optional[OpenRouterProvider] = None,
-        router_model: str = "openai/gpt-4o-mini",
+        router_model: str = DEFAULT_TRAINING,
         default_agent: Optional[str] = None
     ):
         """

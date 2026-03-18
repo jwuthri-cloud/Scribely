@@ -131,16 +131,16 @@ Choose from 500+ models available through OpenRouter:
 ```python
 # Latest and greatest models
 "gpt-5"                          # OpenAI's latest
-"anthropic/claude-3.7-sonnet"    # Anthropic's most capable
+"anthropic/claude-4.6-sonnet"    # Anthropic's most capable
 "google/gemini-2.5-pro"          # Google's flagship
 
 # Production workhorses
-"openai/gpt-4o"                  # Reliable and fast
-"anthropic/claude-3.5-sonnet"    # Great for reasoning
+"openai/gpt-5.4"                  # Reliable and fast
+"anthropic/claude-4.6-sonnet"    # Great for reasoning
 "google/gemini-1.5-pro"          # Excellent context window
 
 # Fast and efficient
-"openai/gpt-4o-mini"             # Quick responses (default)
+"openai/gpt-5.4-mini"             # Quick responses (default)
 "anthropic/claude-3-haiku"       # Speed optimized
 "google/gemini-1.5-flash"        # Ultra fast
 ```
@@ -182,14 +182,14 @@ GET /api/v1/auth/health
 POST /api/v1/chat
 {
   "message": "Explain quantum computing",
-  "model": "openai/gpt-4o-mini",  # optional
+  "model": "openai/gpt-5.4-mini",  # optional
   "temperature": 0.7              # optional
 }
 
 # Response
 {
   "response": "Quantum computing is...",
-  "model_used": "openai/gpt-4o-mini"
+  "model_used": "openai/gpt-5.4-mini"
 }
 ```
 

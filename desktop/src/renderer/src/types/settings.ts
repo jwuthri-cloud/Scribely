@@ -85,7 +85,7 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 // ── LLM Settings ────────────────────────────────────────
 export type LLMProvider = 'openai' | 'ollama' | 'lmstudio'
 
-export type ModelId = 'gpt5-nano' | 'gpt5-mini' | 'gpt-5.2'
+export type ModelId = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-5.4'
 
 /** Local model info from Ollama/LM Studio API */
 export interface LocalModelInfo {
@@ -105,28 +105,28 @@ export interface ModelConfig {
 }
 
 export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt5-nano': {
-    id: 'gpt5-nano',
-    apiModel: 'gpt-5-nano',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
+  'gpt-5.4-nano': {
+    id: 'gpt-5.4-nano',
+    apiModel: 'gpt-5.4-nano',
+    contextWindow: 400_000,
+    maxResponseTokens: 128_000,
     label: 'Nano',
     description: 'Fast, low cost',
   },
-  'gpt5-mini': {
-    id: 'gpt5-mini',
-    apiModel: 'gpt-5-mini',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
+  'gpt-5.4-mini': {
+    id: 'gpt-5.4-mini',
+    apiModel: 'gpt-5.4-mini',
+    contextWindow: 400_000,
+    maxResponseTokens: 128_000,
     label: 'Mini',
     description: 'Balanced',
   },
-  'gpt-5.2': {
-    id: 'gpt-5.2',
-    apiModel: 'gpt-5.2',
-    contextWindow: 400000,
-    maxResponseTokens: 128000,
-    label: '5.2',
+  'gpt-5.4': {
+    id: 'gpt-5.4',
+    apiModel: 'gpt-5.4',
+    contextWindow: 1_050_000,
+    maxResponseTokens: 128_000,
+    label: 'Normal',
     description: 'High intelligence',
   },
 }
@@ -136,9 +136,9 @@ export const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt5-nano': { inputPer1M: 0.05, outputPer1M: 0.4, cachedPer1M: 0.025 },
-  'gpt5-mini': { inputPer1M: 0.25, outputPer1M: 2.0, cachedPer1M: 0.125 },
-  'gpt-5.2': { inputPer1M: 1.75, outputPer1M: 14.0, cachedPer1M: 0.875 },
+  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
 }
 
 export function estimateMessageCost(
@@ -297,7 +297,7 @@ export interface LLMSettings {
   /** Base URL for local providers (e.g. http://localhost:11434) */
   localBaseUrl?: string
   apiKey: string
-  /** For OpenAI: gpt5-nano, gpt5-mini, gpt-5.2. For local: model name from API */
+  /** For OpenAI: gpt-5.4-nano, gpt-5.4-mini, gpt-5.4. For local: model name from API */
   defaultModel: string
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
@@ -317,7 +317,7 @@ export interface LLMSettings {
 export const DEFAULT_LLM: LLMSettings = {
   provider: 'openai',
   apiKey: '',
-  defaultModel: 'gpt5-mini',
+  defaultModel: 'gpt-5.4-mini',
   temperature: 0.3,
   activeSystemPromptId: null,
   systemPrompts: [],

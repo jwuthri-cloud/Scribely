@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
+from app.model_name import DEFAULT_TRAINING
+
 from ..base import Base
 
 if TYPE_CHECKING:
@@ -35,7 +37,7 @@ class Agent(Base):
 
     # Agent configuration
     system_prompt = Column(Text, nullable=True)
-    model_name = Column(String(100), default="openai/gpt-4o-mini")
+    model_name = Column(String(100), default=DEFAULT_TRAINING)
     temperature = Column(Float, default=0.7)
     max_tokens = Column(Integer, nullable=True)  # Max output tokens
 

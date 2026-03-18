@@ -77,7 +77,7 @@ export function CompactChatView({
   isRecording = false,
   onToggleRecording,
   onToggleCompactMode,
-  currentModel = 'gpt-5.2',
+  currentModel = 'gpt-5.4',
   onModelChange,
   modelOptions,
   sttTranscript,

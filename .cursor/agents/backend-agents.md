@@ -103,7 +103,7 @@ from app.agents.structured_output.<name> import MyResponse
 from app.agents.tool.<name> import MY_TOOLS
 
 class MyAgent:
-    def __init__(self, llm_provider=None, model_name="openai/gpt-4o-mini", temperature=0.7):
+    def __init__(self, llm_provider=None, model_name="openai/gpt-5.4-mini", temperature=0.7):
         self.llm_provider = llm_provider or OpenRouterProvider()
         self.llm = self.llm_provider.get_llm(model_name=model_name, temperature=temperature)
         self.agent = create_agent(
@@ -152,14 +152,14 @@ class MyAgent(SimpleAgent[MyResponse]):
 
 ### CustomerSupportAgent (`agents/agents/customer_support.py`)
 - Pattern: Option A (create_agent with tools)
-- Model: `openai/gpt-4o-mini`
+- Model: `openai/gpt-5.4-mini`
 - Tools: `search_knowledge_base`, `check_order_status`, `create_support_ticket`, `get_account_info`
 - Output: `CustomerSupportResponse` (response, sentiment, requires_escalation, confidence)
 - Supports: async, sync, streaming, streaming with callback
 
 ### SpeakerIdentifierAgent (`agents/agents/speaker_identifier.py`)
 - Pattern: Option B (with_structured_output, vision model)
-- Model: `settings.speaker_id_vision_model` (default `openai/gpt-5.2`)
+- Model: `settings.speaker_id_vision_model` (default `openai/gpt-5.4`)
 - Input: speaker frames (images) + diarized utterances
 - Output: `SpeakerIdentificationResponse` → `dict[str, str]` mapping
 - Uses circuit breaker and Langfuse

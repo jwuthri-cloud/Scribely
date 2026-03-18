@@ -9,7 +9,7 @@ import { createLogger } from '../logger'
 
 const log = createLogger('follow-up-suggestions')
 
-const FOLLOW_UP_MODEL = 'gpt-5-nano'
+const FOLLOW_UP_MODEL = 'gpt-5.4-nano'
 
 const SYSTEM_PROMPT = `You are a meeting assistant. Given a meeting transcript and a question or topic that was raised, generate 2-3 concise follow-up questions that help clarify or expand on it, using the transcript context.
 Output only the questions as a bullet list (markdown format: - or *). No preamble, no numbering, no extra text.
@@ -46,7 +46,7 @@ export interface FollowUpResult {
 }
 
 export interface FollowUpOptions {
-  /** Model to use (default gpt-5-nano for OpenAI) */
+  /** Model to use (default gpt-5.4-nano for OpenAI) */
   model?: string
   /** Omit OpenAI-specific params for local providers */
   stripOpenAIParams?: boolean

@@ -12,6 +12,7 @@ import asyncio
 
 from app.agents import CustomerSupportAgent
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 
 logger = get_logger("agent_example")
@@ -25,7 +26,7 @@ async def customer_support_example():
     # Create customer support agent
     agent = CustomerSupportAgent(
         llm_provider=provider,
-        model_name="openai/gpt-4o-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.7
     )
     
@@ -64,7 +65,7 @@ def customer_support_sync_example():
     provider = OpenRouterProvider()
     agent = CustomerSupportAgent(
         llm_provider=provider,
-        model_name="openai/gpt-4o-mini"
+        model_name=DEFAULT_TRAINING
     )
     
     inquiry = "How do I reset my password?"

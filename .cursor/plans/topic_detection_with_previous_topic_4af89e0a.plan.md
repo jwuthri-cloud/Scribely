@@ -67,7 +67,7 @@ Add a lightweight method in [llm-service.ts](desktop/src/main/llm/llm-service.ts
 
 - **Input:** Formatted transcript segment (last 5 min)
 - **Prompt:** "Given this meeting transcript segment, what is the main topic in 2-5 words? Reply with only the topic, no explanation."
-- **Model:** gpt-5-nano, `max_completion_tokens: 32`
+- **Model:** gpt-5.4-nano, `max_completion_tokens: 32`
 - **Output:** Trimmed string (e.g. "Q3 budget planning")
 
 ### 3. Extend InsightEngine Buffer

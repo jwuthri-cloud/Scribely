@@ -12,6 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 from app.utils.token_counter import (
     count_tokens_llm,
@@ -29,7 +30,7 @@ def simple_chat_example():
     
     # Get LLM instance
     llm = provider.get_llm(
-        model_name="openai/gpt-4o-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.7
     )
     
@@ -52,7 +53,7 @@ def simple_chat_example():
 def token_counting_example():
     """Example of token counting."""
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-4o-mini")
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING)
     
     text = "Hello, how are you today?"
     token_count = count_tokens_llm(llm, text)
@@ -66,7 +67,7 @@ def model_info_example():
     """Example of getting model information."""
     provider = OpenRouterProvider()
     
-    model_name = "openai/gpt-4o-mini"
+    model_name = DEFAULT_TRAINING
     
     # Get model limits
     limits = get_model_limits(provider, model_name)
@@ -85,7 +86,7 @@ def model_info_example():
 def conversation_example():
     """Example of a multi-turn conversation."""
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-4o-mini", temperature=0.7)
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING, temperature=0.7)
     
     # Create prompt template
     prompt = ChatPromptTemplate.from_messages([
@@ -115,7 +116,7 @@ def conversation_example():
 def streaming_example():
     """Example of streaming responses."""
     provider = OpenRouterProvider()
-    llm = provider.get_llm(model_name="openai/gpt-4o-mini", temperature=0.7)
+    llm = provider.get_llm(model_name=DEFAULT_TRAINING, temperature=0.7)
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a helpful assistant."),

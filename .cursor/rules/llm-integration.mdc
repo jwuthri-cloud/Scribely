@@ -29,7 +29,7 @@ provider = OpenRouterProvider()
 
 # Get LangChain LLM instance configured for OpenRouter
 llm = provider.get_llm(
-    model_name="openai/gpt-4o-mini",  # Any OpenRouter model
+    model_name="openai/gpt-5.4-mini",  # Any OpenRouter model
     temperature=0.7
 )
 
@@ -47,7 +47,7 @@ response = chain.invoke({"input": "Hello!"})
 
 ### Key Patterns
 - **Use OpenRouterProvider**: Always use `OpenRouterProvider` to get LLM instances, not direct LangChain initialization
-- **Model Names**: Use OpenRouter model format (e.g., `"openai/gpt-4o-mini"`, `"anthropic/claude-3-sonnet"`)
+- **Model Names**: Use OpenRouter model format (e.g., `"openai/gpt-5.4-mini"`, `"anthropic/claude-3-sonnet"`)
 - **LangChain Chains**: Build chains using LangChain's pipe operator (`|`) for composability
 - **Prompt Templates**: Use `ChatPromptTemplate` for structured prompts
 - **Output Parsers**: Use appropriate output parsers (`StrOutputParser`, `JsonOutputParser`, etc.)
@@ -130,7 +130,7 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 from app.agents.tool.context_manager import count_history_items, get_recent_items
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-4o-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
 
 # Bind tools to LLM
 llm_with_tools = llm.bind_tools([count_history_items, get_recent_items])
@@ -145,7 +145,7 @@ from app.agents.agents.context_manager import ContextManagerAgent
 from app.infrastructure.llm_provider import OpenRouterProvider
 
 provider = OpenRouterProvider()
-agent = ContextManagerAgent(provider, model_name="openai/gpt-4o-mini")
+agent = ContextManagerAgent(provider, model_name="openai/gpt-5.4-mini")
 
 # Use agent for context management
 result = agent.check_context(request)
@@ -192,7 +192,7 @@ provider = OpenRouterProvider()
 
 # Get LLM instance for any OpenRouter model
 llm = provider.get_llm(
-    model_name="openai/gpt-4o-mini",  # or "anthropic/claude-3-sonnet", etc.
+    model_name="openai/gpt-5.4-mini",  # or "anthropic/claude-3-sonnet", etc.
     temperature=0.7,
     callbacks=[...]  # Optional LangChain callbacks
 )
@@ -204,7 +204,7 @@ llm = provider.get_llm(
 ```
 
 ### Model Selection Guidelines
-- **Fast Responses**: Use `"openai/gpt-4o-mini"` or `"openai/gpt-4o"` for quick responses
+- **Fast Responses**: Use `"openai/gpt-5.4-mini"` or `"openai/gpt-5.4"` for quick responses
 - **Complex Reasoning**: Use `"anthropic/claude-3-sonnet"` or `"openai/gpt-4"` for complex tasks
 - **Code Generation**: Use specialized code models when available
 - **Cost Optimization**: Balance model capability with cost requirements

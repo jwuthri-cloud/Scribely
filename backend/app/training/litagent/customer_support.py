@@ -17,6 +17,7 @@ from app.agents.structured_output.customer_support import CustomerSupportRespons
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.training.litagent.base import LitLangChainAgent
+from app.model_name import DEFAULT_TRAINING
 from app.training.rewards.base import customer_support_reward
 from app.utils.logging import get_logger
 
@@ -59,7 +60,7 @@ class LitCustomerSupportAgent(LitLangChainAgent[CustomerSupportResponse]):
     def __init__(
         self,
         llm_provider: Optional[OpenRouterProvider] = None,
-        model_name: str = "openai/gpt-5-mini",
+        model_name: str = DEFAULT_TRAINING,
         temperature: float = 0.7,
         reward_fn: Optional[Callable[[Dict[str, Any], CustomerSupportResponse], float]] = None,
         include_langfuse: bool = True,
@@ -244,7 +245,7 @@ class LitCustomerSupportAgent(LitLangChainAgent[CustomerSupportResponse]):
 
 def create_lit_customer_support_agent(
     llm_provider: Optional[OpenRouterProvider] = None,
-    model_name: str = "openai/gpt-5-mini",
+    model_name: str = DEFAULT_TRAINING,
     temperature: float = 0.7,
     custom_reward_fn: Optional[Callable[[Dict[str, Any], CustomerSupportResponse], float]] = None,
 ) -> LitCustomerSupportAgent:

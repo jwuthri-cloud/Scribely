@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
+from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GPT_MINI, MYTHOMAX
 from app.utils.logging import get_logger
 
 logger = get_logger("create_agent_example")
@@ -48,7 +49,7 @@ async def create_agent_with_langfuse_example():
     
     # Get LLM instance (Langfuse automatically enabled if configured)
     llm = provider.get_llm(
-        model_name="openai/gpt-4o-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.3
     )
     
@@ -78,7 +79,7 @@ async def create_agent_with_langfuse_example():
         metadata={                                        # Custom metadata
             "agent_type": "analysis",
             "input_length": len(user_input),
-            "model": "openai/gpt-4o-mini"
+            "model": DEFAULT_TRAINING
         },
         run_name="analysis-agent-run"                     # Optional trace name
     )
@@ -111,7 +112,7 @@ def create_agent_sync_example():
     
     # Get LLM instance
     llm = provider.get_llm(
-        model_name="openai/gpt-4o-mini",
+        model_name=DEFAULT_TRAINING,
         temperature=0.3
     )
     
@@ -147,9 +148,9 @@ async def create_agent_with_fallbacks_example():
     
     # Get LLM with fallbacks
     llm = provider.get_llm_with_fallbacks([
-        "anthropic/claude-3.5-sonnet",  # Primary
-        "openai/gpt-4o-mini",           # Fallback 1
-        "gryphe/mythomax-l2-13b"        # Fallback 2
+        CLAUDE_SONNET,   # Primary
+        GPT_MINI,        # Fallback 1
+        MYTHOMAX,        # Fallback 2
     ])
     
     # Create agent

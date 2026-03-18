@@ -5,6 +5,8 @@ from typing import Optional
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.model_name import DEFAULT_VISION
+
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
@@ -69,7 +71,7 @@ class Settings(BaseSettings):
     deepgram_api_key: str = ""
     assemblyai_api_key: str = ""
     diarization_provider: str = "deepgram"  # "deepgram" or "assemblyai"
-    speaker_id_vision_model: str = "openai/gpt-5.2"  # OpenRouter model ID
+    speaker_id_vision_model: str = DEFAULT_VISION
     frames_per_speaker: int = 10
 
     # CORS
