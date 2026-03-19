@@ -1,7 +1,7 @@
 import { countTokens, encodeChat } from 'gpt-tokenizer'
 
-/** Model names supported by gpt-tokenizer for chat encoding. */
-const CHAT_MODEL = 'gpt-5.4-mini' as const
+/** Model name recognized by gpt-tokenizer for chat overhead calculation (o200k_base). */
+const CHAT_MODEL = 'gpt-5-mini' as const
 
 /**
  * Precise token counter using gpt-tokenizer (o200k_base encoding for GPT-5 series).

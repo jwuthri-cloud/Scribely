@@ -69,26 +69,6 @@ async function init() {
   captureBtn.disabled = !connected
   updateCaptureButtonLabel()
   meetingBanner.style.display = hasMeetingTab ? 'flex' : 'none'
-
-  // Auto-start when widget clicked Record and user opened popup (clicked icon)
-  if (
-    !status?.isCapturing &&
-    connected &&
-    status?.autoStartCapture
-  ) {
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (activeTab?.id) {
-      const result = await sendMessage({
-        type: 'start-capture-request',
-        tabId: activeTab.id,
-      })
-      if (result?.success) {
-        setCapturingState(true)
-      } else {
-        showError(result?.error || 'Failed to start')
-      }
-    }
-  }
 }
 
 // ── Launch Scribely (scribely://) ───────────────────────
