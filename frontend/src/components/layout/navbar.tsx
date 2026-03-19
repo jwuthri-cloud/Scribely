@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Menu, X, Download } from "lucide-react"
+import { Menu, X, Download, LayoutDashboard } from "lucide-react"
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -82,12 +83,30 @@ export function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <Button size="sm" asChild>
-              <Link href="/download">
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Link>
-            </Button>
+            <SignedOut>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/sign-in">Sign In</Link>
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/sign-up">Get Started</Link>
+              </Button>
+            </SignedOut>
+            <SignedIn>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "h-8 w-8",
+                  },
+                }}
+              />
+            </SignedIn>
           </div>
 
           <button
@@ -116,13 +135,23 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <div className="mt-3 px-4">
-                <Button className="w-full" size="sm" asChild>
-                  <Link href="/download">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Link>
-                </Button>
+              <div className="mt-3 px-4 flex flex-col gap-2">
+                <SignedOut>
+                  <Button variant="ghost" className="w-full" size="sm" asChild>
+                    <Link href="/sign-in">Sign In</Link>
+                  </Button>
+                  <Button className="w-full" size="sm" asChild>
+                    <Link href="/sign-up">Get Started</Link>
+                  </Button>
+                </SignedOut>
+                <SignedIn>
+                  <Button variant="ghost" className="w-full" size="sm" asChild>
+                    <Link href="/dashboard">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </Link>
+                  </Button>
+                </SignedIn>
               </div>
             </div>
           </div>

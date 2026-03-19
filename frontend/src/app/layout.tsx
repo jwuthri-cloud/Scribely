@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { Inter, Space_Grotesk } from "next/font/google"
+import { ClerkProvider } from "@clerk/nextjs"
+import { dark } from "@clerk/themes"
 import "./globals.css"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
@@ -43,14 +45,26 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-background text-foreground`}
-      >
-        <Navbar />
-        <main className="min-h-screen">{children}</main>
-        <Footer />
-      </body>
-    </html>
+    <ClerkProvider
+      appearance={{
+        baseTheme: dark,
+        variables: {
+          colorPrimary: "hsl(263 70% 58%)",
+          colorBackground: "hsl(240 10% 6%)",
+          colorInputBackground: "hsl(240 5% 15%)",
+          colorInputText: "hsl(0 0% 98%)",
+        },
+      }}
+    >
+      <html lang="en" className="dark">
+        <body
+          className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-background text-foreground`}
+        >
+          <Navbar />
+          <main className="min-h-screen">{children}</main>
+          <Footer />
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

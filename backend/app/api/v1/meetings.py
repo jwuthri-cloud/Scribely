@@ -12,18 +12,24 @@ automatically when a recording is present.
 """
 
 import json
+import math
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 import aiofiles
 from app.api.deps import get_current_user_with_db
 from app.config import get_settings
+from app.database.models.meeting import MeetingStatusEnum
 from app.database.models.user import User
+from app.database.repositories.meeting import MeetingRepository
+from app.database.session import get_async_db_session
 from app.services.task_runner import TaskStatus, read_status, schedule_processing
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("meetings_api")
 
@@ -55,6 +61,24 @@ class EnrichedTranscriptResponse(BaseModel):
     transcript: Optional[dict[str, Any]] = None
 
 
+class MeetingSummaryResponse(BaseModel):
+    id: str
+    title: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    entry_count: int
+    status: str
+    recorded_at: Optional[str] = None
+    created_at: str
+
+
+class PaginatedMeetingsResponse(BaseModel):
+    meetings: list[MeetingSummaryResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -76,6 +100,55 @@ def _validate_meeting_access(user: User, meeting_id: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# GET /  — list meetings for current user (paginated)
+# ---------------------------------------------------------------------------
+
+@router.get("/", response_model=PaginatedMeetingsResponse)
+async def list_meetings(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, max_length=200),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    meeting_status: Optional[str] = Query(None, alias="status"),
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> PaginatedMeetingsResponse:
+    """List meetings for the authenticated user with pagination and filters."""
+    meetings, total = await MeetingRepository.list_for_user(
+        db,
+        user.id,
+        page=page,
+        limit=limit,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        status=meeting_status,
+    )
+
+    pages = math.ceil(total / limit) if total > 0 else 0
+
+    return PaginatedMeetingsResponse(
+        meetings=[
+            MeetingSummaryResponse(
+                id=m.id,
+                title=m.title,
+                duration_seconds=m.duration_seconds,
+                entry_count=m.entry_count,
+                status=m.status.value if isinstance(m.status, MeetingStatusEnum) else str(m.status),
+                recorded_at=m.recorded_at.isoformat() if m.recorded_at else None,
+                created_at=m.created_at.isoformat(),
+            )
+            for m in meetings
+        ],
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )
+
+
+# ---------------------------------------------------------------------------
 # POST /  — upload meeting files
 # ---------------------------------------------------------------------------
 
@@ -85,6 +158,7 @@ async def sync_meeting(
     video: Optional[UploadFile] = File(None, description="Meeting recording (.webm)"),
     session_id: Optional[str] = Form(None, alias="sessionId"),
     user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> MeetingSyncResponse:
     """
     Receive meeting files from the desktop app.
@@ -162,6 +236,49 @@ async def sync_meeting(
         f"Meeting {meeting_id} stored ({meeting_type}), "
         f"user={user.id}, session={session_id}"
     )
+
+    # --- Create DB record ---
+    entry_count = 0
+    duration_seconds = None
+    recorded_at = None
+    title = None
+    try:
+        transcript_data = json.loads(transcript_content)
+        entries = transcript_data if isinstance(transcript_data, list) else transcript_data.get("entries", [])
+        entry_count = len(entries)
+        if entries:
+            first_ts = entries[0].get("timestamp", 0)
+            last_ts = entries[-1].get("timestamp", 0)
+            if isinstance(last_ts, (int, float)) and isinstance(first_ts, (int, float)):
+                duration_seconds = max(0, int(last_ts - first_ts))
+        meta = transcript_data.get("metadata", {}) if isinstance(transcript_data, dict) else {}
+        title = meta.get("title")
+        if meta.get("startTime"):
+            try:
+                recorded_at = datetime.fromisoformat(meta["startTime"].replace("Z", "+00:00")).replace(tzinfo=None)
+            except (ValueError, AttributeError):
+                pass
+    except (json.JSONDecodeError, KeyError, TypeError):
+        pass
+
+    if recorded_at is None:
+        recorded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    initial_status = MeetingStatusEnum.PROCESSING if recording_path else MeetingStatusEnum.COMPLETED
+    storage_rel = f"{user.id}/{meeting_id}"
+
+    await MeetingRepository.create(
+        db,
+        user_id=user.id,
+        storage_path=storage_rel,
+        session_id=session_id,
+        title=title,
+        duration_seconds=duration_seconds,
+        entry_count=entry_count,
+        status=initial_status,
+        recorded_at=recorded_at,
+    )
+    await db.commit()
 
     # --- Trigger background processing if we have a recording ---
     if recording_path is not None:
