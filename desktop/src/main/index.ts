@@ -37,6 +37,7 @@ import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
 import { BackendClient } from './backend-client'
 import { UploadQueueService } from './upload-queue'
+import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -143,7 +144,7 @@ const store = new Store<AppSettings>({
     },
     llm: {
       apiKey: '',
-      defaultModel: 'gpt-5.4-mini',
+      defaultModel: 'gpt-5-mini',
       temperature: 0.3,
       activeSystemPromptId: null,
       systemPrompts: [],
@@ -169,6 +170,15 @@ const store = new Store<AppSettings>({
     },
   },
 })
+
+// Migrate: legacy OpenAI model ids (gpt-5.4-*) → gpt-5-nano / gpt-5-mini / gpt-5.2
+const storedLlmForModel = store.get('llm') as { defaultModel?: string } | undefined
+if (storedLlmForModel?.defaultModel) {
+  const migratedModel = migrateLegacyOpenAIModelId(storedLlmForModel.defaultModel)
+  if (migratedModel !== storedLlmForModel.defaultModel) {
+    store.set('llm.defaultModel' as any, migratedModel)
+  }
+}
 
 // Migrate: ensure new hotkey defaults exist in stored config
 const storedHotkeys = store.get('hotkeys')

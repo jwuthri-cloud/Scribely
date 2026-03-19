@@ -110,10 +110,11 @@ import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
 import { runSuggestFollowUp } from './follow-up-suggestions'
+import { migrateLegacyOpenAIModelId } from '../../shared/openai-models'
 
 // ── Types (mirrored from renderer for main process use) ──
 
-type ModelId = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-5.4'
+type ModelId = 'gpt-5-nano' | 'gpt-5-mini' | 'gpt-5.2'
 
 interface ModelConfig {
   id: string
@@ -123,21 +124,21 @@ interface ModelConfig {
 }
 
 const OPENAI_MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt-5.4-nano': {
-    id: 'gpt-5.4-nano',
-    apiModel: 'gpt-5.4-nano',
+  'gpt-5-nano': {
+    id: 'gpt-5-nano',
+    apiModel: 'gpt-5-nano',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
   },
-  'gpt-5.4-mini': {
-    id: 'gpt-5.4-mini',
-    apiModel: 'gpt-5.4-mini',
+  'gpt-5-mini': {
+    id: 'gpt-5-mini',
+    apiModel: 'gpt-5-mini',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
   },
-  'gpt-5.4': {
-    id: 'gpt-5.4',
-    apiModel: 'gpt-5.4',
+  'gpt-5.2': {
+    id: 'gpt-5.2',
+    apiModel: 'gpt-5.2',
     contextWindow: 1_050_000,
     maxResponseTokens: 128_000,
   },
@@ -150,9 +151,9 @@ const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.2': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
 }
 
 interface TranscriptEntry {
@@ -276,8 +277,8 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Current model (user-switchable). For OpenAI: gpt-5.4-nano, gpt-5.4-mini, gpt-5.4. For local: model name from API.
-  private currentModel: string = 'gpt-5.4'
+  // Current model (user-switchable). For OpenAI: gpt-5-nano, gpt-5-mini, gpt-5.2. For local: model name from API.
+  private currentModel: string = 'gpt-5-mini'
 
   // Cached local models (context window, etc.) from Ollama/LM Studio API
   private localModels: LocalModelInfo[] = []
@@ -325,8 +326,9 @@ export class LLMService {
     const llm = this.store.get('llm') as { defaultModel?: string; provider?: LLMProvider } | undefined
     const provider = this.getProvider()
     if (llm?.defaultModel) {
-      if (provider === 'openai' && MODEL_CONFIGS[llm.defaultModel as ModelId]) {
-        this.currentModel = llm.defaultModel
+      const dm = migrateLegacyOpenAIModelId(llm.defaultModel)
+      if (provider === 'openai' && MODEL_CONFIGS[dm as ModelId]) {
+        this.currentModel = dm
       } else if (provider !== 'openai') {
         this.currentModel = llm.defaultModel
       }
@@ -339,7 +341,7 @@ export class LLMService {
     if (provider === 'openai') {
       const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
       if (cfg) return cfg
-      return MODEL_CONFIGS['gpt-5.4']
+      return MODEL_CONFIGS['gpt-5.2']
     }
     const local = this.localModels.find((m) => m.id === this.currentModel)
     return {
@@ -358,6 +360,13 @@ export class LLMService {
   private migrateSettings(): void {
     const llm = this.store.get('llm') as Record<string, unknown> | undefined
     if (llm) {
+      const dm = llm.defaultModel
+      if (typeof dm === 'string') {
+        const migrated = migrateLegacyOpenAIModelId(dm)
+        if (migrated !== dm) {
+          this.store.set('llm.defaultModel' as any, migrated)
+        }
+      }
       if (!('provider' in llm)) {
         this.store.set('llm.provider' as any, 'openai')
       }
@@ -546,9 +555,10 @@ export class LLMService {
     ipcMain.handle('llm:set-model', (_event, modelId: string) => {
       const provider = this.getProvider()
       if (provider === 'openai') {
-        if (MODEL_CONFIGS[modelId as ModelId]) {
-          this.currentModel = modelId
-          this.store.set('llm.defaultModel' as any, modelId)
+        const normalized = migrateLegacyOpenAIModelId(modelId)
+        if (MODEL_CONFIGS[normalized as ModelId]) {
+          this.currentModel = normalized
+          this.store.set('llm.defaultModel' as any, normalized)
           return { success: true, model: this.currentModel }
         }
         return { success: false, model: this.currentModel }
@@ -900,11 +910,11 @@ export class LLMService {
 
     // OpenAI-specific params — omit for local providers
     if (!this.isLocalProvider()) {
-      const reasoningEffort = this.currentModel === 'gpt-5.4' ? 'none' : 'low'
-      const isGpt52 = this.currentModel === 'gpt-5.4'
+      const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
+      const isFlagshipGpt5 = this.currentModel === 'gpt-5.2'
       Object.assign(requestParams, {
         prompt_cache_key: this.sessionId,
-        ...(isGpt52 && { prompt_cache_retention: '24h' }),
+        ...(isFlagshipGpt5 && { prompt_cache_retention: '24h' }),
         reasoning_effort: reasoningEffort,
       })
     }
@@ -1215,7 +1225,7 @@ Rules:
 
   /**
    * Validate whether a candidate utterance is a genuine question from another person.
-   * Uses gpt-5.4-nano with last ~500 tokens of transcript context.
+   * Uses the configured chat model with last ~500 tokens of transcript context.
    * Returns both the raw question and a self-contained contextual rewrite, or null if not a real question.
    */
   async validateQuestion(
@@ -1296,7 +1306,7 @@ Rules for question_with_context:
 
   /**
    * One-shot completion for Live Insights enrichment.
-   * Uses gpt-5.4-nano. Returns parsed JSON or null on failure.
+   * Uses the configured chat model. Returns parsed JSON or null on failure.
    */
   async enrichForInsight(
     eventType: string,

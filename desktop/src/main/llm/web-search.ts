@@ -16,7 +16,7 @@ import { createLogger } from '../logger'
 const log = createLogger('web-search')
 import type { WebSearchResult } from '../insights/types'
 
-/** Model for web search — gpt-5.4-nano is well-supported per OpenAI docs */
+/** Model for web search — gpt-4.1-mini is well-supported per OpenAI docs */
 const WEB_SEARCH_MODEL = 'gpt-4.1-mini'
 
 export interface WebSearchStreamCallbacks {

@@ -1,3 +1,5 @@
+import { migrateLegacyOpenAIModelId } from '../../../shared/openai-models'
+
 export interface HotkeyConfig {
   toggleOverlay: string
   moveUp: string
@@ -85,7 +87,7 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 // ── LLM Settings ────────────────────────────────────────
 export type LLMProvider = 'openai' | 'ollama' | 'lmstudio'
 
-export type ModelId = 'gpt-5.4-nano' | 'gpt-5.4-mini' | 'gpt-5.4'
+export type ModelId = 'gpt-5-nano' | 'gpt-5-mini' | 'gpt-5.2'
 
 /** Local model info from Ollama/LM Studio API */
 export interface LocalModelInfo {
@@ -105,25 +107,25 @@ export interface ModelConfig {
 }
 
 export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt-5.4-nano': {
-    id: 'gpt-5.4-nano',
-    apiModel: 'gpt-5.4-nano',
+  'gpt-5-nano': {
+    id: 'gpt-5-nano',
+    apiModel: 'gpt-5-nano',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
     label: 'Nano',
     description: 'Fast, low cost',
   },
-  'gpt-5.4-mini': {
-    id: 'gpt-5.4-mini',
-    apiModel: 'gpt-5.4-mini',
+  'gpt-5-mini': {
+    id: 'gpt-5-mini',
+    apiModel: 'gpt-5-mini',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
     label: 'Mini',
     description: 'Balanced',
   },
-  'gpt-5.4': {
-    id: 'gpt-5.4',
-    apiModel: 'gpt-5.4',
+  'gpt-5.2': {
+    id: 'gpt-5.2',
+    apiModel: 'gpt-5.2',
     contextWindow: 1_050_000,
     maxResponseTokens: 128_000,
     label: 'Normal',
@@ -136,16 +138,16 @@ export const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.2': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
 }
 
 export function estimateMessageCost(
   usage: { promptTokens: number; completionTokens: number; cachedTokens: number },
   modelId: string,
 ): number {
-  const pricing = MODEL_PRICING[modelId as ModelId]
+  const pricing = MODEL_PRICING[migrateLegacyOpenAIModelId(modelId) as ModelId]
   if (!pricing) return 0
   const uncachedInput = usage.promptTokens - usage.cachedTokens
   const inputCost = (uncachedInput / 1_000_000) * pricing.inputPer1M
@@ -297,7 +299,7 @@ export interface LLMSettings {
   /** Base URL for local providers (e.g. http://localhost:11434) */
   localBaseUrl?: string
   apiKey: string
-  /** For OpenAI: gpt-5.4-nano, gpt-5.4-mini, gpt-5.4. For local: model name from API */
+  /** For OpenAI: gpt-5-nano, gpt-5-mini, gpt-5.2. For local: model name from API */
   defaultModel: string
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
@@ -317,7 +319,7 @@ export interface LLMSettings {
 export const DEFAULT_LLM: LLMSettings = {
   provider: 'openai',
   apiKey: '',
-  defaultModel: 'gpt-5.4-mini',
+  defaultModel: 'gpt-5-mini',
   temperature: 0.3,
   activeSystemPromptId: null,
   systemPrompts: [],

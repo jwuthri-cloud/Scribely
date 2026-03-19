@@ -13,9 +13,9 @@ import {
 import { IconPicker, getQuickActionIcon } from './QuickActionIcons'
 
 const OPENAI_MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
-  { id: 'gpt-5.4-nano', label: 'Nano', description: 'Fast, low cost' },
-  { id: 'gpt-5.4-mini', label: 'Mini', description: 'Balanced' },
-  { id: 'gpt-5.4', label: 'Normal', description: 'High intelligence' },
+  { id: 'gpt-5-nano', label: 'Nano', description: 'Fast, low cost' },
+  { id: 'gpt-5-mini', label: 'Mini', description: 'Balanced' },
+  { id: 'gpt-5.2', label: 'Normal', description: 'High intelligence' },
 ]
 
 const PROVIDER_OPTIONS: { id: LLMProvider; label: string }[] = [
@@ -57,7 +57,7 @@ export function LLMView() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [temperature, setTemperature] = useState(0.3)
-  const [currentModel, setCurrentModel] = useState<string>('gpt-5.4')
+  const [currentModel, setCurrentModel] = useState<string>('gpt-5-mini')
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([])
   const [activePromptId, setActivePromptId] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null)
@@ -102,7 +102,7 @@ export function LLMView() {
     api.llmGetProvider().then((p) => setProvider((p as LLMProvider) || 'openai'))
     api.llmGetLocalBaseUrl?.().then((url) => setLocalBaseUrl(url || ''))
     api.llmHasApiKey().then(setHasApiKey)
-    api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5.4'))
+    api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5-mini'))
     api.getSettings().then((s) => {
       if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
     })

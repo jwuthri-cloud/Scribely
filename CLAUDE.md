@@ -138,7 +138,7 @@ Whisper models: `local-fast` (small.en ~488MB), `local-balanced` (medium.en ~1.5
 
 ### LLM Service (`src/main/llm/llm-service.ts`)
 
-Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt5-nano`, `gpt5-mini`, `gpt-5.4` — all 400k context, 128k max response.
+Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt-5-nano`, `gpt-5-mini`, `gpt-5.2` — nano/mini 400k context, 128k max response; `gpt-5.2` uses 1.05M context in-app.
 
 **Append-only prompt strategy** (optimized for OpenAI prefix caching):
 - System prompt is always `messages[0]` — stable, never changes → perfect cache prefix

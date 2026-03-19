@@ -117,7 +117,7 @@ export function Overlay() {
   const [windowOpacity, setWindowOpacity] = useState(1)
   const [fontSize, setFontSize] = useState<FontSize>('medium')
   const [compactMode, setCompactMode] = useState(false)
-  const [currentModel, setCurrentModel] = useState<string>('gpt-5.4')
+  const [currentModel, setCurrentModel] = useState<string>('gpt-5-mini')
   const [summarizeInProgress, setSummarizeInProgress] = useState(false)
   const [summarizeFeedback, setSummarizeFeedback] = useState<{
     type: 'success' | 'error'
@@ -129,9 +129,9 @@ export function Overlay() {
   const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
   const [webSearchAvailable, setWebSearchAvailable] = useState(true)
   const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([
-    { id: 'gpt-5.4-nano', label: 'Nano' },
-    { id: 'gpt-5.4-mini', label: 'Mini' },
-    { id: 'gpt-5.4', label: 'Normal' },
+    { id: 'gpt-5-nano', label: 'Nano' },
+    { id: 'gpt-5-mini', label: 'Mini' },
+    { id: 'gpt-5.2', label: 'Normal' },
   ])
   const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
   const [transcriptPanelExpanded, setTranscriptPanelExpanded] = useState(false)
@@ -255,7 +255,7 @@ export function Overlay() {
 
   // ── Load current model ──
   useEffect(() => {
-    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5.4'))
+    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5-mini'))
   }, [])
 
   // ── Load summarization status ──
@@ -292,9 +292,9 @@ export function Overlay() {
         })
       } else {
         setModelOptions([
-          { id: 'gpt-5.4-nano', label: 'Nano' },
-          { id: 'gpt-5.4-mini', label: 'Mini' },
-          { id: 'gpt-5.4', label: 'Normal' },
+          { id: 'gpt-5-nano', label: 'Nano' },
+          { id: 'gpt-5-mini', label: 'Mini' },
+          { id: 'gpt-5.2', label: 'Normal' },
         ])
       }
     })
