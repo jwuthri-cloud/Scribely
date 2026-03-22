@@ -1,7 +1,9 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from "react"
-import { Send, Bot, User, Loader2 } from "lucide-react"
+import { Bot, User } from "lucide-react"
+import { BoltStyleChat, ChatInput, RayBackground } from "@/components/ui/bolt-style-chat"
+import { LoadingDots } from "@/components/app/workspace/LoadingDots"
 import { useApi } from "@/hooks/useApi"
 import { cn } from "@/lib/utils"
 
@@ -14,7 +16,6 @@ interface ChatMessage {
 export default function ChatPage() {
   const api = useApi()
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -25,14 +26,13 @@ export default function ChatPage() {
     })
   }, [messages])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isStreaming) return
+  const handleSend = async (message: string) => {
+    if (!message.trim() || isStreaming) return
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content: message.trim(),
     }
 
     const assistantId = crypto.randomUUID()
@@ -43,27 +43,22 @@ export default function ChatPage() {
     }
 
     setMessages((prev) => [...prev, userMessage, assistantMessage])
-    setInput("")
     setIsStreaming(true)
 
     try {
-      await api.chatStream(input.trim(), (chunk) => {
+      await api.chatStream(message.trim(), (chunk) => {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, content: m.content + chunk } : m
           )
         )
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to get response"
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? {
-                ...m,
-                content:
-                  m.content ||
-                  `Error: ${err.message || "Failed to get response"}`,
-              }
+            ? { ...m, content: m.content || `Error: ${msg}` }
             : m
         )
       )
@@ -72,86 +67,101 @@ export default function ChatPage() {
     }
   }
 
-  return (
-    <div className="mx-auto flex h-[calc(100vh-3.5rem-2rem)] max-w-3xl flex-col">
-      <div className="mb-4">
-        <h1 className="text-2xl font-display font-bold text-white">
-          Chat with AI
-        </h1>
-        <p className="mt-1 text-sm text-white/50">
-          Ask questions and get AI-powered answers.
-        </p>
+  if (messages.length === 0) {
+    return (
+      <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-8 min-h-[calc(100dvh-4rem)]">
+        <BoltStyleChat
+          title="What will you"
+          subtitle="Ask questions against your meeting transcripts, action items, and more."
+          announcementText="AI-powered workspace chat"
+          placeholder="Ask anything about your meetings…"
+          className="!min-h-[calc(100dvh-4rem)]"
+          onSend={handleSend}
+        />
       </div>
+    )
+  }
 
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto rounded-xl border border-white/[0.06] bg-card"
-      >
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center p-8">
-            <div className="text-center">
-              <Bot className="mx-auto h-10 w-10 text-white/20" />
-              <p className="mt-4 text-sm text-white/40">
-                Start a conversation. Ask anything.
+  return (
+    <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-8 flex min-h-[calc(100dvh-4rem)] flex-col relative">
+      <RayBackground />
+
+      <div className="relative z-10 flex flex-1 flex-col min-h-0">
+        {/* Header bar */}
+        <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#0f0f0f]/80 px-5 py-3.5 backdrop-blur-xl sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
+              <Bot className="h-4 w-4 text-cyan-200" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Workspace chat</p>
+              <p className="text-[11px] text-white/40">
+                {messages.filter((m) => m.role === "user").length} messages
               </p>
             </div>
           </div>
-        ) : (
-          <div className="divide-y divide-white/[0.04]">
+          {isStreaming && (
+            <div className="flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100">
+              <LoadingDots dotClassName="h-1.5 w-1.5 bg-cyan-200" />
+              Responding
+            </div>
+          )}
+        </div>
+
+        {/* Messages thread */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+          <div className="mx-auto flex max-w-[680px] flex-col gap-5">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={cn(
-                  "flex gap-3 p-4",
-                  msg.role === "assistant" && "bg-white/[0.02]"
+                  "flex items-end gap-3",
+                  msg.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
+                {msg.role === "assistant" && (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
+                    <Bot className="h-3.5 w-3.5 text-cyan-200" />
+                  </div>
+                )}
+
                 <div
                   className={cn(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
+                    "max-w-[min(100%,36rem)] rounded-2xl px-4 py-3 text-[14px] leading-7",
                     msg.role === "user"
-                      ? "bg-purple-500/10"
-                      : "bg-indigo-500/10"
+                      ? "rounded-br-md bg-[#1488fc] text-white shadow-[0_0_20px_rgba(20,136,252,0.15)]"
+                      : "rounded-bl-md border border-white/[0.08] bg-white/[0.04] text-white/90"
                   )}
                 >
-                  {msg.role === "user" ? (
-                    <User className="h-3.5 w-3.5 text-purple-400" />
+                  {msg.content ? (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
                   ) : (
-                    <Bot className="h-3.5 w-3.5 text-indigo-400" />
+                    <div className="flex items-center gap-2 text-white/50">
+                      <LoadingDots dotClassName="h-1.5 w-1.5 bg-white/50" />
+                      <span className="text-sm">Thinking</span>
+                    </div>
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">
-                    {msg.content || (
-                      <Loader2 className="h-4 w-4 animate-spin text-white/30" />
-                    )}
-                  </p>
-                </div>
+
+                {msg.role === "user" && (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
+                    <User className="h-3.5 w-3.5 text-blue-200" />
+                  </div>
+                )}
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message..."
-          disabled={isStreaming}
-          className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || isStreaming}
-          className="rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-2.5 text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
-        </button>
-      </form>
+        {/* Composer pinned to bottom */}
+        <div className="border-t border-white/[0.06] bg-[#0f0f0f]/90 px-4 py-4 backdrop-blur-xl sm:px-6">
+          <ChatInput
+            placeholder="Ask a follow-up question…"
+            onSend={handleSend}
+            disabled={isStreaming}
+          />
+        </div>
+      </div>
     </div>
   )
 }

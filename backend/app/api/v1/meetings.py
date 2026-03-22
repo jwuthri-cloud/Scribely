@@ -79,6 +79,21 @@ class PaginatedMeetingsResponse(BaseModel):
     pages: int
 
 
+class MonthlyMeetingCount(BaseModel):
+    month: str
+    count: int
+
+
+class DashboardStatsResponse(BaseModel):
+    total_meetings: int
+    total_duration_seconds: int
+    total_transcript_lines: int
+    completed_count: int
+    processing_count: int
+    recent_meetings: list[MeetingSummaryResponse]
+    meetings_per_month: list[MonthlyMeetingCount]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -145,6 +160,79 @@ async def list_meetings(
         page=page,
         limit=limit,
         pages=pages,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /stats  — aggregated dashboard stats
+# ---------------------------------------------------------------------------
+
+
+@router.get("/stats", response_model=DashboardStatsResponse)
+async def get_dashboard_stats(
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> DashboardStatsResponse:
+    """Return aggregated meeting statistics for the dashboard."""
+    total_meetings = await MeetingRepository.count_for_user(db, user.id)
+    total_duration = await MeetingRepository.total_duration_for_user(db, user.id)
+    total_lines = await MeetingRepository.total_entry_count_for_user(db, user.id)
+    status_counts = await MeetingRepository.count_by_status_for_user(db, user.id)
+    per_month = await MeetingRepository.meetings_per_month_for_user(db, user.id)
+
+    recent, _ = await MeetingRepository.list_for_user(db, user.id, page=1, limit=5)
+
+    return DashboardStatsResponse(
+        total_meetings=total_meetings,
+        total_duration_seconds=total_duration,
+        total_transcript_lines=total_lines,
+        completed_count=status_counts.get("completed", 0),
+        processing_count=status_counts.get("processing", 0),
+        recent_meetings=[
+            MeetingSummaryResponse(
+                id=m.id,
+                title=m.title,
+                duration_seconds=m.duration_seconds,
+                entry_count=m.entry_count,
+                status=m.status.value if isinstance(m.status, MeetingStatusEnum) else str(m.status),
+                recorded_at=m.recorded_at.isoformat() if m.recorded_at else None,
+                created_at=m.created_at.isoformat(),
+            )
+            for m in recent
+        ],
+        meetings_per_month=[
+            MonthlyMeetingCount(month=row["month"], count=row["count"])
+            for row in per_month
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /{meeting_id}  — single meeting metadata
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{meeting_id}", response_model=MeetingSummaryResponse)
+async def get_meeting(
+    meeting_id: str,
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> MeetingSummaryResponse:
+    """Return one meeting's summary row for the current user."""
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    return MeetingSummaryResponse(
+        id=meeting.id,
+        title=meeting.title,
+        duration_seconds=meeting.duration_seconds,
+        entry_count=meeting.entry_count,
+        status=meeting.status.value if isinstance(meeting.status, MeetingStatusEnum) else str(meeting.status),
+        recorded_at=meeting.recorded_at.isoformat() if meeting.recorded_at else None,
+        created_at=meeting.created_at.isoformat(),
     )
 
 

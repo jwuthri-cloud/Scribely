@@ -3,7 +3,7 @@ Meeting repository for Scribely.
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -128,3 +128,45 @@ class MeetingRepository:
             select(func.coalesce(func.sum(Meeting.duration_seconds), 0)).where(Meeting.user_id == user_id)
         )
         return result.scalar() or 0
+
+    @staticmethod
+    async def total_entry_count_for_user(db: AsyncSession, user_id: str) -> int:
+        result = await db.execute(
+            select(func.coalesce(func.sum(Meeting.entry_count), 0)).where(Meeting.user_id == user_id)
+        )
+        return result.scalar() or 0
+
+    @staticmethod
+    async def count_by_status_for_user(db: AsyncSession, user_id: str) -> dict[str, int]:
+        """Return {status_value: count} for a user's meetings."""
+        stmt = (
+            select(Meeting.status, func.count(Meeting.id))
+            .where(Meeting.user_id == user_id)
+            .group_by(Meeting.status)
+        )
+        result = await db.execute(stmt)
+        return {
+            (row[0].value if isinstance(row[0], MeetingStatusEnum) else str(row[0])): row[1]
+            for row in result.all()
+        }
+
+    @staticmethod
+    async def meetings_per_month_for_user(
+        db: AsyncSession, user_id: str, months: int = 12
+    ) -> list[dict[str, object]]:
+        """Return meeting counts grouped by month for the last N months.
+
+        Uses strftime for SQLite compatibility. Returns list of
+        ``{"month": "2026-03", "count": 5}`` dicts ordered chronologically.
+        """
+        month_expr = func.strftime("%Y-%m", Meeting.recorded_at)
+        cutoff = datetime.utcnow().replace(day=1) - timedelta(days=30 * (months - 1))
+
+        stmt = (
+            select(month_expr.label("month"), func.count(Meeting.id).label("cnt"))
+            .where(Meeting.user_id == user_id, Meeting.recorded_at >= cutoff)
+            .group_by("month")
+            .order_by("month")
+        )
+        result = await db.execute(stmt)
+        return [{"month": row.month, "count": row.cnt} for row in result.all()]

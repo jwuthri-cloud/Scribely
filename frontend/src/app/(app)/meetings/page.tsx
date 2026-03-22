@@ -1,19 +1,20 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from "react"
-import Link from "next/link"
+import { useEffect, useState, useCallback } from "react"
 import {
   Search,
   Video,
   ChevronLeft,
   ChevronRight,
-  Loader2,
+  Library,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { MeetingRowCard } from "@/components/app/meeting/MeetingRowCard"
+import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { PageHeader } from "@/components/app/workspace/PageHeader"
+import { WorkspaceSurface } from "@/components/app/workspace/WorkspaceSurface"
 import { useApi } from "@/hooks/useApi"
 import type { MeetingSummary } from "@/lib/api"
-import { cn } from "@/lib/utils"
 
 export default function MeetingsPage() {
   const api = useApi()
@@ -56,150 +57,129 @@ export default function MeetingsPage() {
     setPage(1)
   }, [search, dateFrom, dateTo])
 
-  function formatDuration(seconds: number) {
-    if (seconds < 60) return `${seconds}s`
-    const mins = Math.floor(seconds / 60)
-    if (mins < 60) return `${mins}m`
-    const hrs = Math.floor(mins / 60)
-    return `${hrs}h ${mins % 60}m`
-  }
-
-  const statusColor: Record<string, string> = {
-    completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    processing: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    uploaded: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    failed: "bg-red-500/10 text-red-400 border-red-500/20",
-  }
-
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-white">
-          Meetings
-        </h1>
-        <p className="mt-1 text-sm text-white/50">
-          Browse and search your transcribed meetings.
-        </p>
-      </div>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <PageHeader
+        eyebrow="Meeting library"
+        title="Search every synced meeting"
+        description="Keep the existing filters and pagination, but present them in a cleaner review workflow built for scanning and opening transcripts fast."
+        actions={
+          !loading ? (
+            <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/72">
+              {total} total meetings
+            </div>
+          ) : undefined
+        }
+      />
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <input
-            type="text"
-            placeholder="Search meetings..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] py-2 pl-9 pr-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30"
-          />
+      <WorkspaceSurface className="p-5 sm:p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+            <input
+              type="text"
+              placeholder="Search by title…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-14 w-full rounded-[24px] border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white placeholder:text-white/32 focus:border-cyan-300/30 focus:outline-none focus:ring-2 focus:ring-cyan-300/15"
+              aria-label="Search meetings"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-3">
+              <label className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
+                From
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="mt-2 w-full bg-transparent text-sm text-white focus:outline-none [color-scheme:dark]"
+              />
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-3">
+              <label className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
+                To
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="mt-2 w-full bg-transparent text-sm text-white focus:outline-none [color-scheme:dark]"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 [color-scheme:dark]"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 [color-scheme:dark]"
-          />
-        </div>
-      </div>
+      </WorkspaceSurface>
 
-      {/* Meeting list */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-white/30" />
+      <WorkspaceSurface className="p-5 sm:p-6" variant="panel">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
+            <Library className="h-5 w-5 text-cyan-100" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/36">Results</p>
+            <p className="text-sm text-white/60">Title, time, duration, transcript line count, and status.</p>
+          </div>
         </div>
-      ) : meetings.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.06] bg-card p-12 text-center">
-          <Video className="mx-auto h-10 w-10 text-white/20" />
-          <p className="mt-4 text-sm text-white/40">
-            {search || dateFrom || dateTo
-              ? "No meetings match your filters."
-              : "No meetings found. Meetings synced from the desktop app will appear here."}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {meetings.map((meeting) => (
-            <Link
-              key={meeting.id}
-              href={`/meetings/${meeting.id}`}
-              className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-card p-4 transition-colors hover:border-white/[0.12]"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="rounded-lg bg-white/[0.06] p-2 shrink-0">
-                  <Video className="h-4 w-4 text-white/50" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white truncate">
-                    {meeting.title || "Untitled Meeting"}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    {meeting.recorded_at
-                      ? new Date(meeting.recorded_at).toLocaleDateString(
-                          undefined,
-                          {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }
-                        )
-                      : "—"}
-                    {meeting.duration_seconds
-                      ? ` · ${formatDuration(meeting.duration_seconds)}`
-                      : ""}
-                    {` · ${meeting.entry_count} entries`}
-                  </p>
-                </div>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "shrink-0 ml-3 text-[10px]",
-                  statusColor[meeting.status] || ""
-                )}
-              >
-                {meeting.status}
-              </Badge>
-            </Link>
-          ))}
-        </div>
-      )}
 
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-white/40">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <LoadingDots />
+            <p className="text-sm text-white/48">Loading meetings…</p>
+          </div>
+        ) : meetings.length === 0 ? (
+          <div className="workspace-card px-6 py-16 text-center">
+            <Video className="mx-auto h-12 w-12 text-white/28" />
+            <p className="mt-4 text-sm text-white/52">
+              {search || dateFrom || dateTo
+                ? "No meetings match your filters."
+                : "No meetings found. Sync from the desktop app to populate this list."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {meetings.map((meeting) => (
+              <MeetingRowCard
+                key={meeting.id}
+                meeting={meeting}
+                href={`/meetings/${meeting.id}`}
+                showStatus
+              />
+            ))}
+          </div>
+        )}
+      </WorkspaceSurface>
+
+      {pages > 1 ? (
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2">
+          <p className="text-xs text-white/44">
             Page {page} of {pages} ({total} meetings)
           </p>
-          <div className="flex gap-1">
+          <div className="flex gap-2">
             <Button
               variant="ghost"
               size="sm"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-full border border-white/10 px-4 text-white/72 hover:bg-white/[0.08] hover:text-white"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="mr-1 h-4 w-4" />
+              Prev
             </Button>
             <Button
               variant="ghost"
               size="sm"
               disabled={page >= pages}
               onClick={() => setPage((p) => p + 1)}
+              className="rounded-full border border-white/10 px-4 text-white/72 hover:bg-white/[0.08] hover:text-white"
             >
-              <ChevronRight className="h-4 w-4" />
+              Next
+              <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

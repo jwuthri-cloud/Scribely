@@ -16,19 +16,24 @@ export interface MeetingSummary {
   duration_seconds: number | null
   entry_count: number
   status: string
-  recorded_at: string
+  recorded_at: string | null
   created_at: string
 }
 
-export interface TranscriptEntry {
-  timestamp: number
-  speaker: string
-  text: string
+/** GET /api/v1/meetings/{id}/transcript */
+export interface EnrichedTranscriptResponse {
+  meetingId: string
+  hasEnrichedTranscript: boolean
+  transcript: Record<string, unknown> | null
 }
 
-export interface MeetingTranscript {
-  meeting_id: string
-  entries: TranscriptEntry[]
+export interface ProcessingStatusResponse {
+  meetingId: string
+  status: string
+  speakerMap?: Record<string, string> | null
+  utteranceCount?: number | null
+  error?: string | null
+  updatedAt?: string | null
 }
 
 export interface UserProfile {
@@ -50,6 +55,21 @@ export interface ListMeetingsParams {
   date_from?: string
   date_to?: string
   status?: string
+}
+
+export interface MonthlyMeetingCount {
+  month: string
+  count: number
+}
+
+export interface DashboardStats {
+  total_meetings: number
+  total_duration_seconds: number
+  total_transcript_lines: number
+  completed_count: number
+  processing_count: number
+  recent_meetings: MeetingSummary[]
+  meetings_per_month: MonthlyMeetingCount[]
 }
 
 class ApiError extends Error {
@@ -96,16 +116,26 @@ export function createApiClient(getToken: GetTokenFn) {
       if (params.date_to) qs.set("date_to", params.date_to)
       if (params.status) qs.set("status", params.status)
       const query = qs.toString()
-      const res = await fetchWithAuth(`/api/v1/meetings/${query ? `?${query}` : ""}`)
+      const res = await fetchWithAuth(`/api/v1/meetings${query ? `?${query}` : ""}`)
       return res.json()
     },
 
-    async getMeeting(id: string): Promise<MeetingTranscript> {
+    async getDashboardStats(): Promise<DashboardStats> {
+      const res = await fetchWithAuth("/api/v1/meetings/stats")
+      return res.json()
+    },
+
+    async getMeetingSummary(id: string): Promise<MeetingSummary> {
+      const res = await fetchWithAuth(`/api/v1/meetings/${id}`)
+      return res.json()
+    },
+
+    async getMeeting(id: string): Promise<EnrichedTranscriptResponse> {
       const res = await fetchWithAuth(`/api/v1/meetings/${id}/transcript`)
       return res.json()
     },
 
-    async getMeetingStatus(id: string) {
+    async getMeetingStatus(id: string): Promise<ProcessingStatusResponse> {
       const res = await fetchWithAuth(`/api/v1/meetings/${id}/status`)
       return res.json()
     },
