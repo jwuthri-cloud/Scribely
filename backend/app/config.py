@@ -1,4 +1,5 @@
 """Application settings loaded from environment variables."""
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -86,8 +87,21 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
+def _sync_langfuse_sdk_environment(s: Settings) -> None:
+    """Langfuse SDK reads LANGFUSE_* from os.environ; pydantic-settings only loads .env into Settings."""
+    if not s.langfuse_enabled:
+        return
+    if s.langfuse_public_key:
+        os.environ["LANGFUSE_PUBLIC_KEY"] = s.langfuse_public_key
+    if s.langfuse_secret_key:
+        os.environ["LANGFUSE_SECRET_KEY"] = s.langfuse_secret_key
+    if s.langfuse_base_url:
+        os.environ["LANGFUSE_BASE_URL"] = s.langfuse_base_url
+
+
 # Global settings instance
 settings = Settings()
+_sync_langfuse_sdk_environment(settings)
 
 
 def get_settings() -> Settings:

@@ -1,10 +1,46 @@
 """Langfuse integration for LLM observability."""
+import logging
 from typing import Any, Dict, List, Optional
 
 from app.config import get_settings
 from app.utils.logging import get_logger
 
 logger = get_logger("langfuse_handler")
+
+
+def _stringify_langfuse_metadata_values(
+    metadata: Dict[str, Any],
+) -> Dict[str, str]:
+    """Langfuse propagate_attributes expects string values in the metadata map."""
+    out: Dict[str, str] = {}
+    for key, value in metadata.items():
+        if value is None:
+            continue
+        out[str(key)] = value if isinstance(value, str) else str(value)
+    return out
+
+
+class _SuppressOtelDetachMismatchFilter(logging.Filter):
+    """Avoid ERROR spam when LangChain async runs Langfuse callbacks across task boundaries."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "Failed to detach context" in msg:
+            return False
+        return True
+
+
+def configure_langfuse_observability_logging() -> None:
+    """
+    Langfuse LangChain CallbackHandler uses OpenTelemetry attach/detach around
+    propagate_attributes; LangChain may invoke chain end in a different asyncio
+    context than chain start, so detach can raise ValueError. OpenTelemetry logs
+    that at ERROR even though it is already handled — filter only that line.
+    """
+    if getattr(configure_langfuse_observability_logging, "_done", False):
+        return
+    logging.getLogger("opentelemetry.context").addFilter(_SuppressOtelDetachMismatchFilter())
+    setattr(configure_langfuse_observability_logging, "_done", True)
 
 # Global Langfuse handler instance
 _langfuse_handler = None
@@ -23,6 +59,8 @@ def _ensure_langfuse_client():
             "Skipping Langfuse integration."
         )
         return False
+
+    configure_langfuse_observability_logging()
 
     try:
         from langfuse import Langfuse
@@ -171,10 +209,10 @@ def get_langfuse_config(
     if tags:
         langfuse_metadata["langfuse_tags"] = tags
     
-    # Merge custom metadata
+    # Merge custom metadata (string values only — Langfuse propagate_attributes)
     if metadata:
-        langfuse_metadata.update(metadata)
-    
+        langfuse_metadata.update(_stringify_langfuse_metadata_values(metadata))
+
     if langfuse_metadata:
         config["metadata"] = langfuse_metadata
     

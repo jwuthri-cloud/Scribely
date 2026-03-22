@@ -3,8 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google"
 import { ClerkProvider } from "@clerk/nextjs"
 import { dark } from "@clerk/themes"
 import "./globals.css"
-import { Navbar } from "@/components/layout/navbar"
-import { Footer } from "@/components/layout/footer"
+import { MarketingShell } from "@/components/layout/marketing-shell"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -60,9 +59,7 @@ export default function RootLayout({
         <body
           className={`${inter.variable} ${spaceGrotesk.variable} font-sans bg-background text-foreground`}
         >
-          <Navbar />
-          <main className="min-h-screen">{children}</main>
-          <Footer />
+          <MarketingShell>{children}</MarketingShell>
         </body>
       </html>
     </ClerkProvider>
