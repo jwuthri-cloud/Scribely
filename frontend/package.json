@@ -12,6 +12,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.39.0",
+    "@clerk/themes": "^2.4.57",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-navigation-menu": "^1.2.3",
     "@radix-ui/react-separator": "^1.1.1",
@@ -23,6 +25,7 @@
     "next": "^14.2.25",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "recharts": "^3.8.0",
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {

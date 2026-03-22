@@ -3,71 +3,101 @@ Middleware package for Scribely.
 """
 
 import time
-from typing import Callable
 from uuid import uuid4
 
 from app.config import get_settings
 from app.utils.logging import get_logger
-from fastapi import Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.datastructures import MutableHeaders, URL
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = get_logger("middleware")
 
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware for request/response logging."""
+class LoggingMiddleware:
+    """
+    Request/response logging + X-Request-ID.
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Generate request ID
+    Implemented as pure ASGI middleware (not BaseHTTPMiddleware) so streaming
+    responses and edge cases do not trigger Starlette's "No response returned."
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         request_id = str(uuid4())
-        request.state.request_id = request_id
+        scope.setdefault("state", {})
+        scope["state"]["request_id"] = request_id
 
-        # Log request
         start_time = time.time()
+        url = URL(scope=scope)
+        client = scope.get("client")
+        client_ip = client[0] if client else None
+
         logger.info(
             "Request started",
             extra={
                 "request_id": request_id,
-                "method": request.method,
-                "url": str(request.url),
-                "client_ip": request.client.host if request.client else None,
-            }
+                "method": scope.get("method", ""),
+                "url": str(url),
+                "client_ip": client_ip,
+            },
         )
 
-        # Process request
-        response = await call_next(request)
+        response_started = False
 
-        # Log response
-        process_time = time.time() - start_time
-        logger.info(
-            "Request completed",
-            extra={
-                "request_id": request_id,
-                "status_code": response.status_code,
-                "process_time": f"{process_time:.4f}s",
-            }
-        )
+        async def send_wrapper(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+                process_time = time.time() - start_time
+                logger.info(
+                    "Request completed",
+                    extra={
+                        "request_id": request_id,
+                        "status_code": message["status"],
+                        "process_time": f"{process_time:.4f}s",
+                    },
+                )
+            await send(message)
 
-        # Add request ID to response headers
-        response.headers["X-Request-ID"] = request_id
+        await self.app(scope, receive, send_wrapper)
 
-        return response
+        if not response_started:
+            logger.warning(
+                "ASGI app finished without http.response.start",
+                extra={"request_id": request_id, "path": scope.get("path")},
+            )
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Middleware for adding security headers."""
+class SecurityHeadersMiddleware:
+    """Add security headers via pure ASGI (avoids BaseHTTPMiddleware pitfalls)."""
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        response = await call_next(request)
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
-        # Security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        return response
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["X-Frame-Options"] = "DENY"
+                headers["X-XSS-Protection"] = "1; mode=block"
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 
 def setup_middleware(app):

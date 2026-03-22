@@ -24,6 +24,15 @@
     --input: 240 5% 15%;
     --ring: 263 70% 58%;
     --radius: 0.75rem;
+    --workspace-shell: 232 28% 8%;
+    --workspace-shell-2: 239 24% 11%;
+    --workspace-panel: 235 24% 12%;
+    --workspace-panel-2: 236 20% 16%;
+    --workspace-card: 0 0% 100%;
+    --workspace-border: 0 0% 100%;
+    --workspace-muted: 240 10% 75%;
+    --workspace-glow: 259 92% 68%;
+    --workspace-cyan: 190 92% 62%;
   }
 
   * {
@@ -32,6 +41,104 @@
 
   body {
     @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  .workspace-shell {
+    background:
+      radial-gradient(circle at top left, rgba(129, 140, 248, 0.14), transparent 28%),
+      radial-gradient(circle at top right, rgba(34, 211, 238, 0.1), transparent 24%),
+      linear-gradient(180deg, hsl(var(--workspace-shell-2)) 0%, hsl(var(--workspace-shell)) 100%);
+  }
+
+  .workspace-main {
+    background:
+      radial-gradient(circle at top, rgba(148, 163, 184, 0.08), transparent 22%),
+      radial-gradient(circle at 85% 8%, rgba(34, 211, 238, 0.12), transparent 18%),
+      radial-gradient(circle at 10% 90%, rgba(168, 85, 247, 0.12), transparent 22%),
+      linear-gradient(180deg, rgba(8, 10, 21, 0.96) 0%, rgba(7, 8, 17, 1) 100%);
+  }
+
+  .workspace-card {
+    @apply rounded-[28px] border border-white/10 bg-white/[0.035] backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 20px 60px -28px rgba(0, 0, 0, 0.85);
+  }
+
+  .workspace-panel {
+    @apply rounded-[24px] border border-white/10 bg-black/30 backdrop-blur-xl;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 18px 48px -26px rgba(0, 0, 0, 0.75);
+  }
+
+  .workspace-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: center;
+  }
+
+  .workspace-nav-item {
+    @apply relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3 text-sm font-medium text-white/60 transition-[color,background-color,box-shadow,transform] duration-200 hover:bg-white/[0.06] hover:text-white;
+  }
+
+  .workspace-nav-item[data-active="true"] {
+    @apply text-white;
+    background:
+      linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.15)),
+      rgba(255, 255, 255, 0.05);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 18px 44px -28px rgba(99, 102, 241, 0.9);
+  }
+
+  .workspace-nav-item[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 9px;
+    left: 8px;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(103, 232, 249, 1), rgba(168, 85, 247, 1));
+  }
+
+  .workspace-nav-orbit {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .workspace-nav-orbit::before {
+    content: "";
+    position: absolute;
+    inset: 16px;
+    border-radius: 9999px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+  }
+
+  .workspace-flip-inner {
+    position: relative;
+    min-height: 208px;
+    transform-style: preserve-3d;
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .group[data-flipped="true"] .workspace-flip-inner,
+  .group:hover .workspace-flip-inner {
+    transform: rotateY(180deg);
+  }
+
+  .workspace-flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+  }
+
+  .workspace-flip-back {
+    transform: rotateY(180deg);
   }
 }
 
@@ -59,5 +166,26 @@
 
   .glow-lg {
     box-shadow: 0 0 80px rgba(139, 92, 246, 0.25);
+  }
+
+  .app-workspace-canvas {
+    @apply workspace-main workspace-grid;
+  }
+
+  .app-sidebar-surface {
+    @apply workspace-shell;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      18px 0 46px -30px rgba(0, 0, 0, 0.92);
+  }
+
+  .app-nav-active {
+    @apply text-white;
+    background:
+      linear-gradient(135deg, rgba(99, 102, 241, 0.32), rgba(168, 85, 247, 0.16)),
+      rgba(255, 255, 255, 0.04);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 18px 44px -30px rgba(99, 102, 241, 0.85);
   }
 }
