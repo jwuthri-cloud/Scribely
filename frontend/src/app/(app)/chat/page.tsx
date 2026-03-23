@@ -88,7 +88,7 @@ export default function ChatPage() {
 
       <div className="relative z-10 flex flex-1 flex-col min-h-0">
         {/* Header bar */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#0f0f0f]/80 px-5 py-3.5 backdrop-blur-xl sm:px-6">
+        <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/60 px-5 py-3.5 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
               <Bot className="h-4 w-4 text-cyan-200" />
@@ -154,7 +154,7 @@ export default function ChatPage() {
         </div>
 
         {/* Composer pinned to bottom */}
-        <div className="border-t border-white/[0.06] bg-[#0f0f0f]/90 px-4 py-4 backdrop-blur-xl sm:px-6">
+        <div className="border-t border-white/[0.06] bg-black/60 px-4 py-4 backdrop-blur-xl sm:px-6">
           <ChatInput
             placeholder="Ask a follow-up question…"
             onSend={handleSend}

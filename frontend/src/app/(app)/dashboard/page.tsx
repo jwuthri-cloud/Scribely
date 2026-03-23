@@ -11,30 +11,12 @@ import {
   Video,
   type LucideIcon,
 } from "lucide-react"
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
 import { HeroSection } from "@/components/ui/hero-section-dark"
+import { MeetingActivityCard } from "@/components/ui/meeting-activity-card"
 import { LoadingDots } from "@/components/app/workspace/LoadingDots"
 import { useApi } from "@/hooks/useApi"
 import { formatDurationSeconds } from "@/lib/utils"
 import type { DashboardStats, MeetingSummary } from "@/lib/api"
-
-const MONTH_LABELS: Record<string, string> = {
-  "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
-  "05": "May", "06": "Jun", "07": "Jul", "08": "Aug",
-  "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dec",
-}
-
-function formatMonth(ym: string): string {
-  const parts = ym.split("-")
-  return MONTH_LABELS[parts[1]] ?? parts[1]
-}
 
 function formatHours(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
@@ -132,10 +114,7 @@ export default function DashboardPage() {
       ? Math.round((stats.completed_count / stats.total_meetings) * 100)
       : 0
 
-  const chartData = (stats?.meetings_per_month ?? []).map((d) => ({
-    name: formatMonth(d.month),
-    meetings: d.count,
-  }))
+  const activityData = (stats?.meetings_per_month ?? []).map((d) => d.count)
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -194,62 +173,23 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Chart + Recent meetings */}
+      {/* Activity card + Recent meetings */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-7">
-        {/* Overview chart */}
-        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 lg:col-span-4">
-          <h3 className="text-base font-semibold text-white">Overview</h3>
-
-          {loading ? (
-            <div className="mt-4 flex h-[300px] items-center justify-center">
-              <LoadingDots />
-            </div>
-          ) : chartData.length === 0 ? (
-            <div className="mt-4 flex h-[300px] flex-col items-center justify-center gap-2">
-              <Video className="h-8 w-8 text-white/20" />
-              <p className="text-sm text-white/40">
-                No data yet. Sync your first meeting to see activity.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData} barCategoryGap="20%">
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 12 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 12 }}
-                    allowDecimals={false}
-                    width={30}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(255,255,255,0.03)" }}
-                    contentStyle={{
-                      backgroundColor: "rgba(0,0,0,0.9)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 8,
-                      padding: "6px 12px",
-                      color: "#fff",
-                      fontSize: 13,
-                    }}
-                    labelStyle={{ color: "rgba(255,255,255,0.5)" }}
-                  />
-                  <Bar
-                    dataKey="meetings"
-                    radius={[4, 4, 0, 0]}
-                    fill="rgba(255,255,255,0.85)"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+        <MeetingActivityCard
+          className="lg:col-span-4"
+          totalMeetings={stats?.total_meetings ?? 0}
+          totalDurationSeconds={stats?.total_duration_seconds ?? 0}
+          totalTranscriptLines={stats?.total_transcript_lines ?? 0}
+          activityData={activityData}
+          alertMessage={
+            stats?.processing_count
+              ? `${stats.processing_count} meeting${stats.processing_count > 1 ? "s" : ""} currently processing`
+              : undefined
+          }
+          ctaText="Browse all meetings"
+          ctaHref="/meetings"
+          loading={loading}
+        />
 
         {/* Recent meetings */}
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 lg:col-span-3">

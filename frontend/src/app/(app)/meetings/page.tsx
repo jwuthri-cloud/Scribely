@@ -1,20 +1,83 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import Link from "next/link"
 import {
   Search,
   Video,
   ChevronLeft,
   ChevronRight,
-  Library,
+  Clock3,
+  FileText,
+  ArrowRight,
+  CalendarDays,
+  X,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { MeetingRowCard } from "@/components/app/meeting/MeetingRowCard"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
-import { PageHeader } from "@/components/app/workspace/PageHeader"
-import { WorkspaceSurface } from "@/components/app/workspace/WorkspaceSurface"
 import { useApi } from "@/hooks/useApi"
-import type { MeetingSummary } from "@/lib/api"
+import { formatDurationSeconds } from "@/lib/utils"
+import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { MeetingActivityCard } from "@/components/ui/meeting-activity-card"
+import type { MeetingSummary, DashboardStats } from "@/lib/api"
+
+const statusDot: Record<string, string> = {
+  completed: "bg-emerald-400",
+  processing: "bg-amber-400",
+  uploaded: "bg-sky-400",
+  failed: "bg-red-400",
+}
+
+function MeetingRow({ meeting }: { meeting: MeetingSummary }) {
+  const dateStr = meeting.recorded_at
+    ? new Date(meeting.recorded_at).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null
+
+  return (
+    <Link
+      href={`/meetings/${meeting.id}`}
+      className="group flex items-center gap-4 border-b border-white/[0.06] px-4 py-4 transition-colors last:border-0 hover:bg-white/[0.03] sm:px-6"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.06]">
+        <Video className="h-4 w-4 text-white/60" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-white">
+          {meeting.title || "Untitled Meeting"}
+        </p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-white/40">
+          {dateStr && (
+            <span className="inline-flex items-center gap-1">
+              <Clock3 className="h-3 w-3" />
+              {dateStr}
+            </span>
+          )}
+          {meeting.duration_seconds != null && meeting.duration_seconds > 0 && (
+            <span>{formatDurationSeconds(meeting.duration_seconds)}</span>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <FileText className="h-3 w-3" />
+            {meeting.entry_count} lines
+          </span>
+        </div>
+      </div>
+
+      <div className="hidden shrink-0 items-center gap-2 sm:flex">
+        <span className="inline-flex items-center gap-1.5 text-xs text-white/40">
+          <span className={`h-1.5 w-1.5 rounded-full ${statusDot[meeting.status] ?? "bg-white/30"}`} />
+          {meeting.status}
+        </span>
+      </div>
+
+      <ArrowRight className="h-4 w-4 shrink-0 text-white/20 transition-transform group-hover:translate-x-0.5 group-hover:text-white/60" />
+    </Link>
+  )
+}
 
 export default function MeetingsPage() {
   const api = useApi()
@@ -26,6 +89,8 @@ export default function MeetingsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
 
   const limit = 20
 
@@ -49,137 +114,178 @@ export default function MeetingsPage() {
     }
   }, [api, page, search, dateFrom, dateTo])
 
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const data = await api.getDashboardStats()
+      setStats(data)
+    } catch {
+      // API unavailable
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [api])
+
   useEffect(() => {
     fetchMeetings()
   }, [fetchMeetings])
 
   useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  useEffect(() => {
     setPage(1)
   }, [search, dateFrom, dateTo])
 
+  const hasFilters = search || dateFrom || dateTo
+  const activityData = (stats?.meetings_per_month ?? []).map((d) => d.count)
+
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader
-        eyebrow="Meeting library"
-        title="Search every synced meeting"
-        description="Keep the existing filters and pagination, but present them in a cleaner review workflow built for scanning and opening transcripts fast."
-        actions={
-          !loading ? (
-            <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-white/72">
-              {total} total meetings
-            </div>
-          ) : undefined
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Meetings</h1>
+          <p className="mt-1 text-sm text-white/40">
+            Browse and search all synced meeting transcripts.
+          </p>
+        </div>
+        {!loading && (
+          <p className="text-sm tabular-nums text-white/40">
+            {total} meeting{total !== 1 ? "s" : ""} total
+          </p>
+        )}
+      </div>
+
+      {/* Activity summary card */}
+      <MeetingActivityCard
+        totalMeetings={stats?.total_meetings ?? 0}
+        totalDurationSeconds={stats?.total_duration_seconds ?? 0}
+        totalTranscriptLines={stats?.total_transcript_lines ?? 0}
+        activityData={activityData}
+        alertMessage={
+          stats?.processing_count
+            ? `${stats.processing_count} meeting${stats.processing_count > 1 ? "s" : ""} currently processing`
+            : undefined
         }
+        ctaText="Open AI chat"
+        ctaHref="/chat"
+        loading={statsLoading}
       />
 
-      <WorkspaceSurface className="p-5 sm:p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+          <input
+            type="text"
+            placeholder="Search by title..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-10 w-full rounded-lg border border-white/[0.08] bg-white/[0.02] pl-9 pr-3 text-sm text-white placeholder:text-white/25 focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/10"
+            aria-label="Search meetings"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
             <input
-              type="text"
-              placeholder="Search by title…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-14 w-full rounded-[24px] border border-white/10 bg-white/[0.04] py-3 pl-11 pr-4 text-sm text-white placeholder:text-white/32 focus:border-cyan-300/30 focus:outline-none focus:ring-2 focus:ring-cyan-300/15"
-              aria-label="Search meetings"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-10 rounded-lg border border-white/[0.08] bg-white/[0.02] pl-9 pr-3 text-xs text-white focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+              aria-label="From date"
             />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-3">
-              <label className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
-                From
-              </label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="mt-2 w-full bg-transparent text-sm text-white focus:outline-none [color-scheme:dark]"
-              />
-            </div>
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.035] px-4 py-3">
-              <label className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
-                To
-              </label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="mt-2 w-full bg-transparent text-sm text-white focus:outline-none [color-scheme:dark]"
-              />
-            </div>
+          <div className="relative">
+            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/30" />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-10 rounded-lg border border-white/[0.08] bg-white/[0.02] pl-9 pr-3 text-xs text-white focus:border-white/20 focus:outline-none focus:ring-1 focus:ring-white/10 [color-scheme:dark]"
+              aria-label="To date"
+            />
           </div>
         </div>
-      </WorkspaceSurface>
+      </div>
 
-      <WorkspaceSurface className="p-5 sm:p-6" variant="panel">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05]">
-            <Library className="h-5 w-5 text-cyan-100" />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/36">Results</p>
-            <p className="text-sm text-white/60">Title, time, duration, transcript line count, and status.</p>
-          </div>
-        </div>
-
+      {/* Meetings list */}
+      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
         {loading ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 py-24">
             <LoadingDots />
-            <p className="text-sm text-white/48">Loading meetings…</p>
+            <p className="text-sm text-white/40">Loading meetings...</p>
           </div>
         ) : meetings.length === 0 ? (
-          <div className="workspace-card px-6 py-16 text-center">
-            <Video className="mx-auto h-12 w-12 text-white/28" />
-            <p className="mt-4 text-sm text-white/52">
-              {search || dateFrom || dateTo
+          <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+            <Video className="h-10 w-10 text-white/15" />
+            <p className="text-sm text-white/40">
+              {hasFilters
                 ? "No meetings match your filters."
-                : "No meetings found. Sync from the desktop app to populate this list."}
+                : "No meetings found. Sync from the desktop app to get started."}
             </p>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("")
+                  setDateFrom("")
+                  setDateTo("")
+                }}
+                className="mt-1 text-xs text-white/30 underline underline-offset-2 hover:text-white/50"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div>
             {meetings.map((meeting) => (
-              <MeetingRowCard
-                key={meeting.id}
-                meeting={meeting}
-                href={`/meetings/${meeting.id}`}
-                showStatus
-              />
+              <MeetingRow key={meeting.id} meeting={meeting} />
             ))}
           </div>
         )}
-      </WorkspaceSurface>
+      </div>
 
-      {pages > 1 ? (
-        <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2">
-          <p className="text-xs text-white/44">
-            Page {page} of {pages} ({total} meetings)
+      {/* Pagination */}
+      {pages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs tabular-nums text-white/30">
+            Page {page} of {pages}
           </p>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
+          <div className="flex gap-1">
+            <button
+              type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-full border border-white/10 px-4 text-white/72 hover:bg-white/[0.08] hover:text-white"
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 text-xs text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white disabled:pointer-events-none disabled:opacity-30"
             >
-              <ChevronLeft className="mr-1 h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
               Prev
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            </button>
+            <button
+              type="button"
               disabled={page >= pages}
               onClick={() => setPage((p) => p + 1)}
-              className="rounded-full border border-white/10 px-4 text-white/72 hover:bg-white/[0.08] hover:text-white"
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 text-xs text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white disabled:pointer-events-none disabled:opacity-30"
             >
               Next
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Button>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
