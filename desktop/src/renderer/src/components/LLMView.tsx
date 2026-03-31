@@ -9,6 +9,7 @@ import {
   DEFAULT_SUMMARIZATION,
   DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
   DEFAULT_QUICK_ACTIONS,
+  PRESET_SYSTEM_PROMPT_IDS,
 } from '../types/settings'
 import { IconPicker, getQuickActionIcon } from './QuickActionIcons'
 
@@ -1093,8 +1094,9 @@ export function LLMView() {
                         color: isActive ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)',
                       }}
                     >
-                      {prompt.content.slice(0, 60)}
-                      {prompt.content.length > 60 ? '...' : ''}
+                      {PRESET_SYSTEM_PROMPT_IDS.has(prompt.id)
+                        ? 'Built-in preset'
+                        : `${prompt.content.slice(0, 60)}${prompt.content.length > 60 ? '...' : ''}`}
                     </div>
                   </div>
                 </button>

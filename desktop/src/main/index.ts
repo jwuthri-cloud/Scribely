@@ -666,6 +666,14 @@ function registerIpcHandlers(): void {
 
 // ── Chrome Extension WS Server Lifecycle ──────────────
 function initExtensionWsServer(): void {
+  /**
+   * When the renderer stops the meeting it calls `extension:stop-capture`, which
+   * closes the WebSocket. That emits `disconnected` — we must NOT also send
+   * `extension:auto-stop-meeting`, or the renderer runs handleStopMeeting twice
+   * (duplicate transcript save + duplicate backend upload).
+   */
+  let suppressAutoStopOnExtensionDisconnect = false
+
   // Helper: safely send to renderer only if window is alive
   const safeSend = (channel: string, data: unknown): void => {
     try {
@@ -678,6 +686,7 @@ function initExtensionWsServer(): void {
   }
 
   extensionWsServer.on('connected', async () => {
+    suppressAutoStopOnExtensionDisconnect = false
     extensionWsLog.success('Chrome extension connected')
     safeSend('extension:status-changed', { connected: true })
     // Start pipeline immediately so we don't drop extension audio frames
@@ -694,8 +703,14 @@ function initExtensionWsServer(): void {
     safeSend('extension:status-changed', { connected: false })
     // Stop external recording
     screenRecorder.stopExternalRecording()
-    // Auto-stop meeting when extension disconnects
-    safeSend('extension:auto-stop-meeting', {})
+    // Auto-stop meeting when extension disconnects unexpectedly (e.g. tab closed).
+    // Skip when the disconnect was caused by renderer `extension:stop-capture` (user stopped meeting).
+    if (suppressAutoStopOnExtensionDisconnect) {
+      suppressAutoStopOnExtensionDisconnect = false
+      extensionWsLog.debug('Skipping auto-stop-meeting (extension stop was renderer-initiated)')
+    } else {
+      safeSend('extension:auto-stop-meeting', {})
+    }
   })
 
   // Feed audio frames from extension into AudioPipeline as "system" source
@@ -747,6 +762,7 @@ function initExtensionWsServer(): void {
   // the socket. The 'disconnected' handler may call stopExternalRecording
   // again — that is safe (it returns the stored filepath when already stopped).
   ipcMain.handle('extension:stop-capture', async () => {
+    suppressAutoStopOnExtensionDisconnect = true
     const { filepath } = await screenRecorder.stopExternalRecording()
     extensionWsServer.stopCaptureClient()
     return { success: true, filepath: filepath ?? undefined }

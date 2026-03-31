@@ -165,6 +165,11 @@ export interface SystemPrompt {
   updatedAt: number
 }
 
+export {
+  TECH_INTERVIEW_SYSTEM_PROMPT_ID,
+  PRESET_SYSTEM_PROMPT_IDS,
+} from '../../../shared/system-prompt-presets'
+
 /** Summarization settings for Phase 2 transcript scaling */
 export interface SummarizationSettings {
   /** Enable automatic summarization after chat responses */

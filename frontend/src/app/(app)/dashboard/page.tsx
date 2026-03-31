@@ -114,8 +114,6 @@ export default function DashboardPage() {
       ? Math.round((stats.completed_count / stats.total_meetings) * 100)
       : 0
 
-  const activityData = (stats?.meetings_per_month ?? []).map((d) => d.count)
-
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       {/* Hero */}
@@ -180,7 +178,7 @@ export default function DashboardPage() {
           totalMeetings={stats?.total_meetings ?? 0}
           totalDurationSeconds={stats?.total_duration_seconds ?? 0}
           totalTranscriptLines={stats?.total_transcript_lines ?? 0}
-          activityData={activityData}
+          meetingsPerMonth={stats?.meetings_per_month ?? []}
           alertMessage={
             stats?.processing_count
               ? `${stats.processing_count} meeting${stats.processing_count > 1 ? "s" : ""} currently processing`

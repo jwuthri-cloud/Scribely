@@ -116,6 +116,22 @@ class MeetingRepository:
         return meeting
 
     @staticmethod
+    async def update_after_processing(
+        db: AsyncSession,
+        meeting_id: str,
+        status: MeetingStatusEnum,
+        duration_seconds: Optional[int] = None,
+    ) -> Optional[Meeting]:
+        meeting = await MeetingRepository.get_by_id(db, meeting_id)
+        if meeting:
+            meeting.status = status
+            if duration_seconds is not None:
+                meeting.duration_seconds = duration_seconds
+            await db.flush()
+            await db.refresh(meeting)
+        return meeting
+
+    @staticmethod
     async def count_for_user(db: AsyncSession, user_id: str) -> int:
         result = await db.execute(
             select(func.count(Meeting.id)).where(Meeting.user_id == user_id)
@@ -156,10 +172,14 @@ class MeetingRepository:
     ) -> list[dict[str, object]]:
         """Return meeting counts grouped by month for the last N months.
 
-        Uses strftime for SQLite compatibility. Returns list of
+        SQLite uses ``strftime``; PostgreSQL uses ``to_char``. Returns list of
         ``{"month": "2026-03", "count": 5}`` dicts ordered chronologically.
         """
-        month_expr = func.strftime("%Y-%m", Meeting.recorded_at)
+        dialect = db.get_bind().dialect.name
+        if dialect == "postgresql":
+            month_expr = func.to_char(Meeting.recorded_at, "YYYY-MM")
+        else:
+            month_expr = func.strftime("%Y-%m", Meeting.recorded_at)
         cutoff = datetime.utcnow().replace(day=1) - timedelta(days=30 * (months - 1))
 
         stmt = (

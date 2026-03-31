@@ -21,6 +21,24 @@ from app.utils.logging import get_logger
 logger = get_logger("task_runner")
 
 
+async def _update_db(meeting_id: str, status: str, duration_seconds: int | None) -> None:
+    """Update meeting status and duration in the database after processing."""
+    try:
+        from app.database.models.meeting import MeetingStatusEnum
+        from app.database.repositories.meeting import MeetingRepository
+        from app.database.session import get_async_session
+
+        db_status = MeetingStatusEnum(status)
+        async with get_async_session() as db:
+            await MeetingRepository.update_after_processing(
+                db, meeting_id, db_status, duration_seconds
+            )
+            await db.commit()
+            logger.info(f"DB updated for meeting {meeting_id}: status={status}, duration={duration_seconds}s")
+    except Exception as e:
+        logger.error(f"Failed to update DB for meeting {meeting_id}: {e}")
+
+
 class TaskStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
@@ -56,7 +74,7 @@ def _write_status(meeting_dir: Path, status: TaskStatus, **extra: Any) -> None:
 _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 
-def schedule_processing(meeting_dir: Path, provider: str | None = None) -> bool:
+def schedule_processing(meeting_dir: Path, meeting_id: str | None = None, provider: str | None = None) -> bool:
     """Schedule background meeting processing.
 
     Returns ``True`` if a new task was created, ``False`` if one is already
@@ -69,7 +87,7 @@ def schedule_processing(meeting_dir: Path, provider: str | None = None) -> bool:
         return False
 
     _write_status(meeting_dir, TaskStatus.PENDING)
-    task = asyncio.create_task(_run(meeting_dir, provider))
+    task = asyncio.create_task(_run(meeting_dir, meeting_id, provider))
     _active_tasks[key] = task
 
     # Auto-cleanup when done
@@ -79,15 +97,24 @@ def schedule_processing(meeting_dir: Path, provider: str | None = None) -> bool:
     return True
 
 
-async def _run(meeting_dir: Path, provider: str | None) -> None:
+async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) -> None:
     from app.services.meeting_processor import process_meeting
 
     _write_status(meeting_dir, TaskStatus.PROCESSING, startedAt=datetime.now(timezone.utc).isoformat())
 
     try:
         result = await process_meeting(meeting_dir, provider)
-        speaker_map = result.get("diarization", {}).get("speakerMap", {})
-        utterance_count = result.get("diarization", {}).get("utteranceCount", 0)
+        diarization = result.get("diarization", {})
+        speaker_map = diarization.get("speakerMap", {})
+        utterance_count = diarization.get("utteranceCount", 0)
+
+        # Derive duration from last utterance endMs (in milliseconds → seconds)
+        utterances = diarization.get("utterances", [])
+        duration_seconds: int | None = None
+        if utterances:
+            last_end_ms = utterances[-1].get("endMs", 0)
+            if isinstance(last_end_ms, (int, float)) and last_end_ms > 0:
+                duration_seconds = max(1, int(last_end_ms / 1000))
 
         _write_status(
             meeting_dir,
@@ -98,6 +125,9 @@ async def _run(meeting_dir: Path, provider: str | None) -> None:
         )
         logger.info(f"Processing completed for {meeting_dir.name}")
 
+        if meeting_id:
+            await _update_db(meeting_id, "completed", duration_seconds)
+
     except Exception as e:
         tb = traceback.format_exc()
         logger.error(f"Processing failed for {meeting_dir.name}: {e}\n{tb}")
@@ -107,3 +137,6 @@ async def _run(meeting_dir: Path, provider: str | None) -> None:
             error=str(e),
             failedAt=datetime.now(timezone.utc).isoformat(),
         )
+
+        if meeting_id:
+            await _update_db(meeting_id, "failed", None)

@@ -447,85 +447,93 @@ export function Overlay() {
 
   const [savedFiles, setSavedFiles] = useState<{ recording?: string; transcript?: string } | null>(null)
 
+  /** Prevents double stop (e.g. hotkey spam + auto-stop racing) from duplicating saves/uploads. */
+  const meetingStopInProgressRef = useRef(false)
+
   const handleStopMeeting = useCallback(async () => {
     if (!transcript.status.isActive) return
+    if (meetingStopInProgressRef.current) return
+    meetingStopInProgressRef.current = true
+    try {
+      // Capture entries before anything gets cleared
+      const currentEntries = [...transcript.entries]
+      const wasExtensionMode = capture.captureMode === 'extension'
 
-    // Capture entries before anything gets cleared
-    const currentEntries = [...transcript.entries]
-    const wasExtensionMode = capture.captureMode === 'extension'
+      await capture.stopCapture()
 
-    await capture.stopCapture()
-
-    // In extension mode, tell the extension to stop capturing and skip
-    // the Electron screen recorder (it was never started).
-    // stopExtensionCapture now returns the filepath of the external recording.
-    let recordingPath: string | null | undefined
-    if (wasExtensionMode) {
-      const result = await window.electronAPI?.stopExtensionCapture?.()
-      recordingPath = result?.filepath ?? null
-    } else {
-      recordingPath = await recorder.stopRecording()
-    }
-
-    // Save final transcript to disk (with recording path link)
-    let transcriptPath: string | undefined
-    if (currentEntries.length > 0) {
-      try {
-        const result = await window.electronAPI?.saveTranscript?.({
-          entries: currentEntries.map((e) => ({
-            id: e.id,
-            speaker: e.speaker,
-            text: e.text,
-            startTime: e.startTime,
-            endTime: e.endTime,
-            source: e.source || 'unknown',
-          })),
-          recordingFilepath: recordingPath ?? undefined,
-        })
-        transcriptPath = result?.filepath
-        if (transcriptPath) {
-          console.log(`[overlay] Transcript saved: ${transcriptPath}`)
-        }
-      } catch (err) {
-        console.error('[overlay] Failed to save transcript:', err)
+      // In extension mode, tell the extension to stop capturing and skip
+      // the Electron screen recorder (it was never started).
+      // stopExtensionCapture now returns the filepath of the external recording.
+      let recordingPath: string | null | undefined
+      if (wasExtensionMode) {
+        const result = await window.electronAPI?.stopExtensionCapture?.()
+        recordingPath = result?.filepath ?? null
+      } else {
+        recordingPath = await recorder.stopRecording()
       }
-    }
 
-    // Sync meeting files to backend (fire-and-forget, non-blocking)
-    // Requires the user to be authenticated and the transcript to have been saved.
-    if (transcriptPath) {
-      window.electronAPI?.authGetState?.().then((authState) => {
-        if (authState?.mode === 'authenticated') {
-          window.electronAPI?.backendSyncMeeting?.({
-            transcriptFilepath: transcriptPath!,
+      // Save final transcript to disk (with recording path link)
+      let transcriptPath: string | undefined
+      if (currentEntries.length > 0) {
+        try {
+          const result = await window.electronAPI?.saveTranscript?.({
+            entries: currentEntries.map((e) => ({
+              id: e.id,
+              speaker: e.speaker,
+              text: e.text,
+              startTime: e.startTime,
+              endTime: e.endTime,
+              source: e.source || 'unknown',
+            })),
             recordingFilepath: recordingPath ?? undefined,
-          }).then((res) => {
-            if (res?.success) {
-              console.log(`[overlay] Meeting synced to backend (id=${res.meetingId})`)
-            } else {
-              console.warn('[overlay] Backend sync failed:', res?.message)
-            }
-          }).catch((err) => {
-            console.warn('[overlay] Backend sync error:', err)
           })
+          transcriptPath = result?.filepath
+          if (transcriptPath) {
+            console.log(`[overlay] Transcript saved: ${transcriptPath}`)
+          }
+        } catch (err) {
+          console.error('[overlay] Failed to save transcript:', err)
         }
-      }).catch(() => {
-        // Auth state check failed — skip sync silently
-      })
-    }
+      }
 
-    await transcript.stopSession()
-    setMeetingError(null)
-    setExcludeMyMic(false)
+      // Sync meeting files to backend (fire-and-forget, non-blocking)
+      // Requires the user to be authenticated and the transcript to have been saved.
+      if (transcriptPath) {
+        window.electronAPI?.authGetState?.().then((authState) => {
+          if (authState?.mode === 'authenticated') {
+            window.electronAPI?.backendSyncMeeting?.({
+              transcriptFilepath: transcriptPath!,
+              recordingFilepath: recordingPath ?? undefined,
+            }).then((res) => {
+              if (res?.success) {
+                console.log(`[overlay] Meeting synced to backend (id=${res.meetingId})`)
+              } else {
+                console.warn('[overlay] Backend sync failed:', res?.message)
+              }
+            }).catch((err) => {
+              console.warn('[overlay] Backend sync error:', err)
+            })
+          }
+        }).catch(() => {
+          // Auth state check failed — skip sync silently
+        })
+      }
 
-    // Show save notification
-    if (recordingPath || transcriptPath) {
-      setSavedFiles({
-        recording: recordingPath ?? undefined,
-        transcript: transcriptPath,
-      })
-      // Auto-dismiss after 6 seconds
-      setTimeout(() => setSavedFiles(null), 6000)
+      await transcript.stopSession()
+      setMeetingError(null)
+      setExcludeMyMic(false)
+
+      // Show save notification
+      if (recordingPath || transcriptPath) {
+        setSavedFiles({
+          recording: recordingPath ?? undefined,
+          transcript: transcriptPath,
+        })
+        // Auto-dismiss after 6 seconds
+        setTimeout(() => setSavedFiles(null), 6000)
+      }
+    } finally {
+      meetingStopInProgressRef.current = false
     }
   }, [capture, recorder, transcript])
 

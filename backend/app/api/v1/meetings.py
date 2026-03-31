@@ -98,18 +98,40 @@ class DashboardStatsResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _meeting_dir(user_id: Any, meeting_id: str) -> Path:
-    settings = get_settings()
-    return Path(settings.upload_dir) / str(user_id) / meeting_id
+async def _resolve_meeting_dir(
+    db: AsyncSession,
+    user: User,
+    meeting_id: str,
+) -> Path:
+    """Return the on-disk meeting directory after DB + filesystem checks.
 
-
-def _validate_meeting_access(user: User, meeting_id: str) -> Path:
-    """Return the meeting directory if it exists and belongs to the user."""
-    meeting_dir = _meeting_dir(user.id, meeting_id)
-    if not meeting_dir.is_dir():
+    The meeting list is backed by the database; transcript/status/reprocess need
+    files under ``{upload_dir}/{storage_path}``. If the row exists but the folder
+    does not (wrong ``UPLOAD_DIR``, wiped uploads, DB restored without files),
+    raise 404 with a message that distinguishes that from an unknown id.
+    """
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Meeting {meeting_id} not found",
+            detail="Meeting not found",
+        )
+    settings = get_settings()
+    meeting_dir = Path(settings.upload_dir) / meeting.storage_path
+    if not meeting_dir.is_dir():
+        logger.warning(
+            "Meeting %s has DB row but missing directory: %s (upload_dir=%s)",
+            meeting_id,
+            meeting_dir,
+            settings.upload_dir,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Transcript files for this meeting are not on this server. "
+                "Check that UPLOAD_DIR matches where the desktop app uploaded files, "
+                "or re-sync the meeting."
+            ),
         )
     return meeting_dir
 
@@ -355,7 +377,7 @@ async def sync_meeting(
     initial_status = MeetingStatusEnum.PROCESSING if recording_path else MeetingStatusEnum.COMPLETED
     storage_rel = f"{user.id}/{meeting_id}"
 
-    await MeetingRepository.create(
+    db_meeting = await MeetingRepository.create(
         db,
         user_id=user.id,
         storage_path=storage_rel,
@@ -370,8 +392,8 @@ async def sync_meeting(
 
     # --- Trigger background processing if we have a recording ---
     if recording_path is not None:
-        schedule_processing(meeting_dir)
-        logger.info(f"Background diarization scheduled for meeting {meeting_id}")
+        schedule_processing(meeting_dir, meeting_id=db_meeting.id)
+        logger.info(f"Background diarization scheduled for meeting {meeting_id} (db_id={db_meeting.id})")
 
     return MeetingSyncResponse(
         success=True,
@@ -388,9 +410,10 @@ async def sync_meeting(
 async def get_processing_status(
     meeting_id: str,
     user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> ProcessingStatusResponse:
     """Return the diarization / speaker-identification processing status."""
-    meeting_dir = _validate_meeting_access(user, meeting_id)
+    meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
     info = read_status(meeting_dir)
 
     return ProcessingStatusResponse(
@@ -411,9 +434,10 @@ async def get_processing_status(
 async def get_transcript(
     meeting_id: str,
     user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> EnrichedTranscriptResponse:
     """Return the enriched transcript if available, otherwise the original."""
-    meeting_dir = _validate_meeting_access(user, meeting_id)
+    meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
 
     enriched_path = meeting_dir / "transcript_enriched.json"
     original_path = meeting_dir / "transcript.json"
@@ -449,12 +473,13 @@ async def reprocess_meeting(
     meeting_id: str,
     provider: Optional[str] = None,
     user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> ProcessingStatusResponse:
     """Manually re-trigger diarization + speaker identification.
 
     Optionally override the diarization provider (``deepgram`` or ``assemblyai``).
     """
-    meeting_dir = _validate_meeting_access(user, meeting_id)
+    meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
 
     recording_path = meeting_dir / "recording.webm"
     if not recording_path.exists():

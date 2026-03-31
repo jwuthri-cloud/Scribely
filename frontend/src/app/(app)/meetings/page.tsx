@@ -139,7 +139,6 @@ export default function MeetingsPage() {
   }, [search, dateFrom, dateTo])
 
   const hasFilters = search || dateFrom || dateTo
-  const activityData = (stats?.meetings_per_month ?? []).map((d) => d.count)
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -163,7 +162,7 @@ export default function MeetingsPage() {
         totalMeetings={stats?.total_meetings ?? 0}
         totalDurationSeconds={stats?.total_duration_seconds ?? 0}
         totalTranscriptLines={stats?.total_transcript_lines ?? 0}
-        activityData={activityData}
+        meetingsPerMonth={stats?.meetings_per_month ?? []}
         alertMessage={
           stats?.processing_count
             ? `${stats.processing_count} meeting${stats.processing_count > 1 ? "s" : ""} currently processing`

@@ -111,6 +111,10 @@ import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
 import { runSuggestFollowUp } from './follow-up-suggestions'
 import { migrateLegacyOpenAIModelId } from '../../shared/openai-models'
+import {
+  TECH_INTERVIEW_SYSTEM_PROMPT_ID,
+  buildTechInterviewSystemPrompt,
+} from '../../shared/system-prompt-presets'
 
 // ── Types (mirrored from renderer for main process use) ──
 
@@ -356,6 +360,15 @@ export class LLMService {
     return this.getProvider() !== 'openai'
   }
 
+  /** Seed built-in "Tech interview" system prompt if not already in the store */
+  private ensureTechInterviewSystemPrompt(): void {
+    const llm = this.store.get('llm') as { systemPrompts?: SystemPrompt[] } | undefined
+    const prompts = llm?.systemPrompts ?? []
+    if (prompts.some((p) => p.id === TECH_INTERVIEW_SYSTEM_PROMPT_ID)) return
+    const preset = buildTechInterviewSystemPrompt()
+    this.store.set('llm.systemPrompts' as any, [...prompts, preset])
+  }
+
   /** Ensure new LLM settings fields exist in stored config */
   private migrateSettings(): void {
     const llm = this.store.get('llm') as Record<string, unknown> | undefined
@@ -376,6 +389,7 @@ export class LLMService {
       if (!('systemPrompts' in llm)) {
         this.store.set('llm.systemPrompts' as any, [])
       }
+      this.ensureTechInterviewSystemPrompt()
       if (!('summarization' in llm)) {
         this.store.set('llm.summarization' as any, {
           autoSummarizeEnabled: true,
