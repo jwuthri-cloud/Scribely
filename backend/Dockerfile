@@ -71,22 +71,11 @@ USER appuser
 # Create directories that the application might need
 RUN mkdir -p logs data/uploads
 
-# Health check endpoint (Docker will use this for container health)
+# Optional container health (Railway also uses deploy.healthcheckPath from railway.toml)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health/live || exit 1
+    CMD /bin/sh -c 'curl -f http://127.0.0.1:${PORT:-8000}/api/v1/health/live || exit 1'
 
-# Expose application port
 EXPOSE 8000
 
-# Production command with optimized settings
-CMD ["uvicorn", "app.main:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--workers", "4", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--access-log", \
-     "--log-level", "info", \
-     "--no-access-log"]
-
-# Alternative: Use this for development (single worker, auto-reload)
-# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Railway and other hosts set PORT; default 8000 for local Docker runs
+CMD ["/bin/sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

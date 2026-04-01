@@ -52,13 +52,16 @@ dependencies = [
     # Logging
     "rich>=13.7.0",
     "python-json-logger>=2.0.7",
-    # Rate limiting
+    # Rate limiting (Redis storage for multi-instance deployments)
     "slowapi>=0.1.9",
+    "redis>=5.0.0",
     # Vector database (LangChain integration)
     "langchain-pinecone>=0.2.0",
     "aiosqlite>=0.22.1",
     # Async file I/O for meeting upload storage
     "aiofiles>=24.1.0",
+    # S3-compatible object storage (MinIO, AWS S3, R2)
+    "boto3>=1.35.0",
     # Diarization providers
     "deepgram-sdk>=3.0.0",
     "assemblyai>=0.30.0",

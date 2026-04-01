@@ -7,6 +7,9 @@ webm recording file. Files are stored under:
   {UPLOAD_DIR}/{user_id}/{meeting_id}/recording.webm
   {UPLOAD_DIR}/{user_id}/{meeting_id}/transcript.json
 
+When OBJECT_STORAGE_ENABLED and S3_* are set, the same paths are mirrored to the
+bucket (e.g. MinIO) so artifacts survive ephemeral container disk.
+
 After upload, background diarization + speaker identification is triggered
 automatically when a recording is present.
 """
@@ -25,6 +28,13 @@ from app.database.models.meeting import MeetingStatusEnum
 from app.database.models.user import User
 from app.database.repositories.meeting import MeetingRepository
 from app.database.session import get_async_db_session
+from app.infrastructure.object_storage import (
+    RECORDING_WEBM,
+    TRANSCRIPT_JSON,
+    is_object_storage_configured,
+    mirror_meeting_from_object_storage_async,
+    upload_file_async,
+)
 from app.services.task_runner import TaskStatus, read_status, schedule_processing
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -118,7 +128,13 @@ async def _resolve_meeting_dir(
         )
     settings = get_settings()
     meeting_dir = Path(settings.upload_dir) / meeting.storage_path
-    if not meeting_dir.is_dir():
+    if is_object_storage_configured() and (
+        not meeting_dir.is_dir()
+        or not (meeting_dir / "transcript.json").exists()
+    ):
+        await mirror_meeting_from_object_storage_async(meeting_dir, meeting.storage_path)
+
+    if not meeting_dir.is_dir() or not (meeting_dir / "transcript.json").exists():
         logger.warning(
             "Meeting %s has DB row but missing directory: %s (upload_dir=%s)",
             meeting_id,
@@ -129,8 +145,7 @@ async def _resolve_meeting_dir(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(
                 "Transcript files for this meeting are not on this server. "
-                "Check that UPLOAD_DIR matches where the desktop app uploaded files, "
-                "or re-sync the meeting."
+                "Check UPLOAD_DIR, object storage (S3/MinIO), or re-sync the meeting."
             ),
         )
     return meeting_dir
@@ -296,6 +311,8 @@ async def sync_meeting(
             detail="Failed to create storage directory",
         )
 
+    storage_rel = f"{user.id}/{meeting_id}"
+
     # --- Save transcript JSON ---
     transcript_content = await transcript.read()
     if len(transcript_content) > settings.max_transcript_size_bytes:
@@ -307,6 +324,9 @@ async def sync_meeting(
     transcript_path = meeting_dir / "transcript.json"
     async with aiofiles.open(transcript_path, "wb") as f:
         await f.write(transcript_content)
+
+    if is_object_storage_configured():
+        await upload_file_async(transcript_path, storage_rel, TRANSCRIPT_JSON)
 
     logger.info(
         f"Transcript saved for user {user.id} (clerk={user.clerk_id}): "
@@ -336,6 +356,8 @@ async def sync_meeting(
                 await f.write(chunk)
 
         recording_path = video_path
+        if is_object_storage_configured():
+            await upload_file_async(recording_path, storage_rel, RECORDING_WEBM)
         logger.info(
             f"Recording saved for user {user.id}: "
             f"{total_bytes / (1024*1024):.1f}MB → {recording_path}"
@@ -375,7 +397,6 @@ async def sync_meeting(
         recorded_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     initial_status = MeetingStatusEnum.PROCESSING if recording_path else MeetingStatusEnum.COMPLETED
-    storage_rel = f"{user.id}/{meeting_id}"
 
     db_meeting = await MeetingRepository.create(
         db,
@@ -488,7 +509,18 @@ async def reprocess_meeting(
             detail="No recording available for this meeting — cannot process",
         )
 
-    scheduled = schedule_processing(meeting_dir, provider)
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    scheduled = schedule_processing(
+        meeting_dir,
+        meeting_id=meeting.id,
+        provider=provider,
+    )
     current = read_status(meeting_dir)
 
     return ProcessingStatusResponse(

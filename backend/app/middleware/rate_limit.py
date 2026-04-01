@@ -4,7 +4,7 @@ Rate limiting middleware for Scribely.
 Uses slowapi to provide per-IP and per-user rate limiting.
 """
 
-from typing import Callable, Optional
+from typing import Callable
 
 from app.config import get_settings
 from app.utils.logging import get_logger
@@ -32,10 +32,17 @@ def get_user_or_ip(request: Request) -> str:
     return get_remote_address(request)
 
 
-# Create limiter instance
-# Using in-memory storage by default; for production, use Redis:
-# limiter = Limiter(key_func=get_user_or_ip, storage_uri="redis://localhost:6379")
-limiter = Limiter(key_func=get_user_or_ip)
+def _create_limiter() -> Limiter:
+    """Use Redis when enabled so limits are shared across multiple workers/instances."""
+    settings = get_settings()
+    if settings.redis_enabled and settings.redis_url:
+        logger.info("Rate limiting storage: Redis")
+        return Limiter(key_func=get_user_or_ip, storage_uri=settings.redis_url)
+    logger.info("Rate limiting storage: memory")
+    return Limiter(key_func=get_user_or_ip)
+
+
+limiter = _create_limiter()
 
 
 # Define rate limit presets for different use cases
@@ -83,7 +90,9 @@ def setup_rate_limiting(app):
     # Add exception handler for rate limit exceeded
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    logger.info("Rate limiting middleware configured")
+    s = get_settings()
+    backend = "redis" if s.redis_enabled and s.redis_url else "memory"
+    logger.info("Rate limiting middleware configured", extra={"storage": backend})
 
 
 def get_rate_limiter() -> Limiter:

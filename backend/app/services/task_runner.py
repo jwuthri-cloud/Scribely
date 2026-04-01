@@ -68,6 +68,17 @@ def _write_status(meeting_dir: Path, status: TaskStatus, **extra: Any) -> None:
         **extra,
     }
     _status_path(meeting_dir).write_text(json.dumps(payload, indent=2))
+    try:
+        from app.infrastructure.object_storage import (
+            derive_storage_path,
+            is_object_storage_configured,
+            mirror_processing_status_json,
+        )
+
+        if is_object_storage_configured():
+            mirror_processing_status_json(meeting_dir, derive_storage_path(meeting_dir))
+    except Exception as e:
+        logger.warning("Failed to mirror processing_status.json to object storage: %s", e)
 
 
 # In-flight tasks keyed by meeting_dir string to prevent duplicate processing
@@ -124,6 +135,25 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
             completedAt=datetime.now(timezone.utc).isoformat(),
         )
         logger.info(f"Processing completed for {meeting_dir.name}")
+
+        try:
+            from app.infrastructure.object_storage import (
+                TRANSCRIPT_ENRICHED_JSON,
+                derive_storage_path,
+                is_object_storage_configured,
+                upload_file_sync,
+            )
+
+            if is_object_storage_configured():
+                enriched = meeting_dir / TRANSCRIPT_ENRICHED_JSON
+                if enriched.is_file():
+                    upload_file_sync(
+                        enriched,
+                        derive_storage_path(meeting_dir),
+                        TRANSCRIPT_ENRICHED_JSON,
+                    )
+        except Exception as e:
+            logger.warning("Failed to upload enriched transcript to object storage: %s", e)
 
         if meeting_id:
             await _update_db(meeting_id, "completed", duration_seconds)

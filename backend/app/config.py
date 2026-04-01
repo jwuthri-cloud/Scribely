@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from pydantic import computed_field
+from pydantic import AliasChoices, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.model_name import DEFAULT_VISION
@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./app.db"
     
-    # API
+    # API (Railway sets PORT; local dev may use API_PORT)
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = Field(
+        default=8000,
+        validation_alias=AliasChoices("PORT", "API_PORT"),
+    )
 
     # OpenRouter (optional, for future use)
     openrouter_api_key: str = ""
@@ -61,6 +64,15 @@ class Settings(BaseSettings):
     clerk_publishable_key: Optional[str] = None
     # JWKS URL for JWT verification. If unset, derived from clerk_publishable_key.
     clerk_jwks_url: Optional[str] = None
+
+    # S3-compatible object storage (MinIO, R2, S3) — optional mirror for meeting files
+    object_storage_enabled: bool = False
+    s3_endpoint_url: Optional[str] = None
+    s3_bucket: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "us-east-1"
+    s3_use_path_style: bool = True
 
     # File uploads
     upload_dir: str = "./uploads"

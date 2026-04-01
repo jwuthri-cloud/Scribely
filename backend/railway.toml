@@ -1,0 +1,14 @@
+# Railway config-as-code: https://docs.railway.app/reference/config-as-code
+# Deploy this service with Root Directory = backend/ (this folder).
+# If the Railway service root is the repo root instead, add under [build]:
+#   dockerfilePath = "backend/Dockerfile"
+
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+preDeployCommand = ["alembic", "upgrade", "head"]
+startCommand = "/bin/sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
+healthcheckPath = "/api/v1/health/live"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"

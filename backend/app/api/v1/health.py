@@ -49,6 +49,23 @@ async def database_health_check() -> Dict[str, Any]:
     }
 
 
+async def _redis_ready(settings: Settings) -> bool:
+    """Ping Redis when rate limiting / production expects it."""
+    if not (settings.redis_enabled and settings.redis_url):
+        return True
+    try:
+        import redis.asyncio as redis_async
+
+        client = redis_async.from_url(settings.redis_url, decode_responses=True)
+        try:
+            await client.ping()
+            return True
+        finally:
+            await client.aclose()
+    except Exception:
+        return False
+
+
 @router.get("/ready")
 async def readiness_check() -> Dict[str, Any]:
     """
@@ -56,14 +73,26 @@ async def readiness_check() -> Dict[str, Any]:
     """
     from fastapi.responses import JSONResponse
 
+    settings = get_settings()
     db_manager = get_database_manager()
     db_ready = await db_manager.health_check()
+    redis_ready = await _redis_ready(settings)
+    redis_required = bool(settings.redis_enabled and settings.redis_url)
+    overall_ready = db_ready and (redis_ready if redis_required else True)
+
+    services: Dict[str, Any] = {"database": db_ready}
+    if redis_required:
+        services["redis"] = redis_ready
+
     payload = {
-        "ready": db_ready,
+        "ready": overall_ready,
         "timestamp": datetime.now().isoformat(),
-        "services": {"database": db_ready},
+        "services": services,
     }
-    return JSONResponse(content=payload, status_code=200 if db_ready else 503)
+    return JSONResponse(
+        content=payload,
+        status_code=200 if overall_ready else 503,
+    )
 
 
 @router.get("/live")
