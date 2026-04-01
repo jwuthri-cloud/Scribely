@@ -1,6 +1,6 @@
 # Scribely
 
-> 🤖 **Modern AI Chat Application** built with **FastAPI** + **Next.js** + **OpenRouter** + **Clerk**
+> 🤖 **Modern AI Chat Application** built with **FastAPI** + **Next.js** + **OpenRouter** + **Clerk** _ **Vercel** + **Railway**
 
 A simple, production-ready AI chat application featuring unified access to 500+ language models via OpenRouter, Clerk authentication, and a terminal-style interface.
 
