@@ -50,58 +50,64 @@ export function TranscriptViewer({
 
   const useMotion = filtered.length <= 64 && mode === "log"
 
+  const segmentBtn = (active: boolean) =>
+    cn(
+      "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-all sm:flex-none sm:rounded-md sm:px-3.5",
+      active
+        ? "bg-white/[0.12] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.06]"
+        : "text-white/45 hover:bg-white/[0.05] hover:text-white/85"
+    )
+
   return (
     <section
       className={cn(
-        "workspace-card relative overflow-hidden",
+        "workspace-card relative overflow-hidden rounded-2xl sm:rounded-[28px]",
         className
       )}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/50 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-      <div className="flex flex-col gap-4 border-b border-white/10 bg-black/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-cyan-200/75">
+      <div className="flex flex-col gap-4 border-b border-white/[0.07] bg-white/[0.02] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">
             Transcript
           </span>
-          <div className="flex rounded-full border border-white/10 bg-white/[0.04] p-1">
+          <div
+            className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-black/25 p-1 sm:h-9 sm:w-auto"
+            role="tablist"
+            aria-label="Transcript view mode"
+          >
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === "conversation"}
               onClick={() => setMode("conversation")}
-              className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-colors",
-                mode === "conversation"
-                  ? "bg-[linear-gradient(135deg,rgba(103,232,249,0.92),rgba(139,92,246,0.92))] text-slate-950"
-                  : "text-white/50 hover:text-white/80"
-              )}
+              className={segmentBtn(mode === "conversation")}
             >
-              <MessageSquare className="h-3.5 w-3.5" />
+              <MessageSquare className="h-3.5 w-3.5 opacity-80" />
               Conversation
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === "log"}
               onClick={() => setMode("log")}
-              className={cn(
-                "flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-colors",
-                mode === "log"
-                  ? "bg-[linear-gradient(135deg,rgba(103,232,249,0.92),rgba(139,92,246,0.92))] text-slate-950"
-                  : "text-white/50 hover:text-white/80"
-              )}
+              className={segmentBtn(mode === "log")}
             >
-              <LayoutList className="h-3.5 w-3.5" />
+              <LayoutList className="h-3.5 w-3.5 opacity-80" />
               Log
             </button>
           </div>
         </div>
 
-        <div className="relative min-w-[200px] flex-1 sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+        <div className="relative min-w-0 flex-1 sm:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
           <input
             type="search"
-            placeholder="Filter lines…"
+            placeholder="Search transcript…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-full border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-white/35 focus:border-cyan-300/30 focus:outline-none focus:ring-2 focus:ring-cyan-300/15"
+            className="w-full rounded-lg border border-white/[0.08] bg-black/20 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-white/30 focus:border-violet-400/25 focus:outline-none focus:ring-2 focus:ring-violet-500/15"
             aria-label="Search transcript"
           />
         </div>
@@ -171,9 +177,16 @@ export function TranscriptViewer({
         </div>
       )}
 
-      <p className="border-t border-white/[0.06] bg-black/25 px-4 py-2.5 text-center text-[11px] text-white/40">
-        Showing {filtered.length} of {entries.length} lines
-        {debounced ? " · filtered" : ""} · {mode === "conversation" ? "Conversation view" : "Log view"}
+      <p className="border-t border-white/[0.06] bg-black/20 px-4 py-3 text-center text-[11px] text-white/40">
+        <span className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>
+            Showing <span className="tabular-nums text-white/55">{filtered.length}</span> of{" "}
+            <span className="tabular-nums text-white/55">{entries.length}</span> lines
+          </span>
+          {debounced ? <span className="text-violet-300/70">· Filtered</span> : null}
+          <span className="text-white/25">·</span>
+          <span>{mode === "conversation" ? "Conversation" : "Log"} view</span>
+        </span>
       </p>
     </section>
   )

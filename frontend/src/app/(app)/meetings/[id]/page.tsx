@@ -84,7 +84,7 @@ export default function MeetingDetailPage() {
   const durationMs = normalized.summary.durationMs
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-16">
+    <div className="mx-auto max-w-5xl space-y-8 pb-16">
       {loading ? (
         <div className="space-y-6">
           <div className="h-11 w-40 animate-pulse rounded-full bg-white/[0.08]" />
