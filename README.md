@@ -46,14 +46,14 @@ A simple, production-ready AI chat application featuring unified access to 500+ 
 │   Next.js       │────│   FastAPI       │────│   OpenRouter    │
 │   Frontend      │    │   Backend       │    │   LLM Service   │
 │                 │    │                 │    │                 │
-│ • TypeScript    │    │ • Python 3.11+ │    │ • 500+ Models   │
+│ • TypeScript    │    │ • Python 3.11+  │    │ • 500+ Models   │
 │ • Tailwind CSS  │    │ • Async/Await   │    │ • LangChain     │
 │ • Clerk Auth    │    │ • Pydantic      │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
+         │                       │                       │
          └───────────────────────┼───────────────────────┘
                                  │
-                    ┌─────────────▼─────────────┐
+                    ┌────────────▼────────────┐
                     │                         │
             ┌───────▼──────┐         ┌───────▼──────┐
             │ PostgreSQL/  │         │   Clerk      │
