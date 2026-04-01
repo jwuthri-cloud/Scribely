@@ -62,11 +62,10 @@ RUN adduser --disabled-password --gecos '' --uid 1000 appuser
 # Full tree from builder (venv + app + alembic; avoids COPY from monorepo root)
 COPY --from=builder --chown=appuser:appuser /build/ /app/
 
-# Switch to non-root user (security best practice)
-USER appuser
+# /app stays root-owned; appuser cannot mkdir here — create dirs as root, then drop privileges
+RUN mkdir -p /app/logs /app/data/uploads && chown -R appuser:appuser /app/logs /app/data
 
-# Create directories that the application might need
-RUN mkdir -p logs data/uploads
+USER appuser
 
 # Optional container health (Railway also uses deploy.healthcheckPath from railway.toml)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
