@@ -21,9 +21,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install uv (fast Python package manager)
+# Official standalone installer (https://docs.astral.sh/uv/getting-started/installation/)
+# install.sh places `uv` under ~/.local/bin; older layouts used ~/.cargo/bin — both on PATH.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
 # Context is the monorepo root; dependency files live under backend/
 COPY backend/pyproject.toml backend/uv.lock* ./

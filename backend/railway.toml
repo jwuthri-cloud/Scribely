@@ -10,7 +10,8 @@ builder = "DOCKERFILE"
 dockerfilePath = "backend/Dockerfile"
 
 [deploy]
-preDeployCommand = ["alembic", "upgrade", "head"]
+# One array element max (Railway schema); argv-style multi-element form is invalid.
+preDeployCommand = ["alembic upgrade head"]
 startCommand = "/bin/sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
 healthcheckPath = "/api/v1/health/live"
 healthcheckTimeout = 120
