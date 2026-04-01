@@ -10,9 +10,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "backend/Dockerfile"
 
 [deploy]
-# One array element max (Railway schema); argv-style multi-element form is invalid.
-preDeployCommand = ["alembic upgrade head"]
-startCommand = "/bin/sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
+# One array element max (Railway schema); use venv so `alembic` is on PATH
+preDeployCommand = ['/bin/sh -c "cd /app && /app/.venv/bin/python -m alembic upgrade head"']
+# Same as Dockerfile CMD: no reliance on PATH for `uvicorn` (Railway often uses a stripped PATH)
+startCommand = '/bin/sh -c "exec /app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"'
 healthcheckPath = "/api/v1/health/live"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

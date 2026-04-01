@@ -74,4 +74,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 EXPOSE 8000
 
 # Railway and other hosts set PORT; default 8000 for local Docker runs
-CMD ["/bin/sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Invoke via venv python (Railway startCommand can override CMD with a minimal PATH)
+CMD ["/bin/sh", "-c", "exec /app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
