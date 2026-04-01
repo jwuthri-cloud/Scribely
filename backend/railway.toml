@@ -1,10 +1,13 @@
 # Railway config-as-code: https://docs.railway.app/reference/config-as-code
-# Deploy this service with Root Directory = backend/ (this folder).
-# If the Railway service root is the repo root instead, add under [build]:
-#   dockerfilePath = "backend/Dockerfile"
+#
+# Docker build expects the Git repository root as the build context (default when
+# "Root Directory" is empty). Set Dockerfile path to: backend/Dockerfile
+# Do NOT set Root Directory to backend/ unless you revert the Dockerfile to COPY
+# from the service root only (see backend/Dockerfile header comment).
 
 [build]
 builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
 
 [deploy]
 preDeployCommand = ["alembic", "upgrade", "head"]

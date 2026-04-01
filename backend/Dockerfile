@@ -1,8 +1,9 @@
 # Backend Dockerfile for Scribely
-# Multi-stage build for optimal production image
+# Build from repository root: docker build -f backend/Dockerfile .
+# Railway: leave "Root Directory" empty, set Dockerfile path to backend/Dockerfile
 
 # Build stage - Install dependencies and build the application
-FROM python:3.13-slim as builder
+FROM python:3.13-slim AS builder
 
 # Set working directory for build stage
 WORKDIR /build
@@ -24,19 +25,20 @@ RUN apt-get update && apt-get install -y \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.cargo/bin:$PATH"
 
-# Copy dependency files first (better Docker layer caching)
-COPY pyproject.toml uv.lock* ./
+# Context is the monorepo root; dependency files live under backend/
+COPY backend/pyproject.toml backend/uv.lock* ./
+COPY backend/ ./
 
 # Create virtual environment and install dependencies
 RUN uv venv .venv
-ENV VIRTUAL_ENV=.venv
+ENV VIRTUAL_ENV=/build/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Install dependencies using uv (faster than pip)
-RUN uv pip install -e .
+# Non-editable install: runtime image copies only /build (no broken editable paths)
+RUN uv pip install .
 
 # Production stage - Create minimal runtime image
-FROM python:3.13-slim as production
+FROM python:3.13-slim AS production
 
 # Set working directory for production
 WORKDIR /app
@@ -53,17 +55,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy virtual environment from builder stage
-COPY --from=builder /build/.venv /app/.venv
-
-# Create non-root user for security (principle of least privilege)
+# Create non-root user before COPY --chown
 RUN adduser --disabled-password --gecos '' --uid 1000 appuser
 
-# Copy application code with proper ownership
-COPY --chown=appuser:appuser . .
-
-# Ensure virtual environment is accessible to appuser
-RUN chown -R appuser:appuser /app/.venv
+# Full tree from builder (venv + app + alembic; avoids COPY from monorepo root)
+COPY --from=builder --chown=appuser:appuser /build/ /app/
 
 # Switch to non-root user (security best practice)
 USER appuser

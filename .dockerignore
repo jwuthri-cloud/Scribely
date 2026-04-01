@@ -1,0 +1,25 @@
+# Build context for: docker build -f backend/Dockerfile .
+# Only backend/ is COPY'd in the Dockerfile; excluding other monorepo paths shrinks uploads.
+
+desktop/
+frontend/
+chrome-extension/
+promo-video/
+plans/
+scripts/
+tasks/
+.agents/
+.cursor/
+.git/
+.github/
+.vscode/
+
+# Backend noise (same intent as backend/.dockerignore; root context ignores backend/.dockerignore)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/tests/
+backend/htmlcov/
+backend/*.egg-info/
