@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { HeroSection } from "@/components/ui/hero-section-dark"
 import { MeetingActivityCard } from "@/components/ui/meeting-activity-card"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { useApi } from "@/hooks/useApi"
 import { formatDurationSeconds } from "@/lib/utils"
 import type { DashboardStats, MeetingSummary } from "@/lib/api"
@@ -209,7 +209,7 @@ export default function DashboardPage() {
 
           {loading ? (
             <div className="mt-6 flex items-center justify-center py-12">
-              <LoadingDots />
+              <CoreSpinLoader showText={false} className="min-h-[140px]" />
             </div>
           ) : !stats?.recent_meetings?.length ? (
             <div className="mt-6 flex flex-col items-center justify-center gap-2 py-12 text-center">

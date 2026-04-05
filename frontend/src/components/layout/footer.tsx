@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Separator } from "@/components/ui/separator"
+import { LocationMap } from "@/components/ui/expand-map"
 
 const footerLinks = {
   Product: [
@@ -52,6 +53,15 @@ export function Footer() {
               Your invisible AI meeting assistant. Live transcription and
               insights, all running locally on your Mac.
             </p>
+            <div className="mt-8 pb-8">
+              <p className="text-[10px] font-medium tracking-[0.2em] uppercase text-white/30 mb-3">
+                Headquarters
+              </p>
+              <LocationMap
+                location="San Francisco, CA"
+                coordinates="37.7749° N, 122.4194° W"
+              />
+            </div>
           </div>
 
           {Object.entries(footerLinks).map(([category, links]) => (

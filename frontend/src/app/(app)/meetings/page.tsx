@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { formatDurationSeconds } from "@/lib/utils"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { MeetingActivityCard } from "@/components/ui/meeting-activity-card"
 import type { MeetingSummary, DashboardStats } from "@/lib/api"
 
@@ -223,7 +223,7 @@ export default function MeetingsPage() {
       <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-24">
-            <LoadingDots />
+            <CoreSpinLoader showText={false} className="min-h-[160px]" />
             <p className="text-sm text-white/40">Loading meetings...</p>
           </div>
         ) : meetings.length === 0 ? (

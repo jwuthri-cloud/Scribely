@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { Bot, User } from "lucide-react"
 import { BoltStyleChat, ChatInput } from "@/components/ui/bolt-style-chat"
 import { ChatMarkdown } from "@/components/app/chat/ChatMarkdown"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { useApi } from "@/hooks/useApi"
 import { cn } from "@/lib/utils"
 import { fetchChatModels, type ChatModelOption } from "@/lib/api"
@@ -145,7 +145,7 @@ export default function ChatPage() {
           </div>
           {isStreaming && (
             <div className="flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100">
-              <LoadingDots dotClassName="h-1.5 w-1.5 bg-cyan-200" />
+              <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
               Responding
             </div>
           )}
@@ -183,7 +183,7 @@ export default function ChatPage() {
                     <ChatMarkdown content={msg.content} variant={msg.role} />
                   ) : (
                     <div className="flex items-center gap-2 text-white/50">
-                      <LoadingDots dotClassName="h-1.5 w-1.5 bg-white/50" />
+                      <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
                       <span className="text-sm">Thinking</span>
                     </div>
                   )}

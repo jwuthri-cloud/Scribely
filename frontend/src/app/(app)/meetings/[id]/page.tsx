@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { Video } from "lucide-react"
 import { MeetingReviewHeader } from "@/components/app/meeting/MeetingReviewHeader"
 import { TranscriptViewer } from "@/components/app/meeting/TranscriptViewer"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { WorkspaceSurface } from "@/components/app/workspace/WorkspaceSurface"
 import { useApi } from "@/hooks/useApi"
 import type { EnrichedTranscriptResponse, MeetingSummary, ProcessingStatusResponse } from "@/lib/api"
@@ -90,7 +90,7 @@ export default function MeetingDetailPage() {
           <div className="h-11 w-40 animate-pulse rounded-full bg-white/[0.08]" />
           <div className="workspace-card h-56 animate-pulse" />
           <div className="workspace-card flex h-96 items-center justify-center">
-            <LoadingDots />
+            <CoreSpinLoader showText={false} className="min-h-0" />
           </div>
         </div>
       ) : error ? (
@@ -114,7 +114,7 @@ export default function MeetingDetailPage() {
               className="flex items-center gap-3 border-amber-500/25 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-100"
               variant="panel"
             >
-              <LoadingDots dotClassName="h-2 w-2 bg-amber-200" />
+              <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
               <span>
                 Processing recording (diarization / speaker ID). This page will refresh when
                 complete.

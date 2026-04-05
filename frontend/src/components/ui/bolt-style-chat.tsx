@@ -7,6 +7,7 @@ import {
   SendHorizontal, Cpu
 } from 'lucide-react'
 import type { ChatModelOption } from '@/lib/api'
+import { CoreSpinLoader } from '@/components/ui/core-spin-loader'
 
 function modelIcon(provider: string): React.ReactNode {
   const cls = 'size-4 shrink-0'
@@ -61,7 +62,10 @@ export function ModelSelector({
 
   if (!models.length) {
     return (
-      <span className="px-2.5 py-1.5 text-[11px] text-[#5a5a5f]">Loading models…</span>
+      <span className="inline-flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-[#5a5a5f]">
+        <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
+        Loading models…
+      </span>
     )
   }
 

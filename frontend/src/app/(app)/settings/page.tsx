@@ -15,7 +15,7 @@ import {
   Shield,
   User,
 } from "lucide-react"
-import { LoadingDots } from "@/components/app/workspace/LoadingDots"
+import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 
 function InfoRow({
   icon: Icon,
@@ -72,7 +72,7 @@ export default function SettingsPage() {
   if (!isLoaded) {
     return (
       <div className="mx-auto flex max-w-2xl items-center justify-center py-32">
-        <LoadingDots />
+        <CoreSpinLoader showText={false} className="min-h-[180px]" />
       </div>
     )
   }
