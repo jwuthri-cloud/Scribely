@@ -88,15 +88,33 @@ class Settings(BaseSettings):
     frames_per_speaker: int = 10
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://localhost:8000,https://www.scribely.xyz,https://scribely.xyz"
+    # Comma-separated list of allowed origins.
+    # Defaults cover local development and known production domains.
+    # On Railway, set the CORS_ORIGINS environment variable to extend or
+    # override this list, e.g.:
+    #   CORS_ORIGINS=http://localhost:3000,https://frontend.railway.internal,https://your-app.up.railway.app
+    cors_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "http://localhost:8000,"
+        "https://www.scribely.xyz,"
+        "https://scribely.xyz,"
+        # Railway internal service-to-service DNS (http — internal traffic is unencrypted)
+        "http://frontend.railway.internal,"
+        # Railway public domain — set RAILWAY_PUBLIC_DOMAIN or override CORS_ORIGINS
+        # with the actual value assigned to the Frontend service.
+        "https://frontend.up.railway.app"
+    )
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["*"]
     cors_allow_headers: list[str] = ["*"]
-    
+
     @computed_field
     def cors_origins_list(self) -> list[str]:
-        """Parse comma-separated CORS_ORIGINS string into list."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        """Parse comma-separated CORS_ORIGINS string into a deduplicated list."""
+        return list(dict.fromkeys(
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ))
 
 
 def _sync_langfuse_sdk_environment(s: Settings) -> None:
