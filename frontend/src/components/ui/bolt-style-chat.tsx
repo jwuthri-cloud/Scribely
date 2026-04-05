@@ -100,7 +100,7 @@ export function ModelSelector({
                     <div className="text-sm font-medium">{m.label}</div>
                     <span className="text-[11px] text-[#6a6a6f]">{m.description}</span>
                   </div>
-                  {selected?.id === m.id && <Check className="size-4 shrink-0 text-violet-400" />}
+                  {selected?.id === m.id && <Check className="size-4 shrink-0 text-cyan-300/90" />}
                 </button>
               ))}
             </div>
@@ -220,37 +220,13 @@ export function ChatInput({
             <button
               onClick={handleSubmit}
               disabled={!message.trim() || disabled}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-[#7c3aed] hover:bg-[#8b5cf6] text-white transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+              className="flex items-center gap-2 rounded-full bg-[#1488fc] px-4 py-2 text-sm font-medium text-white shadow-[0_0_16px_rgba(20,136,252,0.22)] transition-all duration-200 hover:bg-[#1278e0] disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
             >
               <span className="hidden sm:inline">Send</span>
               <SendHorizontal className="size-4" />
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-// Ray Background
-export function RayBackground() {
-  return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none">
-      <div 
-        className="absolute left-1/2 -translate-x-1/2 w-[4000px] h-[1800px] sm:w-[6000px]"
-        style={{
-          background: `radial-gradient(circle at center 800px, rgba(139, 92, 246, 0.8) 0%, rgba(139, 92, 246, 0.35) 14%, rgba(139, 92, 246, 0.18) 18%, rgba(139, 92, 246, 0.08) 22%, transparent 25%)`
-        }}
-      />
-      <div 
-        className="absolute top-[175px] left-1/2 w-[1600px] h-[1600px] sm:top-1/2 sm:w-[3043px] sm:h-[2865px]"
-        style={{ transform: 'translate(-50%) rotate(180deg)' }}
-      >
-        <div className="absolute w-full h-full rounded-full -mt-[13px]" style={{ background: 'radial-gradient(43.89% 25.74% at 50.02% 97.24%, rgba(17,17,20,1) 0%, transparent 100%)', border: '16px solid white', transform: 'rotate(180deg)', zIndex: 5 }} />
-        <div className="absolute w-full h-full rounded-full -mt-[11px]" style={{ background: 'transparent', border: '23px solid #ddd6fe', transform: 'rotate(180deg)', zIndex: 4 }} />
-        <div className="absolute w-full h-full rounded-full -mt-[8px]" style={{ background: 'transparent', border: '23px solid #c4b5fd', transform: 'rotate(180deg)', zIndex: 3 }} />
-        <div className="absolute w-full h-full rounded-full -mt-[4px]" style={{ background: 'transparent', border: '23px solid #a78bfa', transform: 'rotate(180deg)', zIndex: 2 }} />
-        <div className="absolute w-full h-full rounded-full" style={{ background: 'transparent', border: '20px solid #7c3aed', boxShadow: '0 -15px 24.8px rgba(124, 58, 237, 0.6)', transform: 'rotate(180deg)', zIndex: 1 }} />
       </div>
     </div>
   )
@@ -334,24 +310,19 @@ export function BoltStyleChat({
   onModelChange,
 }: BoltChatProps) {
   return (
-    <div className={`relative flex flex-col items-center justify-center min-h-screen w-full overflow-hidden ${className || ''}`}>
-      <RayBackground />
-      <div className="absolute top-[70px]">
-        {/* <AnnouncementBadge text={announcementText} href={announcementHref} /> */}
-        </div>
-      <div className="absolute top-[66%] left-1/2 sm:top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-full h-full overflow-hidden px-4">
-        <div className="text-center mb-6">
-          <h1 className="text-4xl sm:text-5xl font-bold text-white tracking-tight mb-1">
-            {title}{' '}
-            <span className="bg-gradient-to-b from-[#a78bfa] via-[#a78bfa] to-white bg-clip-text text-transparent italic">
-              ask
-            </span>
-            {' '}today?
+    <div
+      className={`flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-4 ${className || ''}`}
+    >
+      <div className="flex w-full max-w-[700px] flex-col items-center">
+        <div className="mb-8 text-center">
+          <h1 className="mb-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            {title}{" "}
+            <span className="text-white/85">ask</span> today?
           </h1>
-          <p className="text-base font-semibold sm:text-lg text-[#8a8a8f]">{subtitle}</p>
+          <p className="text-sm text-white/45 sm:text-[15px]">{subtitle}</p>
         </div>
 
-        <div className="w-full max-w-[700px] mb-6 sm:mb-8 mt-2">
+        <div className="w-full">
           <ChatInput
             placeholder={placeholder}
             onSend={onSend}

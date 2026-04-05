@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react"
 import { Bot, User } from "lucide-react"
-import { BoltStyleChat, ChatInput, RayBackground } from "@/components/ui/bolt-style-chat"
+import { BoltStyleChat, ChatInput } from "@/components/ui/bolt-style-chat"
 import { ChatMarkdown } from "@/components/app/chat/ChatMarkdown"
 import { LoadingDots } from "@/components/app/workspace/LoadingDots"
 import { useApi } from "@/hooks/useApi"
@@ -129,8 +129,6 @@ export default function ChatPage() {
 
   return (
     <div className="relative -mx-4 flex min-h-0 flex-1 flex-col overflow-hidden sm:-mx-6 lg:-mx-8">
-      <RayBackground />
-
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {/* Header bar */}
         <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/60 px-5 py-3.5 backdrop-blur-xl sm:px-6">
