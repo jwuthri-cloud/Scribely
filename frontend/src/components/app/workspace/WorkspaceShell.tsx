@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CommandPalette } from "@/components/app/workspace/CommandPalette"
+import { CursorGridEffect } from "@/components/app/workspace/CursorGridEffect"
 
 const sidebarLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -59,6 +60,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden bg-black">
+      <CursorGridEffect />
       {/* Mobile overlay */}
       {mobileOpen && (
         <button
