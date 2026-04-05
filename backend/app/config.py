@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     frames_per_speaker: int = 10
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://localhost:8000,https://www.scribely.xyz,https://scribely.xyz"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,https://www.scribely.xyz,https://scribely.xyz,http://frontend.railway.internal,https://frontend-production-4098.up.railway.app"
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["*"]
     cors_allow_headers: list[str] = ["*"]
