@@ -17,18 +17,47 @@ from app.infrastructure.circuit_breaker import (
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.middleware.rate_limit import RateLimits, limiter
-from app.model_name import DEFAULT_TRAINING
+from app.model_name import (
+    ALLOWED_OPENROUTER_MODEL_IDS,
+    DEFAULT_TRAINING,
+    OPENROUTER_CHAT_MODEL_CATALOG,
+)
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = get_logger("chat_api")
 
 router = APIRouter()
+
+
+class ChatModelItem(BaseModel):
+    """One selectable OpenRouter model for chat UI."""
+
+    id: str
+    label: str
+    description: str
+    provider: str
+
+
+class ChatModelsResponse(BaseModel):
+    """List of models the client may send to POST /chat and /chat/stream."""
+
+    models: list[ChatModelItem]
+    default_model: str
+
+
+@router.get("/models", response_model=ChatModelsResponse)
+async def list_chat_models() -> ChatModelsResponse:
+    """Return allowed chat models (labels for UI). No auth — IDs are public."""
+    return ChatModelsResponse(
+        models=[ChatModelItem(**entry) for entry in OPENROUTER_CHAT_MODEL_CATALOG],
+        default_model=DEFAULT_TRAINING,
+    )
 
 
 class ChatRequest(BaseModel):
@@ -37,6 +66,16 @@ class ChatRequest(BaseModel):
     model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
     session_id: Optional[str] = Field(None, description="Session ID for grouping related traces in Langfuse")
+
+    @field_validator("model")
+    @classmethod
+    def validate_model_id(cls, v: Optional[str]) -> str:
+        m = v if v is not None else DEFAULT_TRAINING
+        if m not in ALLOWED_OPENROUTER_MODEL_IDS:
+            raise ValueError(
+                f"Unsupported model {m!r}. Use an ID from app.model_name.ALLOWED_OPENROUTER_MODEL_IDS."
+            )
+        return m
 
 
 class ChatResponse(BaseModel):
@@ -130,6 +169,16 @@ class StreamingChatRequest(BaseModel):
     model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
     session_id: Optional[str] = Field(None, description="Session ID for grouping related traces")
+
+    @field_validator("model")
+    @classmethod
+    def validate_model_id(cls, v: Optional[str]) -> str:
+        m = v if v is not None else DEFAULT_TRAINING
+        if m not in ALLOWED_OPENROUTER_MODEL_IDS:
+            raise ValueError(
+                f"Unsupported model {m!r}. Use an ID from app.model_name.ALLOWED_OPENROUTER_MODEL_IDS."
+            )
+        return m
 
 
 @router.post("/stream")

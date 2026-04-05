@@ -72,6 +72,32 @@ export interface DashboardStats {
   meetings_per_month: MonthlyMeetingCount[]
 }
 
+/** OpenRouter chat model row — matches GET /api/v1/chat/models */
+export interface ChatModelOption {
+  id: string
+  label: string
+  description: string
+  provider: string
+}
+
+export interface ChatModelsResponse {
+  models: ChatModelOption[]
+  default_model: string
+}
+
+/** Public endpoint (no auth) — used to populate the model picker */
+export async function fetchChatModels(): Promise<ChatModelsResponse> {
+  const res = await fetch(`${API_URL}/api/v1/chat/models`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => "")
+    throw new Error(body || res.statusText || "Failed to load models")
+  }
+  return res.json()
+}
+
 class ApiError extends Error {
   constructor(
     public status: number,

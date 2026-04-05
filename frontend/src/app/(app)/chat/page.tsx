@@ -6,6 +6,7 @@ import { BoltStyleChat, ChatInput, RayBackground } from "@/components/ui/bolt-st
 import { LoadingDots } from "@/components/app/workspace/LoadingDots"
 import { useApi } from "@/hooks/useApi"
 import { cn } from "@/lib/utils"
+import { fetchChatModels, type ChatModelOption } from "@/lib/api"
 
 interface ChatMessage {
   id: string
@@ -17,7 +18,26 @@ export default function ChatPage() {
   const api = useApi()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
+  const [chatModels, setChatModels] = useState<ChatModelOption[]>([])
+  const [selectedModelId, setSelectedModelId] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchChatModels()
+      .then((res) => {
+        if (cancelled) return
+        setChatModels(res.models)
+        setSelectedModelId((prev) => prev || res.default_model)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setChatModels([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -26,8 +46,29 @@ export default function ChatPage() {
     })
   }, [messages])
 
-  const handleSend = async (message: string) => {
+  const handleSend = async (message: string, options?: { model?: string }) => {
     if (!message.trim() || isStreaming) return
+
+    const model =
+      options?.model ||
+      selectedModelId ||
+      chatModels[0]?.id ||
+      undefined
+    if (!model) {
+      const uid = crypto.randomUUID()
+      const errId = crypto.randomUUID()
+      setMessages((prev) => [
+        ...prev,
+        { id: uid, role: "user", content: message.trim() },
+        {
+          id: errId,
+          role: "assistant",
+          content:
+            "Could not load models. Check that the API is running (NEXT_PUBLIC_API_URL) and try again.",
+        },
+      ])
+      return
+    }
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -52,7 +93,7 @@ export default function ChatPage() {
             m.id === assistantId ? { ...m, content: m.content + chunk } : m
           )
         )
-      })
+      }, { model })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to get response"
       setMessages((prev) =>
@@ -77,6 +118,9 @@ export default function ChatPage() {
           placeholder="Ask anything about your meetings…"
           className="!min-h-[calc(100dvh-4rem)]"
           onSend={handleSend}
+          chatModels={chatModels}
+          selectedModelId={selectedModelId}
+          onModelChange={setSelectedModelId}
         />
       </div>
     )
@@ -159,6 +203,9 @@ export default function ChatPage() {
             placeholder="Ask a follow-up question…"
             onSend={handleSend}
             disabled={isStreaming}
+            models={chatModels}
+            selectedModelId={selectedModelId}
+            onModelChange={setSelectedModelId}
           />
         </div>
       </div>

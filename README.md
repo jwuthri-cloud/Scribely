@@ -132,17 +132,17 @@ Choose from 500+ models available through OpenRouter:
 # Latest and greatest models
 "gpt-5"                          # OpenAI's latest
 "anthropic/claude-4.6-sonnet"    # Anthropic's most capable
-"google/gemini-2.5-pro"          # Google's flagship
+"google/gemini-3.1-flash-lite-preview",          # Google's flagship
 
 # Production workhorses
 "openai/gpt-5.4"                  # Reliable and fast
 "anthropic/claude-4.6-sonnet"    # Great for reasoning
-"google/gemini-1.5-pro"          # Excellent context window
+"google/gemini-3-flash-preview",          # Excellent context window
 
 # Fast and efficient
 "openai/gpt-5.4-mini"             # Quick responses (default)
 "anthropic/claude-3-haiku"       # Speed optimized
-"google/gemini-1.5-flash"        # Ultra fast
+"google/gemini-3.1-pro-preview"        # Ultra fast
 ```
 
 ---

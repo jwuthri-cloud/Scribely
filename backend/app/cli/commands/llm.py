@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GPT_MINI, MYTHOMAX
+from app.model_name import DEFAULT_TRAINING
 
 console = Console()
 
@@ -222,7 +222,7 @@ def chat_fallback(models, temperature):
     The first model is primary, others are fallbacks.
     
     Example:
-        llm chat-fallback anthropic/claude-4.6-sonnet openai/gpt-5.4-mini gryphe/mythomax-l2-13b
+        llm chat-fallback anthropic/claude-4.6-sonnet openai/gpt-5.4-mini x-ai/grok-4.1-fast
     """
     if not models:
         console.print("[red]✗ At least one model must be provided[/red]")

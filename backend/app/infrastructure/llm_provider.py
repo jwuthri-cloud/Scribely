@@ -10,12 +10,8 @@ from langchain_openai import ChatOpenAI
 from app.config import get_settings
 from app.infrastructure.langfuse_handler import get_langfuse_callbacks
 from app.model_name import (
-    CLAUDE_SONNET,
+    DEFAULT_EMBEDDING,
     DEFAULT_TRAINING,
-    EMBEDDING_SMALL,
-    GPT_MINI,
-    MIXTRAL,
-    MYTHOMAX,
 )
 from app.utils.logging import get_logger
 
@@ -76,12 +72,12 @@ class OpenRouterProvider:
             # With fallback models (Langfuse automatically enabled if configured)
             llm = provider.get_llm(
                 model_name=CLAUDE_SONNET,
-                fallback_models=[GPT_MINI, MYTHOMAX]
+                fallback_models=[GPT_MINI, GROK_FAST]
             )
             
             # With provider routing
             llm = provider.get_llm(
-                model_name=MIXTRAL,
+                model_name=GROK_NORMAL,
                 provider_config={
                     "order": ["openai", "together"],
                     "allow_fallbacks": True
@@ -153,7 +149,7 @@ class OpenRouterProvider:
             llm = provider.get_llm_with_fallbacks([
                 CLAUDE_SONNET,
                 GPT_MINI,
-                MYTHOMAX,
+                GROK_FAST,
             ])
             ```
         """
@@ -308,7 +304,7 @@ class OpenRouterProvider:
 class OpenRouterEmbeddings(Embeddings):
     """OpenRouter embeddings implementation using direct HTTP requests."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = EMBEDDING_SMALL):
+    def __init__(self, api_key: Optional[str] = None, model: str = DEFAULT_EMBEDDING):
         """
         Initialize OpenRouter embeddings.
 

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
-from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GPT_MINI, MYTHOMAX
+from app.model_name import CLAUDE_SONNET, DEFAULT_TRAINING, GPT_MINI, GROK_FAST
 from app.utils.logging import get_logger
 
 logger = get_logger("create_agent_example")
@@ -150,7 +150,7 @@ async def create_agent_with_fallbacks_example():
     llm = provider.get_llm_with_fallbacks([
         CLAUDE_SONNET,   # Primary
         GPT_MINI,        # Fallback 1
-        MYTHOMAX,        # Fallback 2
+        GROK_FAST,       # Fallback 2
     ])
     
     # Create agent
