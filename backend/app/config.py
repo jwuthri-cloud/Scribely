@@ -103,7 +103,8 @@ class Settings(BaseSettings):
         "http://frontend.railway.internal,"
         # Railway public domain — set RAILWAY_PUBLIC_DOMAIN or override CORS_ORIGINS
         # with the actual value assigned to the Frontend service.
-        "https://frontend.up.railway.app"
+        "https://frontend.up.railway.app",
+        "https://frontend-production-4098.up.railway.app"
     )
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["*"]
