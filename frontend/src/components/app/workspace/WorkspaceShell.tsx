@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -54,15 +54,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyDown])
 
-  const activeLabel = useMemo(() => {
-    const active = sidebarLinks.find(
-      (link) => pathname === link.href || pathname.startsWith(`${link.href}/`)
-    )
-    return active?.label ?? "Workspace"
-  }, [pathname])
+  const isChatRoute =
+    pathname === "/chat" || pathname.startsWith("/chat/")
 
   return (
-    <div className="flex min-h-screen bg-black">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 overflow-hidden bg-black">
       {/* Mobile overlay */}
       {mobileOpen && (
         <button
@@ -143,7 +139,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       {/* Main area */}
       <div
         className={cn(
-          "flex min-w-0 flex-1 flex-col transition-[padding] duration-300",
+          "flex min-h-0 min-w-0 flex-1 flex-col transition-[padding] duration-300",
           collapsed ? "md:pl-[4.5rem]" : "md:pl-[16rem]"
         )}
       >
@@ -158,7 +154,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <h1 className="truncate text-sm font-medium text-white/80">{activeLabel}</h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -184,7 +179,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="app-workspace-canvas flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <main
+          className={cn(
+            "app-workspace-canvas flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 lg:px-8",
+            isChatRoute
+              ? "pt-5 pb-0 lg:pt-8 lg:pb-0"
+              : "py-5 lg:py-8"
+          )}
+        >
           {children}
         </main>
       </div>

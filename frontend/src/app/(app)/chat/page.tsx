@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react"
 import { Bot, User } from "lucide-react"
 import { BoltStyleChat, ChatInput, RayBackground } from "@/components/ui/bolt-style-chat"
+import { ChatMarkdown } from "@/components/app/chat/ChatMarkdown"
 import { LoadingDots } from "@/components/app/workspace/LoadingDots"
 import { useApi } from "@/hooks/useApi"
 import { cn } from "@/lib/utils"
@@ -44,7 +45,7 @@ export default function ChatPage() {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     })
-  }, [messages])
+  }, [messages, isStreaming])
 
   const handleSend = async (message: string, options?: { model?: string }) => {
     if (!message.trim() || isStreaming) return
@@ -110,13 +111,13 @@ export default function ChatPage() {
 
   if (messages.length === 0) {
     return (
-      <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-8 min-h-[calc(100dvh-4rem)]">
+      <div className="-mx-4 flex min-h-0 flex-1 flex-col overflow-hidden sm:-mx-6 lg:-mx-8">
         <BoltStyleChat
           title="What will you"
           subtitle="Ask questions against your meeting transcripts, action items, and more."
           announcementText="AI-powered workspace chat"
           placeholder="Ask anything about your meetings…"
-          className="!min-h-[calc(100dvh-4rem)]"
+          className="!min-h-0 !h-full"
           onSend={handleSend}
           chatModels={chatModels}
           selectedModelId={selectedModelId}
@@ -127,10 +128,10 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="-mx-4 -my-5 sm:-mx-6 lg:-mx-8 lg:-my-8 flex min-h-[calc(100dvh-4rem)] flex-col relative">
+    <div className="relative -mx-4 flex min-h-0 flex-1 flex-col overflow-hidden sm:-mx-6 lg:-mx-8">
       <RayBackground />
 
-      <div className="relative z-10 flex flex-1 flex-col min-h-0">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {/* Header bar */}
         <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/60 px-5 py-3.5 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
@@ -152,8 +153,11 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Messages thread */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+        {/* Messages thread — scrolls inside viewport; composer stays anchored */}
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6"
+        >
           <div className="mx-auto flex max-w-[680px] flex-col gap-5">
             {messages.map((msg) => (
               <div
@@ -178,7 +182,7 @@ export default function ChatPage() {
                   )}
                 >
                   {msg.content ? (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    <ChatMarkdown content={msg.content} variant={msg.role} />
                   ) : (
                     <div className="flex items-center gap-2 text-white/50">
                       <LoadingDots dotClassName="h-1.5 w-1.5 bg-white/50" />
@@ -197,8 +201,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Composer pinned to bottom */}
-        <div className="border-t border-white/[0.06] bg-black/60 px-4 py-4 backdrop-blur-xl sm:px-6">
+        <div className="shrink-0 border-t border-white/[0.06] bg-black/60 px-4 py-4 backdrop-blur-xl sm:px-6">
           <ChatInput
             placeholder="Ask a follow-up question…"
             onSend={handleSend}
