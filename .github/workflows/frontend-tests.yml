@@ -101,13 +101,23 @@ jobs:
           cd frontend
           npm ci
 
+      # Publishable keys are public in the browser; still store yours in GitHub Actions
+      # secrets (Settings → Secrets and variables → Actions), not in git. Fork PRs have no
+      # access to secrets; the fallback is format-only so `next build` can prerender.
+      - name: Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for build
+        run: |
+          if [ -n "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ]; then
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" >> "$GITHUB_ENV"
+          else
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_$(echo -n 'foo-bar-13.clerk.accounts.dev$' | base64 -w0)" >> "$GITHUB_ENV"
+          fi
+
       - name: Build
         run: |
           cd frontend
           npm run build
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:8000"
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_placeholder"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5
@@ -148,13 +158,20 @@ jobs:
           name: frontend-build
           path: frontend/.next
 
+      - name: Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for E2E
+        run: |
+          if [ -n "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ]; then
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" >> "$GITHUB_ENV"
+          else
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_$(echo -n 'foo-bar-13.clerk.accounts.dev$' | base64 -w0)" >> "$GITHUB_ENV"
+          fi
+
       - name: Run E2E tests
         run: |
           cd frontend
           npm run test:e2e || echo "No E2E tests configured yet"
         env:
           NEXT_PUBLIC_API_URL: "http://localhost:8000"
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_placeholder"
 
       - name: Upload E2E test results
         if: always()
@@ -174,6 +191,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for Docker build
+        run: |
+          if [ -n "${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" ]; then
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}" >> "$GITHUB_ENV"
+          else
+            echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_$(echo -n 'foo-bar-13.clerk.accounts.dev$' | base64 -w0)" >> "$GITHUB_ENV"
+          fi
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -184,7 +209,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             NEXT_PUBLIC_API_URL=http://localhost:8000
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_placeholder
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
 
       - name: Test Docker image health
         run: |
