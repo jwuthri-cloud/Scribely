@@ -204,6 +204,7 @@ jobs:
         with:
           context: ./frontend
           push: false
+          load: true
           tags: scribely-frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
