@@ -58,10 +58,7 @@ class CalendarEventListOut(BaseModel):
 
 class CalendarConnectResponse(BaseModel):
     connection_id: str
-    webhook_expiration: Optional[str] = Field(
-        default=None,
-        description="When set, Google Calendar push webhooks are active (requires GOOGLE_CALENDAR_WEBHOOK_URL).",
-    )
+    webhook_expiration: Optional[str] = None
 
 
 class CalendarSyncResponse(BaseModel):

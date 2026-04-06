@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Optional, Any
 
 import httpx
 from app.config import Settings, get_settings
@@ -184,64 +184,59 @@ class CalendarSyncService:
         clerk_user_id: str,
         user_email: Optional[str],
     ) -> dict[str, Any]:
-        """Validate token, optionally register Google push watch, run initial sync.
+        """Validate token, run initial sync, and optionally register a push channel.
 
-        If ``GOOGLE_CALENDAR_WEBHOOK_URL`` is unset (typical for local dev), we skip
-        push registration; the user can still sync via "Sync now" or reconnect after
-        deploying a public URL.
+        Webhook registration is skipped when GOOGLE_CALENDAR_WEBHOOK_URL is not set
+        (e.g. local dev). Sync still works; users can trigger it manually.
         """
         try:
             client = await self.get_client_for_user(clerk_user_id)
         except ClerkOAuthTokenError as e:
             raise ValueError(str(e)) from e
 
+        # Validate the token has Calendar access
         await client.get_calendar("primary")
 
-        webhook_url = (self.settings.google_calendar_webhook_url or "").strip()
-        exp_iso: Optional[str] = None
+        webhook_channel_id: Optional[str] = None
+        webhook_resource_id: Optional[str] = None
+        exp_dt: Optional[datetime] = None
 
-        if webhook_url:
+        if self.settings.google_calendar_webhook_url:
             channel_id = f"scribely-{user_id}-{uuid.uuid4().hex[:12]}"
             watch = await client.watch_events(
                 "primary",
                 channel_id=channel_id,
-                webhook_address=webhook_url,
-                token=self.settings.google_calendar_webhook_token or None,
+                webhook_address=self.settings.google_calendar_webhook_url,
+                token=self.settings.google_calendar_webhook_token,
             )
+            webhook_channel_id = watch.channel_id
+            webhook_resource_id = watch.resource_id
             exp_dt = datetime.utcfromtimestamp(watch.expiration_ms / 1000.0)
-            exp_iso = exp_dt.isoformat()
-            conn = await CalendarRepository.create_or_update_connection(
-                db,
-                user_id,
-                PROVIDER_GOOGLE,
-                sync_token=None,
-                webhook_channel_id=watch.channel_id,
-                webhook_resource_id=watch.resource_id,
-                webhook_expiration=exp_dt,
-                status=CalendarConnectionStatus.ACTIVE,
-                last_error=None,
-            )
         else:
             logger.warning(
-                "GOOGLE_CALENDAR_WEBHOOK_URL not set: connected without Google push. "
-                "Use Sync now, or set the URL in production and reconnect for webhooks."
+                "GOOGLE_CALENDAR_WEBHOOK_URL not set — skipping push channel registration. "
+                "Calendar sync will work but won't receive real-time updates."
             )
-            conn = await CalendarRepository.create_or_update_connection(
-                db,
-                user_id,
-                PROVIDER_GOOGLE,
-                sync_token=None,
-                webhook_channel_id=None,
-                webhook_resource_id=None,
-                webhook_expiration=None,
-                status=CalendarConnectionStatus.ACTIVE,
-                last_error=None,
-            )
+
+        conn = await CalendarRepository.create_or_update_connection(
+            db,
+            user_id,
+            PROVIDER_GOOGLE,
+            sync_token=None,
+            webhook_channel_id=webhook_channel_id,
+            webhook_resource_id=webhook_resource_id,
+            webhook_expiration=exp_dt,
+            status=CalendarConnectionStatus.ACTIVE,
+            last_error=None,
+        )
 
         self_email = (user_email or "").lower() or None
         await self._full_sync(db, conn, clerk_user_id, self_email)
 
-        return {"connection_id": conn.id, "webhook_expiration": exp_iso}
+        return {
+            "connection_id": conn.id,
+            "webhook_expiration": exp_dt.isoformat() if exp_dt else None,
+        }
 
     async def disconnect_google(
         self,

@@ -16,6 +16,7 @@ import {
   X,
   CalendarDays,
 } from "lucide-react"
+import { clerkAdditionalGoogleCalendarScopes } from "@/lib/clerk-google-calendar"
 import { cn } from "@/lib/utils"
 import { CommandPalette } from "@/components/app/workspace/CommandPalette"
 import { CursorGridEffect } from "@/components/app/workspace/CursorGridEffect"
@@ -174,6 +175,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             </button>
             <UserButton
               afterSignOutUrl="/"
+              userProfileProps={{
+                additionalOAuthScopes: clerkAdditionalGoogleCalendarScopes,
+              }}
               appearance={{
                 elements: {
                   avatarBox: "h-8 w-8",

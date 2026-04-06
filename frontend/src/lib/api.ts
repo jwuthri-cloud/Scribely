@@ -120,8 +120,7 @@ export interface PaginatedCalendarEvents {
 
 export interface CalendarConnectResponse {
   connection_id: string
-  /** Present when push webhooks are configured (public GOOGLE_CALENDAR_WEBHOOK_URL). */
-  webhook_expiration: string | null
+  webhook_expiration: string
 }
 
 export interface ListCalendarEventsParams {

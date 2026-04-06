@@ -44,27 +44,41 @@ async def get_google_oauth_access_token(
         )
 
     response.raise_for_status()
-    payload: dict[str, Any] = response.json()
+    raw = response.json()
 
-    token = _extract_token_from_payload(payload)
+    token = _extract_token_from_payload(raw)
     if not token:
         raise ClerkOAuthTokenError("Clerk returned no Google OAuth access token")
 
     return token
 
 
-def _extract_token_from_payload(payload: dict[str, Any]) -> Optional[str]:
-    """Parse Clerk list response for oauth_access_tokens."""
-    data = payload.get("data")
-    if isinstance(data, list) and data:
-        first = data[0]
-        if isinstance(first, dict):
-            t = first.get("token")
+def _extract_token_from_payload(raw: Any) -> Optional[str]:
+    """Parse Clerk oauth_access_tokens response.
+
+    Clerk returns a bare list: [{"token": "...", ...}]
+    Older SDK versions wrapped it: {"data": [...]}
+    """
+    # Bare list (current Clerk API)
+    if isinstance(raw, list):
+        if raw and isinstance(raw[0], dict):
+            t = raw[0].get("token")
             if isinstance(t, str) and t:
                 return t
-    # Alternate shape
-    if "token" in payload and isinstance(payload["token"], str):
-        return payload["token"]
+        return None
+
+    # Wrapped {"data": [...]}
+    if isinstance(raw, dict):
+        data = raw.get("data")
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            t = data[0].get("token")
+            if isinstance(t, str) and t:
+                return t
+        # Direct {"token": "..."}
+        t = raw.get("token")
+        if isinstance(t, str) and t:
+            return t
+
     return None
 
 

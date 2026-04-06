@@ -171,12 +171,6 @@ export default function CalendarPage() {
                 {status?.last_error && (
                   <p className="mt-1 text-xs text-amber-300/80">Warning: {status.last_error}</p>
                 )}
-                {!status?.webhook_expires_at && (
-                  <p className="mt-2 text-xs text-white/35">
-                    Push sync is off (no public webhook URL). Use &quot;Sync now&quot; to refresh,
-                    or set <code className="rounded bg-white/[0.06] px-1 font-mono text-[10px]">GOOGLE_CALENDAR_WEBHOOK_URL</code> on the API and reconnect.
-                  </p>
-                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
