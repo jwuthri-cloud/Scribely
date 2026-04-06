@@ -7,6 +7,7 @@ import { motion } from "framer-motion"
 import { Menu, X, Download, LayoutDashboard } from "lucide-react"
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
+import { clerkAdditionalGoogleCalendarScopes } from "@/lib/clerk-google-calendar"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
@@ -100,6 +101,9 @@ export function Navbar() {
               </Button>
               <UserButton
                 afterSignOutUrl="/"
+                userProfileProps={{
+                  additionalOAuthScopes: clerkAdditionalGoogleCalendarScopes,
+                }}
                 appearance={{
                   elements: {
                     avatarBox: "h-8 w-8",

@@ -25,6 +25,10 @@ class MeetingStatusEnum(str, enum.Enum):
     FAILED = "failed"
 
 
+def _enum_values(enum_cls: type[MeetingStatusEnum]) -> list[str]:
+    return [m.value for m in enum_cls]
+
+
 class Meeting(Base):
     """Meeting record — links a user to their stored transcript/recording on disk."""
     __tablename__ = "meetings"
@@ -35,7 +39,11 @@ class Meeting(Base):
     title = Column(String(500), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
-    status = Column(SQLEnum(MeetingStatusEnum), default=MeetingStatusEnum.UPLOADED, nullable=False)
+    status = Column(
+        SQLEnum(MeetingStatusEnum, name="meetingstatusenum", values_callable=_enum_values),
+        default=MeetingStatusEnum.UPLOADED,
+        nullable=False,
+    )
     storage_path = Column(Text, nullable=False)
 
     recorded_at = Column(DateTime, nullable=True)

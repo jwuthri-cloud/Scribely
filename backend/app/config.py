@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     clerk_publishable_key: Optional[str] = None
     # JWKS URL for JWT verification. If unset, derived from clerk_publishable_key.
     clerk_jwks_url: Optional[str] = None
+    # Clerk Backend API provider id for Google OAuth tokens (see Clerk dashboard).
+    clerk_google_oauth_provider: str = "oauth_google"
+
+    # Google Calendar push notifications (HTTPS URL of POST .../calendar/webhook/google)
+    google_calendar_webhook_url: str = ""
+    # Optional shared secret; sent to Google watch() and echoed in X-Goog-Channel-Token.
+    google_calendar_webhook_token: str = ""
 
     # S3-compatible object storage (MinIO, R2, S3) — optional mirror for meeting files
     object_storage_enabled: bool = False

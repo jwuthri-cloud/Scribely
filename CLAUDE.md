@@ -105,13 +105,16 @@ No test framework is configured. The Chrome extension has no build step — load
 
 Three IPC patterns:
 
-| Pattern | Direction | Example | Usage |
-|---------|-----------|---------|-------|
-| `invoke` | renderer → main → renderer | `llm:set-model`, `meeting:start-session` | Request/response (returns Promise) |
-| `send` | renderer → main | `llm:chat`, `update-settings`, `meeting:audio-frame` | Fire-and-forget (no return) |
-| `on` | main → renderer | `llm:chat-delta`, `meeting:transcript-entry`, `insight:new` | Event listener (returns unsubscribe fn) |
+
+| Pattern  | Direction                  | Example                                                     | Usage                                   |
+| -------- | -------------------------- | ----------------------------------------------------------- | --------------------------------------- |
+| `invoke` | renderer → main → renderer | `llm:set-model`, `meeting:start-session`                    | Request/response (returns Promise)      |
+| `send`   | renderer → main            | `llm:chat`, `update-settings`, `meeting:audio-frame`        | Fire-and-forget (no return)             |
+| `on`     | main → renderer            | `llm:chat-delta`, `meeting:transcript-entry`, `insight:new` | Event listener (returns unsubscribe fn) |
+
 
 **When adding a new IPC channel, update three files:**
+
 1. `src/main/index.ts` (or the owning service) — register handler with `ipcMain.handle()` or `ipcMain.on()`
 2. `src/preload/index.ts` — expose via `ipcRenderer.invoke()`, `.send()`, or `.on()`
 3. `src/renderer/src/types/index.ts` — add to the `ElectronAPI` interface
@@ -127,6 +130,7 @@ Central audio orchestrator. Receives PCM frames from three sources, resamples to
 3. **Browser fallback** — Both mic and system audio via browser APIs (`getUserMedia` + `getDisplayMedia`). Used when NativeHelper unavailable and no extension connected.
 
 **Audio processing flow:**
+
 ```
 PCM frames (any source) → resample to 16kHz → energy gate (mic only, drop if RMS < 0.005)
   → chunk accumulation (2s configurable) → Whisper transcription → transcript entry → renderer
@@ -141,6 +145,7 @@ Whisper models: `local-fast` (small.en ~488MB), `local-balanced` (medium.en ~1.5
 Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt-5-nano`, `gpt-5-mini`, `gpt-5.2` — nano/mini 400k context, 128k max response; `gpt-5.2` uses 1.05M context in-app.
 
 **Append-only prompt strategy** (optimized for OpenAI prefix caching):
+
 - System prompt is always `messages[0]` — stable, never changes → perfect cache prefix
 - Each user message embeds its transcript delta inline using XML tags:
   ```
@@ -159,7 +164,7 @@ Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt-5
 - When context overflows, oldest user+assistant pairs dropped from front
 - `prompt_cache_key` per session ID enables cross-request prefix caching
 
-**Background summarization**: Auto-triggers when transcript volume exceeds 40% of context budget and summary is stale (>5min). Uses gpt5-mini. Controlled by `llm.summarization.*` settings.
+**Background summarization**: Auto-triggers when transcript volume exceeds 40% of context budget and summary is stale (>5min). Uses gpt5-mini. Controlled by `llm.summarization.`* settings.
 
 **API key**: Encrypted via Electron `safeStorage`, stored in `electron-store`. Plain-text keys auto-migrated to encrypted on first read.
 
@@ -168,14 +173,18 @@ Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt-5
 Local WebSocket at `ws://127.0.0.1:9876` (`ExtensionWsServer` in `src/main/ws-server.ts`).
 
 **Binary protocol** (1-byte type header + payload):
-| Byte | Type | Direction | Payload |
-|------|------|-----------|---------|
-| `0x01` | Audio PCM | ext → Electron | Float32Array (16kHz) |
-| `0x02` | Video chunk | ext → Electron | WebM blob (VP9/VP8 + Opus) |
-| `0x03` | Control | bidirectional | JSON string (`hello`, `stop-capture`, `capture-stopped`) |
-| `0x04` | Mic PCM | Electron → ext | Float32Array (16kHz) — fallback mic relay |
+
+
+| Byte   | Type        | Direction      | Payload                                                  |
+| ------ | ----------- | -------------- | -------------------------------------------------------- |
+| `0x01` | Audio PCM   | ext → Electron | Float32Array (16kHz)                                     |
+| `0x02` | Video chunk | ext → Electron | WebM blob (VP9/VP8 + Opus)                               |
+| `0x03` | Control     | bidirectional  | JSON string (`hello`, `stop-capture`, `capture-stopped`) |
+| `0x04` | Mic PCM     | Electron → ext | Float32Array (16kHz) — fallback mic relay                |
+
 
 **Connection lifecycle:**
+
 1. Extension popup checks Electron connectivity (opens WS, immediately closes)
 2. User clicks "Start Sharing" → `background.js` gets `tabCapture` stream ID
 3. Creates offscreen document → `offscreen.js` captures tab media + connects WS
@@ -198,6 +207,7 @@ Real-time event detection from transcript entries:
 ### Screen-Share Invisibility (macOS)
 
 Two native tricks via `nswindow-napi`:
+
 1. `NSWindow.sharingType = .none` — hides from legacy capture APIs
 2. `AssistiveTechHighWindowLevel` — avoids black rectangle artifact
 
@@ -208,7 +218,8 @@ Window starts invisible (content protection on). Togglable via `toggle-invisibil
 All settings via `electron-store` (auto-persisted JSON). Schema: `AppSettings` type in `src/renderer/src/types/settings.ts`.
 
 Key settings groups:
-- **UI**: `themeId`, `windowOpacity`, `fontSize`, `compactMode`, `hotkeys.*`
+
+- **UI**: `themeId`, `windowOpacity`, `fontSize`, `compactMode`, `hotkeys.`*
 - **Transcription**: `transcription.provider` (local-fast/balanced/accurate), `transcription.chunkDurationSec`
 - **LLM**: `llm.apiKey` (encrypted), `llm.defaultModel`, `llm.temperature`, `llm.systemPrompts[]`, `llm.activeSystemPromptId`
 - **Summarization**: `llm.summarization.autoSummarizeEnabled`, `stalenessMinutes`, `thresholdPercent`, `keepRawCount`
@@ -246,3 +257,4 @@ Themes in `src/renderer/src/themes/`, registered in `registry.ts`. CSS custom pr
 9. Background summarizer auto-triggers if transcript > 40% of context budget
 10. Meeting stop → flush pipeline → save transcript JSON + WebM recording → ~/Documents/Scribely/
 ```
+

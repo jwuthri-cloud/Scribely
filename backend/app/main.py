@@ -3,6 +3,7 @@ Scribely - FastAPI Backend
 A FastAPI + Next.js AI agent application with OpenRouter
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -13,6 +14,7 @@ from app.exceptions import setup_exception_handlers
 from app.infrastructure.langfuse_handler import flush_langfuse, shutdown_langfuse
 from app.middleware import setup_middleware
 from app.models.base import APIInfo
+from app.services.calendar_webhook_renewal import calendar_webhook_renewal_loop
 from fastapi import FastAPI
 from app.utils.logging import get_logger
 
@@ -25,23 +27,27 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
-    # Startup
+    stop_renewal = asyncio.Event()
+    renewal_task: asyncio.Task | None = None
     try:
-        # Initialize database
         await initialize_database()
         logger.info("Database initialized successfully")
+        renewal_task = asyncio.create_task(calendar_webhook_renewal_loop(stop_renewal))
         yield
     except Exception as e:
         logger.error(f"Failed to initialize: {e}")
         raise
     finally:
-        # Shutdown
+        if renewal_task is not None:
+            stop_renewal.set()
+            renewal_task.cancel()
+            try:
+                await renewal_task
+            except asyncio.CancelledError:
+                pass
         try:
-            # Flush and shutdown Langfuse if enabled
             flush_langfuse()
             shutdown_langfuse()
-            
-            # Cleanup database
             await cleanup_database()
             logger.info("Database cleaned up successfully")
         except Exception as e:

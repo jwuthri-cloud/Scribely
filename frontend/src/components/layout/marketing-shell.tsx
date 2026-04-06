@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/footer"
 const HIDE_MARKETING_PREFIXES = [
   "/dashboard",
   "/meetings",
+  "/calendar",
   "/chat",
   "/settings",
   "/sign-in",

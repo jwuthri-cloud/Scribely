@@ -72,6 +72,65 @@ export interface DashboardStats {
   meetings_per_month: MonthlyMeetingCount[]
 }
 
+/** Google Calendar sync — GET /api/v1/calendar/status */
+export interface CalendarConnectionStatus {
+  connected: boolean
+  provider: string | null
+  status: string | null
+  last_synced_at: string | null
+  webhook_expires_at: string | null
+  last_error: string | null
+}
+
+export interface CalendarEventSummary {
+  id: string
+  title: string | null
+  start_time: string
+  end_time: string
+  timezone: string
+  location: string | null
+  meeting_url: string | null
+  meeting_platform: string
+  organizer_email: string | null
+  organizer_name: string | null
+  status: string
+  is_recurring: boolean
+}
+
+export interface CalendarParticipant {
+  email: string
+  display_name: string | null
+  is_organizer: boolean
+  response_status: string
+  is_self: boolean
+}
+
+export interface CalendarEventDetail extends CalendarEventSummary {
+  description: string | null
+  participants: CalendarParticipant[]
+}
+
+export interface PaginatedCalendarEvents {
+  events: CalendarEventSummary[]
+  total: number
+  page: number
+  limit: number
+  pages: number
+}
+
+export interface CalendarConnectResponse {
+  connection_id: string
+  webhook_expiration: string
+}
+
+export interface ListCalendarEventsParams {
+  page?: number
+  limit?: number
+  date_from?: string
+  date_to?: string
+  search?: string
+}
+
 /** OpenRouter chat model row — matches GET /api/v1/chat/models */
 export interface ChatModelOption {
   id: string
@@ -98,7 +157,7 @@ export async function fetchChatModels(): Promise<ChatModelsResponse> {
   return res.json()
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string
@@ -230,6 +289,47 @@ export function createApiClient(getToken: GetTokenFn) {
           }
         }
       }
+    },
+
+    async getCalendarStatus(): Promise<CalendarConnectionStatus> {
+      const res = await fetchWithAuth("/api/v1/calendar/status")
+      return res.json()
+    },
+
+    async connectCalendar(): Promise<CalendarConnectResponse> {
+      const res = await fetchWithAuth("/api/v1/calendar/connect", { method: "POST" })
+      return res.json()
+    },
+
+    async disconnectCalendar(): Promise<void> {
+      await fetchWithAuth("/api/v1/calendar/connect", { method: "DELETE" })
+    },
+
+    async getCalendarEvents(params: ListCalendarEventsParams = {}): Promise<PaginatedCalendarEvents> {
+      const qs = new URLSearchParams()
+      if (params.page) qs.set("page", String(params.page))
+      if (params.limit) qs.set("limit", String(params.limit))
+      if (params.date_from) qs.set("date_from", params.date_from)
+      if (params.date_to) qs.set("date_to", params.date_to)
+      if (params.search) qs.set("search", params.search)
+      const query = qs.toString()
+      const res = await fetchWithAuth(`/api/v1/calendar/events${query ? `?${query}` : ""}`)
+      return res.json()
+    },
+
+    async getUpcomingCalendarEvents(limit = 20): Promise<CalendarEventSummary[]> {
+      const res = await fetchWithAuth(`/api/v1/calendar/events/upcoming?limit=${limit}`)
+      return res.json()
+    },
+
+    async getCalendarEvent(id: string): Promise<CalendarEventDetail> {
+      const res = await fetchWithAuth(`/api/v1/calendar/events/${id}`)
+      return res.json()
+    },
+
+    async syncCalendar(): Promise<{ ok: boolean; message: string }> {
+      const res = await fetchWithAuth("/api/v1/calendar/sync", { method: "POST" })
+      return res.json()
     },
   }
 }

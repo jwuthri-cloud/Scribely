@@ -25,6 +25,10 @@ class UserStatusEnum(str, enum.Enum):
     SUSPENDED = "suspended"
 
 
+def _enum_values(enum_cls: type[UserStatusEnum]) -> list[str]:
+    return [m.value for m in enum_cls]
+
+
 class User(Base):
     """User account model."""
     __tablename__ = "users"
@@ -34,7 +38,10 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=True)
     username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=True)
-    status = Column(SQLEnum(UserStatusEnum), default=UserStatusEnum.ACTIVE)
+    status = Column(
+        SQLEnum(UserStatusEnum, name="userstatusenum", values_callable=_enum_values),
+        default=UserStatusEnum.ACTIVE,
+    )
     is_superuser = Column(Boolean, default=False)
 
     role = Column(String(50), default="user")
