@@ -1,7 +1,11 @@
 """Agents module."""
 
-from app.agents.agents.customer_support import CustomerSupportAgent
+from app.agents.agents.assistant import AssistantAgent
+
+# Backward-compat alias
+CustomerSupportAgent = AssistantAgent
 
 __all__ = [
+    "AssistantAgent",
     "CustomerSupportAgent",
 ]

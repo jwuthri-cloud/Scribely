@@ -113,6 +113,7 @@ class OpenRouterProvider:
             api_key=self.api_key,
             base_url=f"{self._base_url}",
             temperature=temperature,
+            max_tokens=4096,
             callbacks=final_callbacks,
             extra_body=extra_body if extra_body else None,
         )

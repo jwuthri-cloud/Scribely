@@ -1,43 +1,38 @@
 """
-Chat endpoints for LLM interactions with LangChain + OpenRouter.
+Chat endpoints powered by AssistantAgent (tools + Composio integrations).
 
 Supports both synchronous and streaming responses.
-Rate limited to prevent abuse.
-Protected by circuit breaker to handle LLM API failures gracefully.
+Rate limited to prevent abuse. Protected by circuit breaker.
 """
 
 import json
 import uuid
 from typing import AsyncGenerator, Optional
 
-from app.infrastructure.circuit_breaker import (
-    CircuitBreakerOpenError,
-    get_llm_circuit_breaker,
-)
-from app.infrastructure.langfuse_handler import get_langfuse_config
-from app.infrastructure.llm_provider import OpenRouterProvider
-from app.middleware.rate_limit import RateLimits, limiter
-from app.model_name import (
-    ALLOWED_OPENROUTER_MODEL_IDS,
-    DEFAULT_TRAINING,
-    OPENROUTER_CHAT_MODEL_CATALOG,
-)
-from app.security.clerk_auth import ClerkUser, require_current_user
-from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.agents.assistant import AssistantAgent
+from app.database.session import get_async_db_session
+from app.infrastructure.circuit_breaker import CircuitBreakerOpenError, get_llm_circuit_breaker
+from app.infrastructure.llm_provider import OpenRouterProvider
+from app.middleware.rate_limit import RateLimits, limiter
+from app.model_name import ALLOWED_OPENROUTER_MODEL_IDS, DEFAULT_TRAINING, OPENROUTER_CHAT_MODEL_CATALOG
+from app.security.clerk_auth import ClerkUser, require_current_user
+from app.utils.logging import get_logger
 
 logger = get_logger("chat_api")
 
 router = APIRouter()
 
 
-class ChatModelItem(BaseModel):
-    """One selectable OpenRouter model for chat UI."""
+# ---------------------------------------------------------------------------
+# Models catalog
+# ---------------------------------------------------------------------------
 
+class ChatModelItem(BaseModel):
     id: str
     label: str
     description: str
@@ -45,44 +40,60 @@ class ChatModelItem(BaseModel):
 
 
 class ChatModelsResponse(BaseModel):
-    """List of models the client may send to POST /chat and /chat/stream."""
-
     models: list[ChatModelItem]
     default_model: str
 
 
 @router.get("/models", response_model=ChatModelsResponse)
 async def list_chat_models() -> ChatModelsResponse:
-    """Return allowed chat models (labels for UI). No auth — IDs are public."""
+    """Return allowed chat models. No auth — IDs are public."""
     return ChatModelsResponse(
         models=[ChatModelItem(**entry) for entry in OPENROUTER_CHAT_MODEL_CATALOG],
         default_model=DEFAULT_TRAINING,
     )
 
 
+# ---------------------------------------------------------------------------
+# Shared request/response models
+# ---------------------------------------------------------------------------
+
+def _validate_model(v: Optional[str]) -> str:
+    m = v if v is not None else DEFAULT_TRAINING
+    if m not in ALLOWED_OPENROUTER_MODEL_IDS:
+        raise ValueError(f"Unsupported model {m!r}.")
+    return m
+
+
 class ChatRequest(BaseModel):
-    """Chat request model."""
-    message: str = Field(..., min_length=1, description="User message")
-    model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
-    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
-    session_id: Optional[str] = Field(None, description="Session ID for grouping related traces in Langfuse")
+    message: str = Field(..., min_length=1)
+    model: Optional[str] = Field(DEFAULT_TRAINING)
+    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
+    session_id: Optional[str] = Field(None)
 
     @field_validator("model")
     @classmethod
-    def validate_model_id(cls, v: Optional[str]) -> str:
-        m = v if v is not None else DEFAULT_TRAINING
-        if m not in ALLOWED_OPENROUTER_MODEL_IDS:
-            raise ValueError(
-                f"Unsupported model {m!r}. Use an ID from app.model_name.ALLOWED_OPENROUTER_MODEL_IDS."
-            )
-        return m
+    def validate_model_id(cls, v): return _validate_model(v)
 
 
 class ChatResponse(BaseModel):
-    """Chat response model."""
-    response: str = Field(..., description="AI response")
-    model_used: str = Field(..., description="Model that was used")
+    response: str
+    model_used: str
 
+
+class StreamingChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    model: Optional[str] = Field(DEFAULT_TRAINING)
+    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
+    session_id: Optional[str] = Field(None)
+
+    @field_validator("model")
+    @classmethod
+    def validate_model_id(cls, v): return _validate_model(v)
+
+
+# ---------------------------------------------------------------------------
+# POST /chat — standard response
+# ---------------------------------------------------------------------------
 
 @router.post("/", response_model=ChatResponse)
 @limiter.limit(RateLimits.CHAT)
@@ -90,96 +101,54 @@ async def chat(
     request: Request,
     request_body: ChatRequest,
     current_user: ClerkUser = Depends(require_current_user),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> ChatResponse:
-    """
-    Send a message to the LLM and get a response.
-    
-    Requires Clerk authentication. Uses LangChain with OpenRouter.
-    No session storage - stateless conversation.
-    """
-    # Get circuit breaker for LLM calls
+    """Send a message to the AssistantAgent and get a structured response."""
     circuit_breaker = get_llm_circuit_breaker()
 
     try:
         logger.info(f"Chat request from user {current_user.id}: {request_body.message[:50]}...")
 
-        # Initialize OpenRouter provider
         provider = OpenRouterProvider()
-
-        # Get LLM instance
-        llm = provider.get_llm(
-            model_name=request_body.model,
-            temperature=request_body.temperature
-        )
-
-        # Create LangChain chain
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful assistant. Provide clear, concise, and accurate responses."),
-            ("user", "{input}")
-        ])
-
-        chain = prompt | llm | StrOutputParser()
-
-        # Build Langfuse config with filtering attributes for easy filtering in Langfuse
-        # session_id groups related traces, user_id enables user-level filtering
-        langfuse_config = get_langfuse_config(
-            session_id=request_body.session_id or str(uuid.uuid4()),
+        agent = await AssistantAgent.create(
+            llm_provider=provider,
+            db=db,
             user_id=current_user.id,
-            tags=["chat", "api"],
-            metadata={
-                "model": request_body.model,
-                "temperature": request_body.temperature,
-            },
+            model_name=request_body.model,
+            temperature=request_body.temperature,
         )
 
-        # Invoke chain with Langfuse config, protected by circuit breaker
-        async def invoke_llm():
-            return await chain.ainvoke(
-                {"input": request_body.message},
-                config=langfuse_config
-            )
+        try:
+            async def invoke():
+                return await agent.handle_message(
+                    message=request_body.message,
+                    user_id=current_user.id,
+                    session_id=request_body.session_id or str(uuid.uuid4()),
+                    tags=["chat", "api"],
+                )
 
-        response_text = await circuit_breaker.call(invoke_llm)
+            result = await circuit_breaker.call(invoke)
+        finally:
+            await agent.close()
 
-        logger.info(f"Chat response generated successfully for user {current_user.id}")
-
-        return ChatResponse(
-            response=response_text,
-            model_used=request_body.model
-        )
+        return ChatResponse(response=result.response, model_used=request_body.model)
 
     except CircuitBreakerOpenError as e:
-        logger.warning(f"Circuit breaker open for user {current_user.id}: {e}")
         raise HTTPException(
             status_code=503,
-            detail=f"Service temporarily unavailable. Please retry after {e.retry_after:.0f} seconds.",
-            headers={"Retry-After": str(int(e.retry_after))}
+            detail=f"Service temporarily unavailable. Retry after {e.retry_after:.0f}s.",
+            headers={"Retry-After": str(int(e.retry_after))},
         )
     except ValueError as e:
-        logger.error(f"Configuration error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error processing chat request: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to process chat request")
 
 
-class StreamingChatRequest(BaseModel):
-    """Chat request model for streaming endpoint."""
-    message: str = Field(..., min_length=1, description="User message")
-    model: Optional[str] = Field(DEFAULT_TRAINING, description="OpenRouter model name")
-    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0, description="Model temperature")
-    session_id: Optional[str] = Field(None, description="Session ID for grouping related traces")
-
-    @field_validator("model")
-    @classmethod
-    def validate_model_id(cls, v: Optional[str]) -> str:
-        m = v if v is not None else DEFAULT_TRAINING
-        if m not in ALLOWED_OPENROUTER_MODEL_IDS:
-            raise ValueError(
-                f"Unsupported model {m!r}. Use an ID from app.model_name.ALLOWED_OPENROUTER_MODEL_IDS."
-            )
-        return m
-
+# ---------------------------------------------------------------------------
+# POST /chat/stream — SSE streaming
+# ---------------------------------------------------------------------------
 
 @router.post("/stream")
 @limiter.limit(RateLimits.STREAMING)
@@ -187,136 +156,69 @@ async def chat_stream(
     request: Request,
     request_body: StreamingChatRequest,
     current_user: ClerkUser = Depends(require_current_user),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> StreamingResponse:
     """
-    Send a message to the LLM and stream the response using Server-Sent Events (SSE).
+    Stream AssistantAgent response as SSE.
 
-    Requires Clerk authentication. Uses LangChain with OpenRouter.
-
-    The response is streamed as SSE events:
-    - `data: {"content": "token", "done": false}` - Content chunk
-    - `data: {"content": "", "done": true, "model": "model_name"}` - Stream complete
-    - `data: {"error": "message"}` - Error occurred
-
-    Example client code:
-    ```javascript
-    const eventSource = new EventSource('/api/v1/chat/stream', {
-      method: 'POST',
-      body: JSON.stringify({ message: 'Hello' })
-    });
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.done) {
-        eventSource.close();
-      } else {
-        console.log(data.content);
-      }
-    };
-    ```
+    Events:
+    - `data: {"content": "token", "done": false}` — partial content
+    - `data: {"content": "", "done": true, "model": "..."}` — stream complete
+    - `data: {"error": "..."}` — error
     """
-    # Get circuit breaker for LLM calls
     circuit_breaker = get_llm_circuit_breaker()
 
-    # Check circuit breaker state before starting stream
-    # (We check early to avoid starting a stream that will immediately fail)
     if circuit_breaker.state.value == "open":
-        retry_after = circuit_breaker.config.timeout
-        if circuit_breaker.stats.opened_at:
-            import time
-            elapsed = time.time() - circuit_breaker.stats.opened_at
-            retry_after = max(0, circuit_breaker.config.timeout - elapsed)
+        import time
+        elapsed = time.time() - (circuit_breaker.stats.opened_at or 0)
+        retry_after = max(0, circuit_breaker.config.timeout - elapsed)
         raise HTTPException(
             status_code=503,
-            detail=f"Service temporarily unavailable. Please retry after {retry_after:.0f} seconds.",
-            headers={"Retry-After": str(int(retry_after))}
+            detail=f"Service temporarily unavailable. Retry after {retry_after:.0f}s.",
+            headers={"Retry-After": str(int(retry_after))},
         )
 
     async def generate_stream() -> AsyncGenerator[str, None]:
-        """Generate SSE events from LLM stream."""
         try:
-            logger.info(f"Streaming chat request from user {current_user.id}: {request_body.message[:50]}...")
+            logger.info(f"Streaming chat from user {current_user.id}: {request_body.message[:50]}...")
 
-            # Initialize OpenRouter provider
             provider = OpenRouterProvider()
-
-            # Get LLM instance
-            llm = provider.get_llm(
-                model_name=request_body.model,
-                temperature=request_body.temperature
-            )
-
-            # Create LangChain chain
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are a helpful assistant. Provide clear, concise, and accurate responses."),
-                ("user", "{input}")
-            ])
-
-            chain = prompt | llm | StrOutputParser()
-
-            # Build Langfuse config
-            langfuse_config = get_langfuse_config(
-                session_id=request_body.session_id or str(uuid.uuid4()),
+            agent = await AssistantAgent.create(
+                llm_provider=provider,
+                db=db,
                 user_id=current_user.id,
-                tags=["chat", "api", "streaming"],
-                metadata={
-                    "model": request_body.model,
-                    "temperature": request_body.temperature,
-                    "streaming": True,
-                },
+                model_name=request_body.model,
+                temperature=request_body.temperature,
             )
 
-            # Stream the response with circuit breaker tracking
-            # Note: For streaming, we track success/failure at the stream level
             full_response = ""
-            chunk_count = 0
-
             try:
-                async for chunk in chain.astream(
-                    {"input": request_body.message},
-                    config=langfuse_config
+                async for partial in agent.handle_message_stream(
+                    message=request_body.message,
+                    user_id=current_user.id,
+                    session_id=request_body.session_id or str(uuid.uuid4()),
+                    tags=["chat", "api", "streaming"],
                 ):
-                    chunk_count += 1
-                    full_response += chunk
-                    # Yield SSE event with content chunk
-                    event_data = json.dumps({"content": chunk, "done": False})
-                    yield f"data: {event_data}\n\n"
+                    chunk = partial.response[len(full_response):]
+                    full_response = partial.response
+                    if chunk:
+                        yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"
 
-                # Stream completed successfully - record success
                 await circuit_breaker._record_success()
-
-                # Send completion event
-                completion_data = json.dumps({
-                    "content": "",
-                    "done": True,
-                    "model": request_body.model,
-                    "total_length": len(full_response)
-                })
-                yield f"data: {completion_data}\n\n"
-
-                logger.info(f"Streaming chat completed for user {current_user.id}")
+                yield f"data: {json.dumps({'content': '', 'done': True, 'model': request_body.model})}\n\n"
+                logger.info(f"Streaming complete for user {current_user.id}")
 
             except Exception as stream_error:
-                # Record failure in circuit breaker
                 await circuit_breaker._record_failure(stream_error)
                 raise
+            finally:
+                await agent.close()
 
         except CircuitBreakerOpenError as e:
-            logger.warning(f"Circuit breaker open during stream for user {current_user.id}: {e}")
-            error_data = json.dumps({
-                "error": f"Service temporarily unavailable. Retry after {e.retry_after:.0f} seconds.",
-                "retry_after": int(e.retry_after)
-            })
-            yield f"data: {error_data}\n\n"
-
-        except ValueError as e:
-            logger.error(f"Configuration error in stream: {e}")
-            error_data = json.dumps({"error": str(e)})
-            yield f"data: {error_data}\n\n"
-
+            yield f"data: {json.dumps({'error': f'Service unavailable. Retry after {e.retry_after:.0f}s.'})}\n\n"
         except Exception as e:
-            logger.error(f"Error in streaming chat: {e}", exc_info=True)
-            error_data = json.dumps({"error": "Failed to process chat request"})
-            yield f"data: {error_data}\n\n"
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': 'Failed to process chat request'})}\n\n"
 
     return StreamingResponse(
         generate_stream(),
@@ -324,6 +226,6 @@ async def chat_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
+            "X-Accel-Buffering": "no",
+        },
     )

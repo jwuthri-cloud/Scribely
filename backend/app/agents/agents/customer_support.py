@@ -5,9 +5,11 @@ from typing import AsyncGenerator, Callable, Optional
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.agents.prompt.customer_support import SYSTEM_PROMPT
 from app.agents.structured_output.customer_support import CustomerSupportResponse
-from app.agents.tool.customer_support import CUSTOMER_SUPPORT_TOOLS
+from app.agents.tool.customer_support import build_tools
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.model_name import DEFAULT_TRAINING
@@ -31,6 +33,8 @@ class CustomerSupportAgent:
     def __init__(
         self,
         llm_provider: OpenRouterProvider,
+        db: AsyncSession,
+        user_id: str,
         model_name: str = DEFAULT_TRAINING,
         temperature: float = 0.7,
     ):
@@ -39,6 +43,8 @@ class CustomerSupportAgent:
 
         Args:
             llm_provider: OpenRouter provider instance
+            db: Async database session (scopes DB tools to this session)
+            user_id: Authenticated user ID (scopes all tools to this user)
             model_name: Model name for the agent
             temperature: Model temperature (default: 0.7)
         """
@@ -52,15 +58,18 @@ class CustomerSupportAgent:
             temperature=temperature
         )
 
+        # Build the full tool suite scoped to this user
+        tools = build_tools(user_id=user_id, db=db)
+
         # Create agent with structured output and tools
         self.agent = create_agent(
             model=self.llm,
             system_prompt=SYSTEM_PROMPT,
-            tools=CUSTOMER_SUPPORT_TOOLS,
+            tools=tools,
             response_format=CustomerSupportResponse,
         )
 
-        logger.info(f"[CustomerSupportAgent] Initialized with model: {model_name}")
+        logger.info(f"[CustomerSupportAgent] Initialized with model: {model_name}, tools: {len(tools)}")
 
     async def handle_inquiry(
         self,

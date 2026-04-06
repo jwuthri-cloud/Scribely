@@ -57,6 +57,12 @@ dependencies = [
     "redis>=5.0.0",
     # Vector database (LangChain integration)
     "langchain-pinecone>=0.2.0",
+    "pinecone>=3.0.0",
+    # Web search
+    "tavily-python>=0.3.0",
+    "langchain-community>=0.3.0",
+    # External integrations
+    "composio-langchain>=0.6.0",
     "aiosqlite>=0.22.1",
     # Async file I/O for meeting upload storage
     "aiofiles>=24.1.0",
@@ -65,6 +71,8 @@ dependencies = [
     # Diarization providers
     "deepgram-sdk>=3.0.0",
     "assemblyai>=0.30.0",
+    "composio>=0.11.4",
+    "langchain-mcp-adapters>=0.2.2",
 ]
 
 [project.optional-dependencies]

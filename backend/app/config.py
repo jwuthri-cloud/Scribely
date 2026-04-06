@@ -40,11 +40,21 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
     
-    # Vector Database (optional)
+    # Vector Database — Pinecone (optional)
     vector_db_api_key: str = ""
     vector_db_url: str = ""
-    vector_db_index_name: str = ""
+    vector_db_index_name: str = "scribely-transcripts"
     vector_db_environment: str = ""
+
+    # Web search — Tavily primary, Google Serper fallback (optional)
+    tavily_api_key: str = ""
+    serper_api_key: str = ""
+
+    # External integrations — Composio (optional)
+    composio_api_key: str = ""
+
+    # LLM
+    openai_api_key: str = ""
     
     # Logging
     log_level: str = "INFO"
