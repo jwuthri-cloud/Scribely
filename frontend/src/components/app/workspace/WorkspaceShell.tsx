@@ -14,6 +14,7 @@ import {
   Settings,
   Video,
   X,
+  CalendarDays,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CommandPalette } from "@/components/app/workspace/CommandPalette"
@@ -22,6 +23,7 @@ import { CursorGridEffect } from "@/components/app/workspace/CursorGridEffect"
 const sidebarLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/meetings", label: "Meetings", icon: Video },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Command } from "cmdk"
 import {
+  CalendarDays,
   LayoutDashboard,
   MessageSquare,
   Settings,
@@ -13,6 +14,7 @@ import {
 const pages = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, keywords: "home overview stats" },
   { href: "/meetings", label: "Meetings", icon: Video, keywords: "recordings transcripts calls" },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, keywords: "schedule google upcoming meetings" },
   { href: "/chat", label: "Chat", icon: MessageSquare, keywords: "ai ask question assistant" },
   { href: "/settings", label: "Settings", icon: Settings, keywords: "account profile preferences" },
 ]
