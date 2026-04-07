@@ -340,6 +340,19 @@ app.commandLine.appendSwitch(
 if (!process.defaultApp) {
   app.setAsDefaultProtocolClient('scribely')
 }
+function parseScribelyMeetingUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'scribely:') return null
+    if (u.hostname !== 'meeting') return null
+    const target = u.searchParams.get('url')
+    if (!target) return null
+    return decodeURIComponent(target)
+  } catch {
+    return null
+  }
+}
+
 app.on('open-url', (_event, url) => {
   if (url.startsWith('scribely://')) {
     appLog.info('Launched via scribely:// URL:', url)
@@ -349,6 +362,16 @@ app.on('open-url', (_event, url) => {
         mainWindow.show()
         mainWindow.focus()
       }
+      return
+    }
+
+    const meetUrl = parseScribelyMeetingUrl(url)
+    if (meetUrl) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+      void shell.openExternal(meetUrl)
       return
     }
   }

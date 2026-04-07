@@ -14,6 +14,7 @@ from app.exceptions import setup_exception_handlers
 from app.infrastructure.langfuse_handler import flush_langfuse, shutdown_langfuse
 from app.middleware import setup_middleware
 from app.models.base import APIInfo
+from app.services.calendar_reminder_loop import calendar_reminder_loop
 from app.services.calendar_webhook_renewal import calendar_webhook_renewal_loop
 from fastapi import FastAPI
 from app.utils.logging import get_logger
@@ -29,22 +30,26 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     stop_renewal = asyncio.Event()
     renewal_task: asyncio.Task | None = None
+    reminder_task: asyncio.Task | None = None
     try:
         await initialize_database()
         logger.info("Database initialized successfully")
         renewal_task = asyncio.create_task(calendar_webhook_renewal_loop(stop_renewal))
+        reminder_task = asyncio.create_task(calendar_reminder_loop(stop_renewal))
         yield
     except Exception as e:
         logger.error(f"Failed to initialize: {e}")
         raise
     finally:
-        if renewal_task is not None:
+        if renewal_task is not None or reminder_task is not None:
             stop_renewal.set()
-            renewal_task.cancel()
-            try:
-                await renewal_task
-            except asyncio.CancelledError:
-                pass
+            for t in (renewal_task, reminder_task):
+                if t is not None:
+                    t.cancel()
+                    try:
+                        await t
+                    except asyncio.CancelledError:
+                        pass
         try:
             flush_langfuse()
             shutdown_langfuse()

@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     # Clerk Backend API provider id for Google OAuth tokens (see Clerk dashboard).
     clerk_google_oauth_provider: str = "oauth_google"
 
+    # Web Push (VAPID) — meeting reminders when browser is closed
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:support@scribely.xyz"
+    calendar_reminder_enabled: bool = True
+    calendar_reminder_lead_minutes: int = 13
+    calendar_reminder_window_seconds: int = 45
+    # Absolute URL for links in push when building /calendar/{id} (no trailing slash)
+    app_public_base_url: str = "http://localhost:3000"
+
     # Google Calendar push notifications (HTTPS URL of POST .../calendar/webhook/google)
     google_calendar_webhook_url: str = ""
     # Optional shared secret; sent to Google watch() and echoed in X-Goog-Channel-Token.

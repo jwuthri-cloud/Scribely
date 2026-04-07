@@ -73,6 +73,7 @@ dependencies = [
     "assemblyai>=0.30.0",
     "composio>=0.11.4",
     "langchain-mcp-adapters>=0.2.2",
+    "pywebpush>=2.0.0",
 ]
 
 [project.optional-dependencies]

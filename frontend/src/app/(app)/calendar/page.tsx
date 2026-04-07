@@ -13,6 +13,8 @@ import {
 } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { CalendarEventCard } from "@/components/app/calendar/CalendarEventCard"
+import { MeetingPushOptIn } from "@/components/app/calendar/MeetingPushOptIn"
+import { NextMeetingBanner } from "@/components/app/calendar/NextMeetingBanner"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { ApiError, type CalendarConnectionStatus, type CalendarEventSummary } from "@/lib/api"
 
@@ -193,12 +195,16 @@ export default function CalendarPage() {
                 </button>
               </div>
             </div>
+            <div className="mt-6 border-t border-white/[0.06] pt-6">
+              <MeetingPushOptIn />
+            </div>
           </div>
         )}
       </div>
 
       {connected && (
         <div>
+          <NextMeetingBanner events={events} />
           <h2 className="mb-4 text-sm font-medium uppercase tracking-wider text-white/40">
             Upcoming
           </h2>

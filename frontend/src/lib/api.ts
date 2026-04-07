@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 type GetTokenFn = () => Promise<string | null>
 
@@ -153,6 +153,11 @@ export interface ListCalendarEventsParams {
   search?: string
 }
 
+export interface PushStatus {
+  subscribed: boolean
+  vapid_public_key_configured: boolean
+}
+
 /** OpenRouter chat model row — matches GET /api/v1/chat/models */
 export interface ChatModelOption {
   id: string
@@ -167,6 +172,17 @@ export interface ChatModelsResponse {
 }
 
 /** Public endpoint (no auth) — used to populate the model picker */
+/** Public — used before subscribe() to obtain the applicationServerKey. */
+export async function fetchVapidPublicKey(): Promise<string | null> {
+  const res = await fetch(`${API_URL}/api/v1/push/vapid-public-key`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  })
+  if (!res.ok) return null
+  const j = (await res.json()) as { publicKey?: string }
+  return typeof j.publicKey === "string" ? j.publicKey : null
+}
+
 export async function fetchChatModels(): Promise<ChatModelsResponse> {
   const res = await fetch(`${API_URL}/api/v1/chat/models`, {
     method: "GET",
@@ -352,6 +368,26 @@ export function createApiClient(getToken: GetTokenFn) {
     async syncCalendar(): Promise<{ ok: boolean; message: string }> {
       const res = await fetchWithAuth("/api/v1/calendar/sync", { method: "POST" })
       return res.json()
+    },
+
+    async getPushStatus(): Promise<PushStatus> {
+      const res = await fetchWithAuth("/api/v1/push/status")
+      return res.json()
+    },
+
+    async subscribePush(subscription: {
+      endpoint: string
+      keys: { p256dh: string; auth: string }
+    }): Promise<void> {
+      await fetchWithAuth("/api/v1/push/subscribe", {
+        method: "POST",
+        body: JSON.stringify(subscription),
+      })
+    },
+
+    async unsubscribePush(endpoint: string): Promise<void> {
+      const q = encodeURIComponent(endpoint)
+      await fetchWithAuth(`/api/v1/push/subscribe?endpoint=${q}`, { method: "DELETE" })
     },
   }
 }
