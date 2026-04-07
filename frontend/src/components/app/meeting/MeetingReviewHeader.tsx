@@ -7,6 +7,17 @@ import { Badge } from "@/components/ui/badge"
 import type { MeetingSummary } from "@/lib/api"
 import { cn, formatDurationSeconds } from "@/lib/utils"
 
+/** When API title is missing, avoid echoing the UUID in the main heading. */
+function fallbackHeadingTitle(summary: MeetingSummary | null, createdAt: string | null): string {
+  const raw =
+    summary?.recorded_at != null ? summary.recorded_at : createdAt != null ? createdAt : null
+  if (raw == null) return "Untitled meeting"
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return "Untitled meeting"
+  const datePart = d.toLocaleDateString(undefined, { dateStyle: "medium" })
+  return `Meeting · ${datePart}`
+}
+
 function CopyIdButton({ meetingId }: { meetingId: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -63,9 +74,11 @@ export function MeetingReviewHeader({
   fromDiarization: boolean
   backHref?: string
 }) {
+  const trimmedTitle = summary?.title?.trim()
   const title =
-    summary?.title?.trim() ||
-    `Meeting ${meetingId.slice(0, 8)}…`
+    trimmedTitle && trimmedTitle.length > 0
+      ? trimmedTitle
+      : fallbackHeadingTitle(summary, createdAt)
 
   const recorded =
     summary?.recorded_at != null

@@ -3,6 +3,17 @@
 import * as React from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import type { TooltipProps } from "recharts"
 import { AlertTriangle, Clock3, FileText, ArrowRight, Video, BarChart3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -25,23 +36,6 @@ interface MeetingActivityCardProps {
   loading?: boolean
 }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.03 },
-  },
-}
-
-const barVariants = {
-  hidden: { opacity: 0, y: 6 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 380, damping: 28 },
-  },
-}
-
 /** Build last 12 calendar months (YYYY-MM) with counts filled from API rows */
 function padLast12Months(data: MonthlyMeetingPoint[]): MonthlyMeetingPoint[] {
   const byMonth = new Map(data.map((d) => [d.month, d.count]))
@@ -55,11 +49,24 @@ function padLast12Months(data: MonthlyMeetingPoint[]): MonthlyMeetingPoint[] {
   return out
 }
 
-function shortMonthLabel(yyyyMm: string): string {
+function tickLabelForMonth(yyyyMm: string): string {
   const [y, m] = yyyyMm.split("-").map(Number)
   if (!y || !m) return yyyyMm
   const d = new Date(y, m - 1, 1)
-  return d.toLocaleDateString(undefined, { month: "short" })
+  const short = d.toLocaleDateString(undefined, { month: "short" })
+  if (m === 1) {
+    return `${short} '${String(y).slice(-2)}`
+  }
+  return short
+}
+
+function monthTooltipTitle(yyyyMm: string): string {
+  const [y, mo] = yyyyMm.split("-").map(Number)
+  if (!y || !mo) return yyyyMm
+  return new Date(y, mo - 1, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  })
 }
 
 function formatDuration(seconds: number): string {
@@ -67,6 +74,24 @@ function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.round((seconds % 3600) / 60)
   return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+type ChartRow = { monthKey: string; count: number; label: string; tooltipMonth: string }
+
+function ActivityTooltip({
+  active,
+  payload,
+}: TooltipProps<number, string> & { payload?: Array<{ payload: ChartRow }> }) {
+  if (!active || !payload?.length) return null
+  const row = payload[0].payload as ChartRow
+  return (
+    <div className="rounded-lg border border-white/[0.12] bg-zinc-950/95 px-3 py-2 text-xs shadow-xl ring-1 ring-white/[0.06] backdrop-blur-sm">
+      <p className="font-medium text-white/90">{row.tooltipMonth}</p>
+      <p className="mt-0.5 tabular-nums text-white/55">
+        {row.count} meeting{row.count === 1 ? "" : "s"}
+      </p>
+    </div>
+  )
 }
 
 export function MeetingActivityCard({
@@ -80,17 +105,20 @@ export function MeetingActivityCard({
   className,
   loading = false,
 }: MeetingActivityCardProps) {
+  const gradientId = React.useId().replace(/:/g, "")
   const series = React.useMemo(() => padLast12Months(meetingsPerMonth), [meetingsPerMonth])
+  const chartData = React.useMemo<ChartRow[]>(
+    () =>
+      series.map((point) => ({
+        monthKey: point.month,
+        count: point.count,
+        label: tickLabelForMonth(point.month),
+        tooltipMonth: monthTooltipTitle(point.month),
+      })),
+    [series]
+  )
   const counts = series.map((s) => s.count)
-  const maxCount = Math.max(...counts, 1)
   const hasAny = counts.some((c) => c > 0)
-
-  /** Sqrt scaling so small counts still read; zero stays a flat tick */
-  const barHeightsPct = counts.map((c) => {
-    if (c <= 0) return 6
-    const t = Math.sqrt(c) / Math.sqrt(maxCount)
-    return Math.max(14, Math.round(t * 100))
-  })
 
   return (
     <div
@@ -134,7 +162,7 @@ export function MeetingActivityCard({
       {loading ? (
         <div className="space-y-2">
           <div className="h-3 w-32 animate-pulse rounded bg-white/[0.05]" />
-          <div className="flex h-[7.5rem] items-end gap-1.5 pt-1">
+          <div className="flex h-[12.5rem] items-end gap-1.5 pt-1">
             {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
@@ -160,65 +188,59 @@ export function MeetingActivityCard({
           </div>
 
           <div
-            className="relative rounded-lg border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent px-2 pb-1 pt-3"
+            className="relative overflow-hidden rounded-lg border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent px-1 pb-1 pt-2 sm:px-2"
             aria-label="Meeting counts per month, last 12 months"
           >
-            {/* faint grid */}
-            <div
-              className="pointer-events-none absolute inset-x-2 top-3 bottom-8 flex flex-col justify-between opacity-[0.35]"
-              aria-hidden
-            >
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-px w-full bg-white/[0.06]" />
-              ))}
-            </div>
-
-            <motion.div
-              className="relative flex h-[7.5rem] items-stretch gap-1 sm:gap-1.5"
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              {series.map((point, index) => (
-                <div
-                  key={point.month}
-                  className="flex min-w-0 flex-1 flex-col justify-end gap-1.5"
+            <div className="h-[200px] w-full min-w-0 sm:h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 12, right: 4, left: 0, bottom: 4 }}
+                  barCategoryGap="12%"
                 >
-                  <div className="flex min-h-0 flex-1 flex-col items-center justify-end gap-0.5">
-                    {point.count > 0 && (
-                      <span
-                        className="shrink-0 text-[10px] font-medium tabular-nums text-white/50 sm:text-[11px]"
-                        title={`${point.month}: ${point.count} meeting${point.count === 1 ? "" : "s"}`}
-                      >
-                        {point.count}
-                      </span>
-                    )}
-                    <div className="flex w-full min-h-0 flex-1 flex-col justify-end">
-                      <motion.div
-                        className={cn(
-                          "mx-auto w-full max-w-[32px] rounded-t-md shadow-[0_0_20px_-8px_rgba(139,92,246,0.45)]",
-                          point.count > 0
-                            ? "bg-gradient-to-t from-violet-700/50 via-violet-500/70 to-violet-300/90"
-                            : "bg-white/[0.06]"
-                        )}
-                        style={{
-                          height: `${barHeightsPct[index]}%`,
-                          minHeight: point.count > 0 ? 4 : 3,
-                        }}
-                        variants={barVariants}
-                        title={`${point.month}: ${point.count} meeting${point.count === 1 ? "" : "s"}`}
+                  <defs>
+                    <linearGradient id={gradientId} x1="0" y1="1" x2="0" y2="0">
+                      <stop offset="0%" stopColor="rgb(91 33 182)" stopOpacity={0.55} />
+                      <stop offset="55%" stopColor="rgb(139 92 246)" stopOpacity={0.85} />
+                      <stop offset="100%" stopColor="rgb(196 181 253)" stopOpacity={0.95} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    stroke="rgba(255,255,255,0.06)"
+                    strokeDasharray="4 6"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: "rgba(255,255,255,0.38)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "rgba(255,255,255,0.08)" }}
+                    interval={0}
+                    height={36}
+                  />
+                  <YAxis
+                    width={28}
+                    tick={{ fill: "rgba(255,255,255,0.28)", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    tickCount={4}
+                  />
+                  <Tooltip
+                    content={<ActivityTooltip />}
+                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  />
+                  <Bar dataKey="count" radius={[5, 5, 0, 0]} maxBarSize={36}>
+                    {chartData.map((entry) => (
+                      <Cell
+                        key={`cell-${entry.monthKey}`}
+                        fill={entry.count > 0 ? `url(#${gradientId})` : "rgba(255,255,255,0.07)"}
                       />
-                    </div>
-                  </div>
-                  <span
-                    className="w-full shrink-0 truncate text-center text-[9px] text-white/30 sm:text-[10px]"
-                    title={point.month}
-                  >
-                    {shortMonthLabel(point.month)}
-                  </span>
-                </div>
-              ))}
-            </motion.div>
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       ) : (
