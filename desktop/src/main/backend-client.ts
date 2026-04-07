@@ -9,6 +9,8 @@ const log = createLogger('backend-client')
 
 export interface MeetingSyncPayload {
   sessionId?: string
+  /** Synced backend calendar event id (optional) — improves diarization / speaker ID */
+  calendarEventId?: string
   /** Absolute path to the local webm recording file (optional) */
   recordingFilepath?: string
   /** Absolute path to the saved transcript JSON file */
@@ -226,6 +228,9 @@ export class BackendClient {
       // Add optional session ID as a form field
       if (payload.sessionId) {
         form.append('sessionId', payload.sessionId)
+      }
+      if (payload.calendarEventId) {
+        form.append('calendarEventId', payload.calendarEventId)
       }
 
       const result = await this.requestMultipart<MeetingSyncResult>(

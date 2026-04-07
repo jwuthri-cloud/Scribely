@@ -7,6 +7,7 @@ export interface UploadQueueItem {
   transcriptFilepath: string
   recordingFilepath?: string
   sessionId?: string
+  calendarEventId?: string
   createdAt: number
   status: UploadStatus
   error?: string
@@ -61,6 +62,8 @@ export interface ElectronAPI {
     recordingFilepath?: string
     /** Meeting session ID (optional) */
     sessionId?: string
+    /** Synced calendar event id for participant-based diarization hints (optional) */
+    calendarEventId?: string
   }) => Promise<{ success: boolean; message: string; meetingId?: string }>
 
   backendValidateAuth: () => Promise<{ authenticated: boolean; userId?: string }>

@@ -14,13 +14,14 @@ from app.config import get_settings
 from .assemblyai import AssemblyAIDiarizer
 from .base import BaseDiarizer
 from .deepgram import DeepgramDiarizer
-from .types import DiarizedUtterance
+from .types import DiarizedUtterance, DiarizationHints
 
 __all__ = [
     "AssemblyAIDiarizer",
     "BaseDiarizer",
     "DeepgramDiarizer",
     "DiarizedUtterance",
+    "DiarizationHints",
     "diarize",
     "get_diarizer",
 ]
@@ -39,9 +40,14 @@ def get_diarizer(provider: str | None = None) -> BaseDiarizer:
         raise ValueError(f"Unknown diarization provider: {provider!r}")
 
 
-async def diarize(audio_path: Path, provider: str | None = None) -> list[DiarizedUtterance]:
+async def diarize(
+    audio_path: Path,
+    provider: str | None = None,
+    *,
+    hints: DiarizationHints | None = None,
+) -> list[DiarizedUtterance]:
     """Run diarization on *audio_path* using the configured provider.
 
     ``provider`` defaults to ``settings.diarization_provider`` when not given.
     """
-    return await get_diarizer(provider).diarize(audio_path)
+    return await get_diarizer(provider).diarize(audio_path, hints=hints)

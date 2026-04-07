@@ -8,13 +8,17 @@ import { TranscriptViewer } from "@/components/app/meeting/TranscriptViewer"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { WorkspaceSurface } from "@/components/app/workspace/WorkspaceSurface"
 import { useApi } from "@/hooks/useApi"
-import type { EnrichedTranscriptResponse, MeetingSummary, ProcessingStatusResponse } from "@/lib/api"
+import type {
+  EnrichedTranscriptResponse,
+  MeetingDetail,
+  ProcessingStatusResponse,
+} from "@/lib/api"
 import { normalizeTranscriptBlob } from "@/lib/meeting-transcript"
 
 export default function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const api = useApi()
-  const [summary, setSummary] = useState<MeetingSummary | null>(null)
+  const [summary, setSummary] = useState<MeetingDetail | null>(null)
   const [payload, setPayload] = useState<EnrichedTranscriptResponse | null>(null)
   const [proc, setProc] = useState<ProcessingStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)

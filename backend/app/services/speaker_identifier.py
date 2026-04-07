@@ -21,6 +21,7 @@ async def identify_speakers(
     utterances: list[DiarizedUtterance],
     session_id: str | None = None,
     user_id: str | None = None,
+    calendar_participant_names: tuple[str, ...] | None = None,
 ) -> dict[str, str]:
     """Use LLM vision to map anonymous speaker labels to real names.
 
@@ -39,4 +40,5 @@ async def identify_speakers(
         utterances,
         session_id=session_id,
         user_id=user_id,
+        calendar_participant_names=calendar_participant_names,
     )

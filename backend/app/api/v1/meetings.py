@@ -26,7 +26,10 @@ from app.api.deps import get_current_user_with_db
 from app.config import get_settings
 from app.database.models.meeting import MeetingStatusEnum
 from app.database.models.user import User
+from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.meeting import MeetingRepository
+from app.database.models.meeting_processing import MeetingProcessing
+from app.database.repositories.meeting_processing import MeetingProcessingRepository
 from app.database.session import get_async_db_session
 from app.infrastructure.object_storage import (
     RECORDING_WEBM,
@@ -62,6 +65,7 @@ class ProcessingStatusResponse(BaseModel):
     speakerMap: Optional[dict[str, str]] = None
     utteranceCount: Optional[int] = None
     error: Optional[str] = None
+    failedStep: Optional[str] = None
     updatedAt: Optional[str] = None
 
 
@@ -79,6 +83,28 @@ class MeetingSummaryResponse(BaseModel):
     status: str
     recorded_at: Optional[str] = None
     created_at: str
+
+
+class MeetingProcessingOut(BaseModel):
+    """Persisted pipeline state (1:1 ``meeting_processing`` row)."""
+
+    pipeline_eligibility: str
+    processing_status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    failed_at: Optional[str] = None
+    diarization_provider: Optional[str] = None
+    utterance_count: Optional[int] = None
+    distinct_speaker_labels: Optional[int] = None
+    enriched_transcript_saved: bool = False
+    has_nonempty_diarization: bool = False
+    last_error_message: Optional[str] = None
+    failed_step: Optional[str] = None
+    result_summary: Optional[dict[str, Any]] = None
+
+
+class MeetingDetailResponse(MeetingSummaryResponse):
+    processing: Optional[MeetingProcessingOut] = None
 
 
 class PaginatedMeetingsResponse(BaseModel):
@@ -107,6 +133,29 @@ class DashboardStatsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _enum_value(v: Any) -> str:
+    return v.value if hasattr(v, "value") else str(v)
+
+
+def _processing_out_from_row(row: MeetingProcessing) -> MeetingProcessingOut:
+    return MeetingProcessingOut(
+        pipeline_eligibility=_enum_value(row.pipeline_eligibility),
+        processing_status=_enum_value(row.processing_status),
+        started_at=row.started_at.isoformat() if row.started_at else None,
+        completed_at=row.completed_at.isoformat() if row.completed_at else None,
+        failed_at=row.failed_at.isoformat() if row.failed_at else None,
+        diarization_provider=row.diarization_provider,
+        utterance_count=row.utterance_count,
+        distinct_speaker_labels=row.distinct_speaker_labels,
+        enriched_transcript_saved=bool(row.enriched_transcript_saved),
+        has_nonempty_diarization=bool(row.has_nonempty_diarization),
+        last_error_message=row.last_error_message,
+        failed_step=row.failed_step,
+        result_summary=row.result_summary if isinstance(row.result_summary, dict) else None,
+    )
+
 
 async def _resolve_meeting_dir(
     db: AsyncSession,
@@ -249,20 +298,22 @@ async def get_dashboard_stats(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{meeting_id}", response_model=MeetingSummaryResponse)
+@router.get("/{meeting_id}", response_model=MeetingDetailResponse)
 async def get_meeting(
     meeting_id: str,
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
-) -> MeetingSummaryResponse:
-    """Return one meeting's summary row for the current user."""
+) -> MeetingDetailResponse:
+    """Return one meeting's summary row and optional persisted pipeline state."""
     meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found",
         )
-    return MeetingSummaryResponse(
+    proc_row = await MeetingProcessingRepository.get_by_meeting_id(db, meeting_id)
+    processing = _processing_out_from_row(proc_row) if proc_row else None
+    return MeetingDetailResponse(
         id=meeting.id,
         title=meeting.title,
         duration_seconds=meeting.duration_seconds,
@@ -270,6 +321,7 @@ async def get_meeting(
         status=meeting.status.value if isinstance(meeting.status, MeetingStatusEnum) else str(meeting.status),
         recorded_at=meeting.recorded_at.isoformat() if meeting.recorded_at else None,
         created_at=meeting.created_at.isoformat(),
+        processing=processing,
     )
 
 
@@ -282,6 +334,7 @@ async def sync_meeting(
     transcript: UploadFile = File(..., description="Transcript JSON file"),
     video: Optional[UploadFile] = File(None, description="Meeting recording (.webm)"),
     session_id: Optional[str] = Form(None, alias="sessionId"),
+    calendar_event_id: Optional[str] = Form(None, alias="calendarEventId"),
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ) -> MeetingSyncResponse:
@@ -292,6 +345,7 @@ async def sync_meeting(
     - transcript (required): the transcript JSON file
     - video (optional): the webm recording file
     - sessionId (optional): meeting session identifier
+    - calendarEventId (optional): synced calendar event id — used for participant-based diarization hints
 
     Files are stored at {UPLOAD_DIR}/{user_id}/{meeting_id}/
     When a video recording is included, background diarization + speaker
@@ -396,25 +450,41 @@ async def sync_meeting(
     if recorded_at is None:
         recorded_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
+    cal_id = calendar_event_id.strip() if calendar_event_id and calendar_event_id.strip() else None
+    if cal_id:
+        ev = await CalendarRepository.get_event_by_id(db, cal_id, user.id, with_participants=False)
+        if not ev:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="calendarEventId not found or not accessible for this user",
+            )
+
     initial_status = MeetingStatusEnum.PROCESSING if recording_path else MeetingStatusEnum.COMPLETED
 
     db_meeting = await MeetingRepository.create(
         db,
         user_id=user.id,
+        id=meeting_id,
         storage_path=storage_rel,
         session_id=session_id,
+        calendar_event_id=cal_id,
         title=title,
         duration_seconds=duration_seconds,
         entry_count=entry_count,
         status=initial_status,
         recorded_at=recorded_at,
     )
+    await MeetingProcessingRepository.upsert_after_sync(
+        db,
+        db_meeting.id,
+        has_recording=recording_path is not None,
+    )
     await db.commit()
 
     # --- Trigger background processing if we have a recording ---
     if recording_path is not None:
         schedule_processing(meeting_dir, meeting_id=db_meeting.id)
-        logger.info(f"Background diarization scheduled for meeting {meeting_id} (db_id={db_meeting.id})")
+        logger.info(f"Background diarization scheduled for meeting {db_meeting.id}")
 
     return MeetingSyncResponse(
         success=True,
@@ -437,12 +507,21 @@ async def get_processing_status(
     meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
     info = read_status(meeting_dir)
 
+    err = info.get("error")
+    failed_step = info.get("failedStep")
+    mp = await MeetingProcessingRepository.get_by_meeting_id(db, meeting_id)
+    if mp and mp.last_error_message:
+        err = mp.last_error_message
+    if mp and mp.failed_step:
+        failed_step = mp.failed_step
+
     return ProcessingStatusResponse(
         meetingId=meeting_id,
         status=info.get("status", "none"),
         speakerMap=info.get("speakerMap"),
         utteranceCount=info.get("utteranceCount"),
-        error=info.get("error"),
+        error=err,
+        failedStep=failed_step,
         updatedAt=info.get("updatedAt"),
     )
 
@@ -515,6 +594,9 @@ async def reprocess_meeting(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Meeting not found",
         )
+
+    await MeetingProcessingRepository.mark_pending(db, meeting.id)
+    await db.commit()
 
     scheduled = schedule_processing(
         meeting_dir,

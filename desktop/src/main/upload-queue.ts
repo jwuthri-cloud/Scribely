@@ -13,6 +13,7 @@ export interface UploadQueueItem {
   transcriptFilepath: string
   recordingFilepath?: string
   sessionId?: string
+  calendarEventId?: string
   /** Unix ms — when the meeting ended */
   createdAt: number
   status: UploadStatus
@@ -98,6 +99,7 @@ export class UploadQueueService extends EventEmitter {
       transcriptFilepath: payload.transcriptFilepath,
       recordingFilepath: payload.recordingFilepath,
       sessionId: payload.sessionId,
+      calendarEventId: payload.calendarEventId,
       createdAt: Date.now(),
       status: 'pending',
       attemptCount: 0,
@@ -144,6 +146,7 @@ export class UploadQueueService extends EventEmitter {
         transcriptFilepath: item.transcriptFilepath,
         recordingFilepath: item.recordingFilepath,
         sessionId: item.sessionId,
+        calendarEventId: item.calendarEventId,
       })
 
       if (result.success) {

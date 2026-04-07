@@ -7,7 +7,7 @@ from pathlib import Path
 from app.utils.logging import get_logger
 
 from .base import BaseDiarizer
-from .types import DiarizedUtterance
+from .types import DiarizedUtterance, DiarizationHints
 
 logger = get_logger("diarization.deepgram")
 
@@ -20,7 +20,12 @@ class DeepgramDiarizer(BaseDiarizer):
             raise RuntimeError("DEEPGRAM_API_KEY is not configured")
         self._api_key = api_key
 
-    async def diarize(self, audio_path: Path) -> list[DiarizedUtterance]:
+    async def diarize(
+        self,
+        audio_path: Path,
+        *,
+        hints: DiarizationHints | None = None,
+    ) -> list[DiarizedUtterance]:
         from deepgram import DeepgramClient
 
         logger.info(f"Diarizing with Deepgram Nova-3: {audio_path}")
@@ -30,6 +35,11 @@ class DeepgramDiarizer(BaseDiarizer):
         with open(audio_path, "rb") as f:
             buffer_data = f.read()
 
+        keyterm: list[str] | None = None
+        if hints and hints.word_boost:
+            keyterm = list(hints.word_boost)
+            logger.info("Deepgram keyterm boost (%s terms)", len(keyterm))
+
         response = client.listen.v1.media.transcribe_file(
             request=buffer_data,
             model="nova-3",
@@ -37,6 +47,7 @@ class DeepgramDiarizer(BaseDiarizer):
             punctuate=True,
             utterances=True,
             smart_format=True,
+            keyterm=keyterm,
         )
 
         raw_utterances = (

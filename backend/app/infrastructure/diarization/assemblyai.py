@@ -8,7 +8,7 @@ from pathlib import Path
 from app.utils.logging import get_logger
 
 from .base import BaseDiarizer
-from .types import DiarizedUtterance
+from .types import DiarizedUtterance, DiarizationHints
 
 logger = get_logger("diarization.assemblyai")
 
@@ -21,19 +21,39 @@ class AssemblyAIDiarizer(BaseDiarizer):
             raise RuntimeError("ASSEMBLYAI_API_KEY is not configured")
         self._api_key = api_key
 
-    async def diarize(self, audio_path: Path) -> list[DiarizedUtterance]:
+    async def diarize(
+        self,
+        audio_path: Path,
+        *,
+        hints: DiarizationHints | None = None,
+    ) -> list[DiarizedUtterance]:
         import assemblyai as aai
 
         logger.info(f"Diarizing with AssemblyAI Universal-2: {audio_path}")
 
         aai.settings.api_key = self._api_key
 
-        config = aai.TranscriptionConfig(
-            speaker_labels=True,
-            speech_models=["universal-3-pro", "universal-2"],
-            language_detection=True,
-            speakers_expected=None,
-        )
+        speakers_expected = None
+        word_boost: list[str] = []
+        if hints:
+            if hints.speakers_expected is not None:
+                speakers_expected = hints.speakers_expected
+                logger.info("AssemblyAI speakers_expected=%s", speakers_expected)
+            if hints.word_boost:
+                word_boost = list(hints.word_boost)
+                logger.info("AssemblyAI word_boost (%s terms)", len(word_boost))
+
+        cfg_kwargs: dict = {
+            "speaker_labels": True,
+            "speech_models": ["universal-3-pro", "universal-2"],
+            "language_detection": True,
+            "speakers_expected": speakers_expected,
+        }
+        if word_boost:
+            cfg_kwargs["word_boost"] = word_boost
+            cfg_kwargs["boost_param"] = aai.WordBoost.default
+
+        config = aai.TranscriptionConfig(**cfg_kwargs)
         transcriber = aai.Transcriber(config=config)
 
         # assemblyai SDK is synchronous — run in a thread so we don't block the loop

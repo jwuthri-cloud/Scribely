@@ -3,6 +3,7 @@ Meeting repository for Scribely.
 """
 
 import math
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -24,17 +25,22 @@ class MeetingRepository:
         user_id: str,
         storage_path: str,
         *,
+        id: Optional[str] = None,
         session_id: Optional[str] = None,
+        calendar_event_id: Optional[str] = None,
         title: Optional[str] = None,
         duration_seconds: Optional[int] = None,
         entry_count: int = 0,
         status: MeetingStatusEnum = MeetingStatusEnum.UPLOADED,
         recorded_at: Optional[datetime] = None,
     ) -> Meeting:
+        row_id = id if id is not None else str(uuid.uuid4())
         meeting = Meeting(
+            id=row_id,
             user_id=user_id,
             storage_path=storage_path,
             session_id=session_id,
+            calendar_event_id=calendar_event_id,
             title=title,
             duration_seconds=duration_seconds,
             entry_count=entry_count,

@@ -6,6 +6,14 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
+@dataclass(frozen=True)
+class DiarizationHints:
+    """Optional hints from calendar participants or transcript metadata."""
+
+    speakers_expected: int | None = None
+    word_boost: tuple[str, ...] = ()
+
+
 @dataclass
 class DiarizedUtterance:
     speaker: str        # "Speaker 0", "Speaker 1", …

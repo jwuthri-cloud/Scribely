@@ -4,6 +4,8 @@ Each meeting gets a ``processing_status.json`` file in its directory that
 tracks the current state.  No external broker (Redis/Celery) is needed —
 tasks run as ``asyncio.Task`` objects in the same event loop as the FastAPI
 server.
+
+Pipeline outcomes and errors are also persisted to ``meeting_processing`` (DB).
 """
 
 from __future__ import annotations
@@ -21,22 +23,90 @@ from app.utils.logging import get_logger
 logger = get_logger("task_runner")
 
 
-async def _update_db(meeting_id: str, status: str, duration_seconds: int | None) -> None:
-    """Update meeting status and duration in the database after processing."""
-    try:
-        from app.database.models.meeting import MeetingStatusEnum
-        from app.database.repositories.meeting import MeetingRepository
-        from app.database.session import get_async_session
+async def _finalize_success(
+    meeting_id: str,
+    result: dict[str, Any],
+    duration_seconds: int | None,
+) -> None:
+    from app.database.models.meeting import MeetingStatusEnum
+    from app.database.repositories.meeting import MeetingRepository
+    from app.database.repositories.meeting_processing import MeetingProcessingRepository
+    from app.database.session import get_async_session
 
-        db_status = MeetingStatusEnum(status)
+    raw_di = result.get("diarization", {})
+    di: dict[str, Any] = raw_di if isinstance(raw_di, dict) else {}
+    utts = di.get("utterances") or []
+    uc = len(utts) if isinstance(utts, list) else 0
+    speaker_keys: set[str] = set()
+    for u in utts:
+        if isinstance(u, dict):
+            label = u.get("originalLabel") or u.get("speaker")
+            if isinstance(label, str) and label:
+                speaker_keys.add(label)
+    distinct = len(speaker_keys)
+    provider = str(di.get("provider") or "")
+    if len(provider) > 32:
+        provider = provider[:32]
+
+    sm = di.get("speakerMap")
+    summary: dict[str, Any] = {}
+    if isinstance(sm, dict):
+        summary["speaker_map_size"] = len(sm)
+
+    async with get_async_session() as db:
+        await MeetingRepository.update_after_processing(
+            db, meeting_id, MeetingStatusEnum.COMPLETED, duration_seconds
+        )
+        await MeetingProcessingRepository.mark_completed(
+            db,
+            meeting_id,
+            provider=provider or "unknown",
+            utterance_count=uc,
+            distinct_speaker_labels=distinct,
+            enriched_transcript_saved=True,
+            has_nonempty_diarization=uc > 0,
+            result_summary=summary or None,
+        )
+        await db.commit()
+    logger.info(f"DB updated for meeting {meeting_id}: completed, duration={duration_seconds}s")
+
+
+async def _finalize_failure(
+    meeting_id: str,
+    exc: BaseException,
+    tb: str,
+) -> None:
+    from app.database.models.meeting import MeetingStatusEnum
+    from app.database.repositories.meeting import MeetingRepository
+    from app.database.repositories.meeting_processing import MeetingProcessingRepository
+    from app.database.session import get_async_session
+
+    step = getattr(exc, "step", None)
+    msg = str(exc)
+
+    async with get_async_session() as db:
+        await MeetingRepository.update_after_processing(db, meeting_id, MeetingStatusEnum.FAILED, None)
+        await MeetingProcessingRepository.mark_failed(
+            db,
+            meeting_id,
+            message=msg,
+            failed_step=step,
+            traceback_str=tb,
+        )
+        await db.commit()
+    logger.info(f"DB updated for meeting {meeting_id}: failed step={step}")
+
+
+async def _mark_processing_started(meeting_id: str) -> None:
+    from app.database.repositories.meeting_processing import MeetingProcessingRepository
+    from app.database.session import get_async_session
+
+    try:
         async with get_async_session() as db:
-            await MeetingRepository.update_after_processing(
-                db, meeting_id, db_status, duration_seconds
-            )
+            await MeetingProcessingRepository.mark_processing(db, meeting_id)
             await db.commit()
-            logger.info(f"DB updated for meeting {meeting_id}: status={status}, duration={duration_seconds}s")
     except Exception as e:
-        logger.error(f"Failed to update DB for meeting {meeting_id}: {e}")
+        logger.error(f"Failed to mark processing started for {meeting_id}: {e}")
 
 
 class TaskStatus(str, Enum):
@@ -110,16 +180,19 @@ def schedule_processing(meeting_dir: Path, meeting_id: str | None = None, provid
 
 async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) -> None:
     from app.services.meeting_processor import process_meeting
+    from app.services.pipeline_errors import PipelineStepError
 
     _write_status(meeting_dir, TaskStatus.PROCESSING, startedAt=datetime.now(timezone.utc).isoformat())
 
+    if meeting_id:
+        await _mark_processing_started(meeting_id)
+
     try:
-        result = await process_meeting(meeting_dir, provider)
+        result = await process_meeting(meeting_dir, provider, meeting_id=meeting_id)
         diarization = result.get("diarization", {})
         speaker_map = diarization.get("speakerMap", {})
         utterance_count = diarization.get("utteranceCount", 0)
 
-        # Derive duration from last utterance endMs (in milliseconds → seconds)
         utterances = diarization.get("utterances", [])
         duration_seconds: int | None = None
         if utterances:
@@ -156,7 +229,20 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
             logger.warning("Failed to upload enriched transcript to object storage: %s", e)
 
         if meeting_id:
-            await _update_db(meeting_id, "completed", duration_seconds)
+            await _finalize_success(meeting_id, result, duration_seconds)
+
+    except PipelineStepError as e:
+        tb = traceback.format_exc()
+        logger.error(f"Processing failed (step={e.step}) for {meeting_dir.name}: {e}\n{tb}")
+        _write_status(
+            meeting_dir,
+            TaskStatus.FAILED,
+            error=str(e),
+            failedStep=e.step,
+            failedAt=datetime.now(timezone.utc).isoformat(),
+        )
+        if meeting_id:
+            await _finalize_failure(meeting_id, e, tb)
 
     except Exception as e:
         tb = traceback.format_exc()
@@ -167,6 +253,6 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
             error=str(e),
             failedAt=datetime.now(timezone.utc).isoformat(),
         )
-
         if meeting_id:
-            await _update_db(meeting_id, "failed", None)
+            await _finalize_failure(meeting_id, e, tb)
+

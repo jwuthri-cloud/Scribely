@@ -12,6 +12,11 @@ from .calendar import (
     ParticipantResponseStatus,
 )
 from .meeting import Meeting, MeetingStatusEnum
+from .meeting_processing import (
+    MeetingProcessing,
+    MeetingProcessingStatus,
+    PipelineEligibility,
+)
 from .user import User, UserStatusEnum
 
 __all__ = [
@@ -21,8 +26,11 @@ __all__ = [
     "CalendarEventParticipant",
     "CalendarEventStatus",
     "Meeting",
+    "MeetingProcessing",
+    "MeetingProcessingStatus",
     "MeetingPlatform",
     "MeetingStatusEnum",
+    "PipelineEligibility",
     "ParticipantResponseStatus",
     "User",
     "UserStatusEnum",

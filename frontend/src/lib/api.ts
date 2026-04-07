@@ -20,6 +20,27 @@ export interface MeetingSummary {
   created_at: string
 }
 
+/** Persisted post-upload pipeline state — GET /api/v1/meetings/{id} */
+export interface MeetingProcessingState {
+  pipeline_eligibility: string
+  processing_status: string
+  started_at: string | null
+  completed_at: string | null
+  failed_at: string | null
+  diarization_provider: string | null
+  utterance_count: number | null
+  distinct_speaker_labels: number | null
+  enriched_transcript_saved: boolean
+  has_nonempty_diarization: boolean
+  last_error_message: string | null
+  failed_step: string | null
+  result_summary: Record<string, unknown> | null
+}
+
+export interface MeetingDetail extends MeetingSummary {
+  processing?: MeetingProcessingState | null
+}
+
 /** GET /api/v1/meetings/{id}/transcript */
 export interface EnrichedTranscriptResponse {
   meetingId: string
@@ -33,6 +54,7 @@ export interface ProcessingStatusResponse {
   speakerMap?: Record<string, string> | null
   utteranceCount?: number | null
   error?: string | null
+  failedStep?: string | null
   updatedAt?: string | null
 }
 
@@ -210,7 +232,7 @@ export function createApiClient(getToken: GetTokenFn) {
       return res.json()
     },
 
-    async getMeetingSummary(id: string): Promise<MeetingSummary> {
+    async getMeetingSummary(id: string): Promise<MeetingDetail> {
       const res = await fetchWithAuth(`/api/v1/meetings/${id}`)
       return res.json()
     },

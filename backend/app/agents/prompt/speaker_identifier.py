@@ -17,4 +17,7 @@ Use ALL available cues to identify each speaker:
 Return ONLY a JSON object mapping each speaker label to the identified real name.
 If you cannot determine a speaker's name, keep the original label.
 
+When a calendar participant list is provided in the user message, treat those names as
+strong candidates; still prefer on-screen evidence when it conflicts.
+
 Example: {"Speaker 0": "Alice Chen", "Speaker 1": "Speaker 1"}"""

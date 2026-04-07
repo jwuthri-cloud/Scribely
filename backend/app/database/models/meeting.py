@@ -36,6 +36,11 @@ class Meeting(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id = Column(String(255), nullable=True)
+    calendar_event_id = Column(
+        String,
+        ForeignKey("calendar_events.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     title = Column(String(500), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
@@ -51,6 +56,13 @@ class Meeting(Base):
     updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
 
     user = relationship("User", backref="meetings")
+    calendar_event = relationship("CalendarEvent", foreign_keys=[calendar_event_id])
+    processing_state = relationship(
+        "MeetingProcessing",
+        back_populates="meeting",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index("ix_meetings_user_recorded", "user_id", "recorded_at"),

@@ -61,6 +61,7 @@ class SpeakerIdentifierAgent:
         utterances: list[DiarizedUtterance],
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        calendar_participant_names: tuple[str, ...] | None = None,
     ) -> dict[str, str]:
         """Map anonymous speaker labels to real names.
 
@@ -72,7 +73,11 @@ class SpeakerIdentifierAgent:
             logger.warning("No frames available — skipping speaker identification")
             return {s: s for s in speaker_frames}
 
-        messages = self._build_messages(speaker_frames, utterances)
+        messages = self._build_messages(
+            speaker_frames,
+            utterances,
+            calendar_participant_names=calendar_participant_names,
+        )
 
         langfuse_config = get_langfuse_config(
             session_id=session_id,
@@ -83,6 +88,7 @@ class SpeakerIdentifierAgent:
                 "model": self.model_name,
                 "total_frames": str(total_frames),
                 "speaker_count": str(len(speaker_frames)),
+                "calendar_participants": str(len(calendar_participant_names or ())),
             },
             run_name="speaker-identification",
         )
@@ -125,8 +131,21 @@ class SpeakerIdentifierAgent:
         self,
         speaker_frames: dict[str, list[Path]],
         utterances: list[DiarizedUtterance],
+        *,
+        calendar_participant_names: tuple[str, ...] | None = None,
     ) -> list[SystemMessage | HumanMessage]:
         content_parts: list[dict[str, Any]] = []
+
+        if calendar_participant_names:
+            lines = "\n".join(f"- {n}" for n in calendar_participant_names)
+            content_parts.append({
+                "type": "text",
+                "text": (
+                    "Likely participants from the user's calendar — prefer these labels when "
+                    "they match video tiles or utterances; do not invent names outside this "
+                    f"list unless a name is clearly visible in the meeting UI:\n{lines}\n"
+                ),
+            })
 
         for speaker, frames in speaker_frames.items():
             samples = self._pick_sample_utterances(utterances, speaker)
