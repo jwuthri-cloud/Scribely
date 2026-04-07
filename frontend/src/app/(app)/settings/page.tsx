@@ -16,6 +16,7 @@ import {
   User,
 } from "lucide-react"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
+import { clerkAdditionalGoogleCalendarScopes } from "@/lib/clerk-google-calendar"
 
 function InfoRow({
   icon: Icon,
@@ -113,7 +114,11 @@ export default function SettingsPage() {
           </div>
           <button
             type="button"
-            onClick={() => openUserProfile()}
+            onClick={() =>
+              openUserProfile({
+                additionalOAuthScopes: clerkAdditionalGoogleCalendarScopes,
+              })
+            }
             className="hidden shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white sm:inline-flex"
           >
             Edit profile
@@ -162,7 +167,11 @@ export default function SettingsPage() {
         <div className="p-2">
           <button
             type="button"
-            onClick={() => openUserProfile()}
+            onClick={() =>
+              openUserProfile({
+                additionalOAuthScopes: clerkAdditionalGoogleCalendarScopes,
+              })
+            }
             className="flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-white/[0.03]"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">

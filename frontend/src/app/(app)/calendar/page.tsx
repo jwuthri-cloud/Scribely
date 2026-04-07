@@ -11,7 +11,9 @@ import {
   Unplug,
   AlertCircle,
 } from "lucide-react"
+import { useClerk } from "@clerk/nextjs"
 import { useApi } from "@/hooks/useApi"
+import { clerkAdditionalGoogleCalendarScopes } from "@/lib/clerk-google-calendar"
 import { CalendarEventCard } from "@/components/app/calendar/CalendarEventCard"
 import { MeetingPushOptIn } from "@/components/app/calendar/MeetingPushOptIn"
 import { NextMeetingBanner } from "@/components/app/calendar/NextMeetingBanner"
@@ -19,6 +21,7 @@ import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
 import { ApiError, type CalendarConnectionStatus, type CalendarEventSummary } from "@/lib/api"
 
 export default function CalendarPage() {
+  const { openUserProfile } = useClerk()
   const api = useApi()
   const [status, setStatus] = useState<CalendarConnectionStatus | null>(null)
   const [events, setEvents] = useState<CalendarEventSummary[]>([])
@@ -138,19 +141,37 @@ export default function CalendarPage() {
             <div className="flex-1 space-y-2">
               <h2 className="text-lg font-medium text-white">Connect Google Calendar</h2>
               <p className="text-sm text-white/45">
-                We use your existing Google sign-in (Clerk) with the Calendar read scope. If connect
-                fails, sign out and sign in again with Google after your admin adds the calendar
-                scope in Clerk.
+                We use your existing Google sign-in (Clerk) with the Calendar read scope. If you
+                skipped that permission at signup, click{" "}
+                <span className="text-white/60">Grant Calendar in account settings</span> below,
+                then in the profile modal go to <span className="text-white/60">Connected accounts</span>{" "}
+                and reconnect Google so Google prompts for Calendar access. Then try Connect again.
+                Alternatively, sign out and sign back in with Google after your project includes the
+                Calendar scope (Clerk Dashboard → Google → Authorized scopes, plus Google Cloud OAuth
+                consent screen).
               </p>
-              <button
-                type="button"
-                onClick={connect}
-                disabled={actionLoading}
-                className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white/[0.1] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.14] disabled:opacity-50"
-              >
-                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
-                Connect Google Calendar
-              </button>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <button
+                  type="button"
+                  onClick={connect}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/[0.1] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/[0.14] disabled:opacity-50"
+                >
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+                  Connect Google Calendar
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openUserProfile({
+                      additionalOAuthScopes: clerkAdditionalGoogleCalendarScopes,
+                    })
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-transparent px-4 py-2.5 text-sm font-medium text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white"
+                >
+                  Grant Calendar in account settings
+                </button>
+              </div>
             </div>
           </div>
         ) : (

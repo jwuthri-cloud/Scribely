@@ -1,0 +1,9 @@
+{
+    "redirects": [
+      {
+        "source": "/(.*)",
+        "destination": "https://www.scribely.xyz/$1",
+        "permanent": true
+      }
+    ]
+  }
