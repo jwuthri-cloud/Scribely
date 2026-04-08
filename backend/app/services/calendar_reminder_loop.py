@@ -82,7 +82,7 @@ async def _run_reminder_tick() -> None:
                 title = (ev.title or "Meeting").strip() or "Meeting"
                 meeting_url = ev.meeting_url or ""
                 detail_url = f"{base}/calendar/{ev.id}"
-                plat = _PLATFORM_LABEL.get(ev.meeting_platform.value, "Meeting")
+                plat = _PLATFORM_LABEL.get(str(ev.meeting_platform), "Meeting")
                 start_iso = ev.start_time.isoformat() + "Z"
                 payload = {
                     "type": "calendar_reminder",

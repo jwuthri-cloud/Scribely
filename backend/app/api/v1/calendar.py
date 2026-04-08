@@ -43,10 +43,10 @@ def _event_summary_row(ev) -> CalendarEventSummaryOut:
         timezone=ev.timezone,
         location=ev.location,
         meeting_url=ev.meeting_url,
-        meeting_platform=ev.meeting_platform.value,
+        meeting_platform=str(ev.meeting_platform),
         organizer_email=ev.organizer_email,
         organizer_name=ev.organizer_name,
-        status=ev.status.value,
+        status=str(ev.status),
         is_recurring=ev.is_recurring,
     )
 
@@ -57,7 +57,7 @@ def _event_detail(ev) -> CalendarEventDetailOut:
             email=p.email,
             display_name=p.display_name,
             is_organizer=p.is_organizer,
-            response_status=p.response_status.value,
+            response_status=str(p.response_status),
             is_self=p.is_self,
         )
         for p in (ev.participants or [])
@@ -70,10 +70,10 @@ def _event_detail(ev) -> CalendarEventDetailOut:
         timezone=ev.timezone,
         location=ev.location,
         meeting_url=ev.meeting_url,
-        meeting_platform=ev.meeting_platform.value,
+        meeting_platform=str(ev.meeting_platform),
         organizer_email=ev.organizer_email,
         organizer_name=ev.organizer_name,
-        status=ev.status.value,
+        status=str(ev.status),
         is_recurring=ev.is_recurring,
         description=ev.description,
         participants=parts,
@@ -132,7 +132,7 @@ async def calendar_status(
     return CalendarConnectionStatusOut(
         connected=conn.status == CalendarConnectionStatus.ACTIVE,
         provider=conn.provider,
-        status=conn.status.value,
+        status=str(conn.status),
         last_synced_at=conn.last_synced_at,
         webhook_expires_at=conn.webhook_expiration,
         last_error=conn.last_error,

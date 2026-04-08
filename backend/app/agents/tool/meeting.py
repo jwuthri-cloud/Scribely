@@ -45,7 +45,7 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
             date_str = m.recorded_at.strftime("%Y-%m-%d %H:%M") if m.recorded_at else "unknown date"
             duration = f"{m.duration_seconds // 60}min" if m.duration_seconds else "unknown duration"
             title = m.title or "Untitled"
-            lines.append(f"- [{m.id}] {title} | {date_str} | {duration} | status: {m.status.value}")
+            lines.append(f"- [{m.id}] {title} | {date_str} | {duration} | status: {str(m.status)}")
         return "\n".join(lines)
 
     async def get_meeting_transcript(meeting_id: str) -> str:
