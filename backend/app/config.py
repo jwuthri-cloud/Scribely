@@ -1,7 +1,9 @@
 """Application settings loaded from environment variables."""
+import ipaddress
 import os
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import AliasChoices, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +11,35 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.model_name import DEFAULT_VISION
 
 PROJECT_ROOT = Path(__file__).parent.parent
+
+
+def _origin_and_www_peer(url: str) -> list[str]:
+    """Return the origin and the www ↔ apex variant (e.g. scribely.xyz ↔ www.scribely.xyz)."""
+    u = (url or "").strip().rstrip("/")
+    if not u.startswith(("http://", "https://")):
+        return []
+    p = urlparse(u)
+    if not p.scheme or not p.hostname:
+        return [u]
+    main = urlunparse((p.scheme, p.netloc, "", "", "", "")).rstrip("/")
+    h = p.hostname
+    try:
+        ipaddress.ip_address(h)
+        return [main]
+    except ValueError:
+        pass
+    if h == "localhost" or h.endswith(".localhost"):
+        return [main]
+    peer_host = h[4:] if h.startswith("www.") else f"www.{h}"
+    if p.port:
+        peer_netloc = f"{peer_host}:{p.port}"
+    else:
+        peer_netloc = peer_host
+    peer = urlunparse((p.scheme, peer_netloc, "", "", "", "")).rstrip("/")
+    out = [main]
+    if peer != main:
+        out.append(peer)
+    return out
 
 
 class Settings(BaseSettings):
@@ -123,8 +154,19 @@ class Settings(BaseSettings):
     
     @computed_field
     def cors_origins_list(self) -> list[str]:
-        """Parse comma-separated CORS_ORIGINS string into list."""
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        """Allowed browser origins for CORS.
+
+        Parses ``CORS_ORIGINS``, then appends ``APP_PUBLIC_BASE_URL`` (and its www/apex peer)
+        so production API calls from the marketing site work even if ``CORS_ORIGINS`` omits
+        ``https://www.…`` (a common Railway footgun: env overrides the code default).
+        """
+        raw = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        seen = set(raw)
+        for o in _origin_and_www_peer(self.app_public_base_url):
+            if o not in seen:
+                raw.append(o)
+                seen.add(o)
+        return raw
 
 
 def _sync_langfuse_sdk_environment(s: Settings) -> None:
