@@ -65,7 +65,6 @@ class AssistantAgent:
         instance = cls(llm_provider=llm_provider, model_name=model_name, temperature=temperature)
 
         tools, mcp_client = await build_tools(user_id=user_id, db=db)
-        breakpoint()
         instance._mcp_client = mcp_client  # must stay open until close() is called
         instance.agent = create_agent(
             model=instance.llm,
