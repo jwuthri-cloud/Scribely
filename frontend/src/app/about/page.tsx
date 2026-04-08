@@ -17,9 +17,11 @@ import {
   Users,
   GraduationCap,
   Headphones,
+  Linkedin,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { UserAvatars } from "@/components/ui/user-avatars"
 
 // export metadata from a separate file since this is now a client component
 // SEO metadata is set via generateMetadata in the layout or via head.tsx
@@ -83,6 +85,23 @@ const useCases = [
     icon: Headphones,
     title: "Remote Work",
     description: "Works with every video platform. Private even during screen shares.",
+  },
+]
+
+const teamMembers = [
+  {
+    id: 1,
+    name: "Julien Wuthrich",
+    role: "CEO / CTO",
+    image: "https://unavatar.io/linkedin/julien-wuthrich-a75156119",
+    linkedin: "https://www.linkedin.com/in/julien-wuthrich-a75156119/",
+  },
+  {
+    id: 2,
+    name: "Nguyen Pham",
+    role: "GTM",
+    image: "https://unavatar.io/linkedin/nguyentpham",
+    linkedin: "https://www.linkedin.com/in/nguyentpham/",
   },
 ]
 
@@ -356,6 +375,68 @@ export default function AboutPage() {
               <p className="text-xs text-white/40 leading-relaxed">
                 {uc.description}
               </p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Team */}
+      <div className="mx-auto max-w-7xl px-6 lg:px-8 mb-32">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-3xl sm:text-4xl font-display font-bold text-white mb-4">
+            Meet the team
+          </h2>
+          <p className="text-white/40 max-w-lg mx-auto mb-8">
+            A small, focused team building tools we wish existed.
+          </p>
+          <div className="flex justify-center">
+            <UserAvatars
+              users={teamMembers}
+              size={64}
+              overlap={55}
+              tooltipPlacement="bottom"
+            />
+          </div>
+        </motion.div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          {teamMembers.map((member, i) => (
+            <motion.div
+              key={member.id}
+              custom={i}
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              className="rounded-xl glass p-6 flex flex-col items-center text-center group"
+            >
+              <div className="relative mb-4">
+                <div className="h-24 w-24 rounded-full overflow-hidden border-2 border-white/10 ring-2 ring-purple-500/20">
+                  <img
+                    src={member.image}
+                    alt={member.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <h3 className="text-base font-semibold text-white mb-1">{member.name}</h3>
+              <p className="text-sm text-white/40 mb-4">{member.role}</p>
+              <Link
+                href={member.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs text-white/30 hover:text-blue-400 transition-colors"
+              >
+                <Linkedin className="h-3.5 w-3.5" />
+                LinkedIn
+              </Link>
             </motion.div>
           ))}
         </div>

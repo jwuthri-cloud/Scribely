@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Check, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { WaitlistModal } from "@/components/pricing/waitlist-modal"
 
 const tiers = [
   {
@@ -82,17 +83,23 @@ export function PricingCards() {
 
           <p className="text-sm text-white/40 mb-8">{tier.description}</p>
 
-          <Button
-            className="w-full mb-8"
-            variant={tier.highlighted ? "default" : "secondary"}
-            size="lg"
-            asChild
-          >
-            <Link href={tier.ctaHref}>
-              {tier.highlighted && <Sparkles className="mr-2 h-4 w-4" />}
-              {tier.cta}
-            </Link>
-          </Button>
+          {tier.highlighted ? (
+            <WaitlistModal>
+              <Button className="w-full mb-8" variant="default" size="lg">
+                <Sparkles className="mr-2 h-4 w-4" />
+                {tier.cta}
+              </Button>
+            </WaitlistModal>
+          ) : (
+            <Button
+              className="w-full mb-8"
+              variant="secondary"
+              size="lg"
+              asChild
+            >
+              <Link href={tier.ctaHref}>{tier.cta}</Link>
+            </Button>
+          )}
 
           <ul className="space-y-3">
             {tier.features.map((feature) => (
