@@ -4,6 +4,8 @@ FROM node:18-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
+# sharp (Next.js image optimization) needs compatible C libs on Alpine
+RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -21,6 +23,7 @@ RUN npm run build
 
 FROM base AS runner
 WORKDIR /app
+RUN apk add --no-cache libc6-compat
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -17,10 +17,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
 from ..base import Base
+from ..types import VarcharEnum
 
 
 def _utc_naive() -> datetime:
@@ -70,12 +70,7 @@ class CalendarConnection(Base):
     webhook_expiration = Column(DateTime, nullable=True)
 
     status = Column(
-        SQLEnum(
-            CalendarConnectionStatus,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-        ),
+        VarcharEnum(32),
         default=CalendarConnectionStatus.ACTIVE,
         nullable=False,
     )
@@ -117,12 +112,7 @@ class CalendarEvent(Base):
 
     meeting_url = Column(String(1000), nullable=True)
     meeting_platform = Column(
-        SQLEnum(
-            MeetingPlatform,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-        ),
+        VarcharEnum(32),
         default=MeetingPlatform.NONE,
         nullable=False,
     )
@@ -131,12 +121,7 @@ class CalendarEvent(Base):
     organizer_name = Column(String(255), nullable=True)
 
     status = Column(
-        SQLEnum(
-            CalendarEventStatus,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-        ),
+        VarcharEnum(32),
         default=CalendarEventStatus.CONFIRMED,
         nullable=False,
     )
@@ -178,12 +163,7 @@ class CalendarEventParticipant(Base):
     display_name = Column(String(255), nullable=True)
     is_organizer = Column(Boolean, default=False, nullable=False)
     response_status = Column(
-        SQLEnum(
-            ParticipantResponseStatus,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-        ),
+        VarcharEnum(32),
         default=ParticipantResponseStatus.NEEDS_ACTION,
         nullable=False,
     )

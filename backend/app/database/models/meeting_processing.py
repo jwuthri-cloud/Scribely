@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy import JSON
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
 from ..base import Base
+from ..types import VarcharEnum
 
 
 def _utc_naive() -> datetime:
@@ -35,14 +35,6 @@ class MeetingProcessingStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-def _eligibility_values(cls: type[PipelineEligibility]) -> list[str]:
-    return [m.value for m in cls]
-
-
-def _proc_status_values(cls: type[MeetingProcessingStatus]) -> list[str]:
-    return [m.value for m in cls]
-
-
 class MeetingProcessing(Base):
     """Pipeline outcomes and errors for one meeting (FK to meetings.id)."""
 
@@ -55,25 +47,13 @@ class MeetingProcessing(Base):
     )
 
     pipeline_eligibility = Column(
-        SQLEnum(
-            PipelineEligibility,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-            values_callable=_eligibility_values,
-        ),
+        VarcharEnum(32),
         default=PipelineEligibility.SCHEDULED,
         nullable=False,
     )
 
     processing_status = Column(
-        SQLEnum(
-            MeetingProcessingStatus,
-            native_enum=False,
-            length=32,
-            create_constraint=False,
-            values_callable=_proc_status_values,
-        ),
+        VarcharEnum(32),
         default=MeetingProcessingStatus.NONE,
         nullable=False,
     )

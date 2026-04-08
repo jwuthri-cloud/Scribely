@@ -7,10 +7,10 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import relationship
 
 from ..base import Base
+from ..types import VarcharEnum
 
 
 def _utc_naive() -> datetime:
@@ -23,10 +23,6 @@ class MeetingStatusEnum(str, enum.Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-
-
-def _enum_values(enum_cls: type[MeetingStatusEnum]) -> list[str]:
-    return [m.value for m in enum_cls]
 
 
 class Meeting(Base):
@@ -45,7 +41,7 @@ class Meeting(Base):
     duration_seconds = Column(Integer, nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
     status = Column(
-        SQLEnum(MeetingStatusEnum, name="meetingstatusenum", values_callable=_enum_values),
+        VarcharEnum(32),
         default=MeetingStatusEnum.UPLOADED,
         nullable=False,
     )

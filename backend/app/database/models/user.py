@@ -6,11 +6,10 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Column, DateTime
-from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import String
+from sqlalchemy import JSON, Boolean, Column, DateTime, String
 
 from ..base import Base
+from ..types import VarcharEnum
 
 
 def _utc_naive() -> datetime:
@@ -25,10 +24,6 @@ class UserStatusEnum(str, enum.Enum):
     SUSPENDED = "suspended"
 
 
-def _enum_values(enum_cls: type[UserStatusEnum]) -> list[str]:
-    return [m.value for m in enum_cls]
-
-
 class User(Base):
     """User account model."""
     __tablename__ = "users"
@@ -39,7 +34,7 @@ class User(Base):
     username = Column(String(100), unique=True, index=True, nullable=True)
     full_name = Column(String(255), nullable=True)
     status = Column(
-        SQLEnum(UserStatusEnum, name="userstatusenum", values_callable=_enum_values),
+        VarcharEnum(32),
         default=UserStatusEnum.ACTIVE,
     )
     is_superuser = Column(Boolean, default=False)
