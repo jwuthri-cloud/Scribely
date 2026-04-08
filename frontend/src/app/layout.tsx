@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     default: "Scribely Your Invisible AI Meeting Assistant",
     template: "%s | Scribely",
   },
+  icons: {
+    icon: "/scribely-icon.png",
+    apple: "/scribely-icon.png",
+  },
   description:
     "Live transcription, AI-powered Q&A, and real-time insights — use OpenAI and Deepgram out of the box, or run fully local. Invisible to screen sharing.",
   openGraph: {
