@@ -18,32 +18,48 @@ async def get_google_oauth_access_token(
     clerk_user_id: str,
     settings: Settings,
     *,
-    provider: str = "oauth_google",
+    provider: str | None = None,
 ) -> str:
     """
     Return a Google OAuth access token for the Clerk user.
 
     Clerk stores tokens for users who signed in with Google (with Calendar scope
     configured on the Google social connection in the Clerk dashboard).
+
+    The Backend API path is GET /users/{id}/oauth_access_tokens/{provider}. Clerk's
+    JS SDK uses provider ``google`` (not ``oauth_google``); a wrong provider string
+    returns 404 even when the user has Google connected.
     """
     if not settings.clerk_secret_key:
         raise ValueError("Clerk secret key not configured")
 
-    url = f"{CLERK_API_BASE}/users/{clerk_user_id}/oauth_access_tokens/{provider}"
+    preferred = provider or settings.clerk_google_oauth_provider
+    # Try preferred first, then the alternate slug for older deployments.
+    candidates = [preferred]
+    if preferred == "google":
+        candidates.append("oauth_google")
+    elif preferred == "oauth_google":
+        candidates.append("google")
+
     headers = {
         "Authorization": f"Bearer {settings.clerk_secret_key}",
         "Content-Type": "application/json",
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url, headers=headers)
+        for prov in candidates:
+            url = f"{CLERK_API_BASE}/users/{clerk_user_id}/oauth_access_tokens/{prov}"
+            response = await client.get(url, headers=headers)
+            if response.status_code == 200:
+                logger.debug("Clerk OAuth token resolved with provider slug %r", prov)
+                break
+            if response.status_code != 404:
+                response.raise_for_status()
+        else:
+            raise ClerkOAuthTokenError(
+                "No Google OAuth token for this user. Sign in with Google or reconnect."
+            )
 
-    if response.status_code == 404:
-        raise ClerkOAuthTokenError(
-            "No Google OAuth token for this user. Sign in with Google or reconnect."
-        )
-
-    response.raise_for_status()
     raw = response.json()
 
     token = _extract_token_from_payload(raw)

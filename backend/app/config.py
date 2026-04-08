@@ -74,8 +74,9 @@ class Settings(BaseSettings):
     clerk_publishable_key: Optional[str] = None
     # JWKS URL for JWT verification. If unset, derived from clerk_publishable_key.
     clerk_jwks_url: Optional[str] = None
-    # Clerk Backend API provider id for Google OAuth tokens (see Clerk dashboard).
-    clerk_google_oauth_provider: str = "oauth_google"
+    # Clerk Backend API path segment for GET .../oauth_access_tokens/{provider}.
+    # Clerk docs use "google"; older examples used "oauth_google". See CLERK_GOOGLE_OAUTH_PROVIDER.
+    clerk_google_oauth_provider: str = "google"
 
     # Web Push (VAPID) — meeting reminders when browser is closed
     vapid_public_key: str = ""
