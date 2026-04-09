@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { Bot, User } from "lucide-react"
 import { BoltStyleChat, ChatInput } from "@/components/ui/bolt-style-chat"
 import { ChatMarkdown } from "@/components/app/chat/ChatMarkdown"
-import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
+import { ThinkingDots } from "@/components/ui/thinking-dots"
 import { useApi } from "@/hooks/useApi"
 import { cn } from "@/lib/utils"
 import { fetchChatModels, type ChatModelOption } from "@/lib/api"
@@ -176,9 +176,8 @@ export default function ChatPage() {
                   {msg.content ? (
                     <ChatMarkdown content={msg.content} variant={msg.role} />
                   ) : (
-                    <div className="flex items-center gap-2 text-white/50">
-                      <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
-                      <span className="text-sm">Thinking</span>
+                    <div className="text-white/50">
+                      <ThinkingDots />
                     </div>
                   )}
                 </div>

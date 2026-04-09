@@ -72,6 +72,10 @@ module.exports = {
           "0%": { transform: "translateY(0)" },
           "100%": { transform: "translateY(var(--cell-size))" },
         },
+        "thinking-dot": {
+          "0%, 40%, 100%": { transform: "translateY(0)", opacity: "0.35" },
+          "20%": { transform: "translateY(-4px)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -79,6 +83,7 @@ module.exports = {
         "glow-pulse": "glow-pulse 4s ease-in-out infinite",
         float: "float 6s ease-in-out infinite",
         grid: "grid 15s linear infinite",
+        "thinking-dot": "thinking-dot 1.15s ease-in-out infinite",
       },
     },
   },
