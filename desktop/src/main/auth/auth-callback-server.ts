@@ -31,10 +31,12 @@ export class AuthCallbackServer extends EventEmitter {
   private port = 0
   private shutdownTimer: ReturnType<typeof setTimeout> | null = null
   private fapiUrl = ''
+  private jwtTemplate = 'scribely'
 
   /** Start the local HTTP server on a random available port. */
-  async start(clerkPublishableKey: string): Promise<number> {
+  async start(clerkPublishableKey: string, jwtTemplate = 'scribely'): Promise<number> {
     this.fapiUrl = getFrontendApiUrl(clerkPublishableKey)
+    this.jwtTemplate = jwtTemplate
     if (this.server) {
       await this.stop()
     }
@@ -95,7 +97,7 @@ export class AuthCallbackServer extends EventEmitter {
 
     if (req.method === 'GET' && (url.pathname === '/auth' || url.pathname === '/')) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-      res.end(this.buildAuthPage(clerkPublishableKey))
+      res.end(this.buildAuthPage(clerkPublishableKey, this.jwtTemplate))
       return
     }
 
@@ -128,7 +130,7 @@ export class AuthCallbackServer extends EventEmitter {
     res.end('Not found')
   }
 
-  private buildAuthPage(clerkPublishableKey: string): string {
+  private buildAuthPage(clerkPublishableKey: string, jwtTemplate: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -271,7 +273,7 @@ export class AuthCallbackServer extends EventEmitter {
         // Request a token from the JWT template (use CLERK_JWT_TEMPLATE env var).
         // Template name must match what you set in Clerk Dashboard → JWT Templates.
         // Create a template with Token lifetime = 604800 seconds for 1-week tokens.
-        const templateName = ${JSON.stringify(process.env.CLERK_JWT_TEMPLATE || 'scribely')};
+        const templateName = ${JSON.stringify(jwtTemplate)};
         const token = await clerk.session?.getToken({ template: templateName });
         const container = document.getElementById('clerk-auth');
         container.innerHTML = '<div class="spinner"></div>';

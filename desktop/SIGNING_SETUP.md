@@ -6,11 +6,13 @@ To build and distribute a signed macOS application, you need to configure severa
 
 ```bash
 APPLE_ID=your_email@example.com
-APPLE_ID_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
 APPLE_TEAM_ID=XXXXXXXXXX
 CSC_LINK=./certs.p12
 CSC_KEY_PASSWORD=your_p12_password
 ```
+
+`APPLE_APP_SPECIFIC_PASSWORD` is the name **electron-builder** reads (`app-builder-lib`); do not use `APPLE_ID_PASSWORD` — it is ignored and notarization will fail or use wrong credentials.
 
 ## Step-by-Step Instructions
 
@@ -21,7 +23,7 @@ CSC_KEY_PASSWORD=your_p12_password
   2. Scroll down to **Membership Details**.
   3. Copy the **Team ID** (a 10-character alphanumeric string).
 
-### 2. App-Specific Password (`APPLE_ID_PASSWORD`)
+### 2. App-Specific Password (`APPLE_APP_SPECIFIC_PASSWORD`)
 Required for the notary tool to authenticate without 2FA.
 1. Go to [appleid.apple.com](https://appleid.apple.com).
 2. Sign in and go to **Sign-In and Security** > **App-Specific Passwords**.
@@ -61,3 +63,12 @@ Once variables are set, run:
 npm run dist
 ```
 This will build, sign, and notarize your app. The notarization process can take several minutes.
+
+## Notarization: HTTP 401 “Invalid credentials”
+
+Apple’s `notarytool` returns **401** when the **Apple ID + app-specific password + team ID** combination is rejected. Typical fixes:
+
+1. **Regenerate** an app-specific password at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords, then update `APPLE_APP_SPECIFIC_PASSWORD` in `desktop/.env` (old passwords stop working if revoked or rotated).
+2. **`APPLE_ID`** must be the **same Apple ID email** as your Apple Developer / App Store Connect account (not an alias that isn’t tied to the membership).
+3. **`APPLE_TEAM_ID`** must be the **10-character Team ID** from [developer.apple.com](https://developer.apple.com/account) → Membership. It should match the team shown on your **Developer ID Application** certificate (your signing log shows the team in parentheses next to the identity name).
+4. **CI / alternative:** use **App Store Connect API key** notarization instead (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` per `desktop/.env.example`) — avoids app-specific passwords and is more stable for automation.

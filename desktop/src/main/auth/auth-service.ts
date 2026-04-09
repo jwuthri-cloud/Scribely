@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, safeStorage, shell } from 'electron'
 import Store from 'electron-store'
 import { createLogger } from '../logger'
 import { AuthCallbackServer, type AuthCompletePayload } from './auth-callback-server'
+import { getClerkJwtTemplate, getClerkPublishableKey } from './clerk-build-env'
 
 const log = createLogger('auth')
 
@@ -110,7 +111,7 @@ export class AuthService {
   }
 
   async startSignIn(): Promise<{ success: boolean; error?: string }> {
-    const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
+    const publishableKey = getClerkPublishableKey()
     if (!publishableKey) {
       return { success: false, error: 'CLERK_PUBLISHABLE_KEY not configured' }
     }
@@ -121,7 +122,7 @@ export class AuthService {
         this.handleSignedIn(payload)
       })
 
-      const port = await this.callbackServer.start(publishableKey)
+      const port = await this.callbackServer.start(publishableKey, getClerkJwtTemplate())
       await shell.openExternal(`http://127.0.0.1:${port}/auth`)
       return { success: true }
     } catch (err: any) {

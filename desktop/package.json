@@ -16,20 +16,17 @@
     "build:proto": "./scripts/compile-proto.sh",
     "build:icon": "mkdir -p build && magick ../chrome-extension/icons/icon128.png -resize 512x512 build/icon.png",
     "export:question-classifier": "python scripts/export-question-classifier.py",
-    "dist": "npm run build:all && electron-builder --mac",
+    "dist": "npm run build:all && node_modules/.bin/dotenv -e .env -- electron-builder --mac",
     "build:all": "npm run build:proto && npm run build:native && npm run build",
     "build:extension": "cd .. && ./scripts/pack-extension.sh"
   },
   "dependencies": {
-    "@clerk/clerk-js": "^6.3.0",
     "@deepgram/sdk": "^4.11.3",
     "@langfuse/openai": "^4.6.1",
     "@langfuse/otel": "^4.6.1",
     "@opentelemetry/sdk-node": "^0.212.0",
-    "@traceloop/node-server-sdk": "^0.22.7",
     "@types/react-syntax-highlighter": "^15.5.13",
     "bert-tokenizer": "^1.1.8",
-    "compromise": "^14.14.5",
     "consola": "^3.4.2",
     "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
@@ -48,6 +45,12 @@
     "ws": "^8.19.0"
   },
   "build": {
+    "files": [
+      "**/*",
+      "!**/node_modules/**/{README*,CHANGELOG*,LICENSE,LICENSE.*,License,*.md}",
+      "!**/node_modules/**/{test,tests,__tests__,docs,examples,benchmark,benchmarks}/**",
+      "!**/node_modules/**/*.map"
+    ],
     "appId": "com.scribely.desktop",
     "productName": "Scribely",
     "mac": {
@@ -100,6 +103,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "dotenv-cli": "^11.0.0",
     "electron": "^34.5.8",
     "electron-builder": "^26.7.0",
     "electron-vite": "^3.0.0",
