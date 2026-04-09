@@ -17,7 +17,9 @@ export async function registerPushServiceWorker(): Promise<ServiceWorkerRegistra
   }
   try {
     return await navigator.serviceWorker.register("/sw.js", { scope: "/" })
-  } catch {
-    return null
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "The browser rejected the service worker registration."
+    throw new Error(`Could not register the notification worker: ${message}`)
   }
 }

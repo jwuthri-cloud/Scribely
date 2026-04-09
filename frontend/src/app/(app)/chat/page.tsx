@@ -131,7 +131,7 @@ export default function ChatPage() {
     <div className="relative -mx-4 flex min-h-0 flex-1 flex-col overflow-hidden sm:-mx-6 lg:-mx-8">
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {/* Header bar */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/60 px-5 py-3.5 backdrop-blur-xl sm:px-6">
+        <div className="flex items-center border-b border-white/[0.06] bg-black/60 px-5 py-3.5 backdrop-blur-xl sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
               <Bot className="h-4 w-4 text-cyan-200" />
@@ -143,12 +143,6 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
-          {isStreaming && (
-            <div className="flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100">
-              <CoreSpinLoader size="sm" showText={false} className="min-h-0" />
-              Responding
-            </div>
-          )}
         </div>
 
         {/* Messages thread — scrolls inside viewport; composer stays anchored */}
