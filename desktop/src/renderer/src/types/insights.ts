@@ -4,9 +4,6 @@
 
 export type DetectedEventType =
   | 'question'
-  | 'topic_change'
-  | 'action_item'
-  | 'key_mention'
   | 'decision'
 
 export interface DetectedEvent {

@@ -23,7 +23,6 @@
   "dependencies": {
     "@clerk/clerk-js": "^6.3.0",
     "@deepgram/sdk": "^4.11.3",
-    "@huggingface/transformers": "^3.8.1",
     "@langfuse/openai": "^4.6.1",
     "@langfuse/otel": "^4.6.1",
     "@opentelemetry/sdk-node": "^0.212.0",

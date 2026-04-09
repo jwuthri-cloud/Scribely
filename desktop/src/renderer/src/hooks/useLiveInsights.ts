@@ -192,10 +192,7 @@ export function useLiveInsights(options?: {
       const insight = insights.find((i) => i.id === insightId)
       if (!insight) return
 
-      const context =
-        insight.type === 'key_mention'
-          ? insight.description
-          : insight.questionWithContext || insight.description
+      const context = insight.questionWithContext || insight.description
       const query = context ? `${context} ${customQuery}`.trim() : customQuery.trim()
       runSearch(insightId, query)
     },

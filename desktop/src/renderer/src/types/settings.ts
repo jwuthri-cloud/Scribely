@@ -223,9 +223,6 @@ export interface InsightsSettings {
   enrichmentEnabled: boolean
   /** Per-detector toggles */
   detectQuestions: boolean
-  detectTopicChanges: boolean
-  detectActionItems: boolean
-  detectKeyMentions: boolean
   /** User-added question words (merged with defaults) */
   extraQuestionWords: string[]
   /** User-added question verbs (merged with defaults) */
@@ -249,9 +246,6 @@ export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
     config: {
       enrichmentEnabled: false,
       detectQuestions: true,
-      detectTopicChanges: false,
-      detectActionItems: false,
-      detectKeyMentions: false,
       questionMlEnabled: false,
       speakerFilter: 'them',
     },
@@ -262,9 +256,6 @@ export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
     config: {
       enrichmentEnabled: true,
       detectQuestions: true,
-      detectTopicChanges: false,
-      detectActionItems: false,
-      detectKeyMentions: false,
       questionMlEnabled: true,
       speakerFilter: 'both',
     },
@@ -275,9 +266,6 @@ export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
     config: {
       enrichmentEnabled: true,
       detectQuestions: true,
-      detectTopicChanges: false,
-      detectActionItems: false,
-      detectKeyMentions: false,
       questionMlEnabled: true,
       speakerFilter: 'both',
     },
@@ -290,9 +278,6 @@ export const DEFAULT_INSIGHTS: InsightsSettings = {
   speakerFilter: 'both',
   enrichmentEnabled: true,
   detectQuestions: true,
-  detectTopicChanges: false,
-  detectActionItems: false,
-  detectKeyMentions: false,
   extraQuestionWords: [],
   extraQuestionVerbs: [],
   questionMlEnabled: true,

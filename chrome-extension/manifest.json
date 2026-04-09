@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Scribely Tab Capture",
-  "version": "1.0.1",
+  "version": "1.0.14",
   "description": "Captures tab audio and video for Scribely desktop transcription",
   "permissions": [
     "tabCapture",

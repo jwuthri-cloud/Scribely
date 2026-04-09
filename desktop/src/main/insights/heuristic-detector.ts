@@ -3,7 +3,6 @@
  * Runs synchronously on each transcript entry — zero-cost pattern matching.
  */
 
-import nlp from 'compromise'
 import { createLogger } from '../logger'
 
 const log = createLogger('heuristic')
@@ -66,8 +65,6 @@ function detectQuestion(
   }
 }
 
-// Action item detection moved to insight-engine (embedding similarity vs seed phrases)
-
 // ── Decision detection (heuristic keywords) ────────────────
 function buildDecisionRegex(keywords: readonly string[]): RegExp {
   if (keywords.length === 0) return /^\b$/
@@ -92,53 +89,6 @@ function detectDecision(
     speaker: entry.speaker,
     text,
     timestamp: entry.startTime,
-  }
-}
-
-// ── Key mention detection (compromise NER) ───────────────────
-const URL_PATTERN = /https?:\/\/[^\s]+/i
-const DATE_PATTERN =
-  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b\d{4}-\d{2}-\d{2}\b/i
-
-function detectKeyMention(entry: TranscriptEntryLike): DetectedEvent | null {
-  const text = entry.text.trim()
-  if (text.length < 4) return null
-
-  const metadata: Record<string, unknown> = {}
-  const doc = nlp(text)
-
-  const money = doc.money().first()
-  if (money.found) metadata.amount = money.text()
-
-  if (DATE_PATTERN.test(text)) {
-    const m = text.match(DATE_PATTERN)
-    if (m) metadata.date = m[0]
-  }
-
-  if (URL_PATTERN.test(text)) {
-    const m = text.match(URL_PATTERN)
-    if (m) metadata.url = m[0]
-  }
-
-  const person = doc.people().first()
-  const place = doc.places().first()
-  const org = doc.organizations().first()
-  const entity =
-    (person.found && person.text()) ||
-    (place.found && place.text()) ||
-    (org.found && org.text())
-  if (entity) metadata.entity = entity
-
-  if (Object.keys(metadata).length === 0) return null
-
-  return {
-    type: 'key_mention',
-    confidence: 0.65,
-    sourceEntryId: entry.id,
-    speaker: entry.speaker,
-    text,
-    timestamp: entry.startTime,
-    metadata,
   }
 }
 
@@ -194,11 +144,6 @@ export class HeuristicDetector {
       if (q) candidates.push(q)
     } else {
       log.debug('question detection disabled')
-    }
-
-    if (!disabled.has('key_mention')) {
-      const km = detectKeyMention(entry)
-      if (km) candidates.push(km)
     }
 
     if (!disabled.has('decision')) {

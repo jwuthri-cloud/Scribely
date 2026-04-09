@@ -32,7 +32,6 @@ import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
 import { InsightEngine } from './insights/insight-engine'
 import { unloadQuestionClassifier } from './insights/question-classifier'
-import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
 import { BackendClient } from './backend-client'
@@ -81,9 +80,6 @@ interface InsightsSettings {
   enabled?: boolean
   enrichmentEnabled?: boolean
   detectQuestions?: boolean
-  detectTopicChanges?: boolean
-  detectActionItems?: boolean
-  detectKeyMentions?: boolean
   extraQuestionWords?: string[]
   extraQuestionVerbs?: string[]
   questionMlEnabled?: boolean
@@ -160,9 +156,6 @@ const store = new Store<AppSettings>({
         enabled: true,
         enrichmentEnabled: true,
         detectQuestions: true,
-        detectTopicChanges: true,
-        detectActionItems: true,
-        detectKeyMentions: true,
         extraQuestionWords: [],
         extraQuestionVerbs: [],
         questionMlEnabled: true,
@@ -249,16 +242,6 @@ const insightEngine = new InsightEngine({
     const config = getInsightsConfig()
     if (!config.enabled) return null
     return llmService.validateQuestion(transcriptContext, event.text, event.speaker)
-  },
-  validateInsights: async (transcriptDelta, entry, triggeredTypes, previousTopic) => {
-    const config = getInsightsConfig()
-    if (!config.enabled) return null
-    return llmService.validateInsights(transcriptDelta, entry, triggeredTypes, previousTopic)
-  },
-  generateSegmentTopic: async (entries) => {
-    const config = getInsightsConfig()
-    if (!config.enabled) return 'N/A'
-    return llmService.generateSegmentTopic(entries)
   },
   enrich: async (event) => {
     const config = getInsightsConfig()
@@ -526,9 +509,6 @@ function registerIpcHandlers(): void {
       const insights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
       const disabled = new Set<import('./insights/types').DetectedEventType>()
       if (insights.detectQuestions === false) disabled.add('question')
-      if (insights.detectTopicChanges === false) disabled.add('topic_change')
-      if (insights.detectActionItems === false) disabled.add('action_item')
-      if (insights.detectKeyMentions === false) disabled.add('key_mention')
       insightEngine.updateSettings({
         disabledTypes: disabled,
         extraQuestionWords: Array.isArray(insights.extraQuestionWords)
@@ -967,9 +947,7 @@ app.whenReady().then(async () => {
   })
   audioPipeline.setOnSessionStop(async () => {
     insightEngine.reset()
-    llmService.resetInsightsValidation()
     await unloadQuestionClassifier()
-    unloadEmbeddingService()
     isMeetingActive = false
     rebuildTrayMenu()
   })
@@ -980,9 +958,6 @@ app.whenReady().then(async () => {
   const initialInsights = (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
   const initialDisabled = new Set<import('./insights/types').DetectedEventType>()
   if (initialInsights.detectQuestions === false) initialDisabled.add('question')
-  if (initialInsights.detectTopicChanges === false) initialDisabled.add('topic_change')
-  if (initialInsights.detectActionItems === false) initialDisabled.add('action_item')
-  if (initialInsights.detectKeyMentions === false) initialDisabled.add('key_mention')
   insightEngine.updateSettings({
     disabledTypes: initialDisabled,
     extraQuestionWords: Array.isArray(initialInsights.extraQuestionWords)
