@@ -139,14 +139,10 @@ export function Comparison() {
               </div>
             </div>
             <div className="text-center">
-              <div className="inline-flex items-center">
-                <img
-                  alt="Cluely"
-                  width={84}
-                  height={22}
-                  src="/cluely-wordmark.svg"
-                  className="shrink-0 opacity-40"
-                />
+              <div className="inline-flex items-center justify-center min-h-[22px]">
+                <span className="text-sm font-semibold text-white/40 tracking-tight">
+                  Cluely
+                </span>
               </div>
             </div>
           </div>
