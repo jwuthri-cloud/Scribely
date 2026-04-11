@@ -16,7 +16,7 @@
     "build:proto": "./scripts/compile-proto.sh",
     "build:icon": "mkdir -p build && magick ../chrome-extension/icons/icon128.png -resize 512x512 build/icon.png",
     "export:question-classifier": "python scripts/export-question-classifier.py",
-    "dist": "npm run build:all && node_modules/.bin/dotenv -e .env -- electron-builder --mac",
+    "dist": "npm run build:all && node -r dotenv/config node_modules/electron-builder/cli.js --mac",
     "build:all": "npm run build:proto && npm run build:native && npm run build",
     "build:extension": "cd .. && ./scripts/pack-extension.sh"
   },
@@ -103,7 +103,6 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "dotenv-cli": "^11.0.0",
     "electron": "^34.5.8",
     "electron-builder": "^26.7.0",
     "electron-vite": "^3.0.0",
