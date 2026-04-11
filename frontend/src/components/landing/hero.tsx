@@ -1,40 +1,37 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Apple, Chrome, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { RotatingText } from "@/components/ui/rotating-text"
+import {
+  PulseBeams,
+  defaultPulseBeams,
+  defaultPulseBeamsGradient,
+} from "@/components/ui/pulse-beams"
 
-function AppMockup() {
-  return (
-    <div className="relative mx-auto max-w-md sm:max-w-lg">
-      {/* Glow — uniform on all sides */}
-      <div className="absolute -inset-6 rounded-3xl blur-2xl bg-purple-500/20" />
-
-      <div className="relative rounded-2xl overflow-hidden shadow-[0_0_80px_-8px_rgba(168,85,247,0.35)]">
-        <img
-          src="/screenshots/app-main.png"
-          alt="Scribely — Live transcription and AI chat during a meeting"
-          className="w-full h-auto rounded-2xl"
-          width={960}
-          height={1700}
-        />
-      </div>
-    </div>
-  )
-}
+const InteractiveDemo = dynamic(
+  () =>
+    import("@/components/landing/demo/interactive-demo").then(
+      (m) => m.InteractiveDemo
+    ),
+  { ssr: false }
+)
 
 export function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 pb-16 overflow-x-hidden">
-      {/* Background orbs */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-glow-pulse" />
-        <div className="absolute top-1/3 left-1/3 w-[400px] h-[400px] bg-indigo-600/15 rounded-full blur-[100px] animate-glow-pulse [animation-delay:1s]" />
-        <div className="absolute top-1/4 right-1/3 w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-[80px] animate-glow-pulse [animation-delay:2s]" />
-      </div>
+      <PulseBeams
+        fillContainer
+        beams={defaultPulseBeams}
+        gradientColors={defaultPulseBeamsGradient}
+        baseColor="rgba(148, 163, 184, 0.12)"
+        accentColor="rgba(168, 85, 247, 0.22)"
+        className="opacity-[0.85]"
+      />
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 lg:px-8 text-center">
         <motion.div
@@ -102,7 +99,7 @@ export function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
         >
-          <AppMockup />
+          <InteractiveDemo />
         </motion.div>
       </div>
 

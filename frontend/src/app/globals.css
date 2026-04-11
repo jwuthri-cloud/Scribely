@@ -191,3 +191,52 @@
       0 18px 44px -30px rgba(99, 102, 241, 0.85);
   }
 }
+
+/* ── Interactive Demo (scoped desktop theme) ─────── */
+.demo-app {
+  --bg: #2e3440;
+  --surface: #3b4252;
+  --surface-hover: #434c5e;
+  --border: #4c566a;
+  --text: #d8dee9;
+  --text-muted: #7b88a1;
+  --text-bright: #eceff4;
+  --accent: #88c0d0;
+  --accent-hover: #6fb3c2;
+  --success: #a3be8c;
+  --warning: #ebcb8b;
+  --error: #bf616a;
+  --input-bg: #2e3440;
+  --input-border: #4c566a;
+  --chip-bg: #3b4252;
+  --chip-text: #d8dee9;
+  --overlay: rgba(46, 52, 64, 0.92);
+  --font-size-base: 13px;
+  --font-size-sm: 12px;
+  --font-size-xs: 10px;
+  font-size: 13px;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.demo-app *::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+.demo-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.demo-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.demo-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.demo-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
