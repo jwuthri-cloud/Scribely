@@ -9,6 +9,27 @@ interface DemoChatProps {
   isStreaming: boolean
 }
 
+function renderInlineBold(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const regex = /\*\*(.+?)\*\*/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    parts.push(<strong key={match.index}>{match[1]}</strong>)
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [text]
+}
+
 function SimpleMarkdown({ content }: { content: string }) {
   const lines = content.split("\n")
   const elements: React.ReactNode[] = []
@@ -16,41 +37,26 @@ function SimpleMarkdown({ content }: { content: string }) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!
 
-    if (line.startsWith("**") && line.endsWith("**")) {
+    if (line.startsWith("**") && line.endsWith("**") && !line.slice(2, -2).includes("**")) {
       elements.push(
         <p key={i} className="font-semibold mt-2 mb-1">
           {line.replace(/\*\*/g, "")}
         </p>
       )
-    } else if (line.startsWith("- **")) {
-      const match = line.match(/^- \*\*(.+?)\*\*(.*)$/)
-      if (match) {
+    } else if (line.startsWith("- ")) {
+      elements.push(
+        <div key={i} className="flex gap-1.5 ml-1 my-0.5">
+          <span style={{ color: "var(--text-muted)" }}>•</span>
+          <span>{renderInlineBold(line.slice(2))}</span>
+        </div>
+      )
+    } else if (line.match(/^\d+\.\s/)) {
+      const numMatch = line.match(/^(\d+)\.\s(.*)$/)
+      if (numMatch) {
         elements.push(
           <div key={i} className="flex gap-1.5 ml-1 my-0.5">
-            <span style={{ color: "var(--text-muted)" }}>•</span>
-            <span>
-              <strong>{match[1]}</strong>
-              {match[2]}
-            </span>
-          </div>
-        )
-      } else {
-        elements.push(
-          <p key={i} className="ml-1 my-0.5">
-            {line}
-          </p>
-        )
-      }
-    } else if (line.match(/^\d+\.\s\*\*/)) {
-      const match = line.match(/^(\d+)\.\s\*\*(.+?)\*\*(.*)$/)
-      if (match) {
-        elements.push(
-          <div key={i} className="flex gap-1.5 ml-1 my-0.5">
-            <span style={{ color: "var(--text-muted)" }}>{match[1]}.</span>
-            <span>
-              <strong>{match[2]}</strong>
-              {match[3]}
-            </span>
+            <span style={{ color: "var(--text-muted)" }}>{numMatch[1]}.</span>
+            <span>{renderInlineBold(numMatch[2]!)}</span>
           </div>
         )
       }
@@ -59,7 +65,7 @@ function SimpleMarkdown({ content }: { content: string }) {
     } else {
       elements.push(
         <p key={i} className="my-0.5">
-          {line.replace(/\*\*(.+?)\*\*/g, (_, text) => text)}
+          {renderInlineBold(line)}
         </p>
       )
     }
