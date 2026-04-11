@@ -257,7 +257,7 @@ export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
       enrichmentEnabled: true,
       detectQuestions: true,
       questionMlEnabled: true,
-      speakerFilter: 'both',
+      speakerFilter: 'them',
     },
   },
   power: {

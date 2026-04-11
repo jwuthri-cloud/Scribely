@@ -39,6 +39,14 @@ const VAD_MODEL_ID = 'silero-vad-v5' as const
 const VAD_SAMPLE_RATE = 16000
 const TARGET_SAMPLE_RATE = 16000
 
+/**
+ * Silero VAD segmentation for Whisper. Keep `false` until tuned — when `true`, live audio
+ * only reaches Whisper after VAD emits `speech-segment` events. If VAD rarely fires (common
+ * with some system-audio levels), waveforms still update but nothing is transcribed.
+ * Matches `init()` which uses chunk-based transcription by default.
+ */
+const ENABLE_VAD_SEGMENTATION = false
+
 // ── Simple linear-interpolation resampler ───────────────
 function resample(pcm: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate) return pcm
@@ -144,8 +152,8 @@ export class AudioPipeline {
         })
       }
 
-      // If VAD model completed, init VAD instances
-      if (data.modelId === VAD_MODEL_ID) {
+      // If VAD model completed, optionally init VAD (disabled by default — see ENABLE_VAD_SEGMENTATION)
+      if (data.modelId === VAD_MODEL_ID && ENABLE_VAD_SEGMENTATION) {
         await this._initVad()
         this.sendToRenderer('meeting:status-update', {
           vadReady: this.vadReady,
@@ -578,7 +586,7 @@ export class AudioPipeline {
         transcriptionMode: this.transcriber.mode,
       })
     }
-    if (!this.vadReady) {
+    if (ENABLE_VAD_SEGMENTATION && !this.vadReady) {
       await this._initVad()
       if (this.vadReady) {
         this.sendToRenderer('meeting:status-update', { vadReady: true })
@@ -625,8 +633,8 @@ export class AudioPipeline {
         })
       }
 
-      // Re-init VAD if it was unloaded (VAD is currently disabled by default)
-      if (!this.vadReady) {
+      // Optional Silero path — must match ENABLE_VAD_SEGMENTATION (see init(); chunk mode is default)
+      if (ENABLE_VAD_SEGMENTATION && !this.vadReady) {
         await this._initVad()
         if (this.vadReady) {
           this.sendToRenderer('meeting:status-update', { vadReady: true })

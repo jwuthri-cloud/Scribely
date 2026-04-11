@@ -545,6 +545,17 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
+  ipcMain.handle('check-screen-recording-permission', () => {
+    if (process.platform !== 'darwin') return true
+    const status = systemPreferences.getMediaAccessStatus('screen')
+    return status === 'granted'
+  })
+
+  ipcMain.handle('check-accessibility-permission', () => {
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.isTrustedAccessibilityClient(false)
+  })
+
   // ── Insights (panel now embedded in main window; keep send-to-chat for compatibility) ──
   ipcMain.handle('insights:toggle-window', () => {
     // No-op: insights panel is now embedded in main overlay

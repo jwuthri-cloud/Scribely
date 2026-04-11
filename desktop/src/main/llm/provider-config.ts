@@ -119,6 +119,28 @@ export async function fetchLMStudioModels(baseUrl: string): Promise<LocalModelIn
   }))
 }
 
+function errnoFromCause(cause: unknown): string | undefined {
+  if (!cause || typeof cause !== 'object') return undefined
+  if ('code' in cause && typeof (cause as NodeJS.ErrnoException).code === 'string') {
+    return (cause as NodeJS.ErrnoException).code
+  }
+  if (cause instanceof AggregateError && cause.errors?.length) {
+    for (const e of cause.errors) {
+      const c = errnoFromCause(e)
+      if (c) return c
+    }
+  }
+  return undefined
+}
+
+/** True when Ollama/LM Studio is simply not running — no log (probe runs on every refresh). */
+function isLocalServerUnreachable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  if (err.message === 'fetch failed') return true
+  const code = errnoFromCause((err as Error & { cause?: unknown }).cause)
+  return code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EAI_AGAIN'
+}
+
 /**
  * List local models for the given provider.
  */
@@ -135,7 +157,9 @@ export async function listLocalModels(
     return { models }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch models'
-    log.error(`[provider-config] listLocalModels error:`, msg)
+    if (!isLocalServerUnreachable(err)) {
+      log.warn(`listLocalModels (${provider}):`, msg)
+    }
     return { models: [], error: msg }
   }
 }

@@ -158,6 +158,8 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
 
   // ── Step 4: Permissions ─────────────────────────────────
   const [micGranted, setMicGranted] = useState<boolean | null>(null)
+  const [screenRecordingGranted, setScreenRecordingGranted] = useState<boolean | null>(null)
+  const [accessibilityGranted, setAccessibilityGranted] = useState<boolean | null>(null)
   const [clipboardTested, setClipboardTested] = useState(false)
 
   const testMicrophone = useCallback(async () => {
@@ -182,6 +184,27 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
       // Permissions API not available
     })
   }, [])
+
+  const checkScreenRecording = useCallback(async () => {
+    const granted = await window.electronAPI?.checkScreenRecordingPermission?.()
+    setScreenRecordingGranted(granted ?? false)
+  }, [])
+
+  const checkAccessibility = useCallback(async () => {
+    const granted = await window.electronAPI?.checkAccessibilityPermission?.()
+    setAccessibilityGranted(granted ?? false)
+  }, [])
+
+  useEffect(() => {
+    void checkScreenRecording()
+    void checkAccessibility()
+    // Poll every 3s so dots update after the user grants access in System Settings.
+    const interval = setInterval(() => {
+      void checkScreenRecording()
+      void checkAccessibility()
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [checkScreenRecording, checkAccessibility])
 
   const openScreenRecordingSettings = useCallback(() => {
     openUrl('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
@@ -644,26 +667,38 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
                     )}
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
+                    {screenRecordingGranted ? (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success)' }} />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
+                    )}
                     <span style={{ color: 'var(--text)' }}>Screen recording</span>
-                    <button
-                      onClick={openScreenRecordingSettings}
-                      className="text-[10px] px-1.5 py-0.5 rounded border"
-                      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                    >
-                      Open Settings
-                    </button>
+                    {!screenRecordingGranted && (
+                      <button
+                        onClick={openScreenRecordingSettings}
+                        className="text-[10px] px-1.5 py-0.5 rounded border"
+                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                      >
+                        Open Settings
+                      </button>
+                    )}
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
+                    {accessibilityGranted ? (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--success)' }} />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--text-muted)' }} />
+                    )}
                     <span style={{ color: 'var(--text)' }}>Accessibility (for hotkeys)</span>
-                    <button
-                      onClick={openAccessibilitySettings}
-                      className="text-[10px] px-1.5 py-0.5 rounded border"
-                      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                    >
-                      Open Settings
-                    </button>
+                    {!accessibilityGranted && (
+                      <button
+                        onClick={openAccessibilitySettings}
+                        className="text-[10px] px-1.5 py-0.5 rounded border"
+                        style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                      >
+                        Open Settings
+                      </button>
+                    )}
                   </li>
                   <li className="flex items-center gap-2">
                     {clipboardTested ? (
