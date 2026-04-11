@@ -124,6 +124,8 @@ export interface ElectronAPI {
   // ── Screenshot ──────────────────────────────────
   takeScreenshot: () => Promise<string>
   onScreenshotTaken: (callback: (dataUrl: string) => void) => () => void
+  checkScreenRecordingPermission: () => Promise<boolean>
+  checkAccessibilityPermission: () => Promise<boolean>
 
   // ── Audio ───────────────────────────────────────
   onToggleAudio: (callback: () => void) => () => void
@@ -586,6 +588,14 @@ const api: ElectronAPI = {
   // ── Screenshot ──────────────────────────────────
   takeScreenshot: () => {
     return ipcRenderer.invoke('take-screenshot')
+  },
+
+  checkScreenRecordingPermission: () => {
+    return ipcRenderer.invoke('check-screen-recording-permission') as Promise<boolean>
+  },
+
+  checkAccessibilityPermission: () => {
+    return ipcRenderer.invoke('check-accessibility-permission') as Promise<boolean>
   },
 
   onScreenshotTaken: (callback) => {

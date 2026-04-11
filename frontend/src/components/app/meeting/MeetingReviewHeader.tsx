@@ -35,9 +35,9 @@ function CopyIdButton({ meetingId }: { meetingId: string }) {
     <button
       type="button"
       onClick={copy}
-      className="group inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-left transition-colors hover:border-white/[0.12] hover:bg-white/[0.06]"
+      className="group flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-left transition-colors hover:border-white/[0.12] hover:bg-white/[0.06] sm:inline-flex sm:w-auto sm:justify-start"
     >
-      <span className="font-mono text-[11px] text-white/45 tabular-nums sm:text-xs">
+      <span className="min-w-0 truncate font-mono text-[11px] text-white/45 tabular-nums sm:text-xs">
         {meetingId.slice(0, 8)}…{meetingId.slice(-4)}
       </span>
       {copied ? (
@@ -129,13 +129,17 @@ export function MeetingReviewHeader({
           }}
         />
 
-        <div className="relative px-5 py-6 sm:px-8 sm:py-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
-            <div className="min-w-0 flex-1 space-y-4">
+        <div className="relative px-4 py-5 sm:px-8 sm:py-8">
+          {/*
+            Side-by-side only from xl: with md sidebar, lg main width is often ~700px; pairing
+            flex-1 title + max-w-2xl stats crushed the heading. Stack until xl, cap stats width in row.
+          */}
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between xl:gap-10">
+            <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/38">
                 Meeting review
               </p>
-              <h1 className="font-display text-2xl font-semibold leading-[1.15] tracking-[-0.03em] text-white sm:text-3xl">
+              <h1 className="font-display text-balance text-xl font-semibold leading-snug tracking-[-0.03em] text-white sm:text-2xl xl:text-3xl xl:leading-[1.15]">
                 {title}
               </h1>
 
@@ -163,50 +167,52 @@ export function MeetingReviewHeader({
                 )}
               </div>
 
-              <div className="pt-1">
+              <div className="pt-0.5 sm:pt-1">
                 <CopyIdButton meetingId={meetingId} />
               </div>
             </div>
 
-            {/* Stats — single row, icon + label + value */}
-            <dl className="grid w-full shrink-0 grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:max-w-2xl">
+            {/* Stats — 1 col on very narrow, 3 cols when wide enough; beside title only xl+ */}
+            <dl className="grid w-full min-w-0 grid-cols-1 gap-2 sm:gap-2.5 min-[480px]:grid-cols-3 xl:max-w-lg xl:shrink-0 xl:grid-cols-3 xl:gap-3">
               {recorded && (
-                <div className="flex gap-3 rounded-xl border border-white/[0.07] bg-black/30 px-4 py-3.5 ring-1 ring-inset ring-white/[0.04]">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+                <div className="flex min-w-0 gap-2.5 rounded-xl border border-white/[0.07] bg-black/30 px-3 py-3 ring-1 ring-inset ring-white/[0.04] sm:gap-3 sm:px-4 sm:py-3.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] sm:h-10 sm:w-10">
                     <Calendar className="h-4 w-4 text-violet-300/85" />
                   </div>
                   <div className="min-w-0">
                     <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">
                       Recorded
                     </dt>
-                    <dd className="mt-1 text-sm font-medium leading-snug text-white/90">{recorded}</dd>
+                    <dd className="mt-0.5 break-words text-sm font-medium leading-snug text-white/90 sm:mt-1">
+                      {recorded}
+                    </dd>
                   </div>
                 </div>
               )}
               {durationSec != null && durationSec > 0 && (
-                <div className="flex gap-3 rounded-xl border border-white/[0.07] bg-black/30 px-4 py-3.5 ring-1 ring-inset ring-white/[0.04]">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+                <div className="flex gap-2.5 rounded-xl border border-white/[0.07] bg-black/30 px-3 py-3 ring-1 ring-inset ring-white/[0.04] sm:gap-3 sm:px-4 sm:py-3.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] sm:h-10 sm:w-10">
                     <Clock3 className="h-4 w-4 text-cyan-300/85" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">
                       Duration
                     </dt>
-                    <dd className="mt-1 text-sm font-medium tabular-nums text-white/90">
+                    <dd className="mt-0.5 text-sm font-medium tabular-nums text-white/90 sm:mt-1">
                       {formatDurationSeconds(durationSec)}
                     </dd>
                   </div>
                 </div>
               )}
-              <div className="flex gap-3 rounded-xl border border-white/[0.07] bg-black/30 px-4 py-3.5 ring-1 ring-inset ring-white/[0.04]">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06]">
+              <div className="flex gap-2.5 rounded-xl border border-white/[0.07] bg-black/30 px-3 py-3 ring-1 ring-inset ring-white/[0.04] sm:gap-3 sm:px-4 sm:py-3.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] sm:h-10 sm:w-10">
                   <Hash className="h-4 w-4 text-fuchsia-300/80" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">
                     Lines
                   </dt>
-                  <dd className="mt-1 text-sm font-medium tabular-nums text-white/90">{transcriptEntryCount}</dd>
+                  <dd className="mt-0.5 text-sm font-medium tabular-nums text-white/90 sm:mt-1">{transcriptEntryCount}</dd>
                 </div>
               </div>
             </dl>

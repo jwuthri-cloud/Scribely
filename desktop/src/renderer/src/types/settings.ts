@@ -266,7 +266,7 @@ export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {
       detectActionItems: false,
       detectKeyMentions: false,
       questionMlEnabled: true,
-      speakerFilter: 'both',
+      speakerFilter: 'them',
     },
   },
   power: {

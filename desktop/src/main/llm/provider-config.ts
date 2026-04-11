@@ -39,6 +39,22 @@ export const DEFAULT_LOCAL_CONTEXT_WINDOW = 8192
 /** Default max response tokens for local models */
 export const DEFAULT_LOCAL_MAX_RESPONSE_TOKENS = 4096
 
+/** True when the local Ollama/LM Studio server is simply not reachable (expected if not installed / not running). */
+function isBenignLocalUnreachable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  let e: unknown = err
+  for (let depth = 0; depth < 8 && e && typeof e === 'object'; depth++) {
+    const o = e as NodeJS.ErrnoException
+    const code = o.code
+    if (code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'ETIMEDOUT') return true
+    if (typeof o.message === 'string' && /ECONNREFUSED|ENOTFOUND/i.test(o.message)) return true
+    e = (o as { cause?: unknown }).cause
+  }
+  // Undici: TypeError with message "fetch failed" when nothing listens on localhost
+  if (err.message === 'fetch failed') return true
+  return false
+}
+
 /**
  * Create an OpenAI-compatible client for the given provider.
  * For local providers, apiKey is optional (Ollama/LM Studio accept any placeholder).
@@ -135,7 +151,10 @@ export async function listLocalModels(
     return { models }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch models'
-    log.error(`[provider-config] listLocalModels error:`, msg)
+    // Wizard probes both local providers; "not running" is normal — do not log at error
+    if (!isBenignLocalUnreachable(err)) {
+      log.error(`[provider-config] listLocalModels error:`, msg)
+    }
     return { models: [], error: msg }
   }
 }

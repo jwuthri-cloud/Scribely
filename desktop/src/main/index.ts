@@ -565,6 +565,17 @@ function registerIpcHandlers(): void {
     return captureScreen(mainWindow)
   })
 
+  // Used by onboarding (Step 4) to reflect macOS Privacy settings
+  ipcMain.handle('check-screen-recording-permission', async () => {
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.getMediaAccessStatus('screen') === 'granted'
+  })
+
+  ipcMain.handle('check-accessibility-permission', async () => {
+    if (process.platform !== 'darwin') return true
+    return systemPreferences.isTrustedAccessibilityClient(false)
+  })
+
   // ── Insights (panel now embedded in main window; keep send-to-chat for compatibility) ──
   ipcMain.handle('insights:toggle-window', () => {
     // No-op: insights panel is now embedded in main overlay

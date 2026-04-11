@@ -36,12 +36,13 @@ const DETECTORS: {
   icon: string
   label: string
   description: string
-  wip?: boolean
+  /** Not yet shipped: row is read-only with a “Coming soon” tag */
+  comingSoon?: boolean
 }[] = [
   { key: 'detectQuestions', icon: '?', label: 'Questions', description: 'Catch questions asked during the meeting' },
-  { key: 'detectTopicChanges', icon: '~', label: 'Topic changes', description: 'Notice when the conversation shifts', wip: true },
-  { key: 'detectActionItems', icon: '\u2713', label: 'Action items', description: 'Spot tasks and commitments', wip: true },
-  { key: 'detectKeyMentions', icon: '@', label: 'Key mentions', description: 'Flag names, dates, amounts, and URLs', wip: true },
+  { key: 'detectTopicChanges', icon: '~', label: 'Topic changes', description: 'Notice when the conversation shifts', comingSoon: true },
+  { key: 'detectActionItems', icon: '\u2713', label: 'Action items', description: 'Spot tasks and commitments', comingSoon: true },
+  { key: 'detectKeyMentions', icon: '@', label: 'Key mentions', description: 'Flag names, dates, amounts, and URLs', comingSoon: true },
 ]
 
 // ── Helpers ──────────────────────────────────────────────
@@ -64,14 +65,24 @@ function detectPreset(s: InsightsSettings): InsightPreset {
 
 // ── Sub-components ───────────────────────────────────────
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  on,
+  onChange,
+  disabled,
+}: {
+  on: boolean
+  onChange: (v: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <button
       type="button"
-      onClick={() => onChange(!on)}
+      disabled={disabled}
+      aria-disabled={disabled}
+      onClick={() => !disabled && onChange(!on)}
       className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${
-        on ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
-      }`}
+        disabled ? 'opacity-45 cursor-not-allowed' : ''
+      } ${on ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
     >
       <span
         className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -423,7 +434,7 @@ export function InsightsView() {
                     Detectors
                   </span>
                   <div className="space-y-1">
-                    {DETECTORS.map(({ key, icon, label, description, wip }) => (
+                    {DETECTORS.map(({ key, icon, label, description, comingSoon }) => (
                       <div
                         key={key}
                         className="flex items-center gap-2 py-1"
@@ -438,16 +449,15 @@ export function InsightsView() {
                           {icon}
                         </span>
                         <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                          {wip && (
+                          {comingSoon && (
                             <span
-                              className="px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0"
+                              className="px-1.5 py-0.5 rounded text-[9px] font-semibold shrink-0"
                               style={{
-                                backgroundColor: 'var(--overlay)',
-                                color: 'var(--text-muted)',
-                                border: '1px solid var(--border)',
+                                backgroundColor: 'var(--accent)',
+                                color: 'white',
                               }}
                             >
-                              WIP
+                              Coming soon
                             </span>
                           )}
                           <div>
@@ -460,7 +470,8 @@ export function InsightsView() {
                           </div>
                         </div>
                         <Toggle
-                          on={insights[key] !== false}
+                          on={comingSoon ? false : insights[key] !== false}
+                          disabled={!!comingSoon}
                           onChange={(v) => updateInsights({ [key]: v })}
                         />
                       </div>
