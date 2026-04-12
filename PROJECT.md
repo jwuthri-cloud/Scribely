@@ -736,6 +736,7 @@ Base: `/api/v1`
 | GET | `/status` | Required | Connection status |
 | GET | `/events` | Required | Paginated events |
 | GET | `/events/upcoming` | Required | Upcoming events |
+| GET | `/events/overlapping` | Required | Events overlapping a time window (desktop auto-link) |
 | GET | `/events/{id}` | Required | Event detail |
 | POST | `/sync` | Required | Trigger calendar sync |
 | POST | `/webhook/google` | Webhook | Google push notification |

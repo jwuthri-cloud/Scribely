@@ -23,6 +23,14 @@ export interface MeetingSyncResult {
   meetingId?: string
 }
 
+/** `GET /api/v1/calendar/events/overlapping` row — subset used for auto-linking */
+export interface CalendarEventSummary {
+  id: string
+  title?: string | null
+  start_time: string
+  end_time: string
+}
+
 export class BackendClient {
   private baseUrl: string | null
   private authService: AuthService
@@ -177,6 +185,24 @@ export class BackendClient {
       request.write(buffer)
       request.end()
     })
+  }
+
+  /**
+   * Calendar events overlapping [windowStartIso, windowEndIso] (ISO 8601).
+   * Requires Google Calendar connected and synced on the backend.
+   */
+  async listOverlappingCalendarEvents(
+    windowStartIso: string,
+    windowEndIso: string,
+  ): Promise<CalendarEventSummary[]> {
+    const q = new URLSearchParams({
+      window_start: windowStartIso,
+      window_end: windowEndIso,
+    })
+    return this.requestJson<CalendarEventSummary[]>(
+      'GET',
+      `/api/v1/calendar/events/overlapping?${q.toString()}`,
+    )
   }
 
   async validateAuth(): Promise<{ authenticated: boolean; userId?: string }> {

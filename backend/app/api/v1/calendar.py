@@ -196,6 +196,48 @@ async def upcoming_calendar_events(
     return [_event_summary_row(r) for r in rows]
 
 
+@router.get("/events/overlapping", response_model=list[CalendarEventSummaryOut])
+async def overlapping_calendar_events(
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+    window_start: str = Query(
+        ...,
+        description="ISO datetime — start of the meeting time window (inclusive lower bound for overlap)",
+    ),
+    window_end: str = Query(
+        ...,
+        description="ISO datetime — end of the meeting time window (inclusive upper bound for overlap)",
+    ),
+    limit: int = Query(20, ge=1, le=50),
+):
+    """
+    Calendar events whose scheduled interval overlaps ``[window_start, window_end]``.
+
+    Used by the desktop app to auto-link a recorded meeting to a synced Google Calendar event.
+    """
+    try:
+        rs = datetime.fromisoformat(window_start.replace("Z", "+00:00"))
+        if rs.tzinfo is not None:
+            rs = rs.astimezone(timezone.utc).replace(tzinfo=None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid window_start: {e}") from e
+    try:
+        re = datetime.fromisoformat(window_end.replace("Z", "+00:00"))
+        if re.tzinfo is not None:
+            re = re.astimezone(timezone.utc).replace(tzinfo=None)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid window_end: {e}") from e
+
+    rows = await CalendarRepository.list_overlapping_for_user(
+        db,
+        user.id,
+        range_start=rs,
+        range_end=re,
+        limit=limit,
+    )
+    return [_event_summary_row(r) for r in rows]
+
+
 @router.get("/events/{event_id}", response_model=CalendarEventDetailOut)
 async def get_calendar_event(
     event_id: str,

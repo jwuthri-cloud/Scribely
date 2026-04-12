@@ -35,7 +35,8 @@ import { unloadQuestionClassifier } from './insights/question-classifier'
 import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
-import { BackendClient } from './backend-client'
+import { BackendClient, type MeetingSyncPayload } from './backend-client'
+import { resolveCalendarEventIdForTranscript } from './calendar-meeting-match'
 import { UploadQueueService } from './upload-queue'
 import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
 import { checkForUpdatesNow, registerUpdaterIpc, startAutoUpdater } from './updater'
@@ -598,11 +599,22 @@ function registerIpcHandlers(): void {
   authService.registerIpcHandlers()
 
   // ── Backend Client / Upload Queue ──────────────────
-  ipcMain.handle('backend:sync-meeting', (_event, payload) => {
+  ipcMain.handle('backend:sync-meeting', async (_event, payload: MeetingSyncPayload) => {
     if (!backendClient.isConfigured) {
       return { success: false, message: 'BACKEND_API_URL not configured' }
     }
-    const queueId = uploadQueueService.enqueue(payload)
+    let toQueue = payload
+    if (!payload.calendarEventId && payload.transcriptFilepath) {
+      const authState = authService.getState()
+      if (authState.mode === 'authenticated' && authService.getSessionToken()) {
+        const calId = await resolveCalendarEventIdForTranscript(backendClient, payload.transcriptFilepath)
+        if (calId) {
+          toQueue = { ...payload, calendarEventId: calId }
+          appLog.info(`Auto-linked calendar event ${calId} for meeting upload`)
+        }
+      }
+    }
+    const queueId = uploadQueueService.enqueue(toQueue)
     return { success: true, message: 'Queued for upload', queueId }
   })
 

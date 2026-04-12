@@ -266,6 +266,37 @@ class CalendarRepository:
         return rows, total
 
     @staticmethod
+    async def list_overlapping_for_user(
+        db: AsyncSession,
+        user_id: str,
+        *,
+        range_start: datetime,
+        range_end: datetime,
+        limit: int = 20,
+    ) -> list[CalendarEvent]:
+        """
+        Events whose [start_time, end_time] overlaps ``[range_start, range_end]``.
+
+        Overlap condition: start_time < range_end AND end_time > range_start
+        """
+        if range_end <= range_start:
+            return []
+
+        stmt = (
+            select(CalendarEvent)
+            .where(
+                CalendarEvent.user_id == user_id,
+                CalendarEvent.status != CalendarEventStatus.CANCELLED,
+                CalendarEvent.start_time < range_end,
+                CalendarEvent.end_time > range_start,
+            )
+            .order_by(CalendarEvent.start_time.asc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    @staticmethod
     async def list_upcoming_for_user(
         db: AsyncSession,
         user_id: str,

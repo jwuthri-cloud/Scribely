@@ -71,7 +71,7 @@
 | 32 | **Real-time speaker diarization** in desktop — currently only `"You"` vs `"Them"` based on audio source; multi-speaker identification is backend post-processing only | Large | 🔲 Pending |
 | 33 | **Offline mode indicator** in desktop — LLM/sync fail silently when offline; show a clear status indicator | Small | 🔲 Pending |
 | 34 | **Extension reconnection UX** — show "Reconnecting…" state with retry button in popup | Small | 🔲 Pending |
-| 35 | **Calendar event → meeting auto-linking** in desktop — backend supports `calendarEventId` on upload but desktop doesn't fetch upcoming events or auto-link | Medium | 🔲 Pending |
+| 35 | **Calendar event → meeting auto-linking** in desktop — backend supports `calendarEventId` on upload but desktop doesn't fetch upcoming events or auto-link | Medium | ✅ Done |
 | 36 | **Full-text search across all meetings** — meetings list API supports `search`, no search UI / command palette integration | Small–Medium | 🔲 Pending |
 
 ---
