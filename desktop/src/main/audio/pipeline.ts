@@ -144,13 +144,11 @@ export class AudioPipeline {
         })
       }
 
-      // If VAD model completed, init VAD instances
-      if (data.modelId === VAD_MODEL_ID) {
-        await this._initVad()
-        this.sendToRenderer('meeting:status-update', {
-          vadReady: this.vadReady,
-        })
-      }
+      // VAD auto-init on model-complete is disabled — see init() comment.
+      // if (data.modelId === VAD_MODEL_ID) {
+      //   await this._initVad()
+      //   this.sendToRenderer('meeting:status-update', { vadReady: this.vadReady })
+      // }
     })
   }
 
@@ -579,23 +577,8 @@ export class AudioPipeline {
       })
     }
     if (!this.vadReady) {
-      await this._initVad()
-      if (this.vadReady) {
-        this.sendToRenderer('meeting:status-update', { vadReady: true })
-      }
+      // VAD disabled — skip _initVad(), use chunk-based fallback
     }
-
-    this.isActive = true
-    this.sessionStartTime = Date.now()
-    this.segmentQueue = []
-    this.isProcessingQueue = false
-    this.fallbackBuffers.clear()
-    this._transcribeQueue = []
-    this.micVad?.flush()
-    this.tabVad?.flush()
-    this._onSessionStart?.()
-    log.success('Meeting session started (extension)')
-    return true
   }
 
   // ── IPC Handlers ───────────────────────────────────────
@@ -625,13 +608,8 @@ export class AudioPipeline {
         })
       }
 
-      // Re-init VAD if it was unloaded (VAD is currently disabled by default)
-      if (!this.vadReady) {
-        await this._initVad()
-        if (this.vadReady) {
-          this.sendToRenderer('meeting:status-update', { vadReady: true })
-        }
-      }
+      // Re-init VAD skipped — VAD is disabled, chunk-based fallback is active.
+      // To re-enable: fix tensor names in vad.ts, then restore _initVad() call here.
 
       this.isActive = true
       this.sessionStartTime = Date.now()
