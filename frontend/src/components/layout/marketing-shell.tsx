@@ -36,7 +36,9 @@ export function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen">{children}</main>
+      {/* Avoid min-h-screen here: it forces a full-viewport-tall main on sparse pages (e.g. contact
+          success), leaving a huge empty band above the footer. Section-level min-h (hero, etc.) handles full-bleed layouts. */}
+      <main className="w-full">{children}</main>
       <Footer />
     </>
   )

@@ -63,6 +63,8 @@ export class AudioPipeline {
   private window: BrowserWindow | null = null
   private isActive = false
   private sessionStartTime = 0
+  /** Stable id for the current meeting session (set on start, cleared on stop). */
+  private meetingSessionId: string | null = null
 
   // ── Per-stream VAD instances ───────────────────────────
   private micVad: VoiceActivityDetector | null = null
@@ -89,7 +91,7 @@ export class AudioPipeline {
   private _systemLevel = 0
 
   // ── Live Insights callbacks (optional) ────────────────
-  private _onSessionStart: (() => void) | null = null
+  private _onSessionStart: ((sessionId: string) => void) | null = null
   private _onSessionStop: (() => void | Promise<void>) | null = null
   private _onTranscriptEntry: ((entry: {
     id: string
@@ -648,6 +650,7 @@ export class AudioPipeline {
 
     this.isActive = true
     this.sessionStartTime = Date.now()
+    this.meetingSessionId = randomUUID()
     this.segmentQueue = []
     this.isProcessingQueue = false
     this.fallbackBuffers.clear()
@@ -655,7 +658,7 @@ export class AudioPipeline {
     this._recentEntries = []
     this.micVad?.flush()
     this.tabVad?.flush()
-    this._onSessionStart?.()
+    this._onSessionStart?.(this.meetingSessionId)
     log.success('Meeting session started (extension)')
     return true
   }
@@ -673,7 +676,7 @@ export class AudioPipeline {
       // Reuse start logic (idempotent if already active)
       if (this.isActive) {
         return {
-          sessionId: randomUUID(),
+          sessionId: this.meetingSessionId ?? randomUUID(),
           transcriptionMode: this.transcriber.mode,
           vadEnabled: this.vadReady,
         }
@@ -696,6 +699,7 @@ export class AudioPipeline {
 
       this.isActive = true
       this.sessionStartTime = Date.now()
+      this.meetingSessionId = randomUUID()
       this.segmentQueue = []
       this.isProcessingQueue = false
       this.fallbackBuffers.clear()
@@ -705,14 +709,14 @@ export class AudioPipeline {
       this.micVad?.flush()
       this.tabVad?.flush()
 
-      this._onSessionStart?.()
+      this._onSessionStart?.(this.meetingSessionId)
 
       log.success(
         `Meeting session started (VAD: ${this.vadReady ? 'enabled' : 'fallback-chunk'})`,
       )
 
       return {
-        sessionId: randomUUID(),
+        sessionId: this.meetingSessionId,
         transcriptionMode: this.transcriber.mode,
         vadEnabled: this.vadReady,
       }
@@ -732,6 +736,7 @@ export class AudioPipeline {
 
       this._excludeMyMic = false
       this.isActive = false
+      this.meetingSessionId = null
       this.segmentQueue = []
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
@@ -1079,8 +1084,13 @@ export class AudioPipeline {
     )
   }
 
-  setOnSessionStart(cb: (() => void) | null): void {
+  setOnSessionStart(cb: ((sessionId: string) => void) | null): void {
     this._onSessionStart = cb
+  }
+
+  /** Current meeting session id when a meeting is active; otherwise null. */
+  getMeetingSessionId(): string | null {
+    return this.meetingSessionId
   }
 
   setOnSessionStop(cb: (() => void | Promise<void>) | null): void {

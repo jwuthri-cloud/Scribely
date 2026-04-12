@@ -19,7 +19,7 @@
 | 8 | Remove unused `@traceloop/node-server-sdk` dependency (listed in `package.json`, never imported) | `desktop/package.json` | ✅ Done |
 | 9 | Fix Chrome extension README + cursor rule stale `content-script.js` references | `chrome-extension/README.md`, `.cursor/rules/chrome-extension-architecture.mdc` | ✅ Done |
 | 10 | Fix backend `APP_NAME` drift — `.env.example` said `"AssistMe"`, `config.py` defaults to `"Scribely"` | `backend/.env.example` | ✅ Done |
-| 11 | Resolve 4 unregistered theme files (`atom-dark`, `tokyo-night`, `gruvbox-dark`, `one-dark-pro`) — either register them in `registry.ts` or delete the files | `desktop/src/renderer/src/themes/` | 🔲 Pending |
+| 11 | Resolve 4 unregistered theme files (`atom-dark`, `tokyo-night`, `gruvbox-dark`, `one-dark-pro`) — either register them in `registry.ts` or delete the files | `desktop/src/renderer/src/themes/` | ✅ Done |
 | 12 | Remove or finish `AgentOrchestrator` — exists in `backend/app/agents/orchestrator.py` but no API endpoint calls it | `backend/app/agents/orchestrator.py` | 🔲 Pending |
 | 13 | Wire or remove `Composio` tools in chat agent — `build_composio_tools()` call is commented out in `tools.py` | `backend/app/agents/tool/tools.py` | 🔲 Pending |
 
@@ -29,11 +29,11 @@
 
 | # | What | Where | Status |
 |---|------|-------|--------|
-| 14 | `meeting:audio-frame` IPC registered in two places (pipeline.ts + index.ts) — both fire per frame causing double `Float32Array` allocation for mic frames. Merge into one handler or document clearly. | `desktop/src/main/audio/pipeline.ts`, `desktop/src/main/index.ts` | 🔲 Pending |
-| 15 | `backend/app/cli/commands/worker.py` still references `app.core.celery_app` which doesn't exist — update or remove CLI worker commands | `backend/app/cli/commands/worker.py` | 🔲 Pending |
+| 14 | `meeting:audio-frame` IPC registered in two places (pipeline.ts + index.ts) — both fire per frame causing double `Float32Array` allocation for mic frames. Merge into one handler or document clearly. | `desktop/src/main/audio/pipeline.ts`, `desktop/src/main/index.ts` | ✅ Done |
+| 15 | `backend/app/cli/commands/worker.py` still references `app.core.celery_app` which doesn't exist — update or remove CLI worker commands | `backend/app/cli/commands/worker.py` | ✅ Done |
 | 16 | `embedding_service.py`'s `index_meeting()` is never called after meeting processing completes — vector search is fully built but Pinecone is never populated | `backend/app/services/meeting_processor.py`, `backend/app/services/embedding_service.py` | 🔲 Pending |
-| 17 | `LLMService` has `meetingSessionId: null // TODO: wire to meeting session` in usage tracking | `desktop/src/main/llm/llm-service.ts` | 🔲 Pending |
-| 18 | Contact form API route (`/api/contact`) has a TODO for email provider — currently logs but doesn't send | `frontend/src/app/api/contact/route.ts` | 🔲 Pending |
+| 17 | `LLMService` has `meetingSessionId: null // TODO: wire to meeting session` in usage tracking | `desktop/src/main/llm/llm-service.ts` | ✅ Done |
+| 18 | Contact form API route (`/api/contact`) has a TODO for email provider — currently logs but doesn't send | `frontend/src/app/api/contact/route.ts` | ✅ Done |
 
 ---
 
@@ -56,7 +56,7 @@
 | 24 | **Re-enable VAD** (Voice Activity Detection) — Silero v5 is fully implemented but `_initVad()` is commented out in `pipeline.ts:init()` | Chunk-based fallback active, VAD disabled | 🔲 Pending |
 | 25 | **Wire `index_meeting()`** after processing completes so Pinecone is populated and vector search actually works | `EmbeddingService` + `vector_search` tool built, never called | 🔲 Pending |
 | 26 | **Upload progress** — add byte-level `onUploadProgress` callback for large video files | Upload queue has pending/uploading/success states but no percent bar | 🔲 Pending |
-| 27 | **Contact form** — wire up Resend (already a `frontend` dependency) in `/api/contact` route | TODO comment, currently just logs | 🔲 Pending |
+| 27 | **Contact form** — wire up Resend (already a `frontend` dependency) in `/api/contact` route | Resend + `CONTACT_INBOX_EMAIL` / `RESEND_API_KEY` | ✅ Done |
 | 28 | **Web push notifications** require `VAPID_*` env vars to be set — document and validate on startup | Code is complete but silently skips reminders when keys missing | 🔲 Pending |
 
 ---

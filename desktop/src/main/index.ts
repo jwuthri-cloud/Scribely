@@ -972,11 +972,13 @@ app.whenReady().then(async () => {
     }
     insightEngine.onTranscriptEntry(entry)
   })
-  audioPipeline.setOnSessionStart(() => {
+  audioPipeline.setOnSessionStart((sessionId) => {
+    llmService.setMeetingSessionId(sessionId)
     isMeetingActive = true
     rebuildTrayMenu()
   })
   audioPipeline.setOnSessionStop(async () => {
+    llmService.setMeetingSessionId(null)
     insightEngine.reset()
     llmService.resetInsightsValidation()
     await unloadQuestionClassifier()

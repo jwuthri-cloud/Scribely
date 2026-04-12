@@ -290,6 +290,9 @@ export class LLMService {
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
 
+  /** When a meeting is active, matches AudioPipeline's meeting session (persisted with conversations). */
+  private activeMeetingSessionId: string | null = null
+
   // Insights validation conversation history (append-only, for prefix caching)
   private insightsValidationMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
 
@@ -514,6 +517,14 @@ export class LLMService {
 
   setWindow(window: BrowserWindow): void {
     this.window = window
+  }
+
+  /** Called when a meeting session starts/stops so persisted conversations link to the right meeting. */
+  setMeetingSessionId(id: string | null): void {
+    this.activeMeetingSessionId = id
+    if (this.conversationMessages.length > 0) {
+      this.persistConversation()
+    }
   }
 
   registerIpcHandlers(): void {
@@ -1714,7 +1725,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
       const llm = this.store.get('llm') as { activeSystemPromptId?: string | null } | undefined
       const conversation: PersistedConversation = {
         sessionId: this.sessionId,
-        meetingSessionId: null, // TODO: wire to meeting session
+        meetingSessionId: this.activeMeetingSessionId,
         messages: this.conversationMessages,
         createdAt: this.conversationMessages[0]?.timestamp ?? Date.now(),
         lastMessageAt:
