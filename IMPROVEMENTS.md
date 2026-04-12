@@ -67,7 +67,7 @@
 |---|------|--------|--------|
 | 29 | **Desktop auto-update** via `electron-updater` — users currently re-download DMGs manually | Medium | ✅ Done |
 | 30 | **Meeting export from web dashboard** — Markdown / PDF / JSON download from `MeetingReviewHeader` | Small | ✅ Done |
-| 31 | **Transcript editing** in web dashboard — transcripts are read-only, no way to fix errors | Medium | 🔲 Pending |
+| 31 | **Transcript editing** in web dashboard — transcripts are read-only, no way to fix errors | Medium | ✅ Done |
 | 32 | **Real-time speaker diarization** in desktop — currently only `"You"` vs `"Them"` based on audio source; multi-speaker identification is backend post-processing only | Large | 🔲 Pending |
 | 33 | **Offline mode indicator** in desktop — LLM/sync fail silently when offline; show a clear status indicator | Small | 🔲 Pending |
 | 34 | **Extension reconnection UX** — show "Reconnecting…" state with retry button in popup | Small | 🔲 Pending |

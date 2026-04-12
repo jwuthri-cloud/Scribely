@@ -189,7 +189,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
         <main
           className={cn(
-            "app-workspace-canvas flex min-h-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 lg:px-8",
+            "app-workspace-canvas flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 sm:px-6 lg:px-8",
             isChatRoute
               ? "pt-5 pb-0 lg:pt-8 lg:pb-0"
               : "py-5 lg:py-8"

@@ -25,14 +25,15 @@ import aiofiles
 from app.api.deps import get_current_user_with_db
 from app.config import get_settings
 from app.database.models.meeting import MeetingStatusEnum
+from app.database.models.meeting_processing import MeetingProcessing, PipelineEligibility
 from app.database.models.user import User
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.meeting import MeetingRepository
-from app.database.models.meeting_processing import MeetingProcessing
 from app.database.repositories.meeting_processing import MeetingProcessingRepository
 from app.database.session import get_async_db_session
 from app.infrastructure.object_storage import (
     RECORDING_WEBM,
+    TRANSCRIPT_ENRICHED_JSON,
     TRANSCRIPT_JSON,
     is_object_storage_configured,
     mirror_meeting_from_object_storage_async,
@@ -41,6 +42,7 @@ from app.infrastructure.object_storage import (
 from app.services.task_runner import TaskStatus, read_status, schedule_processing
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,6 +107,17 @@ class MeetingProcessingOut(BaseModel):
 
 class MeetingDetailResponse(MeetingSummaryResponse):
     processing: Optional[MeetingProcessingOut] = None
+    # True when a recording was uploaded (webm); False for transcript-only meetings.
+    has_recording: bool = False
+
+
+class TranscriptLinePatch(BaseModel):
+    speaker: str
+    text: str
+
+
+class PatchTranscriptRequest(BaseModel):
+    entries: list[TranscriptLinePatch]
 
 
 class PaginatedMeetingsResponse(BaseModel):
@@ -137,6 +150,96 @@ class DashboardStatsResponse(BaseModel):
 
 def _enum_value(v: Any) -> str:
     return v.value if hasattr(v, "value") else str(v)
+
+
+def _has_recording_from_processing(proc: Optional[MeetingProcessing]) -> bool:
+    if proc is None:
+        return False
+    pe = proc.pipeline_eligibility
+    val = pe.value if isinstance(pe, PipelineEligibility) else str(pe)
+    return val != PipelineEligibility.NOT_APPLICABLE.value
+
+
+def _apply_transcript_line_edits(data: Any, edits: list[TranscriptLinePatch]) -> None:
+    """Mutate loaded transcript JSON in-place to apply speaker/text edits by row index."""
+    n = len(edits)
+    if isinstance(data, list):
+        if len(data) != n:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Entry count does not match transcript",
+            )
+        for i, patch in enumerate(edits):
+            row = data[i]
+            if not isinstance(row, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid transcript row",
+                )
+            row["speaker"] = patch.speaker.strip() or "Speaker"
+            row["text"] = patch.text
+        return
+
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported transcript shape",
+        )
+
+    diar = data.get("diarization")
+    utterances: Optional[list] = None
+    if isinstance(diar, dict):
+        u = diar.get("utterances")
+        if isinstance(u, list) and len(u) > 0:
+            utterances = u
+
+    if utterances is not None:
+        if len(utterances) != n:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Entry count does not match transcript",
+            )
+        speakers: set[str] = set()
+        for i, patch in enumerate(edits):
+            utt = utterances[i]
+            if not isinstance(utt, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid utterance row",
+                )
+            utt["speaker"] = patch.speaker.strip() or "Speaker"
+            utt["text"] = patch.text
+            speakers.add(utt["speaker"])
+        diar["utteranceCount"] = len(utterances)
+        diar["speakers"] = sorted(speakers)
+        return
+
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported transcript shape",
+        )
+    if len(entries) != n:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Entry count does not match transcript",
+        )
+    speakers_list: list[str] = []
+    for i, patch in enumerate(edits):
+        ent = entries[i]
+        if not isinstance(ent, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid entry row",
+            )
+        ent["speaker"] = patch.speaker.strip() or "Speaker"
+        ent["text"] = patch.text
+        speakers_list.append(ent["speaker"])
+    summary = data.get("summary")
+    if isinstance(summary, dict):
+        summary["totalEntries"] = len(entries)
+        summary["speakers"] = list(dict.fromkeys(speakers_list))
 
 
 def _processing_out_from_row(row: MeetingProcessing) -> MeetingProcessingOut:
@@ -313,6 +416,7 @@ async def get_meeting(
         )
     proc_row = await MeetingProcessingRepository.get_by_meeting_id(db, meeting_id)
     processing = _processing_out_from_row(proc_row) if proc_row else None
+    has_recording = _has_recording_from_processing(proc_row)
     return MeetingDetailResponse(
         id=meeting.id,
         title=meeting.title,
@@ -322,6 +426,7 @@ async def get_meeting(
         recorded_at=meeting.recorded_at.isoformat() if meeting.recorded_at else None,
         created_at=meeting.created_at.isoformat(),
         processing=processing,
+        has_recording=has_recording,
     )
 
 
@@ -561,6 +666,84 @@ async def get_transcript(
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="No transcript found for this meeting",
+    )
+
+
+# ---------------------------------------------------------------------------
+# PATCH /{meeting_id}/transcript  — edit speaker / line text (same file as GET)
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/{meeting_id}/transcript", response_model=EnrichedTranscriptResponse)
+async def patch_transcript(
+    meeting_id: str,
+    body: PatchTranscriptRequest,
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> EnrichedTranscriptResponse:
+    """Apply text/speaker edits to the stored transcript (enriched if present, else original)."""
+    meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+
+    enriched_path = meeting_dir / "transcript_enriched.json"
+    original_path = meeting_dir / "transcript.json"
+    target = enriched_path if enriched_path.exists() else original_path
+
+    raw: Any = json.loads(target.read_text(encoding="utf-8"))
+    _apply_transcript_line_edits(raw, body.entries)
+
+    out = json.dumps(raw, indent=2, ensure_ascii=False)
+    async with aiofiles.open(target, "w", encoding="utf-8") as f:
+        await f.write(out)
+
+    if is_object_storage_configured():
+        fname = TRANSCRIPT_ENRICHED_JSON if target.name == "transcript_enriched.json" else TRANSCRIPT_JSON
+        await upload_file_async(target, meeting.storage_path, fname)
+
+    await MeetingRepository.update_entry_count(db, meeting_id, len(body.entries))
+    await db.commit()
+
+    transcript_out: dict[str, Any]
+    if isinstance(raw, dict):
+        transcript_out = raw
+    else:
+        transcript_out = {"entries": raw}
+
+    return EnrichedTranscriptResponse(
+        meetingId=meeting_id,
+        hasEnrichedTranscript=enriched_path.exists(),
+        transcript=transcript_out,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /{meeting_id}/recording  — webm video (for dashboard playback)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{meeting_id}/recording")
+async def get_meeting_recording(
+    meeting_id: str,
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> FileResponse:
+    """Stream the meeting recording (VP9/Opus in WebM) with the same auth as other meeting APIs."""
+    meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
+    recording_path = meeting_dir / RECORDING_WEBM
+    if not recording_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No recording for this meeting",
+        )
+    return FileResponse(
+        path=str(recording_path),
+        media_type="video/webm",
+        filename=RECORDING_WEBM,
     )
 
 

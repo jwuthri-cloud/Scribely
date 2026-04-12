@@ -24,9 +24,16 @@ const ROW_ACCENTS = [
 export function TranscriptViewer({
   entries,
   className,
+  editable = false,
+  onChange,
+  disabled = false,
 }: {
   entries: NormalizedTranscriptEntry[]
   className?: string
+  /** When true, speaker and text are editable; use with `onChange` for controlled updates. */
+  editable?: boolean
+  onChange?: (next: NormalizedTranscriptEntry[]) => void
+  disabled?: boolean
 }) {
   const [search, setSearch] = useState("")
   const [debounced, setDebounced] = useState("")
@@ -49,7 +56,7 @@ export function TranscriptViewer({
   return (
     <section
       className={cn(
-        "workspace-card relative overflow-hidden rounded-2xl sm:rounded-[28px]",
+        "workspace-card relative w-full min-w-0 max-w-full overflow-hidden rounded-2xl sm:rounded-[28px]",
         className
       )}
     >
@@ -83,10 +90,18 @@ export function TranscriptViewer({
             filtered.map((entry, i) => {
               const acc = ROW_ACCENTS[speakerColorIndex(entry.speaker) % ROW_ACCENTS.length]
               const rowClass = cn(
-                "group flex gap-3 px-3 py-3 transition-colors hover:bg-white/[0.04] sm:gap-4 sm:px-6 sm:py-3.5",
+                "group flex min-w-0 gap-3 px-3 py-3 transition-colors hover:bg-white/[0.04] sm:gap-4 sm:px-6 sm:py-3.5",
                 "border-l-[3px]",
                 acc.border
               )
+              const idxInFull = entries.findIndex((e) => e.id === entry.id)
+              const patch = (partial: Partial<NormalizedTranscriptEntry>) => {
+                if (!onChange || idxInFull < 0) return
+                const next = entries.map((e, j) =>
+                  j === idxInFull ? { ...e, ...partial } : e
+                )
+                onChange(next)
+              }
               return (
                 <motion.div
                   key={entry.id}
@@ -106,18 +121,44 @@ export function TranscriptViewer({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span
-                        className={cn(
-                          "inline-flex max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                          acc.pill
-                        )}
-                      >
-                        {entry.speaker}
-                      </span>
+                      {editable ? (
+                        <input
+                          type="text"
+                          value={entry.speaker}
+                          disabled={disabled}
+                          onChange={(e) => patch({ speaker: e.target.value })}
+                          aria-label={`Speaker at ${formatTranscriptTimestamp(entry.startSeconds)}`}
+                          className={cn(
+                            "max-w-full min-w-[6rem] rounded-full border bg-black/30 px-2 py-0.5 text-[11px] font-medium text-white outline-none",
+                            "focus:border-violet-400/40 focus:ring-1 focus:ring-violet-500/25",
+                            acc.pill
+                          )}
+                        />
+                      ) : (
+                        <span
+                          className={cn(
+                            "inline-flex max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                            acc.pill
+                          )}
+                        >
+                          {entry.speaker}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[15px] leading-relaxed text-white/[0.94] sm:text-sm">
-                      {entry.text || "—"}
-                    </p>
+                    {editable ? (
+                      <textarea
+                        value={entry.text}
+                        disabled={disabled}
+                        onChange={(e) => patch({ text: e.target.value })}
+                        rows={Math.min(8, Math.max(2, entry.text.split("\n").length))}
+                        className="mt-1 w-full resize-y rounded-lg border border-white/[0.1] bg-black/25 px-3 py-2 text-[15px] leading-relaxed text-white/[0.94] outline-none placeholder:text-white/30 focus:border-violet-400/30 focus:ring-2 focus:ring-violet-500/15 sm:text-sm"
+                        aria-label={`Transcript line at ${formatTranscriptTimestamp(entry.startSeconds)}`}
+                      />
+                    ) : (
+                      <p className="break-words text-[15px] leading-relaxed text-white/[0.94] [overflow-wrap:anywhere] sm:text-sm">
+                        {entry.text || "—"}
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               )

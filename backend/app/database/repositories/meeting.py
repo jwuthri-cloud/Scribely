@@ -138,6 +138,19 @@ class MeetingRepository:
         return meeting
 
     @staticmethod
+    async def update_entry_count(
+        db: AsyncSession,
+        meeting_id: str,
+        entry_count: int,
+    ) -> Optional[Meeting]:
+        meeting = await MeetingRepository.get_by_id(db, meeting_id)
+        if meeting:
+            meeting.entry_count = entry_count
+            await db.flush()
+            await db.refresh(meeting)
+        return meeting
+
+    @staticmethod
     async def count_for_user(db: AsyncSession, user_id: str) -> int:
         result = await db.execute(
             select(func.count(Meeting.id)).where(Meeting.user_id == user_id)

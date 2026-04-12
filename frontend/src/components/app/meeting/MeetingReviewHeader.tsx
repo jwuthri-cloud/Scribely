@@ -163,8 +163,8 @@ export function MeetingReviewHeader({
             Side-by-side only from xl: with md sidebar, lg main width is often ~700px; pairing
             flex-1 title + max-w-2xl stats crushed the heading. Stack until xl, cap stats width in row.
           */}
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between xl:gap-10">
-            <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
+          <div className="flex flex-col gap-6 xl:flex-row xl:flex-wrap xl:items-start xl:justify-start xl:gap-x-10 xl:gap-y-6">
+            <div className="min-w-0 flex-1 space-y-3 sm:space-y-4 xl:max-w-2xl xl:flex-none">
               <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/38">
                 Meeting review
               </p>
@@ -202,8 +202,8 @@ export function MeetingReviewHeader({
               </div>
             </div>
 
-            {/* Stats — 1 col on very narrow, 3 cols when wide enough; beside title only xl+ */}
-            <dl className="grid w-full min-w-0 grid-cols-1 gap-2 sm:gap-2.5 min-[480px]:grid-cols-3 xl:max-w-lg xl:shrink-0 xl:grid-cols-3 xl:gap-3">
+            {/* Stats — beside title on xl with a normal gap (not justify-between → huge empty middle) */}
+            <dl className="grid w-full min-w-0 grid-cols-1 gap-2 sm:gap-2.5 min-[480px]:grid-cols-3 min-[480px]:gap-2.5 xl:w-auto xl:shrink-0 xl:grid-cols-3 xl:gap-3">
               {recorded && (
                 <div className="flex min-w-0 gap-2.5 rounded-xl border border-white/[0.07] bg-black/30 px-3 py-3 ring-1 ring-inset ring-white/[0.04] sm:gap-3 sm:px-4 sm:py-3.5">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] sm:h-10 sm:w-10">

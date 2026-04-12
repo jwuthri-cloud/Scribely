@@ -39,6 +39,8 @@ export interface MeetingProcessingState {
 
 export interface MeetingDetail extends MeetingSummary {
   processing?: MeetingProcessingState | null
+  /** From upload: false when the meeting was transcript-only (no webm). */
+  has_recording?: boolean
 }
 
 /** GET /api/v1/meetings/{id}/transcript */
@@ -261,6 +263,25 @@ export function createApiClient(getToken: GetTokenFn) {
     async getMeetingStatus(id: string): Promise<ProcessingStatusResponse> {
       const res = await fetchWithAuth(`/api/v1/meetings/${id}/status`)
       return res.json()
+    },
+
+    async patchMeetingTranscript(
+      id: string,
+      entries: { speaker: string; text: string }[]
+    ): Promise<EnrichedTranscriptResponse> {
+      const res = await fetchWithAuth(`/api/v1/meetings/${id}/transcript`, {
+        method: "PATCH",
+        body: JSON.stringify({ entries }),
+      })
+      return res.json()
+    },
+
+    /**
+     * Fetch recording bytes with auth; caller should revoke the returned blob URL when done.
+     */
+    async fetchMeetingRecordingBlob(id: string): Promise<Blob> {
+      const res = await fetchWithAuth(`/api/v1/meetings/${id}/recording`)
+      return res.blob()
     },
 
     async getProfile(): Promise<UserProfile> {

@@ -2,6 +2,7 @@
 const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
+  transpilePackages: ["remotion", "@remotion/player"],
   async headers() {
     return [
       {
