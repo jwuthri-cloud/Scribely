@@ -2,12 +2,16 @@ import { EventEmitter } from 'events'
 import { createLogger } from '../logger'
 
 // ── Constants ──────────────────────────────────────────────
-// Silero VAD v5 expects 512-sample frames at 16kHz (= 32ms per frame)
+// Silero ONNX (see snakers4/silero-vad OnnxWrapper): for 16 kHz, each step uses
+// 512 samples of new audio with 64 samples of trailing context from the previous
+// window — input tensor shape is [1, 576], not [1, 512].
 const VAD_FRAME_SIZE = 512
+const CONTEXT_SIZE = 64
+const MODEL_INPUT_SIZE = CONTEXT_SIZE + VAD_FRAME_SIZE // 576
 const VAD_SAMPLE_RATE = 16000
 const FRAME_DURATION_MS = (VAD_FRAME_SIZE / VAD_SAMPLE_RATE) * 1000 // 32ms
 
-// Silero VAD v5 LSTM state dimensions
+// LSTM state: [2, 1, 128] float32 (matches upstream silero_vad.onnx)
 const STATE_DIM = 128
 
 // Hysteresis thresholds
@@ -53,27 +57,27 @@ function resample(pcm: Float32Array, fromRate: number, toRate: number): Float32A
 // ── VoiceActivityDetector ──────────────────────────────────
 
 export class VoiceActivityDetector extends EventEmitter {
-  // ONNX Runtime (lazily loaded — typed as any because we require() at runtime)
   private ort: any = null
   private session: any = null
 
-  // Model state tensors
-  private state: any = null // ort.Tensor [2, 1, 128]
-  private srTensor: any = null // ort.Tensor [1]
+  /** Rolling context — last 64 samples fed into the next ONNX window */
+  private context: Float32Array = new Float32Array(CONTEXT_SIZE)
+  /** Reused buffer: [context | 512 new samples] → shape [1, 576] */
+  private modelInput: Float32Array = new Float32Array(MODEL_INPUT_SIZE)
 
-  // Speech detection state
+  private state: any = null // [2, 1, 128]
+  private srTensor: any = null // [1] int64
+
   private isSpeaking = false
   private speechStartFrame = 0
   private frameCount = 0
   private speechFrames: Float32Array[] = []
-  private preSpeechBuffer: Float32Array[] = [] // circular buffer for pre-speech context
+  private preSpeechBuffer: Float32Array[] = []
   private consecutiveSpeechFrames = 0
   private consecutiveSilenceFrames = 0
 
-  // Leftover samples from previous processChunk call (< 512)
   private leftover: Float32Array | null = null
 
-  // Instance config
   private source: string
 
   constructor(source: string) {
@@ -85,8 +89,6 @@ export class VoiceActivityDetector extends EventEmitter {
     return this.session !== null
   }
 
-  // ── Initialization ─────────────────────────────────────
-
   async init(modelPath: string): Promise<boolean> {
     try {
       this.ort = require('onnxruntime-node')
@@ -94,7 +96,7 @@ export class VoiceActivityDetector extends EventEmitter {
         executionProviders: ['cpu'],
       })
       this._resetState()
-      createLogger('vad').success(`[${this.source}] Silero VAD v5 initialized (${modelPath})`)
+      createLogger('vad').success(`[${this.source}] Silero VAD initialized (${modelPath})`)
       return true
     } catch (err) {
       createLogger('vad').warn(`[${this.source}] Init failed — VAD disabled:`, err)
@@ -115,6 +117,7 @@ export class VoiceActivityDetector extends EventEmitter {
       BigInt64Array.from([BigInt(VAD_SAMPLE_RATE)]),
       [1],
     )
+    this.context.fill(0)
     this.isSpeaking = false
     this.speechFrames = []
     this.preSpeechBuffer = []
@@ -125,20 +128,11 @@ export class VoiceActivityDetector extends EventEmitter {
     this.leftover = null
   }
 
-  // ── Public: process a chunk of audio (any size, any rate) ─
-
-  /**
-   * Feed a chunk of PCM audio to the VAD.
-   * Automatically resamples to 16kHz and splits into 512-sample frames.
-   * Emits 'speech-segment' events when speech is detected and ends.
-   */
   async processChunk(pcm: Float32Array, sampleRate: number): Promise<void> {
     if (!this.session) return
 
-    // Resample to 16kHz if needed
     let audio = sampleRate !== VAD_SAMPLE_RATE ? resample(pcm, sampleRate, VAD_SAMPLE_RATE) : pcm
 
-    // Prepend leftover from previous call
     if (this.leftover) {
       const merged = new Float32Array(this.leftover.length + audio.length)
       merged.set(this.leftover)
@@ -147,7 +141,6 @@ export class VoiceActivityDetector extends EventEmitter {
       this.leftover = null
     }
 
-    // Process in 512-sample frames
     let offset = 0
     while (offset + VAD_FRAME_SIZE <= audio.length) {
       const frame = audio.subarray(offset, offset + VAD_FRAME_SIZE)
@@ -155,17 +148,14 @@ export class VoiceActivityDetector extends EventEmitter {
       offset += VAD_FRAME_SIZE
     }
 
-    // Save leftover for next call
     if (offset < audio.length) {
       this.leftover = new Float32Array(audio.subarray(offset))
     }
   }
 
-  // ── Core frame processing with hysteresis ──────────────
-
   private async _processFrame(frame: Float32Array): Promise<void> {
     const probability = await this._infer(frame)
-    if (probability < 0) return // inference failed
+    if (probability < 0) return
 
     this.frameCount++
 
@@ -177,7 +167,6 @@ export class VoiceActivityDetector extends EventEmitter {
   }
 
   private _handleNonSpeech(frame: Float32Array, probability: number): void {
-    // Maintain circular pre-speech buffer
     this.preSpeechBuffer.push(new Float32Array(frame))
     while (this.preSpeechBuffer.length > PRE_SPEECH_PADDING_FRAMES) {
       this.preSpeechBuffer.shift()
@@ -186,12 +175,10 @@ export class VoiceActivityDetector extends EventEmitter {
     if (probability >= START_THRESHOLD) {
       this.consecutiveSpeechFrames++
       if (this.consecutiveSpeechFrames >= MIN_CONFIRM_FRAMES) {
-        // Speech confirmed — transition to speaking state
         this.isSpeaking = true
         this.speechStartFrame = this.frameCount - this.preSpeechBuffer.length
         if (this.speechStartFrame < 0) this.speechStartFrame = 0
 
-        // Start with pre-speech padding for natural sounding onset
         this.speechFrames = [...this.preSpeechBuffer]
         this.preSpeechBuffer = []
         this.consecutiveSilenceFrames = 0
@@ -212,7 +199,6 @@ export class VoiceActivityDetector extends EventEmitter {
     if (probability < END_THRESHOLD) {
       this.consecutiveSilenceFrames++
       if (this.consecutiveSilenceFrames >= MIN_SILENCE_FRAMES) {
-        // Speech ended — emit segment if long enough
         this._emitSegment()
         this.isSpeaking = false
         this.speechFrames = []
@@ -225,17 +211,14 @@ export class VoiceActivityDetector extends EventEmitter {
     }
   }
 
-  // ── Emit accumulated speech as a segment ───────────────
-
   private _emitSegment(): void {
     const numFrames = this.speechFrames.length
     const speechDurationMs = numFrames * FRAME_DURATION_MS
 
     if (speechDurationMs < MIN_SPEECH_FRAMES * FRAME_DURATION_MS) {
-      return // too short, discard
+      return
     }
 
-    // Concatenate speech frames into a single Float32Array
     const totalSamples = numFrames * VAD_FRAME_SIZE
     const audio = new Float32Array(totalSamples)
     for (let i = 0; i < numFrames; i++) {
@@ -253,13 +236,18 @@ export class VoiceActivityDetector extends EventEmitter {
     } as SpeechSegment)
   }
 
-  // ── ONNX inference ─────────────────────────────────────
-
+  /**
+   * One Silero step: concat previous context + 512 samples → [1, 576], then update
+   * context to the last 64 samples of the 576-sample window (matches Python OnnxWrapper).
+   */
   private async _infer(frame: Float32Array): Promise<number> {
     if (!this.session || !this.ort) return -1
 
     try {
-      const inputTensor = new this.ort.Tensor('float32', frame, [1, VAD_FRAME_SIZE])
+      this.modelInput.set(this.context, 0)
+      this.modelInput.set(frame, CONTEXT_SIZE)
+
+      const inputTensor = new this.ort.Tensor('float32', this.modelInput, [1, MODEL_INPUT_SIZE])
       const feeds: Record<string, any> = {
         input: inputTensor,
         state: this.state,
@@ -268,22 +256,20 @@ export class VoiceActivityDetector extends EventEmitter {
 
       const results = await this.session.run(feeds)
 
-      // Silero VAD v5 outputs: "output" (probability) and "stateN" (new state)
-      const outputKeys = Object.keys(results)
-      const probTensor = results['output'] || results[outputKeys[0]]
-      const newState = results['stateN'] || results[outputKeys[1]]
+      const probTensor = results.output ?? results[Object.keys(results)[0]]
+      const newState = results.stateN ?? results[Object.keys(results)[1]]
 
-      // Update internal state for next frame
       this.state = newState
+      // Last 64 samples of [context | frame] = last 64 of the new 512-sample chunk
+      this.context.set(this.modelInput.subarray(512, 576))
 
-      return (probTensor.data as Float32Array)[0]
+      const data = probTensor.data as Float32Array
+      return data[0]
     } catch (err) {
       createLogger('vad').error(`[${this.source}] Inference error:`, err)
       return -1
     }
   }
-
-  // ── Flush remaining speech (call when session ends) ────
 
   flush(): void {
     if (this.isSpeaking && this.speechFrames.length > 0) {
@@ -291,8 +277,6 @@ export class VoiceActivityDetector extends EventEmitter {
     }
     this._resetState()
   }
-
-  // ── Cleanup ────────────────────────────────────────────
 
   destroy(): void {
     this.flush()

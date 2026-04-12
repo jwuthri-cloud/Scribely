@@ -144,11 +144,13 @@ export class AudioPipeline {
         })
       }
 
-      // VAD auto-init on model-complete is disabled — see init() comment.
-      // if (data.modelId === VAD_MODEL_ID) {
-      //   await this._initVad()
-      //   this.sendToRenderer('meeting:status-update', { vadReady: this.vadReady })
-      // }
+      // If VAD model completed, init VAD instances
+      if (data.modelId === VAD_MODEL_ID) {
+        await this._initVad()
+        this.sendToRenderer('meeting:status-update', {
+          vadReady: this.vadReady,
+        })
+      }
     })
   }
 
@@ -156,12 +158,12 @@ export class AudioPipeline {
 
   async init(): Promise<void> {
     await this.transcriber.init()
-    // VAD disabled for now — use chunk-based transcription directly.
-    // Uncomment the line below to re-enable VAD segmentation:
-    // await this._initVad()
-    this.vadReady = false
+    // Background VAD download; _initVad() no-ops until file exists — modelManager
+    // 'complete' will init VAD when download finishes.
+    this._autoDownloadModel(VAD_MODEL_ID)
+    await this._initVad()
     log.success(
-      `Initialized — transcription: ${this.transcriber.mode}, VAD: disabled (chunk-based)`,
+      `Initialized — transcription: ${this.transcriber.mode}, VAD: ${this.vadReady ? 'enabled (Silero)' : 'pending download / chunk fallback'}`,
     )
   }
 
@@ -173,6 +175,11 @@ export class AudioPipeline {
       this.vadReady = false
       return
     }
+
+    this.micVad?.destroy()
+    this.tabVad?.destroy()
+    this.micVad = null
+    this.tabVad = null
 
     // Create per-stream VAD instances
     this.micVad = new VoiceActivityDetector('mic')
@@ -416,11 +423,67 @@ export class AudioPipeline {
     this.isProcessingQueue = false
   }
 
+  // ── Echo / duplicate suppression ─────────────────────────
+  // Keep a small window of recent entries to detect when mic and system
+  // transcribe the same speech (echo from speakers into the mic).
+  private static readonly DEDUP_WINDOW_MS = 4000
+  private static readonly DEDUP_SIMILARITY = 0.6
+  private _recentEntries: Array<{ text: string; time: number; source: string }> = []
+
+  private _isDuplicate(text: string, time: number, source: string): boolean {
+    const now = Date.now()
+    // Purge stale entries
+    this._recentEntries = this._recentEntries.filter(
+      (e) => now - e.time < AudioPipeline.DEDUP_WINDOW_MS,
+    )
+
+    const normalised = text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()
+    if (!normalised) return true
+
+    for (const prev of this._recentEntries) {
+      if (prev.source === source) continue
+      const prevNorm = prev.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim()
+      if (!prevNorm) continue
+
+      // Quick exact match
+      if (normalised === prevNorm) return true
+
+      // Substring containment (one is prefix/suffix of the other)
+      if (normalised.includes(prevNorm) || prevNorm.includes(normalised)) return true
+
+      // Word-overlap ratio (Jaccard-ish)
+      const wordsA = new Set(normalised.split(/\s+/))
+      const wordsB = new Set(prevNorm.split(/\s+/))
+      let overlap = 0
+      for (const w of wordsA) if (wordsB.has(w)) overlap++
+      const similarity = overlap / Math.max(wordsA.size, wordsB.size)
+      if (similarity >= AudioPipeline.DEDUP_SIMILARITY) return true
+    }
+
+    this._recentEntries.push({ text, time: now, source })
+    return false
+  }
+
   /** Transcribe a single speech segment and emit the result */
   private async _transcribeSegment(segment: SpeechSegment): Promise<void> {
     try {
-      const result = await this.transcriber.transcribe(segment.audio, VAD_SAMPLE_RATE)
+      // Whisper requires >= 1 second of audio; pad short segments with silence
+      const minSamples = VAD_SAMPLE_RATE // 1 second
+      let audio = segment.audio
+      if (audio.length < minSamples) {
+        const padded = new Float32Array(minSamples)
+        padded.set(audio)
+        audio = padded
+      }
+
+      const result = await this.transcriber.transcribe(audio, VAD_SAMPLE_RATE)
       if (!result.text) return
+
+      // Suppress echo: if mic and system both transcribed the same thing, drop it
+      if (this._isDuplicate(result.text, Date.now(), segment.source)) {
+        log.debug(`Echo suppressed (${segment.source}): "${result.text}"`)
+        return
+      }
 
       const entry = {
         id: randomUUID(),
@@ -577,8 +640,24 @@ export class AudioPipeline {
       })
     }
     if (!this.vadReady) {
-      // VAD disabled — skip _initVad(), use chunk-based fallback
+      await this._initVad()
+      if (this.vadReady) {
+        this.sendToRenderer('meeting:status-update', { vadReady: true })
+      }
     }
+
+    this.isActive = true
+    this.sessionStartTime = Date.now()
+    this.segmentQueue = []
+    this.isProcessingQueue = false
+    this.fallbackBuffers.clear()
+    this._transcribeQueue = []
+    this._recentEntries = []
+    this.micVad?.flush()
+    this.tabVad?.flush()
+    this._onSessionStart?.()
+    log.success('Meeting session started (extension)')
+    return true
   }
 
   // ── IPC Handlers ───────────────────────────────────────
@@ -608,8 +687,12 @@ export class AudioPipeline {
         })
       }
 
-      // Re-init VAD skipped — VAD is disabled, chunk-based fallback is active.
-      // To re-enable: fix tensor names in vad.ts, then restore _initVad() call here.
+      if (!this.vadReady) {
+        await this._initVad()
+        if (this.vadReady) {
+          this.sendToRenderer('meeting:status-update', { vadReady: true })
+        }
+      }
 
       this.isActive = true
       this.sessionStartTime = Date.now()
@@ -617,6 +700,7 @@ export class AudioPipeline {
       this.isProcessingQueue = false
       this.fallbackBuffers.clear()
       this._transcribeQueue = []
+      this._recentEntries = []
 
       this.micVad?.flush()
       this.tabVad?.flush()
