@@ -17,8 +17,7 @@ chrome-extension/
 ├── popup.html / popup.js   # Extension popup: connection status, start/stop
 ├── offscreen.html / offscreen.js  # Hidden doc: media capture, WebSocket stream
 ├── permissions.html / permissions.js  # Mic permission request
-├── content-script.js   # Injected on meeting URLs (Google Meet, Zoom, etc.)
-├── meeting-detector.js  # isMeetingUrl() for URL matching
+├── meeting-detector.js  # isMeetingUrl() for badge and popup display
 ├── pcm-worklet.js      # AudioWorklet: tab audio → 16kHz PCM
 ├── pcm-injector-worklet.js  # Upsamples Electron-relayed mic PCM
 └── icons/
@@ -44,13 +43,9 @@ chrome-extension/
 | 0x03 | Control | bidirectional | JSON (hello, stop-capture, capture-stopped) |
 | 0x04 | Mic PCM | desktop → ext | Float32Array (fallback mic relay) |
 
-## Content Scripts
-
-`manifest.json` injects `content-script.js` on meeting URLs (Google Meet, Zoom, Teams, Webex, GoToMeeting). Used for widget/state sync; background broadcasts `scribely:state-update` to meeting tabs.
-
 ## Key Patterns
 
 - **No build**: Load as unpacked extension in Chrome
 - **Offscreen document**: Required for `tabCapture` + MediaRecorder in MV3
-- **Meeting detection**: `meeting-detector.js` defines `isMeetingUrl()`
+- **Meeting detection**: `meeting-detector.js` defines `isMeetingUrl()` — used by background for badge and popup for display; no content scripts are injected
 - **Mic fallback**: If offscreen can't get mic, desktop relays mic PCM via 0x04

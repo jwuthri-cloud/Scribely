@@ -34,7 +34,7 @@ chrome-extension/
 ├── popup.js           # Connection status, start/stop capture
 ├── offscreen.html     # Hidden document for media capture
 ├── offscreen.js       # Media capture, WebSocket streaming
-├── content-script.js  # Injected on meeting URLs
+├── meeting-detector.js  # isMeetingUrl() for badge and display
 ├── pcm-worklet.js     # AudioWorklet: tab audio → 16kHz PCM
 ├── pcm-injector-worklet.js  # Mic relay upsample (fallback)
 ├── permissions.html   # Mic permission request

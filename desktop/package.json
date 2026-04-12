@@ -27,7 +27,6 @@
     "@langfuse/openai": "^4.6.1",
     "@langfuse/otel": "^4.6.1",
     "@opentelemetry/sdk-node": "^0.212.0",
-    "@traceloop/node-server-sdk": "^0.22.7",
     "@types/react-syntax-highlighter": "^15.5.13",
     "bert-tokenizer": "^1.1.8",
     "compromise": "^14.15.0",

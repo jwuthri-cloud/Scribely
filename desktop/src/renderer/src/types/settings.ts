@@ -360,7 +360,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  themeId: 'atom-dark',
+  themeId: 'nord',
   hotkeys: { ...DEFAULT_HOTKEYS },
   moveStepPx: 50,
   windowOpacity: 0.85,
