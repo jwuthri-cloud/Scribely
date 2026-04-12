@@ -1,10 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Calendar, Check, Clock3, Copy, Hash, Sparkles } from "lucide-react"
+import { MeetingExportMenu } from "@/components/app/meeting/MeetingExportMenu"
 import { Badge } from "@/components/ui/badge"
-import type { MeetingSummary } from "@/lib/api"
+import type { MeetingDetail, MeetingSummary } from "@/lib/api"
+import type { MeetingExportDocument } from "@/lib/meeting-export"
+import type { NormalizedTranscript } from "@/lib/meeting-transcript"
 import { cn, formatDurationSeconds } from "@/lib/utils"
 
 /** When API title is missing, avoid echoing the UUID in the main heading. */
@@ -63,15 +66,18 @@ export function MeetingReviewHeader({
   transcriptDurationMs,
   createdAt,
   fromDiarization,
+  normalizedTranscript,
   backHref = "/meetings",
 }: {
   meetingId: string
-  summary: MeetingSummary | null
+  summary: MeetingDetail | null
   hasEnrichedTranscript: boolean
   transcriptEntryCount: number
   transcriptDurationMs: number | undefined
   createdAt: string | null
   fromDiarization: boolean
+  /** Used for Markdown / JSON / PDF export when non-empty. */
+  normalizedTranscript: NormalizedTranscript
   backHref?: string
 }) {
   const trimmedTitle = summary?.title?.trim()
@@ -108,6 +114,29 @@ export function MeetingReviewHeader({
   }
 
   const st = summary?.status
+
+  const exportDoc: MeetingExportDocument | null = useMemo(() => {
+    if (normalizedTranscript.entries.length === 0) return null
+    return {
+      meetingId,
+      title,
+      recordedAtLabel: recorded,
+      durationSec,
+      summary,
+      normalized: normalizedTranscript,
+      hasEnrichedTranscript,
+      fromDiarization,
+    }
+  }, [
+    normalizedTranscript,
+    meetingId,
+    title,
+    recorded,
+    durationSec,
+    summary,
+    hasEnrichedTranscript,
+    fromDiarization,
+  ])
 
   return (
     <div className="space-y-6">
@@ -167,8 +196,9 @@ export function MeetingReviewHeader({
                 )}
               </div>
 
-              <div className="pt-0.5 sm:pt-1">
+              <div className="flex flex-wrap items-stretch gap-2 pt-0.5 sm:items-center sm:pt-1">
                 <CopyIdButton meetingId={meetingId} />
+                {exportDoc && <MeetingExportMenu doc={exportDoc} />}
               </div>
             </div>
 

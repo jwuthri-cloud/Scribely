@@ -80,6 +80,23 @@ export interface ElectronAPI {
   updateSettings: (partial: Partial<AppSettings>) => void
   onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
 
+  // App updates (electron-updater)
+  updaterGetStatus: () => Promise<{
+    currentVersion: string
+    pendingVersion: string | null
+    updatesEnabled: boolean
+  }>
+  updaterCheck: () => Promise<{ ok: boolean; error?: string }>
+  updaterQuitAndInstall: () => Promise<void>
+  onUpdaterChecking: (callback: () => void) => () => void
+  onUpdaterUpdateAvailable: (callback: (info: { version: string }) => void) => () => void
+  onUpdaterUpdateNotAvailable: (callback: () => void) => () => void
+  onUpdaterError: (callback: (data: { message: string }) => void) => () => void
+  onUpdaterDownloadProgress: (
+    callback: (data: { percent: number; transferred: number; total: number }) => void,
+  ) => () => void
+  onUpdaterUpdateDownloaded: (callback: (data: { version: string }) => void) => () => void
+
   // Legacy theme
   getThemeId: () => Promise<string>
   setThemeId: (themeId: string) => void

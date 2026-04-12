@@ -110,6 +110,8 @@ class Settings(BaseSettings):
     clerk_google_oauth_provider: str = "google"
 
     # Web Push (VAPID) — meeting reminders when browser is closed
+    # Env: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (see backend/.env.example).
+    # Without both keys, subscribe endpoints fail and the reminder loop skips sends (startup warning).
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:support@scribely.xyz"

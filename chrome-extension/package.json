@@ -1,0 +1,8 @@
+{
+  "name": "scribely-chrome-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test meeting-detector.test.mjs"
+  }
+}

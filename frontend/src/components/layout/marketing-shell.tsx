@@ -3,22 +3,7 @@
 import { usePathname } from "next/navigation"
 import { Navbar } from "@/components/layout/navbar"
 import { Footer } from "@/components/layout/footer"
-
-const HIDE_MARKETING_PREFIXES = [
-  "/dashboard",
-  "/meetings",
-  "/calendar",
-  "/chat",
-  "/settings",
-  "/sign-in",
-  "/sign-up",
-]
-
-function shouldHideMarketingChrome(pathname: string): boolean {
-  return HIDE_MARKETING_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-}
+import { shouldHideMarketingChrome } from "@/lib/marketing-chrome"
 
 /**
  * Renders the marketing Navbar + Footer only on public marketing pages.

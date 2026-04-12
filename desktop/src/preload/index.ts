@@ -117,6 +117,23 @@ export interface ElectronAPI {
   updateSettings: (partial: Partial<AppSettings>) => void
   onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
 
+  // ── App updates (electron-updater) ────────────────
+  updaterGetStatus: () => Promise<{
+    currentVersion: string
+    pendingVersion: string | null
+    updatesEnabled: boolean
+  }>
+  updaterCheck: () => Promise<{ ok: boolean; error?: string }>
+  updaterQuitAndInstall: () => Promise<void>
+  onUpdaterChecking: (callback: () => void) => () => void
+  onUpdaterUpdateAvailable: (callback: (info: { version: string }) => void) => () => void
+  onUpdaterUpdateNotAvailable: (callback: () => void) => () => void
+  onUpdaterError: (callback: (data: { message: string }) => void) => () => void
+  onUpdaterDownloadProgress: (
+    callback: (data: { percent: number; transferred: number; total: number }) => void,
+  ) => () => void
+  onUpdaterUpdateDownloaded: (callback: (data: { version: string }) => void) => () => void
+
   // ── Legacy theme (kept for ThemeProvider compat) ─
   getThemeId: () => Promise<string>
   setThemeId: (themeId: string) => void
@@ -574,6 +591,43 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('settings-changed', handler)
     return () => ipcRenderer.removeListener('settings-changed', handler)
+  },
+
+  updaterGetStatus: () => ipcRenderer.invoke('updater:get-status'),
+  updaterCheck: () => ipcRenderer.invoke('updater:check'),
+  updaterQuitAndInstall: () => ipcRenderer.invoke('updater:quit-and-install'),
+  onUpdaterChecking: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('updater:checking', handler)
+    return () => ipcRenderer.removeListener('updater:checking', handler)
+  },
+  onUpdaterUpdateAvailable: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: { version: string }) => callback(info)
+    ipcRenderer.on('updater:update-available', handler)
+    return () => ipcRenderer.removeListener('updater:update-available', handler)
+  },
+  onUpdaterUpdateNotAvailable: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('updater:update-not-available', handler)
+    return () => ipcRenderer.removeListener('updater:update-not-available', handler)
+  },
+  onUpdaterError: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { message: string }) => callback(data)
+    ipcRenderer.on('updater:error', handler)
+    return () => ipcRenderer.removeListener('updater:error', handler)
+  },
+  onUpdaterDownloadProgress: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { percent: number; transferred: number; total: number },
+    ) => callback(data)
+    ipcRenderer.on('updater:download-progress', handler)
+    return () => ipcRenderer.removeListener('updater:download-progress', handler)
+  },
+  onUpdaterUpdateDownloaded: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string }) => callback(data)
+    ipcRenderer.on('updater:update-downloaded', handler)
+    return () => ipcRenderer.removeListener('updater:update-downloaded', handler)
   },
 
   // ── Legacy theme ────────────────────────────────

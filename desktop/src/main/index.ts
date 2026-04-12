@@ -38,6 +38,7 @@ import { AuthService } from './auth/auth-service'
 import { BackendClient } from './backend-client'
 import { UploadQueueService } from './upload-queue'
 import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
+import { checkForUpdatesNow, registerUpdaterIpc, startAutoUpdater } from './updater'
 
 interface HotkeyConfig {
   toggleOverlay: string
@@ -696,6 +697,7 @@ function registerIpcHandlers(): void {
     app.quit()
   })
 
+  registerUpdaterIpc()
 }
 
 // ── Chrome Extension WS Server Lifecycle ──────────────
@@ -915,6 +917,17 @@ function rebuildTrayMenu(): void {
         mainWindow.webContents.send('reset-chat')
       },
     },
+    ...(app.isPackaged && process.env.SCRIBELY_DISABLE_AUTO_UPDATE !== '1'
+      ? [
+          { type: 'separator' as const },
+          {
+            label: 'Check for Updates…',
+            click: () => {
+              void checkForUpdatesNow()
+            },
+          },
+        ]
+      : []),
     { type: 'separator' },
     {
       label: 'Quit Scribely',
@@ -1022,6 +1035,7 @@ app.whenReady().then(async () => {
 
   createWindow()
   createTray()
+  startAutoUpdater(() => mainWindow)
 
   // When user signs in, flush any pending uploads (fresh token available)
   authService.setOnSignedIn(() => {

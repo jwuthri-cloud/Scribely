@@ -7,6 +7,7 @@ import { ModelManager } from './model-manager'
 import { Transcriber } from './transcriber'
 import { VoiceActivityDetector, type SpeechSegment } from './vad'
 import type { NativeHelperBridge } from '../native-bridge'
+import { linearResamplePcm } from './resample'
 
 const log = createLogger('pipeline')
 
@@ -38,22 +39,6 @@ function deriveProvider(settings: TranscriptionSettings): string {
 const VAD_MODEL_ID = 'silero-vad-v5' as const
 const VAD_SAMPLE_RATE = 16000
 const TARGET_SAMPLE_RATE = 16000
-
-// ── Simple linear-interpolation resampler ───────────────
-function resample(pcm: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return pcm
-  const ratio = fromRate / toRate
-  const outLength = Math.round(pcm.length / ratio)
-  const out = new Float32Array(outLength)
-  for (let i = 0; i < outLength; i++) {
-    const srcIdx = i * ratio
-    const lo = Math.floor(srcIdx)
-    const hi = Math.min(lo + 1, pcm.length - 1)
-    const frac = srcIdx - lo
-    out[i] = pcm[lo] * (1 - frac) + pcm[hi] * frac
-  }
-  return out
-}
 
 // ── AudioPipeline ──────────────────────────────────────────
 
@@ -257,7 +242,7 @@ export class AudioPipeline {
     let resampled = pcm
     let effectiveRate = sampleRate
     if (sampleRate !== TARGET_SAMPLE_RATE) {
-      resampled = resample(pcm, sampleRate, TARGET_SAMPLE_RATE)
+      resampled = linearResamplePcm(pcm, sampleRate, TARGET_SAMPLE_RATE)
       effectiveRate = TARGET_SAMPLE_RATE
     }
 

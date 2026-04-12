@@ -2,6 +2,10 @@
   "name": "scribely-desktop",
   "version": "1.0.14",
   "description": "Scribely desktop overlay – invisible to screen sharing",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jwuthri/AssistMe.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -18,7 +22,9 @@
     "export:question-classifier": "python scripts/export-question-classifier.py",
     "dist": "npm run build:all && electron-builder --mac",
     "build:all": "npm run build:proto && npm run build:native && npm run build",
-    "build:extension": "cd .. && ./scripts/pack-extension.sh"
+    "build:extension": "cd .. && ./scripts/pack-extension.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@clerk/clerk-js": "^6.3.0",
@@ -33,6 +39,7 @@
     "consola": "^3.4.2",
     "dotenv": "^17.3.1",
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.3",
     "form-data": "^4.0.5",
     "framer-motion": "^11.15.0",
     "gpt-tokenizer": "^3.4.0",
@@ -52,7 +59,10 @@
     "appId": "com.scribely.desktop",
     "productName": "Scribely",
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.productivity",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -89,6 +99,11 @@
     ],
     "directories": {
       "output": "dist"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Jwuthri",
+      "repo": "Scribely-Release"
     }
   },
   "overrides": {
@@ -108,6 +123,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.5"
   }
 }

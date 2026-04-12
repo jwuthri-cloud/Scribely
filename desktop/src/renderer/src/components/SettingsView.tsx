@@ -30,6 +30,13 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [authState, setAuthState] = useState<AuthState | null>(null)
   const [signingIn, setSigningIn] = useState(false)
+  const [updaterStatus, setUpdaterStatus] = useState<{
+    currentVersion: string
+    pendingVersion: string | null
+    updatesEnabled: boolean
+  } | null>(null)
+  const [updateLine, setUpdateLine] = useState('')
+  const [updateCheckBusy, setUpdateCheckBusy] = useState(false)
 
   // Load auth state on mount
   useEffect(() => {
@@ -61,6 +68,44 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
     window.electronAPI?.getSettings().then((s) => {
       setSettings(s)
     })
+  }, [])
+
+  useEffect(() => {
+    window.electronAPI?.updaterGetStatus?.().then(setUpdaterStatus)
+  }, [])
+
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api?.onUpdaterChecking) return
+    const off = [
+      api.onUpdaterChecking(() => setUpdateLine('Checking for updates…')),
+      api.onUpdaterUpdateAvailable((info) => setUpdateLine(`Downloading ${info.version}…`)),
+      api.onUpdaterUpdateNotAvailable(() => setUpdateLine('You’re on the latest version.')),
+      api.onUpdaterError((e) => setUpdateLine(`Update error: ${e.message}`)),
+      api.onUpdaterDownloadProgress((p) =>
+        setUpdateLine(`Downloading… ${Math.round(p.percent)}%`),
+      ),
+      api.onUpdaterUpdateDownloaded((info) => {
+        setUpdateLine(`Ready to install ${info.version}.`)
+        void api.updaterGetStatus?.().then(setUpdaterStatus)
+      }),
+    ]
+    return () => off.forEach((u) => u())
+  }, [])
+
+  const handleCheckForUpdates = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api?.updaterCheck) return
+    setUpdateLine('')
+    setUpdateCheckBusy(true)
+    try {
+      const r = await api.updaterCheck()
+      if (!r.ok) {
+        setUpdateLine(r.error ?? 'Could not check for updates.')
+      }
+    } finally {
+      setUpdateCheckBusy(false)
+    }
   }, [])
 
   // Listen for external settings changes
@@ -168,6 +213,57 @@ export function SettingsView({ onReRunSetup }: SettingsViewProps) {
           </div>
         )}
       </Section>
+
+      {/* ── App updates ─────────────────────────── */}
+      {updaterStatus && (
+        <Section title="App updates">
+          <div className="space-y-2">
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Version {updaterStatus.currentVersion}
+              {updaterStatus.pendingVersion ? (
+                <span className="ml-2 font-medium" style={{ color: 'var(--accent)' }}>
+                  · Update {updaterStatus.pendingVersion} downloaded
+                </span>
+              ) : null}
+            </div>
+            {updaterStatus.updatesEnabled ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCheckForUpdates}
+                    disabled={updateCheckBusy}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                  >
+                    {updateCheckBusy ? 'Checking…' : 'Check for updates'}
+                  </button>
+                  {updaterStatus.pendingVersion ? (
+                    <button
+                      type="button"
+                      onClick={() => void window.electronAPI?.updaterQuitAndInstall?.()}
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-colors hover:brightness-110"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+                    >
+                      Restart and update
+                    </button>
+                  ) : null}
+                </div>
+                {updateLine ? (
+                  <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                    {updateLine}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+                Automatic updates run in the installed app. Development builds do not receive updates
+                from GitHub releases.
+              </p>
+            )}
+          </div>
+        </Section>
+      )}
 
       {/* ── Hotkeys ─────────────────────────────── */}
       <Section title="Hotkeys">

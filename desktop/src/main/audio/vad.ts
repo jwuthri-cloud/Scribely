@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { createLogger } from '../logger'
+import { linearResamplePcm } from './resample'
 
 // ── Constants ──────────────────────────────────────────────
 // Silero ONNX (see snakers4/silero-vad OnnxWrapper): for 16 kHz, each step uses
@@ -35,23 +36,6 @@ export interface SpeechSegment {
   endTime: number
   /** Audio source label ('mic' | 'system') */
   source: string
-}
-
-// ── Resampler (linear interpolation) ───────────────────────
-
-function resample(pcm: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return pcm
-  const ratio = fromRate / toRate
-  const outputLength = Math.round(pcm.length / ratio)
-  const output = new Float32Array(outputLength)
-  for (let i = 0; i < outputLength; i++) {
-    const srcIndex = i * ratio
-    const srcFloor = Math.floor(srcIndex)
-    const srcCeil = Math.min(srcFloor + 1, pcm.length - 1)
-    const frac = srcIndex - srcFloor
-    output[i] = pcm[srcFloor] * (1 - frac) + pcm[srcCeil] * frac
-  }
-  return output
 }
 
 // ── VoiceActivityDetector ──────────────────────────────────
@@ -131,7 +115,8 @@ export class VoiceActivityDetector extends EventEmitter {
   async processChunk(pcm: Float32Array, sampleRate: number): Promise<void> {
     if (!this.session) return
 
-    let audio = sampleRate !== VAD_SAMPLE_RATE ? resample(pcm, sampleRate, VAD_SAMPLE_RATE) : pcm
+    let audio =
+      sampleRate !== VAD_SAMPLE_RATE ? linearResamplePcm(pcm, sampleRate, VAD_SAMPLE_RATE) : pcm
 
     if (this.leftover) {
       const merged = new Float32Array(this.leftover.length + audio.length)

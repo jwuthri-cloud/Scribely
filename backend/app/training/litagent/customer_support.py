@@ -134,15 +134,13 @@ class LitCustomerSupportAgent(LitLangChainAgent[CustomerSupportResponse]):
             temperature=self._temperature,
         )
         
-        # Create agent with modified prompt
-        # We need to create the agent directly to inject the prompt
+        # Create agent with modified prompt (no tools in training — prompt-only optimization)
         from langchain.agents import create_agent
-        from app.agents.tool.customer_support import CUSTOMER_SUPPORT_TOOLS
-        
+
         agent = create_agent(
             model=llm,
             system_prompt=system_prompt,
-            tools=CUSTOMER_SUPPORT_TOOLS,
+            tools=[],
             response_format=CustomerSupportResponse,
         )
         

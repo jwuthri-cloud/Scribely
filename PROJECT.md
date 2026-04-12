@@ -10,6 +10,7 @@
 - [Repository Layout](#repository-layout)
 - [Application Map](#application-map)
   - [Desktop App (Electron)](#1-desktop-app-electron)
+  - [Desktop auto-updates](#desktop-auto-updates)
   - [Chrome Extension](#2-chrome-extension)
   - [Backend API (FastAPI)](#3-backend-api-fastapi)
   - [Web App (Next.js)](#4-web-app-nextjs)
@@ -172,6 +173,20 @@ The core product. A **macOS-only** floating overlay that's invisible to screen s
 | **ScreenRecorder** | `src/main/screen-recorder.ts` | Screen/window recording via ScreenCaptureKit |
 | **AuthService** | `src/main/auth/auth-service.ts` | Clerk sign-in, session tokens, encrypted storage |
 | **BackendClient** | `src/main/backend-client.ts` | Uploads meetings (transcript + video) to FastAPI backend |
+| **Auto-update** | `src/main/updater.ts` | `electron-updater`: GitHub Releases feed, background download, restart to install |
+
+#### Desktop auto-updates
+
+End users install from a **signed DMG**; ongoing updates use **`electron-updater`**, which on macOS pulls **`latest-mac.yml`** and the **ZIP** artifacts from a **GitHub Releases** repository configured in `desktop/package.json` under **`build.publish`** (currently **[Jwuthri/Scribely-Release](https://github.com/Jwuthri/Scribely-Release/releases)**—a dedicated release repo, separate from the main source tree).
+
+| Step | What happens |
+|------|----------------|
+| Build | `electron-builder` produces DMG (manual install) + ZIP + `latest-mac.yml` (update channel). The publish target is embedded for the updater’s feed URL. |
+| Runtime | Packaged app only: delayed check (~15s after launch), optional manual check from **Settings → App updates** or tray **Check for Updates…**. Dev builds skip the updater. |
+| New version | User is prompted when a download completes; restart applies the update (or install on next quit). |
+| Opt-out | `SCRIBELY_DISABLE_AUTO_UPDATE=1` disables checks. |
+
+Older installed builds keep using whatever **`publish`** configuration was compiled into them until the user installs a newer build.
 
 #### Audio Capture Modes (Priority Order)
 
@@ -750,6 +765,8 @@ Base: `/api/v1`
 | POST | `/subscribe` | Required | Register push subscription |
 | DELETE | `/subscribe` | Required | Remove push subscription |
 
+**Web Push (VAPID):** Set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in the backend environment (`VAPID_SUBJECT` is optional; defaults to a `mailto:` in config). Generate keys with `npx web-push generate-vapid-keys`. If `CALENDAR_REMINDER_ENABLED` is true and either key is missing, the server logs a **warning at startup** and does not send pre-meeting reminders (the subscribe endpoint also returns an error).
+
 ---
 
 ## Database Schema
@@ -888,7 +905,7 @@ Same flow for Frontend (Next.js):
 | **Frontend** | Vercel (likely) | `frontend/Dockerfile` available, Next.js standalone output |
 | **Database** | Railway (PostgreSQL) | AsyncPG driver, Alembic migrations |
 | **Apex Redirect** | Vercel | `scribely-apex-redirect/vercel.json` → `www.scribely.xyz` |
-| **Desktop** | Direct DMG distribution | `electron-builder`, macOS code signing |
+| **Desktop** | [GitHub Releases](https://github.com/Jwuthri/Scribely-Release/releases) (DMG + updater feed) | `electron-builder`, `electron-updater`, macOS signing & notarization |
 | **Extension** | Chrome Web Store | Packed as `extension_*.zip` |
 | **Auth** | Clerk (SaaS) | Google OAuth, JWT, JWKS |
 | **LLM (Desktop)** | OpenAI Direct | gpt-5-nano, mini, 5.2 |
@@ -929,6 +946,7 @@ Same flow for Frontend (Next.js):
 | Storage | electron-store (JSON persistence) |
 | Native | nswindow-napi (screen-share invisibility) |
 | Observability | Langfuse (OpenTelemetry) |
+| Updates | electron-updater → GitHub Releases (`build.publish` → Scribely-Release) |
 | Protocols | WebSocket (ws), protobuf (protobufjs) |
 
 ### Chrome Extension
@@ -989,6 +1007,7 @@ Same flow for Frontend (Next.js):
 | `CLERK_PUBLISHABLE_KEY` | Yes (for auth) | Clerk sign-in |
 | `BACKEND_API_URL` | No | Backend sync endpoint |
 | `SCRIBELY_SKIP_NATIVE` | No | Skip NativeHelper init |
+| `SCRIBELY_DISABLE_AUTO_UPDATE` | No | Set to `1` to disable `electron-updater` (packaged builds) |
 
 ### Backend (`backend/.env`)
 

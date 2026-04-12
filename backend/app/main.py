@@ -26,6 +26,23 @@ logger = get_logger("main")
 settings = get_settings()
 
 
+def _log_web_push_startup() -> None:
+    """Warn once at startup if meeting reminders cannot run (missing VAPID keys)."""
+    s = get_settings()
+    if not s.calendar_reminder_enabled:
+        logger.debug("Calendar Web Push: reminders disabled (CALENDAR_REMINDER_ENABLED=false).")
+        return
+    if s.vapid_public_key and s.vapid_private_key:
+        logger.info("Calendar Web Push: VAPID keys configured; pre-meeting reminders enabled.")
+        return
+    logger.warning(
+        "Calendar Web Push: CALENDAR_REMINDER_ENABLED is true but VAPID_PUBLIC_KEY and/or "
+        "VAPID_PRIVATE_KEY are empty. Browser meeting reminders will not be sent. "
+        "Generate keys with: npx web-push generate-vapid-keys — then set both env vars "
+        "(optional: VAPID_SUBJECT, default mailto:… in config)."
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
@@ -35,6 +52,7 @@ async def lifespan(app: FastAPI):
     try:
         await initialize_database()
         logger.info("Database initialized successfully")
+        _log_web_push_startup()
         n_recovered = await recover_interrupted_processing_tasks()
         if n_recovered:
             logger.info("Re-queued %s meeting processing job(s) from persisted state", n_recovered)

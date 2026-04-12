@@ -111,6 +111,7 @@ export default function MeetingDetailPage() {
             transcriptDurationMs={durationMs}
             createdAt={normalized.createdAt}
             fromDiarization={normalized.fromDiarization}
+            normalizedTranscript={normalized}
           />
 
           {isProcessing && (

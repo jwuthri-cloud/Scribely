@@ -57,7 +57,7 @@
 | 25 | **Wire `index_meeting()`** after processing completes so Pinecone is populated and vector search actually works | `EmbeddingService` + `vector_search` tool built, never called | 🔲 Pending |
 | 26 | **Upload progress** — add byte-level `onUploadProgress` callback for large video files | Upload queue has pending/uploading/success states but no percent bar | 🔲 Pending |
 | 27 | **Contact form** — wire up Resend (already a `frontend` dependency) in `/api/contact` route | Resend + `CONTACT_INBOX_EMAIL` / `RESEND_API_KEY` | ✅ Done |
-| 28 | **Web push notifications** require `VAPID_*` env vars to be set — document and validate on startup | Code is complete but silently skips reminders when keys missing | 🔲 Pending |
+| 28 | **Web push notifications** require `VAPID_*` env vars to be set — document and validate on startup | Startup warning + docs if keys missing while reminders enabled | ✅ Done |
 
 ---
 
@@ -65,8 +65,8 @@
 
 | # | What | Effort | Status |
 |---|------|--------|--------|
-| 29 | **Desktop auto-update** via `electron-updater` — users currently re-download DMGs manually | Medium | 🔲 Pending |
-| 30 | **Meeting export from web dashboard** — Markdown / PDF / JSON download from `MeetingReviewHeader` | Small | 🔲 Pending |
+| 29 | **Desktop auto-update** via `electron-updater` — users currently re-download DMGs manually | Medium | ✅ Done |
+| 30 | **Meeting export from web dashboard** — Markdown / PDF / JSON download from `MeetingReviewHeader` | Small | ✅ Done |
 | 31 | **Transcript editing** in web dashboard — transcripts are read-only, no way to fix errors | Medium | 🔲 Pending |
 | 32 | **Real-time speaker diarization** in desktop — currently only `"You"` vs `"Them"` based on audio source; multi-speaker identification is backend post-processing only | Large | 🔲 Pending |
 | 33 | **Offline mode indicator** in desktop — LLM/sync fail silently when offline; show a clear status indicator | Small | 🔲 Pending |
