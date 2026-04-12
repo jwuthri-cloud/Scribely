@@ -118,7 +118,7 @@ interface AppSettings {
 
 const store = new Store<AppSettings>({
   defaults: {
-    themeId: 'nord',
+    themeId: 'atom-dark',
     hotkeys: {
       toggleOverlay: 'Alt+T',
       moveUp: 'Alt+Up',
@@ -552,7 +552,7 @@ function registerIpcHandlers(): void {
 
   // ── Legacy theme IPC (kept for backward compat during migration) ──
   ipcMain.handle('get-theme-id', () => {
-    return store.get('themeId', 'nord')
+    return store.get('themeId', 'atom-dark')
   })
 
   ipcMain.on('set-theme-id', (_event, themeId: string) => {
@@ -576,7 +576,17 @@ function registerIpcHandlers(): void {
     return systemPreferences.isTrustedAccessibilityClient(false)
   })
 
-  // ── Insights ────────────────────────────────────────────────────────────────
+  // ── Insights (panel now embedded in main window; keep send-to-chat for compatibility) ──
+  ipcMain.handle('insights:toggle-window', () => {
+    // No-op: insights panel is now embedded in main overlay
+  })
+
+  ipcMain.handle('insights:window-visible', () => false)
+
+  ipcMain.handle('insights:close-window', () => {
+    // No-op: insights panel is now embedded in main overlay
+  })
+
   ipcMain.handle('insights:send-to-chat', (_event, text: string) => {
     if (mainWindow && !mainWindow.isDestroyed() && typeof text === 'string') {
       mainWindow.webContents.send('chat:message-from-insights', text)
@@ -655,16 +665,8 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('open-external-url', (_event, url: string) => {
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return { success: false, error: 'Only http/https URLs are allowed' }
-      }
-      shell.openExternal(url)
-      return { success: true }
-    } catch {
-      return { success: false, error: 'Invalid URL' }
-    }
+    shell.openExternal(url)
+    return { success: true }
   })
 
   // ── Window resize (compact mode) ───────────────────

@@ -11,6 +11,11 @@ export interface ElectronAPI {
   // ── Visibility ──────────────────────────────────
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
 
+  // ── Chat (legacy) ──────────────────────────────
+  sendMessage: (message: string) => void
+  onMessage: (callback: (response: string) => void) => () => void
+  cancelResponse: () => void
+
   // ── LLM ────────────────────────────────────────
   llmChat: (request: any) => void
   llmCancel: (requestId: string) => void
@@ -281,6 +286,20 @@ const api: ElectronAPI = {
     }
     ipcRenderer.on('toggle-visibility', handler)
     return () => ipcRenderer.removeListener('toggle-visibility', handler)
+  },
+
+  // ── Chat (legacy — kept for backward compat, no-ops) ──
+  sendMessage: (_message: string) => {
+    // Deprecated: use llmChat() instead
+  },
+
+  onMessage: (_callback) => {
+    // Deprecated: use onLLMChatDelta/Done/Error instead
+    return () => {}
+  },
+
+  cancelResponse: () => {
+    // Deprecated: use llmCancel() instead
   },
 
   // ── LLM ────────────────────────────────────────

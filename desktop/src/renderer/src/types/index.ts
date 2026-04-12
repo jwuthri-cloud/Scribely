@@ -40,6 +40,11 @@ export interface ElectronAPI {
   // Visibility
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
 
+  // Chat
+  sendMessage: (message: string) => void
+  onMessage: (callback: (response: string) => void) => () => void
+  cancelResponse: () => void
+
   // Auth
   authStartSignIn: () => Promise<{ success: boolean; error?: string }>
   authSkip: () => Promise<void>

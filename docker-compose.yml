@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Redis for caching and rate limiting
+  # Redis for caching and session management
   redis:
     image: redis:7-alpine
     container_name: scribely-redis
@@ -17,7 +17,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # PostgreSQL database
+  # PostgreSQL database (conditional)
+  
   postgres:
     image: postgres:15-alpine
     container_name: scribely-postgres
@@ -36,6 +37,70 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+  
+
+  # Vector database
+  
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: scribely-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zk_data:/var/lib/zookeeper/data
+      - zk_logs:/var/lib/zookeeper/log
+    restart: unless-stopped
+
+  # Kafka for event streaming
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: scribely-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # RabbitMQ for message queuing
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: scribely-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
 
   # FastAPI Backend
   backend:
@@ -46,18 +111,187 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      
       postgres:
+        condition: service_healthy
+      
+      kafka:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - "8000:8000"
     environment:
+      # Database configuration
+      
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
+      
+
+      # Redis configuration
       REDIS_URL: redis://redis:6379/0
+
+      # Celery configuration
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+      # Kafka configuration
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+      # RabbitMQ configuration
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+
+      # LLM configuration
+      
+
+      # App configuration
       ENVIRONMENT: development
       LOG_LEVEL: info
     volumes:
       - ./backend:/app
+      
     restart: unless-stopped
+
+  # Celery Worker - General Tasks
+  celery-worker-general:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scribely-celery-general
+    depends_on:
+      redis:
+        condition: service_healthy
+      
+      postgres:
+        condition: service_healthy
+      
+    command: celery -A app.core.celery_app:celery_app worker --queues=general --concurrency=2 --loglevel=info --hostname=general@%h
+    environment:
+      # Same environment as backend
+      
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
+      
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+
+      # LLM configuration
+      
+
+      ENVIRONMENT: development
+      LOG_LEVEL: info
+    volumes:
+      - ./backend:/app
+      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker - Chat Tasks
+  celery-worker-chat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scribely-celery-chat
+    depends_on:
+      redis:
+        condition: service_healthy
+      
+      postgres:
+        condition: service_healthy
+      
+    command: celery -A app.core.celery_app:celery_app worker --queues=chat --concurrency=3 --loglevel=info --hostname=chat@%h
+    environment:
+      # Same environment as backend
+      
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
+      
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+
+      # LLM configuration
+      
+
+      ENVIRONMENT: development
+      LOG_LEVEL: info
+    volumes:
+      - ./backend:/app
+      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker - LLM Tasks (CPU intensive)
+  celery-worker-llm:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scribely-celery-llm
+    depends_on:
+      redis:
+        condition: service_healthy
+      
+      postgres:
+        condition: service_healthy
+      
+    command: celery -A app.core.celery_app:celery_app worker --queues=llm --concurrency=2 --loglevel=info --hostname=llm@%h --pool=prefork
+    environment:
+      # Same environment as backend
+      
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
+      
+
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+
+      # LLM configuration
+      
+
+      ENVIRONMENT: development
+      LOG_LEVEL: info
+    volumes:
+      - ./backend:/app
+      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Flower - Monitoring (optional)
+  celery-flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scribely-flower
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: celery -A app.core.celery_app:celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
   # Next.js Frontend
   frontend:
@@ -79,7 +313,7 @@ services:
       - /app/.next
     restart: unless-stopped
 
-  # Nginx reverse proxy (optional, production profile)
+  # Nginx reverse proxy (optional)
   nginx:
     image: nginx:alpine
     container_name: scribely-nginx
@@ -96,7 +330,14 @@ services:
 
 volumes:
   redis_data:
+  
   postgres_data:
+  
+  kafka_data:
+  zk_data:
+  zk_logs:
+  rabbitmq_data:
+  
 
 networks:
   default:
