@@ -6,6 +6,13 @@ tasks run as ``asyncio.Task`` objects in the same event loop as the FastAPI
 server.
 
 Pipeline outcomes and errors are also persisted to ``meeting_processing`` (DB).
+
+Concurrency: ``MEETING_PROCESSING_MAX_CONCURRENT`` bounds simultaneous
+``process_meeting`` runs via an ``asyncio.Semaphore``.
+
+Recovery: on API startup, ``recover_interrupted_processing_tasks()`` re-queues
+meetings left ``pending``/``processing`` in the DB (see
+``MEETING_PROCESSING_RECOVER_ON_STARTUP``).
 """
 
 from __future__ import annotations
@@ -18,9 +25,21 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from app.config import get_settings
 from app.utils.logging import get_logger
 
 logger = get_logger("task_runner")
+
+# Limits concurrent ``process_meeting`` runs; lazily bound to settings on first use.
+_processing_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_processing_semaphore() -> asyncio.Semaphore:
+    global _processing_semaphore
+    if _processing_semaphore is None:
+        n = get_settings().meeting_processing_max_concurrent
+        _processing_semaphore = asyncio.Semaphore(max(1, n))
+    return _processing_semaphore
 
 
 async def _finalize_success(
@@ -155,6 +174,75 @@ def _write_status(meeting_dir: Path, status: TaskStatus, **extra: Any) -> None:
 _active_tasks: dict[str, asyncio.Task[None]] = {}
 
 
+async def recover_interrupted_processing_tasks() -> int:
+    """Re-schedule pipeline work persisted as PENDING/PROCESSING across process restarts.
+
+    DB + ``processing_status.json`` are the source of truth; in-memory ``asyncio.Task``
+    objects do not survive reloads. Skips meetings already completed on disk and those
+    without a recording file.
+    """
+    settings = get_settings()
+    if not settings.meeting_processing_recover_on_startup:
+        return 0
+
+    from app.database.repositories.meeting_processing import MeetingProcessingRepository
+    from app.database.session import get_async_session
+
+    async with get_async_session() as db:
+        rows = await MeetingProcessingRepository.list_scheduled_incomplete_pipeline(db)
+
+    if not rows:
+        return 0
+
+    upload_root = Path(settings.upload_dir)
+    recovered = 0
+
+    for meeting_id, storage_path in rows:
+        meeting_dir = upload_root / storage_path
+        recording = meeting_dir / "recording.webm"
+        transcript = meeting_dir / "transcript.json"
+        if not recording.is_file() or not transcript.is_file():
+            logger.warning(
+                "Recovery skip %s: missing artifacts under %s",
+                meeting_id,
+                meeting_dir,
+            )
+            continue
+
+        disk = read_status(meeting_dir)
+        disk_status = disk.get("status")
+        if disk_status in (TaskStatus.COMPLETED.value, "completed"):
+            enriched = meeting_dir / "transcript_enriched.json"
+            if enriched.is_file():
+                logger.info(
+                    "Recovery skip %s: disk already completed (DB out of sync)",
+                    meeting_id,
+                )
+                continue
+
+        try:
+            async with get_async_session() as db:
+                await MeetingProcessingRepository.mark_pending(db, meeting_id)
+                await db.commit()
+        except Exception as e:
+            logger.error("Recovery failed to reset DB for %s: %s", meeting_id, e)
+            continue
+
+        _write_status(meeting_dir, TaskStatus.PENDING)
+        if schedule_processing(meeting_dir, meeting_id=meeting_id):
+            recovered += 1
+            logger.info("Recovery scheduled processing for meeting %s", meeting_id)
+        else:
+            logger.info(
+                "Recovery did not schedule %s (already in flight)",
+                meeting_id,
+            )
+
+    if recovered:
+        logger.info("Recovery finished: %s meeting(s) re-queued", recovered)
+    return recovered
+
+
 def schedule_processing(meeting_dir: Path, meeting_id: str | None = None, provider: str | None = None) -> bool:
     """Schedule background meeting processing.
 
@@ -182,77 +270,79 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
     from app.services.meeting_processor import process_meeting
     from app.services.pipeline_errors import PipelineStepError
 
-    _write_status(meeting_dir, TaskStatus.PROCESSING, startedAt=datetime.now(timezone.utc).isoformat())
+    sem = _get_processing_semaphore()
+    async with sem:
+        _write_status(meeting_dir, TaskStatus.PROCESSING, startedAt=datetime.now(timezone.utc).isoformat())
 
-    if meeting_id:
-        await _mark_processing_started(meeting_id)
-
-    try:
-        result = await process_meeting(meeting_dir, provider, meeting_id=meeting_id)
-        diarization = result.get("diarization", {})
-        speaker_map = diarization.get("speakerMap", {})
-        utterance_count = diarization.get("utteranceCount", 0)
-
-        utterances = diarization.get("utterances", [])
-        duration_seconds: int | None = None
-        if utterances:
-            last_end_ms = utterances[-1].get("endMs", 0)
-            if isinstance(last_end_ms, (int, float)) and last_end_ms > 0:
-                duration_seconds = max(1, int(last_end_ms / 1000))
-
-        _write_status(
-            meeting_dir,
-            TaskStatus.COMPLETED,
-            speakerMap=speaker_map,
-            utteranceCount=utterance_count,
-            completedAt=datetime.now(timezone.utc).isoformat(),
-        )
-        logger.info(f"Processing completed for {meeting_dir.name}")
+        if meeting_id:
+            await _mark_processing_started(meeting_id)
 
         try:
-            from app.infrastructure.object_storage import (
-                TRANSCRIPT_ENRICHED_JSON,
-                derive_storage_path,
-                is_object_storage_configured,
-                upload_file_sync,
+            result = await process_meeting(meeting_dir, provider, meeting_id=meeting_id)
+            diarization = result.get("diarization", {})
+            speaker_map = diarization.get("speakerMap", {})
+            utterance_count = diarization.get("utteranceCount", 0)
+
+            utterances = diarization.get("utterances", [])
+            duration_seconds: int | None = None
+            if utterances:
+                last_end_ms = utterances[-1].get("endMs", 0)
+                if isinstance(last_end_ms, (int, float)) and last_end_ms > 0:
+                    duration_seconds = max(1, int(last_end_ms / 1000))
+
+            _write_status(
+                meeting_dir,
+                TaskStatus.COMPLETED,
+                speakerMap=speaker_map,
+                utteranceCount=utterance_count,
+                completedAt=datetime.now(timezone.utc).isoformat(),
             )
+            logger.info(f"Processing completed for {meeting_dir.name}")
 
-            if is_object_storage_configured():
-                enriched = meeting_dir / TRANSCRIPT_ENRICHED_JSON
-                if enriched.is_file():
-                    upload_file_sync(
-                        enriched,
-                        derive_storage_path(meeting_dir),
-                        TRANSCRIPT_ENRICHED_JSON,
-                    )
+            try:
+                from app.infrastructure.object_storage import (
+                    TRANSCRIPT_ENRICHED_JSON,
+                    derive_storage_path,
+                    is_object_storage_configured,
+                    upload_file_sync,
+                )
+
+                if is_object_storage_configured():
+                    enriched = meeting_dir / TRANSCRIPT_ENRICHED_JSON
+                    if enriched.is_file():
+                        upload_file_sync(
+                            enriched,
+                            derive_storage_path(meeting_dir),
+                            TRANSCRIPT_ENRICHED_JSON,
+                        )
+            except Exception as e:
+                logger.warning("Failed to upload enriched transcript to object storage: %s", e)
+
+            if meeting_id:
+                await _finalize_success(meeting_id, result, duration_seconds)
+
+        except PipelineStepError as e:
+            tb = traceback.format_exc()
+            logger.error(f"Processing failed (step={e.step}) for {meeting_dir.name}: {e}\n{tb}")
+            _write_status(
+                meeting_dir,
+                TaskStatus.FAILED,
+                error=str(e),
+                failedStep=e.step,
+                failedAt=datetime.now(timezone.utc).isoformat(),
+            )
+            if meeting_id:
+                await _finalize_failure(meeting_id, e, tb)
+
         except Exception as e:
-            logger.warning("Failed to upload enriched transcript to object storage: %s", e)
-
-        if meeting_id:
-            await _finalize_success(meeting_id, result, duration_seconds)
-
-    except PipelineStepError as e:
-        tb = traceback.format_exc()
-        logger.error(f"Processing failed (step={e.step}) for {meeting_dir.name}: {e}\n{tb}")
-        _write_status(
-            meeting_dir,
-            TaskStatus.FAILED,
-            error=str(e),
-            failedStep=e.step,
-            failedAt=datetime.now(timezone.utc).isoformat(),
-        )
-        if meeting_id:
-            await _finalize_failure(meeting_id, e, tb)
-
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error(f"Processing failed for {meeting_dir.name}: {e}\n{tb}")
-        _write_status(
-            meeting_dir,
-            TaskStatus.FAILED,
-            error=str(e),
-            failedAt=datetime.now(timezone.utc).isoformat(),
-        )
-        if meeting_id:
-            await _finalize_failure(meeting_id, e, tb)
+            tb = traceback.format_exc()
+            logger.error(f"Processing failed for {meeting_dir.name}: {e}\n{tb}")
+            _write_status(
+                meeting_dir,
+                TaskStatus.FAILED,
+                error=str(e),
+                failedAt=datetime.now(timezone.utc).isoformat(),
+            )
+            if meeting_id:
+                await _finalize_failure(meeting_id, e, tb)
 

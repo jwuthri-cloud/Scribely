@@ -16,6 +16,7 @@ from app.middleware import setup_middleware
 from app.models.base import APIInfo
 from app.services.calendar_reminder_loop import calendar_reminder_loop
 from app.services.calendar_webhook_renewal import calendar_webhook_renewal_loop
+from app.services.task_runner import recover_interrupted_processing_tasks
 from fastapi import FastAPI
 from app.utils.logging import get_logger
 
@@ -34,6 +35,9 @@ async def lifespan(app: FastAPI):
     try:
         await initialize_database()
         logger.info("Database initialized successfully")
+        n_recovered = await recover_interrupted_processing_tasks()
+        if n_recovered:
+            logger.info("Re-queued %s meeting processing job(s) from persisted state", n_recovered)
         renewal_task = asyncio.create_task(calendar_webhook_renewal_loop(stop_renewal))
         reminder_task = asyncio.create_task(calendar_reminder_loop(stop_renewal))
         yield

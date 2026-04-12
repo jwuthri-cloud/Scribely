@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     max_video_size_bytes: int = 1024 * 1024 * 1024
     max_transcript_size_bytes: int = 16 * 1024 * 1024
 
+    # Background meeting pipeline (task_runner): max concurrent CPU/API-heavy runs
+    meeting_processing_max_concurrent: int = Field(default=2, ge=1)
+    # After restarts, re-queue meetings left PENDING/PROCESSING in DB (see task_runner)
+    meeting_processing_recover_on_startup: bool = True
+
     # Diarization & speaker attribution
     deepgram_api_key: str = ""
     assemblyai_api_key: str = ""

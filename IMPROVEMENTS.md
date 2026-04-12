@@ -43,7 +43,7 @@
 |---|------|-----|--------|
 | 19 | Move Whisper inference to a **worker thread** (`worker_threads`) or Electron `utilityProcess` | Main process runs Whisper (GPU), LLM streaming, WebSocket server, screen recording all at once — Whisper inference can block the event loop during bursts causing UI jank | IGNORE its too slow |
 | 20 | Extract `Overlay.tsx` state into a **React Context** (or Zustand/Jotai) — reduce prop drilling, add `React.memo` and `useMemo` to heavy children | Zustand `overlay-ui-store` + `MeetingDurationSync`; memo on ResponseCard, InputBar, ActionChips, TitleBar, CompactChatView, transcript panels | ✅ Done |
-| 21 | Add a **concurrency semaphore + task persistence** to backend meeting processing | `asyncio.Task` in `task_runner.py` dies on restart, can't scale horizontally, CPU-heavy steps compete with API requests | 🔲 Pending |
+| 21 | Add a **concurrency semaphore + task persistence** to backend meeting processing | `asyncio.Task` in `task_runner.py` dies on restart, can't scale horizontally, CPU-heavy steps compete with API requests | ✅ Done |
 | 22 | Add **WebSocket reconnection with exponential backoff** in Chrome extension | If WS drops mid-capture the extension just stops — no retry, no user notification | 🔲 Pending |
 | 23 | Add a global concurrency limit in `task_runner.py` — multiple simultaneous uploads can starve the server without a cap | `backend/app/services/task_runner.py` | 🔲 Pending |
 

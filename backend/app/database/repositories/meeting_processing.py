@@ -10,6 +10,7 @@ from typing import Any, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database.models.meeting import Meeting
 from app.database.models.meeting_processing import (
     MeetingProcessing,
     MeetingProcessingStatus,
@@ -45,6 +46,31 @@ class MeetingProcessingRepository:
             select(MeetingProcessing).where(MeetingProcessing.meeting_id == meeting_id)
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_scheduled_incomplete_pipeline(
+        db: AsyncSession,
+    ) -> list[tuple[str, str]]:
+        """Meetings whose pipeline is still scheduled but not finished (startup recovery).
+
+        Returns ``(meeting_id, storage_path)`` for rows with eligibility *scheduled*
+        and status *pending* or *processing*.
+        """
+        stmt = (
+            select(Meeting.id, Meeting.storage_path)
+            .join(MeetingProcessing, MeetingProcessing.meeting_id == Meeting.id)
+            .where(
+                MeetingProcessing.pipeline_eligibility == PipelineEligibility.SCHEDULED,
+                MeetingProcessing.processing_status.in_(
+                    (
+                        MeetingProcessingStatus.PENDING,
+                        MeetingProcessingStatus.PROCESSING,
+                    )
+                ),
+            )
+        )
+        result = await db.execute(stmt)
+        return list(result.all())
 
     @staticmethod
     async def upsert_after_sync(
