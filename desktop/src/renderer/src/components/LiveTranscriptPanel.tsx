@@ -1,13 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { SpeakerLabel } from './SpeakerLabel'
 import { AudioWaveform } from './AudioWaveform'
 import type { TranscriptEntry } from '../types/transcript'
+import { useOverlayUiStore } from '../stores/overlay-ui-store'
 
 interface LiveTranscriptPanelProps {
   entries: TranscriptEntry[]
   isActive: boolean
   isRecording: boolean
-  formattedDuration: string
+  /** When omitted, uses {@link useOverlayUiStore}'s `meetingDurationFormatted` (updated by MeetingDurationSync). */
+  formattedDuration?: string
   transcriptionMode: string // 'local' | 'cloud' | 'downloading'
   micActive: boolean
   tabActive: boolean
@@ -45,11 +47,11 @@ function formatTranscriptForCopy(entries: TranscriptEntry[]): string {
     .join('\n\n')
 }
 
-export function LiveTranscriptPanel({
+export const LiveTranscriptPanel = memo(function LiveTranscriptPanel({
   entries,
   isActive,
   isRecording,
-  formattedDuration,
+  formattedDuration: formattedDurationProp,
   transcriptionMode,
   micActive,
   tabActive,
@@ -64,6 +66,8 @@ export function LiveTranscriptPanel({
   extensionConnected = false,
   onExpandToSidePanel,
 }: LiveTranscriptPanelProps) {
+  const formattedDurationFromStore = useOverlayUiStore((s) => s.meetingDurationFormatted)
+  const formattedDuration = formattedDurationProp ?? formattedDurationFromStore
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -88,15 +92,18 @@ export function LiveTranscriptPanel({
   }
 
   // Group consecutive entries by speaker
-  const grouped: { speaker: string; entries: TranscriptEntry[] }[] = []
-  for (const entry of entries) {
-    const last = grouped[grouped.length - 1]
-    if (last && last.speaker === entry.speaker) {
-      last.entries.push(entry)
-    } else {
-      grouped.push({ speaker: entry.speaker, entries: [entry] })
+  const grouped = useMemo(() => {
+    const g: { speaker: string; entries: TranscriptEntry[] }[] = []
+    for (const entry of entries) {
+      const last = g[g.length - 1]
+      if (last && last.speaker === entry.speaker) {
+        last.entries.push(entry)
+      } else {
+        g.push({ speaker: entry.speaker, entries: [entry] })
+      }
     }
-  }
+    return g
+  }, [entries])
 
   const lastEntry = entries[entries.length - 1]
 
@@ -384,5 +391,5 @@ export function LiveTranscriptPanel({
       )}
     </div>
   )
-}
+})
 

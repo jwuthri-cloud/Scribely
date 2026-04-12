@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { QuickAction } from '../types/settings'
 import { DEFAULT_QUICK_ACTIONS } from '../types/settings'
 import { getQuickActionIcon } from './QuickActionIcons'
@@ -8,7 +9,7 @@ interface ActionChipsProps {
   customActions?: QuickAction[]
 }
 
-export function ActionChips({
+export const ActionChips = memo(function ActionChips({
   onAction,
   customActions,
 }: ActionChipsProps) {
@@ -33,4 +34,4 @@ export function ActionChips({
       ))}
     </div>
   )
-}
+})

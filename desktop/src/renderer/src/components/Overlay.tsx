@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useShallow } from 'zustand/shallow'
 import { AnimatePresence, motion } from 'framer-motion'
 import { TitleBar } from './TitleBar'
 import { ResponseCard } from './ResponseCard'
@@ -13,6 +14,7 @@ import { OnboardingView } from './OnboardingView'
 import { LiveTranscriptPanel } from './LiveTranscriptPanel'
 import { LiveTranscriptSidePanel } from './LiveTranscriptSidePanel'
 import { LiveInsightsSidePanel } from './LiveInsightsSidePanel'
+import { MeetingDurationSync } from './MeetingDurationSync'
 import { useChat } from '../hooks/useChat'
 import { useWhisperSTT } from '../hooks/useWhisperSTT'
 import { useAudioCapture } from '../hooks/useAudioCapture'
@@ -22,11 +24,10 @@ import { SourcePicker } from './SourcePicker'
 import { MarkdownContent } from './MarkdownContent'
 import { AuthGate } from './AuthGate'
 import type { ChatAttachment } from '../types'
-import { FONT_SIZE_VALUES, type FontSize } from '../types/settings'
+import { FONT_SIZE_VALUES } from '../types/settings'
+import { useOverlayUiStore, type OverlayViewId } from '../stores/overlay-ui-store'
 
-type AppPhase = 'loading' | 'auth' | 'onboarding' | 'app'
-
-type ViewId = 'chat' | 'llm' | 'settings' | 'insights' | 'sync'
+type ViewId = OverlayViewId
 
 function SummaryModal({ content, onClose }: { content: string | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
@@ -110,77 +111,64 @@ function SummaryModal({ content, onClose }: { content: string | null; onClose: (
 }
 
 export function Overlay() {
-  const [visible, setVisible] = useState(true)
-  const [phase, setPhase] = useState<AppPhase>('loading')
-  const [view, setView] = useState<ViewId>('chat')
-  const [pendingScreenshots, setPendingScreenshots] = useState<string[]>([])
-  const [windowOpacity, setWindowOpacity] = useState(1)
-  const [fontSize, setFontSize] = useState<FontSize>('medium')
-  const [compactMode, setCompactMode] = useState(false)
-  const [currentModel, setCurrentModel] = useState<string>('gpt-5-mini')
-  const [summarizeInProgress, setSummarizeInProgress] = useState(false)
-  const [summarizeFeedback, setSummarizeFeedback] = useState<{
-    type: 'success' | 'error'
-    message?: string
-  } | null>(null)
-  const [hasSummary, setHasSummary] = useState(false)
-  const [showSummaryModal, setShowSummaryModal] = useState(false)
-  const [summaryContent, setSummaryContent] = useState<string | null>(null)
-  const [quickActions, setQuickActions] = useState<Array<{ label: string; value: string }>>([])
-  const [webSearchAvailable, setWebSearchAvailable] = useState(true)
-  const [modelOptions, setModelOptions] = useState<Array<{ id: string; label: string }>>([
-    { id: 'gpt-5-nano', label: 'Nano' },
-    { id: 'gpt-5-mini', label: 'Mini' },
-    { id: 'gpt-5.2', label: 'Normal' },
-  ])
-  const [insightsPanelExpanded, setInsightsPanelExpanded] = useState(false)
-  const [transcriptPanelExpanded, setTranscriptPanelExpanded] = useState(false)
-  const [syncBadgeCount, setSyncBadgeCount] = useState(0)
   const stt = useWhisperSTT()
 
+  const {
+    visible,
+    phase,
+    view,
+    pendingScreenshots,
+    windowOpacity,
+    fontSize,
+    compactMode,
+    currentModel,
+    summarizeInProgress,
+    summarizeFeedback,
+    hasSummary,
+    showSummaryModal,
+    summaryContent,
+    quickActions,
+    webSearchAvailable,
+    modelOptions,
+    insightsPanelExpanded,
+    transcriptPanelExpanded,
+    syncBadgeCount,
+    excludeMyMic,
+    meetingError,
+    savedFiles,
+  } = useOverlayUiStore(
+    useShallow((s) => ({
+      visible: s.visible,
+      phase: s.phase,
+      view: s.view,
+      pendingScreenshots: s.pendingScreenshots,
+      windowOpacity: s.windowOpacity,
+      fontSize: s.fontSize,
+      compactMode: s.compactMode,
+      currentModel: s.currentModel,
+      summarizeInProgress: s.summarizeInProgress,
+      summarizeFeedback: s.summarizeFeedback,
+      hasSummary: s.hasSummary,
+      showSummaryModal: s.showSummaryModal,
+      summaryContent: s.summaryContent,
+      quickActions: s.quickActions,
+      webSearchAvailable: s.webSearchAvailable,
+      modelOptions: s.modelOptions,
+      insightsPanelExpanded: s.insightsPanelExpanded,
+      transcriptPanelExpanded: s.transcriptPanelExpanded,
+      syncBadgeCount: s.syncBadgeCount,
+      excludeMyMic: s.excludeMyMic,
+      meetingError: s.meetingError,
+      savedFiles: s.savedFiles,
+    })),
+  )
+
   // ── Meeting hooks (live inside the chat view) ─────────
-  const [excludeMyMic, setExcludeMyMic] = useState(false)
   const capture = useAudioCapture()
   const transcript = useMeetingTranscript()
   const recorder = useMeetingRecorder(excludeMyMic)
-  const [meetingError, setMeetingError] = useState<string | null>(null)
-
-  // ── Meeting session duration timer (independent of screen recording) ──
-  const meetingStartRef = useRef<number>(0)
-  const meetingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [meetingDurationSec, setMeetingDurationSec] = useState(0)
 
   const meetingActive = transcript.status.isActive
-
-  useEffect(() => {
-    if (meetingActive) {
-      meetingStartRef.current = Date.now()
-      setMeetingDurationSec(0)
-      meetingTimerRef.current = setInterval(() => {
-        setMeetingDurationSec(Math.floor((Date.now() - meetingStartRef.current) / 1000))
-      }, 1000)
-    } else {
-      if (meetingTimerRef.current) {
-        clearInterval(meetingTimerRef.current)
-        meetingTimerRef.current = null
-      }
-      setMeetingDurationSec(0)
-    }
-    return () => {
-      if (meetingTimerRef.current) {
-        clearInterval(meetingTimerRef.current)
-        meetingTimerRef.current = null
-      }
-    }
-  }, [meetingActive])
-
-  const formattedMeetingDuration = (() => {
-    const h = Math.floor(meetingDurationSec / 3600)
-    const m = Math.floor((meetingDurationSec % 3600) / 60)
-    const s = meetingDurationSec % 60
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    return `${m}:${String(s).padStart(2, '0')}`
-  })()
 
   // Pass transcript entries to useChat so it can embed deltas in user messages
   const { messages, isLoading, sendMessage, sendWebSearch, resetChat, stopGeneration, contextUsage } = useChat({
@@ -193,11 +181,11 @@ export function Overlay() {
       items.filter((i) => i.status === 'failed' || i.status === 'pending').length
 
     window.electronAPI?.uploadQueueGetHistory?.().then((items) => {
-      if (items) setSyncBadgeCount(calcBadge(items as { status: string }[]))
+      if (items) useOverlayUiStore.getState().setSyncBadgeCount(calcBadge(items as { status: string }[]))
     })
 
     const unsub = window.electronAPI?.onUploadQueueChanged?.((items) => {
-      setSyncBadgeCount(calcBadge(items as { status: string }[]))
+      useOverlayUiStore.getState().setSyncBadgeCount(calcBadge(items as { status: string }[]))
     })
     return () => unsub?.()
   }, [])
@@ -209,12 +197,12 @@ export function Overlay() {
         const authState = await window.electronAPI?.authGetState()
         if (authState?.mode === 'authenticated') {
           const onboarded = await window.electronAPI?.onboardingGetCompleted?.()
-          setPhase(onboarded ? 'app' : 'onboarding')
+          useOverlayUiStore.getState().setPhase(onboarded ? 'app' : 'onboarding')
         } else {
-          setPhase('auth')
+          useOverlayUiStore.getState().setPhase('auth')
         }
       } catch {
-        setPhase('auth')
+        useOverlayUiStore.getState().setPhase('auth')
       }
     }
     initPhase()
@@ -225,8 +213,8 @@ export function Overlay() {
     const unsub = window.electronAPI?.onAuthStateChanged?.((state) => {
       if (state.mode === 'authenticated') {
         window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
-          setPhase(onboarded ? 'app' : 'onboarding')
-        }).catch(() => setPhase('onboarding'))
+          useOverlayUiStore.getState().setPhase(onboarded ? 'app' : 'onboarding')
+        }).catch(() => useOverlayUiStore.getState().setPhase('onboarding'))
       }
     })
     return () => unsub?.()
@@ -234,64 +222,64 @@ export function Overlay() {
 
   const handleAuthSignedIn = useCallback(() => {
     window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
-      setPhase(onboarded ? 'app' : 'onboarding')
-    }).catch(() => setPhase('onboarding'))
+      useOverlayUiStore.getState().setPhase(onboarded ? 'app' : 'onboarding')
+    }).catch(() => useOverlayUiStore.getState().setPhase('onboarding'))
   }, [])
 
   const handleAuthSkip = useCallback(() => {
     window.electronAPI?.onboardingGetCompleted?.().then((onboarded) => {
-      setPhase(onboarded ? 'app' : 'onboarding')
-    }).catch(() => setPhase('onboarding'))
+      useOverlayUiStore.getState().setPhase(onboarded ? 'app' : 'onboarding')
+    }).catch(() => useOverlayUiStore.getState().setPhase('onboarding'))
   }, [])
 
   const handleOnboardingComplete = useCallback(() => {
-    setPhase('app')
+    useOverlayUiStore.getState().setPhase('app')
   }, [])
 
   const handleReRunSetup = useCallback(async () => {
     await window.electronAPI?.onboardingSetCompleted?.(false)
-    setPhase('onboarding')
+    useOverlayUiStore.getState().setPhase('onboarding')
   }, [])
 
   // ── Load current model ──
   useEffect(() => {
-    window.electronAPI?.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5-mini'))
+    window.electronAPI?.llmGetModel().then((m) => useOverlayUiStore.getState().setCurrentModel(m || 'gpt-5-mini'))
   }, [])
 
   // ── Load summarization status ──
   useEffect(() => {
     window.electronAPI?.llmGetSummarizationStatus?.().then((s) => {
-      if (s) setHasSummary(s.hasSummary)
+      if (s) useOverlayUiStore.getState().setHasSummary(s.hasSummary)
     })
   }, [summarizeFeedback])
 
   // ── Load quick actions and web search availability ──
   useEffect(() => {
     window.electronAPI?.getSettings().then(async (s) => {
-      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      if (s?.llm?.quickActions) useOverlayUiStore.getState().setQuickActions(s.llm.quickActions)
       const provider = (s?.llm as { provider?: string })?.provider
-      setWebSearchAvailable(provider === 'openai')
+      useOverlayUiStore.getState().setWebSearchAvailable(provider === 'openai')
       if (provider === 'ollama' || provider === 'lmstudio') {
         const r = await window.electronAPI?.llmListLocalModels?.()
         if (r?.models?.length) {
-          setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
+          useOverlayUiStore.getState().setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
         }
       }
     })
   }, [])
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
-      if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
+      if (s?.llm?.quickActions) useOverlayUiStore.getState().setQuickActions(s.llm.quickActions)
       const provider = (s?.llm as { provider?: string })?.provider
-      setWebSearchAvailable(provider === 'openai')
+      useOverlayUiStore.getState().setWebSearchAvailable(provider === 'openai')
       if (provider === 'ollama' || provider === 'lmstudio') {
         window.electronAPI?.llmListLocalModels?.().then((r) => {
           if (r?.models?.length) {
-            setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
+            useOverlayUiStore.getState().setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
           }
         })
       } else {
-        setModelOptions([
+        useOverlayUiStore.getState().setModelOptions([
           { id: 'gpt-5-nano', label: 'Nano' },
           { id: 'gpt-5-mini', label: 'Mini' },
           { id: 'gpt-5.2', label: 'Normal' },
@@ -304,9 +292,9 @@ export function Overlay() {
   // ── Listen for background summarization completion (Phase 2) ──
   useEffect(() => {
     const unsub = window.electronAPI?.onLLMSummaryUpdated?.(() => {
-      setHasSummary(true)
-      setSummarizeFeedback({ type: 'success' })
-      setTimeout(() => setSummarizeFeedback(null), 5000)
+      useOverlayUiStore.getState().setHasSummary(true)
+      useOverlayUiStore.getState().setSummarizeFeedback({ type: 'success' })
+      setTimeout(() => useOverlayUiStore.getState().setSummarizeFeedback(null), 5000)
     })
     return () => unsub?.()
   }, [])
@@ -314,13 +302,13 @@ export function Overlay() {
   const handleModelChange = useCallback(async (modelId: string) => {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {
-      setCurrentModel(modelId)
+      useOverlayUiStore.getState().setCurrentModel(modelId)
     }
   }, [])
 
   const handleSummarizeTranscript = useCallback(async () => {
-    setSummarizeInProgress(true)
-    setSummarizeFeedback(null)
+    useOverlayUiStore.getState().setSummarizeInProgress(true)
+    useOverlayUiStore.getState().setSummarizeFeedback(null)
     try {
       const entries = transcript.entries.map((e) => ({
         id: e.id,
@@ -334,40 +322,40 @@ export function Overlay() {
         transcriptEntries: entries,
       })
       if (result?.success) {
-        setSummarizeFeedback({ type: 'success' })
-        setHasSummary(true)
+        useOverlayUiStore.getState().setSummarizeFeedback({ type: 'success' })
+        useOverlayUiStore.getState().setHasSummary(true)
       } else {
-        setSummarizeFeedback({
+        useOverlayUiStore.getState().setSummarizeFeedback({
           type: 'error',
           message: result?.error ?? 'Summarization failed',
         })
       }
-      setTimeout(() => setSummarizeFeedback(null), 5000)
+      setTimeout(() => useOverlayUiStore.getState().setSummarizeFeedback(null), 5000)
     } catch (err: any) {
-      setSummarizeFeedback({
+      useOverlayUiStore.getState().setSummarizeFeedback({
         type: 'error',
         message: err?.message ?? 'Summarization failed',
       })
-      setTimeout(() => setSummarizeFeedback(null), 5000)
+      setTimeout(() => useOverlayUiStore.getState().setSummarizeFeedback(null), 5000)
     } finally {
-      setSummarizeInProgress(false)
+      useOverlayUiStore.getState().setSummarizeInProgress(false)
     }
   }, [transcript.entries])
 
   // ── Window opacity, font size, compact mode ──
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
-      if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
-      if (s?.fontSize) setFontSize(s.fontSize)
-      setCompactMode(s?.compactMode ?? false)
+      if (s?.windowOpacity !== undefined) useOverlayUiStore.getState().setWindowOpacity(s.windowOpacity)
+      if (s?.fontSize) useOverlayUiStore.getState().setFontSize(s.fontSize)
+      useOverlayUiStore.getState().setCompactMode(s?.compactMode ?? false)
     })
   }, [])
 
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onSettingsChanged((s) => {
-      if (s?.windowOpacity !== undefined) setWindowOpacity(s.windowOpacity)
-      if (s?.fontSize) setFontSize(s.fontSize)
-      setCompactMode(s?.compactMode ?? false)
+      if (s?.windowOpacity !== undefined) useOverlayUiStore.getState().setWindowOpacity(s.windowOpacity)
+      if (s?.fontSize) useOverlayUiStore.getState().setFontSize(s.fontSize)
+      useOverlayUiStore.getState().setCompactMode(s?.compactMode ?? false)
     })
     return () => {
       unsubscribe?.()
@@ -387,7 +375,7 @@ export function Overlay() {
   // Toggle visibility from main process
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onToggleVisibility((v) => {
-      setVisible(v)
+      useOverlayUiStore.getState().setVisible(v)
     })
     return () => {
       unsubscribe?.()
@@ -397,13 +385,13 @@ export function Overlay() {
   // Screenshot from hotkey
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onScreenshotTaken((dataUrl) => {
-      setPendingScreenshots((prev) => [...prev, dataUrl])
-      if (view !== 'chat') setView('chat')
+      useOverlayUiStore.getState().setPendingScreenshots((prev) => [...prev, dataUrl])
+      if (useOverlayUiStore.getState().view !== 'chat') useOverlayUiStore.getState().setView('chat')
     })
     return () => {
       unsubscribe?.()
     }
-  }, [view])
+  }, [])
 
   // Audio toggle from hotkey
   useEffect(() => {
@@ -420,7 +408,7 @@ export function Overlay() {
     // Guard against double-start (e.g. manual click + auto-start from extension)
     if (transcript.status.isActive) return
 
-    setMeetingError(null)
+    useOverlayUiStore.getState().setMeetingError(null)
 
     // Start the transcription session FIRST so the pipeline is active
     // before any audio frames arrive (especially important for native capture
@@ -433,7 +421,7 @@ export function Overlay() {
     })
 
     if (mode === 'idle') {
-      setMeetingError('No audio source available. Allow mic/screen access.')
+      useOverlayUiStore.getState().setMeetingError('No audio source available. Allow mic/screen access.')
       await transcript.stopSession()
       return
     }
@@ -444,8 +432,6 @@ export function Overlay() {
       await recorder.startRecording()
     }
   }, [capture, transcript, recorder])
-
-  const [savedFiles, setSavedFiles] = useState<{ recording?: string; transcript?: string } | null>(null)
 
   /** Prevents double stop (e.g. hotkey spam + auto-stop racing) from duplicating saves/uploads. */
   const meetingStopInProgressRef = useRef(false)
@@ -520,17 +506,17 @@ export function Overlay() {
       }
 
       await transcript.stopSession()
-      setMeetingError(null)
-      setExcludeMyMic(false)
+      useOverlayUiStore.getState().setMeetingError(null)
+      useOverlayUiStore.getState().setExcludeMyMic(false)
 
       // Show save notification
       if (recordingPath || transcriptPath) {
-        setSavedFiles({
+        useOverlayUiStore.getState().setSavedFiles({
           recording: recordingPath ?? undefined,
           transcript: transcriptPath,
         })
         // Auto-dismiss after 6 seconds
-        setTimeout(() => setSavedFiles(null), 6000)
+        setTimeout(() => useOverlayUiStore.getState().setSavedFiles(null), 6000)
       }
     } finally {
       meetingStopInProgressRef.current = false
@@ -579,7 +565,7 @@ export function Overlay() {
   const handleSend = useCallback(
     (content: string, attachments?: ChatAttachment[], options?: { isFollowUp?: boolean }) => {
       sendMessage(content, attachments, options)
-      setPendingScreenshots([])
+      useOverlayUiStore.getState().setPendingScreenshots(() => [])
     },
     [sendMessage],
   )
@@ -587,7 +573,7 @@ export function Overlay() {
   // Receive messages from insights window (e.g. "Suggest follow-up questions")
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onChatMessageFromInsights?.((text) => {
-      setView('chat')
+      useOverlayUiStore.getState().setView('chat')
       handleSend(text)
     })
     return () => unsubscribe?.()
@@ -597,7 +583,7 @@ export function Overlay() {
     try {
       const dataUrl = await window.electronAPI?.takeScreenshot()
       if (dataUrl) {
-        setPendingScreenshots((prev) => [...prev, dataUrl])
+        useOverlayUiStore.getState().setPendingScreenshots((prev) => [...prev, dataUrl])
       }
     } catch (err) {
       console.error('Screenshot failed:', err)
@@ -605,45 +591,46 @@ export function Overlay() {
   }, [])
 
   const handleRemoveScreenshot = useCallback((index: number) => {
-    setPendingScreenshots((prev) => prev.filter((_, i) => i !== index))
+    useOverlayUiStore.getState().setPendingScreenshots((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
   const handleSetView = useCallback((v: ViewId) => {
-    setView(v)
+    useOverlayUiStore.getState().setView(v)
   }, [])
 
   const handleToggleCompactMode = useCallback(() => {
-    window.electronAPI?.updateSettings?.({ compactMode: !compactMode })
-  }, [compactMode])
+    const cm = useOverlayUiStore.getState().compactMode
+    window.electronAPI?.updateSettings?.({ compactMode: !cm })
+  }, [])
 
   const handleToggleInsightsPanel = useCallback(() => {
-    setInsightsPanelExpanded((v) => !v)
+    useOverlayUiStore.getState().toggleInsightsPanel()
   }, [])
 
   const handleToggleTranscriptPanel = useCallback(() => {
-    setTranscriptPanelExpanded((v) => !v)
+    useOverlayUiStore.getState().toggleTranscriptPanel()
   }, [])
 
   const handleReset = useCallback(() => {
     resetChat()
     setTimeout(() => {
       window.electronAPI?.llmGetSummarizationStatus?.().then((s) => {
-        if (s) setHasSummary(s.hasSummary)
+        if (s) useOverlayUiStore.getState().setHasSummary(s.hasSummary)
       })
     }, 100)
   }, [resetChat])
 
   const handleViewSummary = useCallback(async () => {
     const summary = await window.electronAPI?.llmGetSummary?.()
-    setSummaryContent(summary ?? null)
-    setShowSummaryModal(true)
+    useOverlayUiStore.getState().setSummaryContent(summary ?? null)
+    useOverlayUiStore.getState().setShowSummaryModal(true)
   }, [])
 
   // Close summary modal on Escape
   useEffect(() => {
     if (!showSummaryModal) return
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowSummaryModal(false)
+      if (e.key === 'Escape') useOverlayUiStore.getState().setShowSummaryModal(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -671,6 +658,7 @@ export function Overlay() {
             ),
           } as React.CSSProperties}
         >
+          {phase === 'app' && <MeetingDurationSync active={meetingActive} />}
           {phase === 'loading' ? null : phase === 'auth' ? (
             <AuthGate onSignedIn={handleAuthSignedIn} onSkip={handleAuthSkip} />
           ) : phase === 'onboarding' ? (
@@ -684,7 +672,6 @@ export function Overlay() {
                   entries={transcript.entries}
                   isActive={meetingActive}
                   isRecording={recorder.isRecording}
-                  formattedDuration={formattedMeetingDuration}
                   transcriptionMode={transcript.status.transcriptionMode}
                   micActive={capture.micActive}
                   tabActive={capture.tabActive}
@@ -692,7 +679,7 @@ export function Overlay() {
                   excludeMyMic={excludeMyMic}
                   onToggleExcludeMyMic={() => {
                     const next = !excludeMyMic
-                    setExcludeMyMic(next)
+                    useOverlayUiStore.getState().setExcludeMyMic(next)
                     window.electronAPI?.setExcludeMyMic?.(next)
                   }}
                   error={meetingError || capture.error || recorder.error}
@@ -709,7 +696,6 @@ export function Overlay() {
                 onWebSearch={webSearchAvailable ? sendWebSearch : undefined}
                 onStop={stopGeneration}
                 meetingActive={meetingActive}
-                meetingDuration={formattedMeetingDuration}
                 onToggleMeeting={handleToggleMeeting}
                 onSetView={handleSetView}
                 onReset={handleReset}
@@ -752,7 +738,7 @@ export function Overlay() {
             {showSummaryModal && (
                 <SummaryModal
                   content={summaryContent}
-                  onClose={() => setShowSummaryModal(false)}
+                  onClose={() => useOverlayUiStore.getState().setShowSummaryModal(false)}
                 />
               )}
 
@@ -776,7 +762,6 @@ export function Overlay() {
                 onSetView={handleSetView}
                 onReset={handleReset}
                 meetingActive={meetingActive}
-                meetingDuration={formattedMeetingDuration}
                 onToggleMeeting={handleToggleMeeting}
                 compactMode={compactMode}
                 onToggleCompactMode={handleToggleCompactMode}
@@ -799,7 +784,6 @@ export function Overlay() {
                     entries={transcript.entries}
                     isActive={meetingActive}
                     isRecording={recorder.isRecording}
-                    formattedDuration={formattedMeetingDuration}
                     transcriptionMode={transcript.status.transcriptionMode}
                     micActive={capture.micActive}
                     tabActive={capture.tabActive}
@@ -807,7 +791,7 @@ export function Overlay() {
                     excludeMyMic={excludeMyMic}
                     onToggleExcludeMyMic={() => {
                       const next = !excludeMyMic
-                      setExcludeMyMic(next)
+                      useOverlayUiStore.getState().setExcludeMyMic(next)
                       window.electronAPI?.setExcludeMyMic?.(next)
                     }}
                     error={meetingError || capture.error || recorder.error}
@@ -826,7 +810,6 @@ export function Overlay() {
                         entries={transcript.entries}
                         isActive={meetingActive}
                         isRecording={recorder.isRecording}
-                        formattedDuration={formattedMeetingDuration}
                         transcriptionMode={transcript.status.transcriptionMode}
                         micActive={capture.micActive}
                         tabActive={capture.tabActive}
@@ -834,7 +817,7 @@ export function Overlay() {
                         excludeMyMic={excludeMyMic}
                         onToggleExcludeMyMic={() => {
                           const next = !excludeMyMic
-                          setExcludeMyMic(next)
+                          useOverlayUiStore.getState().setExcludeMyMic(next)
                           window.electronAPI?.setExcludeMyMic?.(next)
                         }}
                         error={meetingError || capture.error || recorder.error}
@@ -942,7 +925,7 @@ export function Overlay() {
                   {showSummaryModal && (
                     <SummaryModal
                       content={summaryContent}
-                      onClose={() => setShowSummaryModal(false)}
+                      onClose={() => useOverlayUiStore.getState().setShowSummaryModal(false)}
                     />
                   )}
 

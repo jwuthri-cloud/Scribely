@@ -1,7 +1,8 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, memo } from 'react'
 import { SpeakerLabel } from './SpeakerLabel'
 import { AudioWaveform } from './AudioWaveform'
 import type { TranscriptEntry } from '../types/transcript'
+import { useOverlayUiStore } from '../stores/overlay-ui-store'
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
@@ -29,7 +30,8 @@ export interface LiveTranscriptSidePanelProps {
   entries: TranscriptEntry[]
   isActive: boolean
   isRecording: boolean
-  formattedDuration: string
+  /** When omitted, uses {@link useOverlayUiStore}'s `meetingDurationFormatted`. */
+  formattedDuration?: string
   transcriptionMode: string
   micActive: boolean
   tabActive: boolean
@@ -42,11 +44,14 @@ export interface LiveTranscriptSidePanelProps {
   onClose: () => void
 }
 
-export function LiveTranscriptSidePanel({
+export const LiveTranscriptSidePanel = memo(function LiveTranscriptSidePanel({
   entries,
   isActive,
   isRecording,
-  formattedDuration,
+  formattedDuration: formattedDurationProp,
+  transcriptionMode: _transcriptionMode,
+  micActive: _micActive,
+  tabActive: _tabActive,
   onStop,
   excludeMyMic = false,
   onToggleExcludeMyMic,
@@ -55,6 +60,8 @@ export function LiveTranscriptSidePanel({
   modelProgress = 0,
   onClose,
 }: LiveTranscriptSidePanelProps) {
+  const formattedDurationFromStore = useOverlayUiStore((s) => s.meetingDurationFormatted)
+  const formattedDuration = formattedDurationProp ?? formattedDurationFromStore
   const scrollRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
   const [copied, setCopied] = useState(false)
@@ -288,4 +295,4 @@ export function LiveTranscriptSidePanel({
       )}
     </div>
   )
-}
+})

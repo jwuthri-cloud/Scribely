@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { HotkeyMenu } from './HotkeyMenu'
+import { useOverlayUiStore } from '../stores/overlay-ui-store'
 
 type ViewId = 'chat' | 'llm' | 'settings'
 
@@ -78,7 +79,6 @@ function NavBtn({
 
 interface CompactNavbarProps {
   meetingActive: boolean
-  meetingDuration: string
   onToggleMeeting: () => void
   onSetView: (view: ViewId) => void
   onClose: () => void
@@ -93,9 +93,8 @@ interface CompactNavbarProps {
  * Slim pill-shaped navbar for compact mode.
  * Layout: [X close] ... [meeting toggle] [waveform+timer] ... [Ask AI ⌘⏎] [Hidden ⌥T] [Settings]
  */
-export function CompactNavbar({
+export const CompactNavbar = memo(function CompactNavbar({
   meetingActive,
-  meetingDuration,
   onToggleMeeting,
   onSetView,
   onClose,
@@ -105,6 +104,7 @@ export function CompactNavbar({
   transcriptPanelExpanded = false,
   onToggleTranscriptPanel,
 }: CompactNavbarProps) {
+  const meetingDuration = useOverlayUiStore((s) => s.meetingDurationFormatted)
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
   const [invisible, setInvisible] = useState(true)
@@ -340,4 +340,4 @@ export function CompactNavbar({
       </div>
     </div>
   )
-}
+})

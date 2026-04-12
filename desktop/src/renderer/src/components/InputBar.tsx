@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type FormEvent } from 'react'
+import { useState, useRef, useEffect, memo, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
@@ -141,7 +141,7 @@ interface InputBarProps {
   contextUsage?: { promptTokens: number; contextWindow: number } | null
 }
 
-export function InputBar({
+export const InputBar = memo(function InputBar({
   onSend,
   onWebSearch,
   disabled,
@@ -612,4 +612,4 @@ export function InputBar({
       </div>
     </div>
   )
-}
+})

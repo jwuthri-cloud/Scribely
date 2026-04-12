@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import { HotkeyMenu } from './HotkeyMenu'
+import { useOverlayUiStore } from '../stores/overlay-ui-store'
 
 type ViewId = 'chat' | 'llm' | 'settings' | 'insights' | 'sync'
 
@@ -41,7 +42,6 @@ interface TitleBarProps {
   onSetView: (view: ViewId) => void
   onReset?: () => void
   meetingActive?: boolean
-  meetingDuration?: string
   onToggleMeeting?: () => void
   compactMode?: boolean
   onToggleCompactMode?: () => void
@@ -105,12 +105,11 @@ function TitleBtn({
   )
 }
 
-export function TitleBar({
+export const TitleBar = memo(function TitleBar({
   view,
   onSetView,
   onReset,
   meetingActive,
-  meetingDuration = '00:00',
   onToggleMeeting,
   compactMode = false,
   onToggleCompactMode,
@@ -120,6 +119,7 @@ export function TitleBar({
   onToggleTranscriptPanel,
   syncBadgeCount = 0,
 }: TitleBarProps) {
+  const meetingDuration = useOverlayUiStore((s) => s.meetingDurationFormatted)
   const [closeHovered, setCloseHovered] = useState(false)
   const [compactHovered, setCompactHovered] = useState(false)
   const [hiddenHovered, setHiddenHovered] = useState(false)
@@ -421,4 +421,4 @@ export function TitleBar({
       </div>
     </div>
   )
-}
+})

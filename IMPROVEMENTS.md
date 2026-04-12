@@ -41,8 +41,8 @@
 
 | # | What | Why | Status |
 |---|------|-----|--------|
-| 19 | Move Whisper inference to a **worker thread** (`worker_threads`) or Electron `utilityProcess` | Main process runs Whisper (GPU), LLM streaming, WebSocket server, screen recording all at once — Whisper inference can block the event loop during bursts causing UI jank | 🔲 Pending |
-| 20 | Extract `Overlay.tsx` state into a **React Context** (or Zustand/Jotai) — reduce prop drilling, add `React.memo` and `useMemo` to heavy children | `Overlay.tsx` has 10+ `useState` hooks with no memoization — any state change re-renders the entire tree | 🔲 Pending |
+| 19 | Move Whisper inference to a **worker thread** (`worker_threads`) or Electron `utilityProcess` | Main process runs Whisper (GPU), LLM streaming, WebSocket server, screen recording all at once — Whisper inference can block the event loop during bursts causing UI jank | IGNORE its too slow |
+| 20 | Extract `Overlay.tsx` state into a **React Context** (or Zustand/Jotai) — reduce prop drilling, add `React.memo` and `useMemo` to heavy children | Zustand `overlay-ui-store` + `MeetingDurationSync`; memo on ResponseCard, InputBar, ActionChips, TitleBar, CompactChatView, transcript panels | ✅ Done |
 | 21 | Add a **concurrency semaphore + task persistence** to backend meeting processing | `asyncio.Task` in `task_runner.py` dies on restart, can't scale horizontally, CPU-heavy steps compete with API requests | 🔲 Pending |
 | 22 | Add **WebSocket reconnection with exponential backoff** in Chrome extension | If WS drops mid-capture the extension just stops — no retry, no user notification | 🔲 Pending |
 | 23 | Add a global concurrency limit in `task_runner.py` — multiple simultaneous uploads can starve the server without a cap | `backend/app/services/task_runner.py` | 🔲 Pending |
@@ -53,7 +53,7 @@
 
 | # | What | Current State | Status |
 |---|------|--------------|--------|
-| 24 | **Re-enable VAD** (Voice Activity Detection) — Silero v5 is fully implemented but `_initVad()` is commented out in `pipeline.ts:init()` | Chunk-based fallback active, VAD disabled | 🔲 Pending |
+| 24 | **Re-enable VAD** (Voice Activity Detection) — Silero v5 is fully implemented but `_initVad()` is commented out in `pipeline.ts:init()` | Chunk-based fallback active, VAD disabled | ✅ Done |
 | 25 | **Wire `index_meeting()`** after processing completes so Pinecone is populated and vector search actually works | `EmbeddingService` + `vector_search` tool built, never called | 🔲 Pending |
 | 26 | **Upload progress** — add byte-level `onUploadProgress` callback for large video files | Upload queue has pending/uploading/success states but no percent bar | 🔲 Pending |
 | 27 | **Contact form** — wire up Resend (already a `frontend` dependency) in `/api/contact` route | Resend + `CONTACT_INBOX_EMAIL` / `RESEND_API_KEY` | ✅ Done |

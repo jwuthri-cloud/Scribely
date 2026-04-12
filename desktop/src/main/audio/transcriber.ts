@@ -7,6 +7,17 @@ import { ModelManager } from './model-manager'
 
 const log = createLogger('transcriber')
 
+/** whisper.cpp rejects inputs shorter than 1s (see whisper_full_with_state in logs). */
+const WHISPER_MIN_DURATION_MS = 1000
+
+function padPcmToMinDuration(pcm: Float32Array, sampleRate: number, minMs: number): Float32Array {
+  const minSamples = Math.ceil((minMs / 1000) * sampleRate)
+  if (pcm.length >= minSamples) return pcm
+  const out = new Float32Array(minSamples)
+  out.set(pcm)
+  return out
+}
+
 // ── Types ──────────────────────────────────────────────────
 type TranscriptionProvider =
   | 'local-fast'
@@ -182,7 +193,7 @@ export class Transcriber {
     }
 
     if (this.whisper) {
-      return this._transcribeLocal(pcm, duration)
+      return this._transcribeLocal(pcm, duration, sampleRate)
     }
 
     // Model not loaded yet (probably downloading)
@@ -240,11 +251,13 @@ export class Transcriber {
   private async _transcribeLocal(
     pcm: Float32Array,
     duration: number,
+    sampleRate: number,
   ): Promise<TranscriptionResult> {
     try {
+      const pcmIn = padPcmToMinDuration(pcm, sampleRate, WHISPER_MIN_DURATION_MS)
       const os = require('os')
       const lang = this.config.language === 'multi' ? '' : 'en'
-      const task = await (this.whisper as any).transcribe(pcm, {
+      const task = await (this.whisper as any).transcribe(pcmIn, {
         language: lang || undefined,
         n_threads: Math.max(4, os.cpus().length - 2), // use most cores
         no_timestamps: true,       // skip timestamp computation

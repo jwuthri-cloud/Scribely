@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, memo } from 'react'
 import { motion } from 'framer-motion'
 import type { ChatMessage, ChatAttachment } from '../types'
 import type { QuickAction } from '../types/settings'
@@ -19,7 +19,6 @@ interface CompactChatViewProps {
   onWebSearch?: (query: string) => void
   onStop: () => void
   meetingActive: boolean
-  meetingDuration: string
   onToggleMeeting: () => void
   onSetView: (view: ViewId) => void
   onReset: () => void
@@ -59,14 +58,13 @@ interface CompactChatViewProps {
  * Shows only the LAST user message + LAST AI response (not full history),
  * inline action links, and a minimal input bar.
  */
-export function CompactChatView({
+export const CompactChatView = memo(function CompactChatView({
   messages,
   isLoading,
   onSend,
   onWebSearch,
   onStop,
   meetingActive,
-  meetingDuration,
   onToggleMeeting,
   onSetView,
   onReset,
@@ -140,7 +138,6 @@ export function CompactChatView({
       {/* ── Compact Navbar ── */}
       <CompactNavbar
         meetingActive={meetingActive}
-        meetingDuration={meetingDuration}
         onToggleMeeting={onToggleMeeting}
         onSetView={onSetView}
         onClose={handleClose}
@@ -392,4 +389,4 @@ export function CompactChatView({
       />
     </div>
   )
-}
+})

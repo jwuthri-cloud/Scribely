@@ -45,7 +45,8 @@
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
     "smart-whisper": "^0.8.1",
-    "ws": "^8.19.0"
+    "ws": "^8.19.0",
+    "zustand": "^5.0.12"
   },
   "build": {
     "appId": "com.scribely.desktop",

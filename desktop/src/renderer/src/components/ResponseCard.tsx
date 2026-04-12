@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, memo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
@@ -261,7 +261,7 @@ function EmptyState({
   )
 }
 
-export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps) {
+export const ResponseCard = memo(function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hotkeys, setHotkeys] = useState<HotkeyConfig>(DEFAULT_HOTKEYS)
   const [promptModal, setPromptModal] = useState<{
@@ -671,4 +671,4 @@ export function ResponseCard({ messages, isLoading, onSend }: ResponseCardProps)
       )}
     </div>
   )
-}
+})
