@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  forwardRef,
-  useMemo,
-  useState,
-} from "react"
+import { useCallback, useImperativeHandle, forwardRef, useMemo, useState } from "react"
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,10 +16,11 @@ import {
   type Edge,
   type Node,
   type EdgeMarker,
+  type NodeChange,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { Plus, Trash2, X } from "lucide-react"
-import type { RuleTrigger, RuleStepType } from "@/lib/api"
+import type { RuleStepType, RuleTrigger } from "@/lib/api"
 import {
   StepConfigForm,
   defaultConfig,
@@ -41,16 +35,11 @@ import { RuleStepNode, TriggerNode, STEP_TYPE_CONFIG } from "./RuleNodes"
 import {
   flowLayoutSnapshot,
   flowToStepDrafts,
+  getTriggerFromNodes,
   type RuleStepNodeData,
 } from "./rule-flow-utils"
 
 /* ── constants ───────────────────────────────────────────────────────────── */
-const TRIGGER_LABEL: Record<RuleTrigger, string> = {
-  before_meeting: "Before meeting",
-  after_meeting: "After meeting",
-  during_meeting: "During meeting",
-}
-
 const STEP_TYPES: RuleStepType[] = [
   "llm_prompt",
   "send_email",
@@ -88,10 +77,10 @@ export type RuleFlowCanvasHandle = {
   getSavePayload: () => RuleFlowSavePayload
   applyPromptToFirstLlm: (text: string) => void
   getFirstLlmPrompt: () => string
+  getTrigger: () => RuleTrigger
 }
 
 type Props = {
-  trigger: RuleTrigger
   initialNodes: Node[]
   initialEdges: Edge[]
   className?: string
@@ -403,27 +392,26 @@ function InspectorPanel({
 
 /* ── inner canvas (must be inside ReactFlowProvider) ─────────────────────── */
 const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowInner(
-  { trigger, initialNodes, initialEdges, className },
+  { initialNodes, initialEdges, className },
   ref
 ) {
   const { screenToFlowPosition } = useReactFlow()
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(
     initialEdges.map((e) => ({ ...EDGE_DEFAULTS, ...e, style: EDGE_DEFAULTS.style }))
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  /* keep trigger label in sync */
-  useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) =>
-        n.id === RULE_TRIGGER_NODE_ID
-          ? { ...n, data: { ...n.data, label: TRIGGER_LABEL[trigger] ?? trigger.replace(/_/g, " ") } }
-          : n
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const filtered = changes.filter(
+        (c) => !(c.type === "remove" && "id" in c && c.id === RULE_TRIGGER_NODE_ID)
       )
-    )
-  }, [trigger, setNodes])
+      onNodesChangeBase(filtered)
+    },
+    [onNodesChangeBase]
+  )
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -559,6 +547,7 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
       }
       return ""
     },
+    getTrigger: (): RuleTrigger => getTriggerFromNodes(nodes),
   }), [nodes, edges, setNodes])
 
   const stepCount = nodes.filter((n) => n.type === "ruleStep").length

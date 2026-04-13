@@ -1,11 +1,11 @@
 "use client"
 
 import { memo } from "react"
-import { Handle, Position, type NodeProps } from "@xyflow/react"
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react"
 import { Bot, Mail, Webhook, Bell, Puzzle, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { RuleStepNodeData } from "./rule-flow-utils"
-import type { RuleStepType } from "@/lib/api"
+import { TRIGGER_LABEL, type RuleStepNodeData, type TriggerNodeData } from "./rule-flow-utils"
+import type { RuleStepType, RuleTrigger } from "@/lib/api"
 
 /* ── per-type visual config ─────────────────────────────────────────────── */
 export type StepTypeConfig = {
@@ -64,15 +64,42 @@ export const STEP_TYPE_CONFIG: Record<RuleStepType, StepTypeConfig> = {
 const handleBase =
   "!absolute !z-10 !flex !items-center !justify-center !rounded-full !border-[3px] !border-[#0d0d10] !transition-transform hover:!scale-125 active:!scale-110"
 
+const TRIGGER_OPTIONS: { value: RuleTrigger; label: string }[] = [
+  { value: "before_meeting", label: "Before meeting" },
+  { value: "during_meeting", label: "During meeting" },
+  { value: "after_meeting", label: "After meeting" },
+]
+
 /* ── Trigger Node ─────────────────────────────────────────────────────────── */
-export const TriggerNode = memo(function TriggerNode({ data, selected }: NodeProps) {
-  const label = typeof data.label === "string" ? data.label : "Trigger"
+export const TriggerNode = memo(function TriggerNode({ id, data, selected }: NodeProps) {
+  const { setNodes } = useReactFlow()
+  const d = data as Partial<TriggerNodeData>
+  const trigger = d.trigger ?? "after_meeting"
+  const label = d.label ?? TRIGGER_LABEL[trigger]
   const accent = "#fbbf24"
+
+  const onTriggerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value as RuleTrigger
+    setNodes((ns) =>
+      ns.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                trigger: next,
+                label: TRIGGER_LABEL[next],
+              } satisfies TriggerNodeData,
+            }
+          : n
+      )
+    )
+  }
 
   return (
     <div
       className={cn(
-        "relative w-[210px] rounded-2xl border bg-zinc-900 shadow-xl transition-all duration-150",
+        "relative w-[220px] rounded-2xl border bg-zinc-900 shadow-xl transition-all duration-150",
         selected ? "border-amber-400/70 shadow-amber-500/15" : "border-white/[0.1]"
       )}
       style={selected ? { boxShadow: `0 0 0 3px ${accent}44, 0 20px 40px rgba(0,0,0,.5)` } : undefined}
@@ -82,16 +109,32 @@ export const TriggerNode = memo(function TriggerNode({ data, selected }: NodePro
 
       {/* header */}
       <div
-        className="flex items-center gap-3 rounded-2xl px-4 py-3.5"
+        className="flex flex-col gap-2 rounded-2xl px-3 py-3"
         style={{ background: `linear-gradient(135deg, rgba(180,83,9,0.3) 0%, transparent 70%)` }}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20">
-          <Zap className="h-4.5 w-4.5 text-amber-300" />
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20">
+            <Zap className="h-4.5 w-4.5 text-amber-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">Trigger</p>
+            <p className="truncate text-[11px] font-medium leading-snug text-white/70">{label}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">Trigger</p>
-          <p className="text-[12px] font-semibold leading-snug text-white/95">{label}</p>
-        </div>
+        <label className="nodrag nopan block">
+          <span className="sr-only">When to run</span>
+          <select
+            value={trigger}
+            onChange={onTriggerChange}
+            className="w-full cursor-pointer rounded-lg border border-zinc-600/90 bg-zinc-950 px-2 py-1.5 text-[11px] font-medium text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 [color-scheme:dark]"
+          >
+            {TRIGGER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value} className="bg-zinc-950">
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* source handle — right side, always visible */}

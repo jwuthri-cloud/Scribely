@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Trash2, Play } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
-import type { MeetingRule, RuleExecutionDTO, RuleTrigger } from "@/lib/api"
+import type { MeetingRule, RuleExecutionDTO } from "@/lib/api"
 import { PromptOptimizerChat } from "@/components/app/rules/PromptOptimizerChat"
 import { RuleFlowCanvas, type RuleFlowCanvasHandle } from "@/components/app/rules/flow/RuleFlowCanvas"
 import { buildFlowFromRule } from "@/components/app/rules/flow/rule-flow-utils"
@@ -23,8 +23,6 @@ export default function EditRulePage() {
   const flowRef = useRef<RuleFlowCanvasHandle>(null)
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [trigger, setTrigger] = useState<RuleTrigger>("after_meeting")
-  const [enabled, setEnabled] = useState(true)
   const [executions, setExecutions] = useState<RuleExecutionDTO[]>([])
   const [testMeetingId, setTestMeetingId] = useState("")
   const [loading, setLoading] = useState(true)
@@ -41,8 +39,6 @@ export default function EditRulePage() {
       setRule(r)
       setName(r.name)
       setDescription(r.description ?? "")
-      setTrigger(r.trigger as RuleTrigger)
-      setEnabled(r.enabled)
       setFlowKey((k) => k + 1)
       setExecutions(ex)
     } catch (e) {
@@ -63,7 +59,7 @@ export default function EditRulePage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
-    if (!id || !name.trim()) return
+    if (!id || !name.trim() || !rule) return
     const payload = flowRef.current?.getSavePayload()
     if (!payload) {
       setErr("Flow editor is not ready.")
@@ -77,14 +73,20 @@ export default function EditRulePage() {
       setErr("Add at least one step node and connect it from the trigger.")
       return
     }
+    const flow = flowRef.current
+    if (!flow) {
+      setErr("Flow editor is not ready.")
+      return
+    }
+    const nextTrigger = flow.getTrigger()
     setSaving(true)
     setErr(null)
     try {
       const updated = await api.updateRule(id, {
         name: name.trim(),
         description: description.trim() || null,
-        trigger,
-        enabled,
+        trigger: nextTrigger,
+        enabled: rule.enabled,
         steps: payload.steps,
         flow_layout: payload.flow_layout,
       })
@@ -182,31 +184,11 @@ export default function EditRulePage() {
               className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-white"
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-white/50">When to run</label>
-              <select
-                value={trigger}
-                onChange={(e) => setTrigger(e.target.value as RuleTrigger)}
-                className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-white"
-              >
-                <option value="before_meeting">Before meeting</option>
-                <option value="after_meeting">After meeting</option>
-                <option value="during_meeting">During meeting</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-white/70">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(e) => setEnabled(e.target.checked)}
-                  className="rounded border-white/20"
-                />
-                Enabled
-              </label>
-            </div>
-          </div>
+          <p className="text-xs text-white/40">
+            Choose <span className="text-white/55">when this rule runs</span> on the{" "}
+            <span className="text-amber-200/80">Trigger</span> node in the flow below. Enable or disable this rule from
+            the rules list.
+          </p>
         </div>
 
         <div className="min-w-0">
@@ -215,7 +197,6 @@ export default function EditRulePage() {
             <RuleFlowCanvas
               key={flowKey}
               ref={flowRef}
-              trigger={trigger}
               initialNodes={flowInitial.nodes}
               initialEdges={flowInitial.edges}
             />

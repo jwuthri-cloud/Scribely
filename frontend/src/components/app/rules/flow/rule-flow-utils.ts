@@ -3,10 +3,16 @@ import type { MeetingRule, RuleStepDTO, RuleTrigger } from "@/lib/api"
 import { newStepDraft, type StepDraft } from "@/components/app/rules/StepConfigForm"
 import { RULE_TRIGGER_NODE_ID } from "./constants"
 
-const TRIGGER_LABEL: Record<RuleTrigger, string> = {
+export const TRIGGER_LABEL: Record<RuleTrigger, string> = {
   before_meeting: "Before meeting",
   after_meeting: "After meeting",
   during_meeting: "During meeting",
+}
+
+/** React Flow data for the fixed trigger node — persisted in flow_layout JSON */
+export type TriggerNodeData = {
+  trigger: RuleTrigger
+  label: string
 }
 
 export type RuleStepNodeData = {
@@ -102,6 +108,30 @@ export function topoOrderFromEdges(edges: Edge[], stepIds: Set<string>): { order
   return { order, error: null }
 }
 
+function isRuleTrigger(v: unknown): v is RuleTrigger {
+  return v === "before_meeting" || v === "after_meeting" || v === "during_meeting"
+}
+
+/** Ensure trigger node has canonical data.trigger, label, and is not deletable. */
+export function normalizeTriggerNode(node: Node, fallbackTrigger: RuleTrigger): Node {
+  if (node.id !== RULE_TRIGGER_NODE_ID || node.type !== "trigger") return node
+  const d = (node.data ?? {}) as Record<string, unknown>
+  const trigger: RuleTrigger = isRuleTrigger(d.trigger) ? d.trigger : fallbackTrigger
+  const label =
+    typeof d.label === "string" && d.label.trim()
+      ? d.label
+      : TRIGGER_LABEL[trigger]
+  return {
+    ...node,
+    deletable: false,
+    data: { ...node.data, trigger, label } satisfies TriggerNodeData,
+  }
+}
+
+export function hydrateFlowTriggerNodes(nodes: Node[], fallbackTrigger: RuleTrigger): Node[] {
+  return nodes.map((n) => normalizeTriggerNode(n, fallbackTrigger))
+}
+
 /** Build React Flow state from API rule (saved graph or synthesized chain). */
 export function buildFlowFromRule(rule: MeetingRule): { nodes: Node[]; edges: Edge[] } {
   const fl = rule.flow_layout
@@ -111,9 +141,11 @@ export function buildFlowFromRule(rule: MeetingRule): { nodes: Node[]; edges: Ed
     Array.isArray((fl as { nodes?: unknown }).nodes) &&
     ((fl as { nodes: unknown[] }).nodes?.length ?? 0) > 0
   ) {
+    const rawNodes = (fl as { nodes: Node[] }).nodes
+    const edges = Array.isArray((fl as { edges?: Edge[] }).edges) ? (fl as { edges: Edge[] }).edges : []
     return {
-      nodes: (fl as { nodes: Node[] }).nodes,
-      edges: Array.isArray((fl as { edges?: Edge[] }).edges) ? (fl as { edges: Edge[] }).edges : [],
+      nodes: hydrateFlowTriggerNodes(rawNodes, rule.trigger as RuleTrigger),
+      edges,
     }
   }
   return synthesizeChain(rule.steps, rule.trigger as RuleTrigger)
@@ -122,16 +154,15 @@ export function buildFlowFromRule(rule: MeetingRule): { nodes: Node[]; edges: Ed
 /** Horizontal chain: trigger → steps in order_index order (legacy / fallback layout). */
 export function synthesizeChain(steps: RuleStepDTO[], trigger: string): { nodes: Node[]; edges: Edge[] } {
   const sorted = [...steps].sort((a, b) => a.order_index - b.order_index)
+  const tr: RuleTrigger = isRuleTrigger(trigger) ? trigger : "after_meeting"
+  const label = TRIGGER_LABEL[tr] ?? String(trigger).replace(/_/g, " ")
   const nodes: Node[] = [
     {
       id: RULE_TRIGGER_NODE_ID,
       type: "trigger",
       position: { x: 0, y: 100 },
-      data: {
-        label:
-          TRIGGER_LABEL[trigger as RuleTrigger] ??
-          trigger.replace(/_/g, " "),
-      },
+      deletable: false,
+      data: { trigger: tr, label } satisfies TriggerNodeData,
     },
   ]
   const edges: Edge[] = []
@@ -158,7 +189,7 @@ export function synthesizeChain(steps: RuleStepDTO[], trigger: string): { nodes:
 }
 
 /** New rule: trigger + one step, not auto-wired. */
-export function initialNewRuleFlow(trigger: RuleTrigger): { nodes: Node[]; edges: Edge[] } {
+export function initialNewRuleFlow(trigger: RuleTrigger = "after_meeting"): { nodes: Node[]; edges: Edge[] } {
   const draft = newStepDraft(0)
   if (!draft.id) {
     draft.id =
@@ -166,15 +197,15 @@ export function initialNewRuleFlow(trigger: RuleTrigger): { nodes: Node[]; edges
         ? globalThis.crypto.randomUUID()
         : `step-${Date.now()}`
   }
-  const label =
-    TRIGGER_LABEL[trigger] ?? trigger.replace(/_/g, " ")
+  const label = TRIGGER_LABEL[trigger] ?? trigger.replace(/_/g, " ")
   return {
     nodes: [
       {
         id: RULE_TRIGGER_NODE_ID,
         type: "trigger",
         position: { x: 80, y: 140 },
-        data: { label },
+        deletable: false,
+        data: { trigger, label } satisfies TriggerNodeData,
       },
       {
         id: draft.id!,
@@ -248,4 +279,11 @@ export function flowLayoutSnapshot(nodes: Node[], edges: Edge[]): Record<string,
     nodes: JSON.parse(JSON.stringify(nodes)),
     edges: JSON.parse(JSON.stringify(edges)),
   }
+}
+
+/** Read lifecycle trigger from the canvas trigger node (fallback after_meeting). */
+export function getTriggerFromNodes(nodes: Node[]): RuleTrigger {
+  const t = nodes.find((n) => n.id === RULE_TRIGGER_NODE_ID && n.type === "trigger")
+  const d = (t?.data ?? {}) as Record<string, unknown>
+  return isRuleTrigger(d.trigger) ? d.trigger : "after_meeting"
 }

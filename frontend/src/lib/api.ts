@@ -303,14 +303,26 @@ export function createApiClient(getToken: GetTokenFn) {
       throw new ApiError(401, "Not authenticated")
     }
 
-    const res = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        ...options?.headers,
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
+    const url = `${API_URL}${path}`
+    let res: Response
+    try {
+      res = await fetch(url, {
+        ...options,
+        headers: {
+          ...options?.headers,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      // Browser "Failed to fetch" has no server logs — surface URL + env hint for production.
+      console.error("[api] network error", { path, apiUrl: API_URL, reason })
+      throw new ApiError(
+        0,
+        `Cannot reach API (${reason}). Base URL: ${API_URL}. In production set NEXT_PUBLIC_API_URL to your backend and allow CORS for this site.`
+      )
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "")
