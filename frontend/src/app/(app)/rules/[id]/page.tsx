@@ -1,28 +1,16 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Trash2, Play } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import type { MeetingRule, RuleExecutionDTO, RuleTrigger } from "@/lib/api"
-import { RuleStepBuilder } from "@/components/app/rules/RuleStepBuilder"
-import { newStepDraft, type StepDraft } from "@/components/app/rules/StepConfigForm"
 import { PromptOptimizerChat } from "@/components/app/rules/PromptOptimizerChat"
+import { RuleFlowCanvas, type RuleFlowCanvasHandle } from "@/components/app/rules/flow/RuleFlowCanvas"
+import { buildFlowFromRule } from "@/components/app/rules/flow/rule-flow-utils"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
-
-function ruleToSteps(r: MeetingRule): StepDraft[] {
-  if (!r.steps.length) return [newStepDraft(0)]
-  return r.steps
-    .slice()
-    .sort((a, b) => a.order_index - b.order_index)
-    .map((s, i) => ({
-      order_index: i,
-      name: s.name,
-      step_type: s.step_type as StepDraft["step_type"],
-      config: { ...s.config },
-    }))
-}
+import type { Edge, Node } from "@xyflow/react"
 
 export default function EditRulePage() {
   const params = useParams()
@@ -31,7 +19,8 @@ export default function EditRulePage() {
   const router = useRouter()
 
   const [rule, setRule] = useState<MeetingRule | null>(null)
-  const [steps, setSteps] = useState<StepDraft[]>([])
+  const [flowKey, setFlowKey] = useState(0)
+  const flowRef = useRef<RuleFlowCanvasHandle>(null)
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [trigger, setTrigger] = useState<RuleTrigger>("after_meeting")
@@ -54,7 +43,7 @@ export default function EditRulePage() {
       setDescription(r.description ?? "")
       setTrigger(r.trigger as RuleTrigger)
       setEnabled(r.enabled)
-      setSteps(ruleToSteps(r))
+      setFlowKey((k) => k + 1)
       setExecutions(ex)
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load")
@@ -67,9 +56,27 @@ export default function EditRulePage() {
     void load()
   }, [load])
 
+  const flowInitial = useMemo((): { nodes: Node[]; edges: Edge[] } => {
+    if (!rule) return { nodes: [], edges: [] }
+    return buildFlowFromRule(rule)
+  }, [rule, flowKey])
+
   async function save(e: React.FormEvent) {
     e.preventDefault()
     if (!id || !name.trim()) return
+    const payload = flowRef.current?.getSavePayload()
+    if (!payload) {
+      setErr("Flow editor is not ready.")
+      return
+    }
+    if (payload.error) {
+      setErr(payload.error)
+      return
+    }
+    if (payload.steps.length === 0) {
+      setErr("Add at least one step node and connect it from the trigger.")
+      return
+    }
     setSaving(true)
     setErr(null)
     try {
@@ -78,12 +85,8 @@ export default function EditRulePage() {
         description: description.trim() || null,
         trigger,
         enabled,
-        steps: steps.map((s, i) => ({
-          order_index: i,
-          name: s.name,
-          step_type: s.step_type,
-          config: s.config,
-        })),
+        steps: payload.steps,
+        flow_layout: payload.flow_layout,
       })
       setRule(updated)
       await load()
@@ -119,16 +122,7 @@ export default function EditRulePage() {
   }
 
   const applyOptimizedPrompt = (text: string) => {
-    setSteps((prev) => {
-      let applied = false
-      return prev.map((s) => {
-        if (!applied && s.step_type === "llm_prompt") {
-          applied = true
-          return { ...s, config: { ...s.config, user_prompt_template: text } }
-        }
-        return s
-      })
-    })
+    flowRef.current?.applyPromptToFirstLlm(text)
   }
 
   if (loading) {
@@ -150,12 +144,8 @@ export default function EditRulePage() {
     )
   }
 
-  const llmPromptForOptimizer =
-    steps.find((s) => s.step_type === "llm_prompt")?.config?.user_prompt_template
-  const llmPromptStr = typeof llmPromptForOptimizer === "string" ? llmPromptForOptimizer : ""
-
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-12">
+    <div className="mx-auto max-w-7xl space-y-8 pb-12">
       <Link href="/rules" className="inline-flex items-center gap-2 text-sm text-white/45 hover:text-white/70">
         <ArrowLeft className="h-4 w-4" />
         Rules
@@ -220,11 +210,23 @@ export default function EditRulePage() {
         </div>
 
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-white">Steps</h2>
-          <RuleStepBuilder steps={steps} onChange={setSteps} />
+          <h2 className="mb-3 text-sm font-semibold text-white">Flow</h2>
+          {rule && (
+            <RuleFlowCanvas
+              key={flowKey}
+              ref={flowRef}
+              trigger={trigger}
+              initialNodes={flowInitial.nodes}
+              initialEdges={flowInitial.edges}
+            />
+          )}
         </div>
 
-        <PromptOptimizerChat currentPrompt={llmPromptStr} onApply={applyOptimizedPrompt} />
+        <PromptOptimizerChat
+          currentPrompt=""
+          getCurrentPrompt={() => flowRef.current?.getFirstLlmPrompt() ?? ""}
+          onApply={applyOptimizedPrompt}
+        />
 
         {err && <p className="text-sm text-red-400">{err}</p>}
 

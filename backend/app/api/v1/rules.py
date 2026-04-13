@@ -16,7 +16,7 @@ from app.api.deps import get_current_user_with_db
 from app.database.models.rule import RuleTriggerEnum, RuleStepTypeEnum
 from app.database.models.user import User
 from app.database.repositories.meeting import MeetingRepository
-from app.database.repositories.rule import RuleRepository
+from app.database.repositories.rule import RuleRepository, _MISSING_FLOW
 from app.database.session import get_async_db_session
 from app.model_name import ALLOWED_OPENROUTER_MODEL_IDS, DEFAULT_TRAINING
 from app.services.rule_engine import execute_rule, stream_prompt_optimize
@@ -33,6 +33,7 @@ router = APIRouter()
 
 
 class RuleStepIn(BaseModel):
+    id: Optional[str] = None
     order_index: int = 0
     name: str = Field(..., min_length=1, max_length=255)
     step_type: str
@@ -64,6 +65,7 @@ class RuleOut(BaseModel):
     trigger: str
     enabled: bool
     steps: list[RuleStepOut]
+    flow_layout: Optional[dict[str, Any]] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -76,6 +78,7 @@ class RuleCreateRequest(BaseModel):
     trigger: str = RuleTriggerEnum.AFTER_MEETING.value
     enabled: bool = True
     steps: list[RuleStepIn] = Field(default_factory=list)
+    flow_layout: Optional[dict[str, Any]] = None
 
     @field_validator("trigger")
     @classmethod
@@ -92,6 +95,7 @@ class RuleUpdateRequest(BaseModel):
     trigger: Optional[str] = None
     enabled: Optional[bool] = None
     steps: Optional[list[RuleStepIn]] = None
+    flow_layout: Optional[dict[str, Any]] = None
 
     @field_validator("trigger")
     @classmethod
@@ -135,6 +139,8 @@ class PromptOptimizeRequest(BaseModel):
 
 def _rule_to_out(rule) -> RuleOut:
     steps = sorted(rule.steps or [], key=lambda s: s.order_index)
+    fl = getattr(rule, "flow_layout", None)
+    flow_layout = fl if isinstance(fl, dict) else None
     return RuleOut(
         id=rule.id,
         name=rule.name,
@@ -151,21 +157,25 @@ def _rule_to_out(rule) -> RuleOut:
             )
             for s in steps
         ],
+        flow_layout=flow_layout,
         created_at=rule.created_at.isoformat() if rule.created_at else None,
         updated_at=rule.updated_at.isoformat() if rule.updated_at else None,
     )
 
 
 def _steps_payload(steps: list[RuleStepIn]) -> list[dict[str, Any]]:
-    return [
-        {
+    out: list[dict[str, Any]] = []
+    for s in steps:
+        row: dict[str, Any] = {
             "order_index": s.order_index,
             "name": s.name,
             "step_type": s.step_type,
             "config": s.config,
         }
-        for s in steps
-    ]
+        if s.id:
+            row["id"] = s.id
+        out.append(row)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +229,7 @@ async def create_rule(
         trigger=body.trigger,
         enabled=body.enabled,
         steps=_steps_payload(body.steps) if body.steps else None,
+        flow_layout=body.flow_layout if isinstance(body.flow_layout, dict) else None,
     )
     await db.commit()
     loaded = await RuleRepository.get_by_id(db, rule.id, user_id=user.id)
@@ -249,6 +260,7 @@ async def update_rule(
     rule = await RuleRepository.get_by_id(db, rule_id, user_id=user.id)
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
+    patch = body.model_dump(exclude_unset=True)
     await RuleRepository.update_rule(
         db,
         rule,
@@ -257,6 +269,7 @@ async def update_rule(
         trigger=body.trigger,
         enabled=body.enabled,
         steps=_steps_payload(body.steps) if body.steps is not None else None,
+        flow_layout=body.flow_layout if "flow_layout" in patch else _MISSING_FLOW,
     )
     await db.commit()
     loaded = await RuleRepository.get_by_id(db, rule_id, user_id=user.id)

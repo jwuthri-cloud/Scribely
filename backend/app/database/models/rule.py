@@ -56,6 +56,8 @@ class Rule(Base):
         nullable=False,
     )
     enabled = Column(Boolean, default=True, nullable=False)
+    # React Flow snapshot: { "nodes": [...], "edges": [...] }; nullable for legacy rules
+    flow_layout = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
     updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)

@@ -33,6 +33,7 @@ from app.database.models.rule import (
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.push import PushRepository
 from app.database.repositories.rule import RuleRepository
+from app.services.rule_flow import ordered_steps_from_flow
 from app.infrastructure.langfuse_handler import get_langfuse_callbacks
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.infrastructure.object_storage import (
@@ -388,7 +389,18 @@ async def execute_rule(
     context = await build_rule_context(db, meeting)
     step_results: list[dict[str, Any]] = []
 
-    ordered = sorted(rule.steps or [], key=lambda s: s.order_index)
+    ordered, flow_err = ordered_steps_from_flow(rule)
+    if flow_err:
+        await RuleRepository.update_execution(
+            db,
+            execution,
+            status=RuleExecutionStatusEnum.FAILED,
+            step_results=[],
+            error=flow_err,
+        )
+        await db.commit()
+        return RuleExecutionStatusEnum.FAILED
+
     try:
         for step in ordered:
             result, err = await _run_step(

@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
+import type { Edge, Node } from "@xyflow/react"
 import { useApi } from "@/hooks/useApi"
 import type { RuleTrigger } from "@/lib/api"
-import { RuleStepBuilder } from "@/components/app/rules/RuleStepBuilder"
-import { newStepDraft, type StepDraft } from "@/components/app/rules/StepConfigForm"
+import { RuleFlowCanvas, type RuleFlowCanvasHandle } from "@/components/app/rules/flow/RuleFlowCanvas"
+import { initialNewRuleFlow } from "@/components/app/rules/flow/rule-flow-utils"
 
 export default function NewRulePage() {
   const api = useApi()
@@ -16,15 +17,33 @@ export default function NewRulePage() {
   const [description, setDescription] = useState("")
   const [trigger, setTrigger] = useState<RuleTrigger>("after_meeting")
   const [enabled, setEnabled] = useState(true)
-  const [steps, setSteps] = useState<StepDraft[]>([newStepDraft(0)])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const flowRef = useRef<RuleFlowCanvasHandle>(null)
+  const [flowKey, setFlowKey] = useState(0)
+
+  const flowInitial = useMemo((): { nodes: Node[]; edges: Edge[] } => {
+    return initialNewRuleFlow(trigger)
+  }, [trigger, flowKey])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
     if (!name.trim()) {
       setErr("Name is required")
+      return
+    }
+    const payload = flowRef.current?.getSavePayload()
+    if (!payload) {
+      setErr("Flow editor is not ready.")
+      return
+    }
+    if (payload.error) {
+      setErr(payload.error)
+      return
+    }
+    if (payload.steps.length === 0) {
+      setErr("Add at least one step node and connect it from the trigger.")
       return
     }
     setSaving(true)
@@ -34,12 +53,8 @@ export default function NewRulePage() {
         description: description.trim() || null,
         trigger,
         enabled,
-        steps: steps.map((s, i) => ({
-          order_index: i,
-          name: s.name,
-          step_type: s.step_type,
-          config: s.config,
-        })),
+        steps: payload.steps,
+        flow_layout: payload.flow_layout,
       })
       router.push(`/rules/${created.id}`)
     } catch (e) {
@@ -50,7 +65,7 @@ export default function NewRulePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-12">
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
       <Link
         href="/rules"
         className="inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-white/70"
@@ -87,7 +102,10 @@ export default function NewRulePage() {
               <label className="mb-1 block text-xs font-medium text-white/50">When to run</label>
               <select
                 value={trigger}
-                onChange={(e) => setTrigger(e.target.value as RuleTrigger)}
+                onChange={(e) => {
+                  setTrigger(e.target.value as RuleTrigger)
+                  setFlowKey((k) => k + 1)
+                }}
                 className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-sm text-white"
               >
                 <option value="before_meeting">Before meeting (on upload)</option>
@@ -110,8 +128,14 @@ export default function NewRulePage() {
         </div>
 
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-white">Steps</h2>
-          <RuleStepBuilder steps={steps} onChange={setSteps} />
+          <h2 className="mb-3 text-sm font-semibold text-white">Flow</h2>
+          <RuleFlowCanvas
+            key={flowKey}
+            ref={flowRef}
+            trigger={trigger}
+            initialNodes={flowInitial.nodes}
+            initialEdges={flowInitial.edges}
+          />
         </div>
 
         {err && <p className="text-sm text-red-400">{err}</p>}

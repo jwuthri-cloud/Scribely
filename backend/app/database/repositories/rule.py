@@ -24,8 +24,75 @@ def _utc_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+_MISSING_FLOW = object()
+
+
 class RuleRepository:
     """CRUD and queries for Rule, RuleStep, RuleExecution."""
+
+    @staticmethod
+    async def _upsert_steps(
+        db: AsyncSession,
+        rule_id: str,
+        steps: list[dict[str, Any]],
+    ) -> None:
+        """Sync rule_steps to payload: update by id, insert new, delete missing."""
+        if not steps:
+            await db.execute(delete(RuleStep).where(RuleStep.rule_id == rule_id))
+            await db.flush()
+            return
+
+        stmt = select(RuleStep).where(RuleStep.rule_id == rule_id)
+        res = await db.execute(stmt)
+        existing_rows = {r.id: r for r in res.scalars().all()}
+        kept_ids: list[str] = []
+
+        for i, s in enumerate(steps):
+            raw_id = s.get("id")
+            sid = str(raw_id).strip() if raw_id else ""
+            stype = s.get("step_type") or s.get("type")
+            name = s.get("name") or f"Step {i + 1}"
+            cfg = s.get("config") if isinstance(s.get("config"), dict) else {}
+            oi = int(s.get("order_index", i))
+
+            if sid and sid in existing_rows:
+                row = existing_rows[sid]
+                row.order_index = oi
+                row.name = name
+                row.step_type = stype
+                row.config = cfg
+                kept_ids.append(sid)
+            elif sid:
+                db.add(
+                    RuleStep(
+                        id=sid,
+                        rule_id=rule_id,
+                        order_index=oi,
+                        name=name,
+                        step_type=stype,
+                        config=cfg,
+                    )
+                )
+                kept_ids.append(sid)
+            else:
+                nid = str(uuid.uuid4())
+                db.add(
+                    RuleStep(
+                        id=nid,
+                        rule_id=rule_id,
+                        order_index=oi,
+                        name=name,
+                        step_type=stype,
+                        config=cfg,
+                    )
+                )
+                kept_ids.append(nid)
+
+        await db.flush()
+        to_remove = set(existing_rows.keys()) - set(kept_ids)
+        if to_remove:
+            await db.execute(delete(RuleStep).where(RuleStep.id.in_(to_remove)))
+        await db.flush()
 
     @staticmethod
     async def create_rule(
@@ -37,6 +104,7 @@ class RuleRepository:
         trigger: RuleTriggerEnum | str = RuleTriggerEnum.AFTER_MEETING,
         enabled: bool = True,
         steps: Optional[list[dict[str, Any]]] = None,
+        flow_layout: Optional[dict[str, Any]] = None,
     ) -> Rule:
         rid = str(uuid.uuid4())
         tr = trigger.value if isinstance(trigger, RuleTriggerEnum) else str(trigger)
@@ -47,23 +115,12 @@ class RuleRepository:
             description=description,
             trigger=tr,
             enabled=enabled,
+            flow_layout=flow_layout,
         )
         db.add(rule)
         await db.flush()
         if steps:
-            for i, s in enumerate(steps):
-                sid = str(uuid.uuid4())
-                st = s.get("step_type") or s.get("type")
-                db.add(
-                    RuleStep(
-                        id=sid,
-                        rule_id=rid,
-                        order_index=int(s.get("order_index", i)),
-                        name=s.get("name") or f"Step {i + 1}",
-                        step_type=st,
-                        config=s.get("config") or {},
-                    )
-                )
+            await RuleRepository._upsert_steps(db, rid, steps)
         await db.flush()
         await db.refresh(rule)
         return rule
@@ -132,6 +189,7 @@ class RuleRepository:
         trigger: Optional[RuleTriggerEnum | str] = None,
         enabled: Optional[bool] = None,
         steps: Optional[list[dict[str, Any]]] = None,
+        flow_layout: Any = _MISSING_FLOW,
     ) -> Rule:
         if name is not None:
             rule.name = name
@@ -141,23 +199,11 @@ class RuleRepository:
             rule.trigger = trigger.value if isinstance(trigger, RuleTriggerEnum) else str(trigger)
         if enabled is not None:
             rule.enabled = enabled
+        if flow_layout is not _MISSING_FLOW:
+            rule.flow_layout = flow_layout
         rule.updated_at = _utc_naive()
         if steps is not None:
-            await db.execute(delete(RuleStep).where(RuleStep.rule_id == rule.id))
-            await db.flush()
-            for i, s in enumerate(steps):
-                sid = str(uuid.uuid4())
-                st = s.get("step_type") or s.get("type")
-                db.add(
-                    RuleStep(
-                        id=sid,
-                        rule_id=rule.id,
-                        order_index=int(s.get("order_index", i)),
-                        name=s.get("name") or f"Step {i + 1}",
-                        step_type=st,
-                        config=s.get("config") or {},
-                    )
-                )
+            await RuleRepository._upsert_steps(db, rule.id, steps)
         await db.flush()
         await db.refresh(rule)
         return rule

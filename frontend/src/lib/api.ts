@@ -207,6 +207,8 @@ export interface MeetingRule {
   trigger: string
   enabled: boolean
   steps: RuleStepDTO[]
+  /** Saved React Flow graph (nodes + edges) */
+  flow_layout?: Record<string, unknown> | null
   created_at: string | null
   updated_at: string | null
 }
@@ -229,11 +231,13 @@ export interface RuleCreateBody {
   trigger: RuleTrigger
   enabled?: boolean
   steps: Array<{
+    id?: string
     order_index: number
     name: string
     step_type: RuleStepType
     config: Record<string, unknown>
   }>
+  flow_layout?: Record<string, unknown> | null
 }
 
 export interface RuleUpdateBody {
@@ -242,6 +246,7 @@ export interface RuleUpdateBody {
   trigger?: RuleTrigger
   enabled?: boolean
   steps?: RuleCreateBody["steps"]
+  flow_layout?: Record<string, unknown> | null
 }
 
 /** OpenRouter chat model row — matches GET /api/v1/chat/models */

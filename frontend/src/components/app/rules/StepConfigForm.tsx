@@ -3,6 +3,8 @@
 import type { RuleStepType } from "@/lib/api"
 
 export type StepDraft = {
+  /** Stable id for React Flow / API round-trip */
+  id?: string
   order_index: number
   name: string
   step_type: RuleStepType
@@ -128,7 +130,12 @@ export function StepConfigForm({
 }
 
 export function newStepDraft(index: number): StepDraft {
+  const id =
+    typeof globalThis.crypto !== "undefined" && "randomUUID" in globalThis.crypto
+      ? globalThis.crypto.randomUUID()
+      : undefined
   return {
+    id,
     order_index: index,
     name: `Step ${index + 1}`,
     step_type: "llm_prompt",

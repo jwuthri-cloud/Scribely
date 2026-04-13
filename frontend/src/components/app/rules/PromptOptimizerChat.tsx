@@ -6,9 +6,12 @@ import { useApi } from "@/hooks/useApi"
 
 export function PromptOptimizerChat({
   currentPrompt,
+  getCurrentPrompt,
   onApply,
 }: {
   currentPrompt: string
+  /** Prefer reading the latest prompt from the flow editor when present. */
+  getCurrentPrompt?: () => string
   onApply: (text: string) => void
 }) {
   const api = useApi()
@@ -30,7 +33,7 @@ export function PromptOptimizerChat({
           acc += chunk
           setOut(acc)
         },
-        { current_prompt: currentPrompt || undefined }
+        { current_prompt: (getCurrentPrompt?.() ?? currentPrompt) || undefined }
       )
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed")
