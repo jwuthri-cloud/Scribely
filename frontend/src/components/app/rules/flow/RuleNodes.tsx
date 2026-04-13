@@ -66,7 +66,6 @@ const handleBase =
 
 const TRIGGER_OPTIONS: { value: RuleTrigger; label: string }[] = [
   { value: "before_meeting", label: "Before meeting" },
-  { value: "during_meeting", label: "During meeting" },
   { value: "after_meeting", label: "After meeting" },
 ]
 
@@ -133,6 +132,11 @@ export const TriggerNode = memo(function TriggerNode({ id, data, selected }: Nod
                 {o.label}
               </option>
             ))}
+            {trigger === "during_meeting" && (
+              <option value="during_meeting" className="bg-zinc-950">
+                During meeting (legacy)
+              </option>
+            )}
           </select>
         </label>
       </div>

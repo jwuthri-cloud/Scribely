@@ -69,41 +69,6 @@ function buildBeforeReminder(): { nodes: Node[]; edges: Edge[] } {
   }
 }
 
-/** During meeting: lightweight LLM “live note” placeholder users can edit. */
-function buildDuringLive(): { nodes: Node[]; edges: Edge[] } {
-  const stepId = newStepId()
-  const cfg = defaultConfig("llm_prompt")
-  const config = {
-    ...cfg,
-    system_prompt:
-      "You help during live meetings. Reply with 2–3 short bullet points only.",
-    user_prompt_template:
-      "Meeting title: {{ meeting.title }}\n\nLatest transcript chunk:\n{{ meeting.transcript }}\n\nGive quick live takeaways.",
-  }
-  return {
-    nodes: [
-      triggerNode("during_meeting"),
-      {
-        id: stepId,
-        type: "ruleStep",
-        position: { x: 420, y: 120 },
-        data: {
-          name: "Live takeaways",
-          step_type: "llm_prompt",
-          config,
-        } satisfies RuleStepNodeData,
-      },
-    ],
-    edges: [
-      {
-        id: `e-${RULE_TRIGGER_NODE_ID}-${stepId}`,
-        source: RULE_TRIGGER_NODE_ID,
-        target: stepId,
-      },
-    ],
-  }
-}
-
 /** After meeting: summarize then email (two steps, wired). */
 function buildAfterSummaryEmail(): { nodes: Node[]; edges: Edge[] } {
   const llmId = newStepId()
@@ -168,14 +133,6 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
     suggestedName: "Meeting reminder",
     suggestedDescription: "Notifies you before a scheduled meeting.",
     buildFlow: buildBeforeReminder,
-  },
-  {
-    id: "during-live",
-    title: "During meeting",
-    blurb: "LLM live takeaways from the latest transcript chunk.",
-    suggestedName: "Live takeaways",
-    suggestedDescription: "Short bullets while the meeting is running.",
-    buildFlow: buildDuringLive,
   },
   {
     id: "after-summary-email",
