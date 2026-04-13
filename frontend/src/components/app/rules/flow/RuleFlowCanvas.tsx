@@ -54,11 +54,44 @@ const nodeTypes = { trigger: TriggerNode, ruleStep: RuleStepNode }
 const EDGE_DEFAULTS = {
   type: "smoothstep" as const,
   animated: true,
+  /** Wider hit target so edges are easier to select */
+  interactionWidth: 28,
+  selectable: true,
+  deletable: true,
   style: { stroke: "rgba(255,255,255,0.25)", strokeWidth: 2 },
   markerEnd: {
     type: MarkerType.ArrowClosed,
     color: "rgba(255,255,255,0.35)",
   } satisfies EdgeMarker,
+}
+
+/** Inline stroke wins over RF’s `.selected` CSS — we tint edges when `selected` is set on the edge model. */
+const EDGE_SELECTED_STROKE = "rgba(196, 181, 253, 0.98)"
+const EDGE_SELECTED_MARKER = "rgba(196, 181, 253, 0.98)"
+
+function edgesWithSelectionHighlight<E extends Edge>(edges: E[], selectedIds: ReadonlySet<string>): E[] {
+  return edges.map((e) => {
+    const selected = Boolean(e.selected) || selectedIds.has(e.id)
+    const baseStyle = {
+      ...EDGE_DEFAULTS.style,
+      ...(e.style && typeof e.style === "object" ? e.style : {}),
+    }
+    const markerBase = {
+      ...EDGE_DEFAULTS.markerEnd,
+      ...(e.markerEnd && typeof e.markerEnd === "object" ? e.markerEnd : {}),
+    } satisfies EdgeMarker
+
+    return {
+      ...e,
+      style: selected
+        ? { ...baseStyle, stroke: EDGE_SELECTED_STROKE, strokeWidth: 3 }
+        : baseStyle,
+      markerEnd: selected
+        ? { ...markerBase, type: MarkerType.ArrowClosed, color: EDGE_SELECTED_MARKER }
+        : markerBase,
+      zIndex: selected ? 1001 : e.zIndex,
+    }
+  })
 }
 
 /* ── types ───────────────────────────────────────────────────────────────── */
@@ -396,10 +429,23 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
   const { screenToFlowPosition } = useReactFlow()
   const [nodes, setNodes, onNodesChangeBase] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(
-    initialEdges.map((e) => ({ ...EDGE_DEFAULTS, ...e, style: EDGE_DEFAULTS.style }))
+    initialEdges.map((e) => ({
+      ...EDGE_DEFAULTS,
+      ...e,
+      selectable: true,
+      deletable: true,
+      interactionWidth: EDGE_DEFAULTS.interactionWidth,
+      style: { ...EDGE_DEFAULTS.style, ...e.style },
+    }))
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<ReadonlySet<string>>(() => new Set())
+
+  const edgesForFlow = useMemo(
+    () => edgesWithSelectionHighlight(edges, selectedEdgeIds),
+    [edges, selectedEdgeIds]
+  )
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -421,10 +467,24 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
     [setEdges]
   )
 
-  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[] }) => {
-    const n = sel[0]
-    const next = n?.type === "ruleStep" ? n.id : null
-    setSelectedId(next)
+  const onSelectionChange = useCallback(
+    ({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
+      setSelectedEdgeIds(new Set(selEdges.map((e) => e.id)))
+      if (selEdges.length > 0 && selNodes.length === 0) {
+        setSelectedId(null)
+        return
+      }
+      const n = selNodes[0]
+      const next = n?.type === "ruleStep" ? n.id : null
+      setSelectedId(next)
+    },
+    []
+  )
+
+  const onEdgeClick = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
   }, [])
 
   const selectedNode = useMemo(
@@ -556,6 +616,8 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
             <span className="text-[10px] text-white/35">
               Wire upstream steps, then use <span className="text-white/45">Prior steps</span> chips for{" "}
               <code className="text-emerald-300/80">{"{{ steps[i].result }}"}</code>
+              <span className="text-white/25"> · </span>
+              <span className="text-white/30">Select an edge, then Delete or Backspace to remove it</span>
             </span>
             {orderedDraftsMeta.error && (
               <span className="text-[10px] text-amber-400/95" title={orderedDraftsMeta.error}>
@@ -583,11 +645,16 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
         <div className="min-h-0 flex-1 bg-[#0d0d10]">
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={edgesForFlow}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onSelectionChange={onSelectionChange}
+            onEdgeClick={onEdgeClick}
+            deleteKeyCode={["Backspace", "Delete"]}
+            defaultEdgeOptions={{
+              ...EDGE_DEFAULTS,
+            }}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={fitViewOptions}
