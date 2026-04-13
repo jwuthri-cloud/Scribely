@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.datastructures import MutableHeaders, URL
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 logger = get_logger("middleware")
 
@@ -125,6 +126,11 @@ def setup_middleware(app):
     # Rate limiting
     from .rate_limit import setup_rate_limiting
     setup_rate_limiting(app)
+
+    # Railway / reverse proxies terminate TLS and set X-Forwarded-Proto. Without this,
+    # trailing-slash redirects use http:// in Location — browsers block that from https pages
+    # (mixed content), surfacing as "Failed to fetch" for API calls.
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 
 __all__ = [
