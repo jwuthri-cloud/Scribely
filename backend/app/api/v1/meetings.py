@@ -14,6 +14,7 @@ After upload, background diarization + speaker identification is triggered
 automatically when a recording is present.
 """
 
+import asyncio
 import json
 import math
 import uuid
@@ -30,6 +31,7 @@ from app.database.models.user import User
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.meeting_processing import MeetingProcessingRepository
+from app.database.repositories.rule import RuleRepository
 from app.database.session import get_async_db_session
 from app.infrastructure.object_storage import (
     RECORDING_WEBM,
@@ -141,6 +143,21 @@ class DashboardStatsResponse(BaseModel):
     processing_count: int
     recent_meetings: list[MeetingSummaryResponse]
     meetings_per_month: list[MonthlyMeetingCount]
+
+
+class MeetingRuleExecutionItem(BaseModel):
+    """One automation rule run for this meeting."""
+
+    id: str
+    rule_id: str
+    rule_name: str
+    trigger: str
+    status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error: Optional[str] = None
+    # Per-step: step_id, name, step_type, ok, result, error (from rule engine)
+    step_results: Optional[list[dict[str, Any]]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +447,42 @@ async def get_meeting(
     )
 
 
+@router.get(
+    "/{meeting_id}/rule-executions",
+    response_model=list[MeetingRuleExecutionItem],
+)
+async def list_meeting_rule_executions(
+    meeting_id: str,
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> list[MeetingRuleExecutionItem]:
+    """Automation rules that ran for this meeting (before/after triggers, tests)."""
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Meeting not found",
+        )
+    rows = await RuleRepository.list_executions_for_meeting(db, meeting_id, user.id)
+    out: list[MeetingRuleExecutionItem] = []
+    for ex, rule_name in rows:
+        sr = ex.step_results if isinstance(ex.step_results, list) else None
+        out.append(
+            MeetingRuleExecutionItem(
+                id=ex.id,
+                rule_id=ex.rule_id,
+                rule_name=rule_name,
+                trigger=str(ex.trigger),
+                status=str(ex.status),
+                started_at=ex.started_at.isoformat() if ex.started_at else None,
+                completed_at=ex.completed_at.isoformat() if ex.completed_at else None,
+                error=ex.error,
+                step_results=sr,
+            )
+        )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # POST /  — upload meeting files
 # ---------------------------------------------------------------------------
@@ -585,6 +638,18 @@ async def sync_meeting(
         has_recording=recording_path is not None,
     )
     await db.commit()
+
+    # Lifecycle rules: before every upload; after when there is no recording pipeline
+    # (otherwise `after_meeting` runs from task_runner when processing completes).
+    try:
+        from app.database.models.rule import RuleTriggerEnum
+        from app.services.rule_engine import execute_rules_for_meeting
+
+        asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.BEFORE_MEETING))
+        if recording_path is None:
+            asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.AFTER_MEETING))
+    except Exception as e:
+        logger.warning("Failed to schedule meeting rules for %s: %s", db_meeting.id, e)
 
     # --- Trigger background processing if we have a recording ---
     if recording_path is not None:

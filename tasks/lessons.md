@@ -27,3 +27,13 @@ Format for each entry:
 - **Mistake**: Backend logs showed `ERROR:opentelemetry.context:Failed to detach context` and Langfuse warnings about non-string metadata when using `get_langfuse_config` with floats/bools.
 - **Root cause**: Langfuse’s LangChain `CallbackHandler` enters `propagate_attributes` on chain start and exits on chain end; async LangChain can run those callbacks in different asyncio contexts, so OT `detach` raises `ValueError` (already swallowed by OT, but still logged at ERROR). Langfuse also warns when propagated metadata values are not strings.
 - **Rule**: On Langfuse init, add a narrow logging filter for that detach message; stringify caller-supplied metadata values in `get_langfuse_config` (keep `langfuse_*` keys typed as today).
+
+## Next.js: new `(app)` route must hide marketing Navbar
+- **Mistake**: Added `/rules` under `(app)` but the root `MarketingShell` still rendered `Navbar` + `Footer` on top of `WorkspaceShell`.
+- **Root cause**: `shouldHideMarketingChrome()` in `frontend/src/lib/marketing-chrome.ts` lists path prefixes; new app routes must be added to `HIDE_MARKETING_PREFIXES`.
+- **Rule**: When adding a top-level authenticated page, add its prefix (e.g. `/rules`) alongside `/dashboard`, `/meetings`, etc.
+
+## FastAPI: static path segments before `/{id}` routers
+- **Mistake**: Added `POST /rules/prompt/optimize/stream` after `GET /rules/{rule_id}`; requests hit the wrong handler or `rule_id="prompt"`.
+- **Root cause**: FastAPI matches routes in registration order; a path parameter captures any string including `prompt`.
+- **Rule**: Register fixed paths (`/prompt/optimize/stream`, `/stats`, etc.) before dynamic `/{rule_id}` routes on the same router.

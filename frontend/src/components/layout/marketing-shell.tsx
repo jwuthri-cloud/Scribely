@@ -7,7 +7,7 @@ import { shouldHideMarketingChrome } from "@/lib/marketing-chrome"
 
 /**
  * Renders the marketing Navbar + Footer only on public marketing pages.
- * App routes (dashboard, meetings, chat, settings) and Clerk auth pages
+ * App routes (dashboard, meetings, calendar, chat, rules, settings) and Clerk auth pages
  * use their own chrome — avoids duplicate headers and overlapping UserButtons.
  */
 export function MarketingShell({ children }: { children: React.ReactNode }) {

@@ -5,6 +5,9 @@ describe('shouldHideMarketingChrome', () => {
   it('hides chrome on app routes and nested paths', () => {
     expect(shouldHideMarketingChrome('/dashboard')).toBe(true)
     expect(shouldHideMarketingChrome('/dashboard/settings')).toBe(true)
+    expect(shouldHideMarketingChrome('/rules')).toBe(true)
+    expect(shouldHideMarketingChrome('/rules/new')).toBe(true)
+    expect(shouldHideMarketingChrome('/rules/abc-123')).toBe(true)
     expect(shouldHideMarketingChrome('/sign-in')).toBe(true)
     expect(shouldHideMarketingChrome('/sign-up/sso-callback')).toBe(true)
   })

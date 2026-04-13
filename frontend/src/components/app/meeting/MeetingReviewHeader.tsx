@@ -148,15 +148,20 @@ export function MeetingReviewHeader({
         <span>All meetings</span>
       </Link>
 
-      <header className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-white/[0.05] to-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.55]"
-          aria-hidden
-          style={{
-            background:
-              "radial-gradient(ellipse 90% 70% at 100% -20%, rgba(139,92,246,0.22), transparent 50%), radial-gradient(ellipse 70% 50% at 0% 100%, rgba(34,211,238,0.12), transparent 45%)",
-          }}
-        />
+      <header className="relative rounded-2xl border border-white/[0.09] bg-gradient-to-b from-white/[0.05] to-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        {/*
+          Clip glow to rounded corners on this layer only — header must not use overflow-hidden
+          or the Export dropdown (absolute, below the button) is clipped.
+        */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden>
+          <div
+            className="absolute inset-0 opacity-[0.55]"
+            style={{
+              background:
+                "radial-gradient(ellipse 90% 70% at 100% -20%, rgba(139,92,246,0.22), transparent 50%), radial-gradient(ellipse 70% 50% at 0% 100%, rgba(34,211,238,0.12), transparent 45%)",
+            }}
+          />
+        </div>
 
         <div className="relative px-4 py-5 sm:px-8 sm:py-8">
           {/*

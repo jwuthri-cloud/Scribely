@@ -4,6 +4,7 @@ export const HIDE_MARKETING_PREFIXES = [
   '/meetings',
   '/calendar',
   '/chat',
+  '/rules',
   '/settings',
   '/sign-in',
   '/sign-up',

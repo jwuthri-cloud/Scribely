@@ -167,6 +167,7 @@ class DatabaseManager:
 
     async def create_tables(self):
         """Create all database tables asynchronously."""
+        import app.database.models  # noqa: F401 — register all models on Base.metadata
         from app.database.base import Base
 
         async with self.engine.begin() as conn:

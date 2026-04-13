@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useParams } from "next/navigation"
-import { Video } from "lucide-react"
+import { ChevronDown, ChevronRight, Video, Workflow } from "lucide-react"
 import { MeetingReviewHeader } from "@/components/app/meeting/MeetingReviewHeader"
 import { MeetingRecordingPlayer } from "@/components/app/meeting/MeetingRecordingPlayer"
 import { TranscriptViewer } from "@/components/app/meeting/TranscriptViewer"
@@ -14,12 +15,56 @@ import {
   ApiError,
   type EnrichedTranscriptResponse,
   type MeetingDetail,
+  type MeetingRuleExecutionItem,
+  type MeetingRuleExecutionStep,
   type ProcessingStatusResponse,
 } from "@/lib/api"
 import {
   normalizeTranscriptBlob,
   type NormalizedTranscriptEntry,
 } from "@/lib/meeting-transcript"
+
+function formatRuleStepResult(value: unknown): string {
+  if (value === null || value === undefined) return "—"
+  if (typeof value === "string") return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function RuleExecutionSteps({ steps }: { steps: MeetingRuleExecutionStep[] }) {
+  return (
+    <ol className="mt-3 space-y-3 border-t border-white/[0.06] pt-3">
+      {steps.map((step, idx) => (
+        <li key={step.step_id ?? `step-${idx}`} className="text-sm">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="font-medium text-white/85">{step.name ?? `Step ${idx + 1}`}</span>
+            {step.step_type ? (
+              <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-white/45">
+                {step.step_type}
+              </span>
+            ) : null}
+            {typeof step.ok === "boolean" ? (
+              <span
+                className={
+                  step.ok ? "text-[10px] uppercase text-emerald-400/80" : "text-[10px] uppercase text-red-400/80"
+                }
+              >
+                {step.ok ? "ok" : "failed"}
+              </span>
+            ) : null}
+          </div>
+          {step.error ? <p className="mt-1 text-xs text-red-400/90">{step.error}</p> : null}
+          <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-white/[0.06] bg-black/35 p-2.5 font-mono text-[11px] leading-relaxed text-emerald-100/85 whitespace-pre-wrap">
+            {formatRuleStepResult(step.result)}
+          </pre>
+        </li>
+      ))}
+    </ol>
+  )
+}
 
 export default function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -33,6 +78,8 @@ export default function MeetingDetailPage() {
   const [draftEntries, setDraftEntries] = useState<NormalizedTranscriptEntry[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [ruleRuns, setRuleRuns] = useState<MeetingRuleExecutionItem[]>([])
+  const [openRuleRunId, setOpenRuleRunId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -40,15 +87,17 @@ export default function MeetingDetailPage() {
       setLoading(true)
       setError(null)
       try {
-        const [sum, transcriptRes, statusRes] = await Promise.all([
+        const [sum, transcriptRes, statusRes, rulesRes] = await Promise.all([
           api.getMeetingSummary(id).catch(() => null),
           api.getMeeting(id),
           api.getMeetingStatus(id).catch(() => null),
+          api.getMeetingRuleExecutions(id).catch(() => [] as MeetingRuleExecutionItem[]),
         ])
         if (cancelled) return
         setSummary(sum)
         setPayload(transcriptRes)
         setProc(statusRes)
+        setRuleRuns(rulesRes)
       } catch (e: unknown) {
         if (!cancelled) {
           const msg = e instanceof Error ? e.message : "Failed to load meeting"
@@ -74,12 +123,14 @@ export default function MeetingDetailPage() {
         const st = await api.getMeetingStatus(id)
         setProc(st)
         if (st.status !== "processing") {
-          const [sum, tr] = await Promise.all([
+          const [sum, tr, rules] = await Promise.all([
             api.getMeetingSummary(id).catch(() => null),
             api.getMeeting(id),
+            api.getMeetingRuleExecutions(id).catch(() => [] as MeetingRuleExecutionItem[]),
           ])
           if (sum) setSummary(sum)
           setPayload(tr)
+          setRuleRuns(rules)
         }
       } catch {
         // ignore
@@ -185,6 +236,108 @@ export default function MeetingDetailPage() {
               </span>
             </WorkspaceSurface>
           )}
+
+          <WorkspaceSurface variant="panel" className="space-y-3 p-4">
+            <div className="flex items-center gap-2">
+              <Workflow className="h-4 w-4 text-white/35" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">
+                Automation rules
+              </h2>
+            </div>
+            {ruleRuns.length === 0 ? (
+              <p className="text-sm text-white/45">
+                No rules have run for this meeting yet (e.g. before/after upload triggers or a test
+                run from the rule editor).
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {ruleRuns.map((r) => {
+                  const expanded = openRuleRunId === r.id
+                  const steps = r.step_results
+                  return (
+                    <li
+                      key={r.id}
+                      className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
+                    >
+                      <div
+                        className="flex cursor-pointer items-start gap-2 rounded-md outline-none hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-white/20"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
+                        onClick={() =>
+                          setOpenRuleRunId((prev) => (prev === r.id ? null : r.id))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            setOpenRuleRunId((prev) => (prev === r.id ? null : r.id))
+                          }
+                        }}
+                      >
+                        <span className="mt-0.5 shrink-0 text-white/40">
+                          {expanded ? (
+                            <ChevronDown className="h-4 w-4" aria-hidden />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" aria-hidden />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <div className="min-w-0">
+                              <span
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                className="inline"
+                              >
+                                <Link
+                                  href={`/rules/${r.rule_id}`}
+                                  className="font-medium text-white/90 underline-offset-2 hover:underline"
+                                >
+                                  {r.rule_name}
+                                </Link>
+                              </span>
+                              <span className="text-white/40">
+                                {" "}
+                                · {r.trigger.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            <span
+                              className={`shrink-0 text-xs uppercase tracking-wide ${
+                                r.status === "completed"
+                                  ? "text-emerald-400/90"
+                                  : r.status === "failed"
+                                    ? "text-red-400/90"
+                                    : "text-white/50"
+                              }`}
+                            >
+                              {r.status}
+                            </span>
+                          </div>
+                          {r.error ? (
+                            <p className="mt-1 text-xs text-red-400/85">{r.error}</p>
+                          ) : null}
+                          <p className="mt-1 text-xs text-white/35">
+                            {r.started_at
+                              ? new Date(r.started_at).toLocaleString()
+                              : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      {expanded ? (
+                        steps && steps.length > 0 ? (
+                          <RuleExecutionSteps steps={steps} />
+                        ) : (
+                          <p className="mt-2 border-t border-white/[0.06] pt-3 text-xs text-white/40">
+                            No per-step output stored for this run.
+                          </p>
+                        )
+                      ) : null}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </WorkspaceSurface>
 
           <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:[grid-template-columns:repeat(2,minmax(0,1fr))] lg:items-start lg:gap-8 xl:gap-10">
             <section className="min-w-0 max-w-full space-y-4">

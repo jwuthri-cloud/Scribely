@@ -135,6 +135,10 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_use_path_style: bool = True
 
+    # Email (optional — rules engine `send_email` step via Resend)
+    resend_api_key: str = ""
+    resend_from_email: str = "onboarding@resend.dev"
+
     # File uploads
     upload_dir: str = "./uploads"
     # Max upload sizes in bytes (defaults: 1024 video, 16MB transcript)

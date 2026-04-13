@@ -43,6 +43,28 @@ export interface MeetingDetail extends MeetingSummary {
   has_recording?: boolean
 }
 
+/** GET /api/v1/meetings/{id}/rule-executions */
+export interface MeetingRuleExecutionStep {
+  step_id?: string
+  name?: string
+  step_type?: string
+  ok?: boolean
+  result?: unknown
+  error?: string | null
+}
+
+export interface MeetingRuleExecutionItem {
+  id: string
+  rule_id: string
+  rule_name: string
+  trigger: string
+  status: string
+  started_at: string | null
+  completed_at: string | null
+  error: string | null
+  step_results?: MeetingRuleExecutionStep[] | null
+}
+
 /** GET /api/v1/meetings/{id}/transcript */
 export interface EnrichedTranscriptResponse {
   meetingId: string
@@ -160,6 +182,68 @@ export interface PushStatus {
   vapid_public_key_configured: boolean
 }
 
+/** Meeting automation rules — /api/v1/rules */
+export type RuleTrigger = "before_meeting" | "after_meeting" | "during_meeting"
+
+export type RuleStepType =
+  | "llm_prompt"
+  | "send_email"
+  | "push_notification"
+  | "webhook"
+  | "composio_action"
+
+export interface RuleStepDTO {
+  id: string
+  order_index: number
+  name: string
+  step_type: string
+  config: Record<string, unknown>
+}
+
+export interface MeetingRule {
+  id: string
+  name: string
+  description: string | null
+  trigger: string
+  enabled: boolean
+  steps: RuleStepDTO[]
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface RuleExecutionDTO {
+  id: string
+  rule_id: string
+  meeting_id: string
+  trigger: string
+  status: string
+  started_at: string | null
+  completed_at: string | null
+  step_results: Array<Record<string, unknown>> | null
+  error: string | null
+}
+
+export interface RuleCreateBody {
+  name: string
+  description?: string | null
+  trigger: RuleTrigger
+  enabled?: boolean
+  steps: Array<{
+    order_index: number
+    name: string
+    step_type: RuleStepType
+    config: Record<string, unknown>
+  }>
+}
+
+export interface RuleUpdateBody {
+  name?: string
+  description?: string | null
+  trigger?: RuleTrigger
+  enabled?: boolean
+  steps?: RuleCreateBody["steps"]
+}
+
 /** OpenRouter chat model row — matches GET /api/v1/chat/models */
 export interface ChatModelOption {
   id: string
@@ -262,6 +346,11 @@ export function createApiClient(getToken: GetTokenFn) {
 
     async getMeetingStatus(id: string): Promise<ProcessingStatusResponse> {
       const res = await fetchWithAuth(`/api/v1/meetings/${id}/status`)
+      return res.json()
+    },
+
+    async getMeetingRuleExecutions(meetingId: string): Promise<MeetingRuleExecutionItem[]> {
+      const res = await fetchWithAuth(`/api/v1/meetings/${meetingId}/rule-executions`)
       return res.json()
     },
 
@@ -409,6 +498,109 @@ export function createApiClient(getToken: GetTokenFn) {
     async unsubscribePush(endpoint: string): Promise<void> {
       const q = encodeURIComponent(endpoint)
       await fetchWithAuth(`/api/v1/push/subscribe?endpoint=${q}`, { method: "DELETE" })
+    },
+
+    async listRules(): Promise<MeetingRule[]> {
+      const res = await fetchWithAuth("/api/v1/rules")
+      return res.json()
+    },
+
+    async createRule(body: RuleCreateBody): Promise<MeetingRule> {
+      const res = await fetchWithAuth("/api/v1/rules", {
+        method: "POST",
+        body: JSON.stringify(body),
+      })
+      return res.json()
+    },
+
+    async getRule(id: string): Promise<MeetingRule> {
+      const res = await fetchWithAuth(`/api/v1/rules/${id}`)
+      return res.json()
+    },
+
+    async updateRule(id: string, body: RuleUpdateBody): Promise<MeetingRule> {
+      const res = await fetchWithAuth(`/api/v1/rules/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      })
+      return res.json()
+    },
+
+    async deleteRule(id: string): Promise<void> {
+      await fetchWithAuth(`/api/v1/rules/${id}`, { method: "DELETE" })
+    },
+
+    async testRule(ruleId: string, meetingId: string): Promise<{ status: string; ok: boolean }> {
+      const res = await fetchWithAuth(`/api/v1/rules/${ruleId}/test`, {
+        method: "POST",
+        body: JSON.stringify({ meeting_id: meetingId }),
+      })
+      return res.json()
+    },
+
+    async listRuleExecutions(ruleId: string): Promise<RuleExecutionDTO[]> {
+      const res = await fetchWithAuth(`/api/v1/rules/${ruleId}/executions`)
+      return res.json()
+    },
+
+    /**
+     * SSE from POST /api/v1/rules/prompt/optimize/stream — chunks `{ text: string }`.
+     */
+    async rulesPromptOptimizeStream(
+      message: string,
+      onChunk: (text: string) => void,
+      options?: { current_prompt?: string; model?: string }
+    ): Promise<void> {
+      const token = await getToken()
+      if (!token) throw new ApiError(401, "Not authenticated")
+
+      const res = await fetch(`${API_URL}/api/v1/rules/prompt/optimize/stream`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message,
+          current_prompt: options?.current_prompt,
+          model: options?.model,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "")
+        throw new ApiError(res.status, body || res.statusText)
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error("No response body")
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const data = line.slice(6).trim()
+          if (data === "[DONE]") return
+
+          try {
+            const parsed = JSON.parse(data) as { text?: string; error?: string }
+            if (parsed.text) onChunk(parsed.text)
+            if (parsed.error) throw new Error(parsed.error)
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
     },
   }
 }

@@ -87,6 +87,18 @@ async def _finalize_success(
             result_summary=summary or None,
         )
         await db.commit()
+
+    # After-meeting automation rules (sequential steps: LLM, email, push, webhook, Composio).
+    try:
+        import asyncio
+
+        from app.database.models.rule import RuleTriggerEnum
+        from app.services.rule_engine import execute_rules_for_meeting
+
+        asyncio.create_task(execute_rules_for_meeting(meeting_id, RuleTriggerEnum.AFTER_MEETING))
+    except Exception as e:
+        logger.warning("Failed to schedule after_meeting rules for %s: %s", meeting_id, e)
+
     logger.info(f"DB updated for meeting {meeting_id}: completed, duration={duration_seconds}s")
 
 

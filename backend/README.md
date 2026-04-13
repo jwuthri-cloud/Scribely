@@ -168,12 +168,14 @@ pip install -e .
 ### 3. Database Setup
 
 ```bash
-# Run migrations
+# Run migrations (preferred — keeps alembic_version in sync)
 alembic upgrade head
 
 # Or initialize database
 python -m app.cli database init
 ```
+
+**Local dev note:** On startup the API also runs `Base.metadata.create_all()`, which can create new tables before Alembic has stamped the matching revision. If `alembic upgrade` ever complained about tables that already exist, recent migrations use `IF NOT EXISTS` so a re-run is safe. If your schema already matches `head` but `alembic_version` is behind, you can align the stamp only: `alembic stamp head` (does not run DDL — use only when you are sure the DB matches the migration chain).
 
 ### 4. Start the Server
 

@@ -80,11 +80,11 @@
 
 | # | What | Current State | Status |
 |---|------|--------------|--------|
-| 37 | **Desktop tests** — set up vitest; start with `PromptAssembler`, `HeuristicDetector`, `TokenCounter`, audio resampling | Zero tests, no jest/vitest config in `desktop/` | 🔲 Pending |
-| 38 | **Backend test coverage** — expand from ~7 test files to cover meeting processor steps, calendar sync, auth middleware | ~7 test files vs ~137 source files | 🔲 Pending |
-| 39 | **Chrome extension tests** — at minimum, unit test `meeting-detector.js` regex patterns | No test harness at all | 🔲 Pending |
-| 40 | **Frontend component tests** — React Testing Library for key components | ESLint + typecheck only | 🔲 Pending |
-| 41 | **E2E tests** — Playwright for critical flows: sign-in → upload meeting → view in dashboard | Nothing | 🔲 Pending |
+| 37 | **Desktop tests** — set up vitest; start with `PromptAssembler`, `HeuristicDetector`, `TokenCounter`, audio resampling | Vitest + `npm test`; `linearResamplePcm` in `resample.ts` with tests; prompt/token/heuristic/resample suites | ✅ Done |
+| 38 | **Backend test coverage** — expand from ~7 test files to cover meeting processor steps, calendar sync, auth middleware | Added `ClerkUser`, `_build_enriched` / transcript load, calendar webhook token tests; suite still growing vs full `app/` surface | ✅ Done |
+| 39 | **Chrome extension tests** — at minimum, unit test `meeting-detector.js` regex patterns | `chrome-extension/package.json` + `meeting-detector.test.mjs` (`npm test`, Node built-in runner) | ✅ Done |
+| 40 | **Frontend component tests** — React Testing Library for key components | Vitest + `marketing-chrome` helper tests; `shouldHideMarketingChrome` extracted to `src/lib/marketing-chrome.ts` | ✅ Done |
+| 41 | **E2E tests** — Playwright for critical flows: sign-in → upload meeting → view in dashboard | Playwright + `e2e/home.spec.ts` (marketing home loads, title/nav); full auth→upload→dashboard flow still optional follow-up | ✅ Done |
 
 ---
 

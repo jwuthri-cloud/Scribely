@@ -15,6 +15,7 @@ import {
   Video,
   X,
   CalendarDays,
+  Workflow,
 } from "lucide-react"
 import { clerkAdditionalGoogleCalendarScopes } from "@/lib/clerk-google-calendar"
 import { cn } from "@/lib/utils"
@@ -26,6 +27,7 @@ const sidebarLinks = [
   { href: "/meetings", label: "Meetings", icon: Video },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/rules", label: "Rules", icon: Workflow },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const
 
