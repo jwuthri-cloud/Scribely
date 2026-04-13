@@ -185,7 +185,7 @@ export function VariableTextarea({
   return (
     <div
       className={cn(
-        "va-wrap relative rounded-lg border bg-zinc-950 transition-colors [color-scheme:dark]",
+        "va-wrap relative min-w-0 rounded-lg border bg-zinc-950 transition-colors [color-scheme:dark]",
         isDragOver
           ? "border-emerald-500/70 ring-1 ring-emerald-500/30"
           : "border-zinc-600/90 focus-within:border-violet-500/55 focus-within:ring-1 focus-within:ring-violet-500/35"
@@ -217,7 +217,7 @@ export function VariableTextarea({
         placeholder={placeholder}
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
-        className="relative w-full resize-y bg-transparent px-3 py-2 font-mono text-xs leading-relaxed text-transparent caret-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+        className="relative w-full resize-none bg-transparent px-3 py-2 font-mono text-xs leading-relaxed text-transparent caret-zinc-100 placeholder:text-zinc-500 focus:outline-none"
         style={{ minHeight: `${rows * 1.6}rem` }}
       />
     </div>
@@ -477,12 +477,12 @@ function SchemaBuilder({
     onChange(fields.map((f, j) => (j === i ? { ...f, ...patch } : f)))
 
   return (
-    <div className="overflow-hidden rounded-lg border border-zinc-700/70 bg-zinc-950">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-zinc-700/70 bg-zinc-950">
       {/* header */}
-      <div className="grid grid-cols-[1fr_100px_1fr_32px] gap-0 border-b border-zinc-700/70 bg-zinc-900/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-        <span>Field name</span>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_100px_minmax(0,1fr)_32px] gap-0 border-b border-zinc-700/70 bg-zinc-900/80 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+        <span className="min-w-0">Field name</span>
         <span>Type</span>
-        <span>Description</span>
+        <span className="min-w-0">Description</span>
         <span />
       </div>
 
@@ -490,22 +490,22 @@ function SchemaBuilder({
       {fields.map((f, i) => (
         <div
           key={i}
-          className="grid grid-cols-[1fr_100px_1fr_32px] items-center gap-0 border-b border-zinc-800/60 last:border-0"
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_100px_minmax(0,1fr)_32px] items-center gap-0 border-b border-zinc-800/60 last:border-0"
         >
-          <div className="border-r border-zinc-800/60 px-2 py-1.5">
+          <div className="min-w-0 overflow-hidden border-r border-zinc-800/60 px-2 py-1.5">
             <input
               value={f.name}
               onChange={(e) => setField(i, { name: e.target.value })}
               placeholder="field_name"
               spellCheck={false}
-              className="w-full bg-transparent font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+              className="w-full min-w-0 bg-transparent font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
             />
           </div>
-          <div className="border-r border-zinc-800/60 px-2 py-1.5">
+          <div className="min-w-0 border-r border-zinc-800/60 px-2 py-1.5">
             <select
               value={f.type}
               onChange={(e) => setField(i, { type: e.target.value as OutputSchemaField["type"] })}
-              className="w-full bg-transparent text-xs text-zinc-100 focus:outline-none [color-scheme:dark] cursor-pointer"
+              className="w-full min-w-0 bg-transparent text-xs text-zinc-100 focus:outline-none [color-scheme:dark] cursor-pointer"
             >
               {SCHEMA_TYPES.map((t) => (
                 <option key={t} value={t} className="bg-zinc-950 text-zinc-100">
@@ -514,12 +514,12 @@ function SchemaBuilder({
               ))}
             </select>
           </div>
-          <div className="border-r border-zinc-800/60 px-2 py-1.5">
+          <div className="min-w-0 overflow-hidden border-r border-zinc-800/60 px-2 py-1.5">
             <input
               value={f.description ?? ""}
               onChange={(e) => setField(i, { description: e.target.value })}
               placeholder="optional…"
-              className="w-full bg-transparent text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none"
+              className="w-full min-w-0 bg-transparent text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none"
             />
           </div>
           <div className="flex items-center justify-center">
@@ -820,7 +820,7 @@ export function StepConfigForm({
   return (
     <>
       <GlobalVaStyles />
-      <div className="space-y-4 [color-scheme:dark]">
+      <div className="min-w-0 space-y-4 [color-scheme:dark]">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Step type">
             <select

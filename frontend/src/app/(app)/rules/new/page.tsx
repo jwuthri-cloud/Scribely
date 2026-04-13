@@ -65,7 +65,7 @@ export default function NewRulePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-6 pb-12">
       <Link
         href="/rules"
         className="inline-flex items-center gap-2 text-sm text-white/45 transition hover:text-white/70"
@@ -76,7 +76,7 @@ export default function NewRulePage() {
 
       <h1 className="text-xl font-semibold text-white">New rule</h1>
 
-      <form onSubmit={(e) => void submit(e)} className="space-y-6">
+      <form onSubmit={(e) => void submit(e)} className="w-full min-w-0 space-y-6">
         <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 space-y-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-white/50">Name</label>
@@ -127,7 +127,7 @@ export default function NewRulePage() {
           </div>
         </div>
 
-        <div>
+        <div className="min-w-0">
           <h2 className="mb-3 text-sm font-semibold text-white">Flow</h2>
           <RuleFlowCanvas
             key={flowKey}

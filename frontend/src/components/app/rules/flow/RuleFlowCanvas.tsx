@@ -345,7 +345,7 @@ function InspectorPanel({
   const Icon = cfg.icon
 
   return (
-    <div className="flex h-full flex-col bg-zinc-900 [color-scheme:dark]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-zinc-900 [color-scheme:dark]">
       {/* header row */}
       <div
         className="flex items-center gap-3 px-4 py-3"
@@ -372,20 +372,20 @@ function InspectorPanel({
         </button>
       </div>
 
-      {/* three-column body: INPUT | PARAMETERS | OUTPUT — fills parent container */}
-      <div className="grid min-h-0 flex-1 grid-cols-[200px_1fr_200px] divide-x divide-zinc-700/60">
+      {/* three-column body: INPUT | PARAMETERS | OUTPUT — fills parent, clips overflow */}
+      <div className="grid min-h-0 flex-1 grid-cols-[200px_minmax(0,1fr)_200px] divide-x divide-zinc-700/60 overflow-hidden">
         {/* left — input */}
-        <div className="overflow-hidden bg-zinc-950/60">
+        <div className="min-w-0 overflow-y-auto overflow-x-hidden bg-zinc-950/60">
           <InputSidePanel stepType={step.step_type} priorDrafts={priorDrafts} />
         </div>
 
         {/* centre — parameters */}
-        <div className="overflow-y-auto bg-zinc-900 p-5">
+        <div className="min-w-0 overflow-y-auto overflow-x-hidden bg-zinc-900 p-5">
           <StepConfigForm step={step} onChange={onChange} />
         </div>
 
         {/* right — output */}
-        <div className="overflow-hidden bg-zinc-950/60">
+        <div className="min-w-0 overflow-y-auto overflow-x-hidden bg-zinc-950/60">
           <OutputSidePanel
             stepType={step.step_type}
             orderIndex={orderIndex}
@@ -563,13 +563,15 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
 
   const stepCount = nodes.filter((n) => n.type === "ruleStep").length
 
-  /* inspector height: LLM steps need more room for the schema builder */
-  const inspectorH = selectedStepDraft?.step_type === "llm_prompt" ? 600 : 480
+  const fitViewOptions = useMemo(() => ({ padding: 0.3 as const }), [])
 
   return (
-    <div className={cn("flex flex-col gap-0", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-0 overflow-x-hidden", className)}>
       {/* ── Flow canvas — fixed 440px, never shrinks or grows ── */}
-      <div className="flex h-[440px] flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#0d0d10]">
+      <div
+        style={{ height: 440, minHeight: 440, maxHeight: 440 }}
+        className="flex flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#0d0d10]"
+      >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-zinc-950 px-4 py-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-white/50">
@@ -612,7 +614,8 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
             onSelectionChange={onSelectionChange}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.3 }}
+            fitViewOptions={fitViewOptions}
+            autoPanOnNodeFocus={false}
             minZoom={0.3}
             maxZoom={1.8}
             proOptions={{ hideAttribution: true }}
@@ -633,24 +636,26 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
         </div>
       </div>
 
-      {/* ── Node config — fixed height, always present, never shifts the canvas ── */}
+      {/* ── Node config — fixed 600px; inner flex clip keeps tall forms from growing the page ── */}
       <div
-        className="shrink-0 overflow-hidden rounded-b-2xl border-x border-b border-white/[0.08]"
-        style={{ height: inspectorH }}
+        style={{ height: 600, minHeight: 600, maxHeight: 600 }}
+        className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-b-2xl border-x border-b border-white/[0.08]"
       >
-        {selectedStepDraft ? (
-          <InspectorPanel
-            step={selectedStepDraft}
-            onChange={updateSelectedStep}
-            onRemove={removeSelectedStep}
-            orderIndex={selectedStepDraft.order_index}
-            priorDrafts={orderedDraftsMeta.drafts.filter(
-              (d) => d.order_index < selectedStepDraft.order_index
-            )}
-          />
-        ) : (
-          <EmptyConfigPlaceholder />
-        )}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {selectedStepDraft ? (
+            <InspectorPanel
+              step={selectedStepDraft}
+              onChange={updateSelectedStep}
+              onRemove={removeSelectedStep}
+              orderIndex={selectedStepDraft.order_index}
+              priorDrafts={orderedDraftsMeta.drafts.filter(
+                (d) => d.order_index < selectedStepDraft.order_index
+              )}
+            />
+          ) : (
+            <EmptyConfigPlaceholder />
+          )}
+        </div>
       </div>
     </div>
   )
