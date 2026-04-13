@@ -6,6 +6,7 @@ from app.database.models.rule import Rule, RuleStep
 from app.services.rule_flow import (
     RULE_TRIGGER_NODE_ID,
     ancestor_step_ids_sorted,
+    flow_layout_error_message,
     ordered_steps_from_flow,
 )
 
@@ -158,3 +159,14 @@ def test_ancestor_no_edges_falls_back_to_linear_prefix():
     assert ancestor_step_ids_sorted("a", None, order) == []
     assert ancestor_step_ids_sorted("b", None, order) == ["a"]
     assert ancestor_step_ids_sorted("c", [], order) == ["a", "b"]
+
+
+def test_ancestor_step_id_not_in_execution_order_returns_empty():
+    assert ancestor_step_ids_sorted("ghost", [{"source": RULE_TRIGGER_NODE_ID, "target": "a"}], ["a"]) == []
+
+
+def test_flow_layout_error_message():
+    assert flow_layout_error_message(None) is None
+    assert flow_layout_error_message({"nodes": []}) is None
+    assert flow_layout_error_message("not_a_dict") is not None
+    assert flow_layout_error_message({"edges": "bad"}) is not None
