@@ -25,20 +25,16 @@ import {
   type EdgeMarker,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import {
-  Bot,
-  Mail,
-  Webhook,
-  Bell,
-  Puzzle,
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  X,
-} from "lucide-react"
+import { Plus, Trash2, X } from "lucide-react"
 import type { RuleTrigger, RuleStepType } from "@/lib/api"
-import { StepConfigForm, newStepDraft, type StepDraft } from "@/components/app/rules/StepConfigForm"
+import {
+  StepConfigForm,
+  defaultConfig,
+  newStepDraft,
+  VariableChip,
+  type StepDraft,
+  type OutputSchemaField,
+} from "@/components/app/rules/StepConfigForm"
 import { cn } from "@/lib/utils"
 import { RULE_TRIGGER_NODE_ID } from "./constants"
 import { RuleStepNode, TriggerNode, STEP_TYPE_CONFIG } from "./RuleNodes"
@@ -147,33 +143,219 @@ function NodePicker({
   )
 }
 
+/* ── empty state (no step selected) ──────────────────────────────────────── */
+function EmptyConfigPlaceholder() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-zinc-950/35 px-6 text-center">
+      <p className="text-sm font-medium text-white/55">Node config</p>
+      <p className="mt-2 text-sm text-white/40">
+        Select a step on the canvas to edit its parameters.
+      </p>
+      <p className="mt-3 text-xs text-white/30">
+        Use <span className="text-white/50">Add step</span> to create a new node, then wire it from the trigger.
+      </p>
+    </div>
+  )
+}
+
+/* ── Input side-panel ───────────────────────────────────────────────────── */
+function InputSidePanel({
+  stepType,
+  priorDrafts,
+}: {
+  stepType: string
+  priorDrafts: StepDraft[]
+}) {
+  const meetingVars = [
+    { label: "meeting.id", token: "{{ meeting.id }}" },
+    { label: "meeting.title", token: "{{ meeting.title }}" },
+    { label: "meeting.transcript", token: "{{ meeting.transcript }}" },
+    { label: "meeting.summary", token: "{{ meeting.summary }}" },
+  ]
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-zinc-700/70 px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Input</p>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 [color-scheme:dark]">
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Meeting context</p>
+          <div className="flex flex-col gap-1.5">
+            {meetingVars.map(({ label, token }) => (
+              <VariableChip key={label} label={label} varToken={token} className="w-full justify-start" />
+            ))}
+            <span className="rounded-md border border-zinc-700/50 bg-zinc-800/60 px-2 py-1 font-mono text-[11px] text-zinc-500">
+              participants (array)
+            </span>
+          </div>
+        </div>
+
+        {priorDrafts.length > 0 && (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Prior steps</p>
+            <div className="flex flex-col gap-3">
+              {priorDrafts.map((draft, i) => {
+                const schema = Array.isArray(draft.config.output_schema)
+                  ? (draft.config.output_schema as OutputSchemaField[])
+                  : null
+                const hasSchema = schema && schema.length > 0
+                return (
+                  <div key={i}>
+                    {/* step label */}
+                    <p className="mb-1 text-[10px] text-zinc-600 truncate">
+                      {i + 1}. {draft.name}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {hasSchema ? (
+                        /* individual schema field chips */
+                        schema.map((f) => (
+                          <VariableChip
+                            key={f.name}
+                            label={`steps[${i}].result.${f.name}`}
+                            varToken={`{{ steps[${i}].result.${f.name} }}`}
+                            className="w-full justify-start"
+                          />
+                        ))
+                      ) : (
+                        /* plain result chip */
+                        <VariableChip
+                          label={`steps[${i}].result`}
+                          varToken={`{{ steps[${i}].result }}`}
+                          className="w-full justify-start"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {priorDrafts.length === 0 && (
+          <p className="text-xs text-zinc-600">First step — no prior step outputs yet.</p>
+        )}
+        <p className="pt-1 text-[10px] text-zinc-600">
+          Drag a chip into any template field →
+        </p>
+        {stepType === "webhook" && (
+          <p className="text-[10px] text-zinc-500 border-t border-zinc-700/50 pt-3">Body + headers are Jinja-rendered with the same context.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Output side-panel ──────────────────────────────────────────────────── */
+function OutputSidePanel({
+  stepType,
+  orderIndex,
+  outputSchema,
+}: {
+  stepType: string
+  orderIndex: number
+  outputSchema?: OutputSchemaField[]
+}) {
+  const hasSchema = Array.isArray(outputSchema) && outputSchema.length > 0
+
+  const defaultRows = (() => {
+    switch (stepType) {
+      case "llm_prompt":
+        return [{ key: "result", desc: "model response text" }]
+      case "send_email":
+        return [
+          { key: "status", desc: "HTTP status from Resend" },
+          { key: "body", desc: "JSON response object" },
+        ]
+      case "push_notification":
+        return [
+          { key: "sent", desc: "subscriptions notified" },
+          { key: "total", desc: "total subscriptions" },
+        ]
+      case "webhook":
+        return [
+          { key: "status", desc: "HTTP status code" },
+          { key: "text", desc: "response body preview" },
+        ]
+      case "composio_action":
+        return [{ key: "result", desc: "Composio tool response" }]
+      default:
+        return []
+    }
+  })()
+
+  const rows = hasSchema
+    ? (outputSchema ?? []).map((f) => ({
+        key: f.name,
+        desc: f.description ?? f.type,
+      }))
+    : defaultRows
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-zinc-700/70 px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Output</p>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 [color-scheme:dark]">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
+          {hasSchema ? "Structured fields" : "Step result"}
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {rows.map(({ key, desc }) => {
+            /* token: for structured schema, reference the key directly */
+            const token = hasSchema
+              ? `{{ steps[${orderIndex}].result.${key} }}`
+              : `{{ steps[${orderIndex}].result }}`
+            return (
+              <div key={key} className="space-y-0.5">
+                <VariableChip
+                  label={hasSchema ? key : `steps[${orderIndex}].result`}
+                  varToken={token}
+                  className="w-full justify-start"
+                />
+                <p className="pl-1 text-[10px] text-zinc-500">{desc}</p>
+              </div>
+            )
+          })}
+        </div>
+        <p className="pt-2 text-[10px] text-zinc-600">
+          Drag a chip into any template field in a later step →
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /* ── InspectorPanel ──────────────────────────────────────────────────────── */
 function InspectorPanel({
   step,
   onChange,
   onRemove,
   orderIndex,
+  priorDrafts,
 }: {
   step: StepDraft
   onChange: (s: StepDraft) => void
   onRemove: () => void
   orderIndex: number
+  priorDrafts: StepDraft[]
 }) {
   const cfg = STEP_TYPE_CONFIG[step.step_type] ?? STEP_TYPE_CONFIG.llm_prompt
   const Icon = cfg.icon
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-white/[0.1] bg-zinc-900">
-      {/* header */}
+    <div className="flex h-full flex-col bg-zinc-900 [color-scheme:dark]">
+      {/* header row */}
       <div
-        className="flex items-center gap-3 px-4 py-4"
+        className="flex items-center gap-3 px-4 py-3"
         style={{
           background: `linear-gradient(135deg, ${cfg.gradientFrom} 0%, transparent 70%)`,
           borderBottom: `1px solid ${cfg.accent}33`,
         }}
       >
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", cfg.iconBg)}>
-          <Icon className={cn("h-5 w-5", cfg.iconFg)} />
+        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl", cfg.iconBg)}>
+          <Icon className={cn("h-4 w-4", cfg.iconFg)} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[9px] font-bold uppercase tracking-widest text-white/40">
@@ -189,9 +371,31 @@ function InspectorPanel({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {/* form */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <StepConfigForm step={step} onChange={onChange} />
+
+      {/* three-column body: INPUT | PARAMETERS | OUTPUT — fills parent container */}
+      <div className="grid min-h-0 flex-1 grid-cols-[200px_1fr_200px] divide-x divide-zinc-700/60">
+        {/* left — input */}
+        <div className="overflow-hidden bg-zinc-950/60">
+          <InputSidePanel stepType={step.step_type} priorDrafts={priorDrafts} />
+        </div>
+
+        {/* centre — parameters */}
+        <div className="overflow-y-auto bg-zinc-900 p-5">
+          <StepConfigForm step={step} onChange={onChange} />
+        </div>
+
+        {/* right — output */}
+        <div className="overflow-hidden bg-zinc-950/60">
+          <OutputSidePanel
+            stepType={step.step_type}
+            orderIndex={orderIndex}
+            outputSchema={
+              Array.isArray(step.config.output_schema)
+                ? (step.config.output_schema as OutputSchemaField[])
+                : undefined
+            }
+          />
+        </div>
       </div>
     </div>
   )
@@ -209,7 +413,6 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [inspectorOpen, setInspectorOpen] = useState(true)
 
   /* keep trigger label in sync */
   useEffect(() => {
@@ -236,7 +439,6 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
     const n = sel[0]
     const next = n?.type === "ruleStep" ? n.id : null
     setSelectedId(next)
-    if (next) setInspectorOpen(true)
   }, [])
 
   const selectedNode = useMemo(
@@ -279,6 +481,7 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
       const draft = newStepDraft(0)
       const cfg = STEP_TYPE_CONFIG[stepType]
       const id = draft.id ?? `s-${Date.now()}`
+      const config = defaultConfig(stepType)
 
       const canvasEl = document.querySelector(".react-flow__renderer")
       const rect = canvasEl?.getBoundingClientRect()
@@ -300,12 +503,11 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
           data: {
             name: cfg.label,
             step_type: stepType,
-            config: draft.config,
+            config,
           } satisfies RuleStepNodeData,
         },
       ])
       setSelectedId(id)
-      setInspectorOpen(true)
       setPickerOpen(false)
     },
     [nodes, setNodes, screenToFlowPosition]
@@ -361,48 +563,46 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
 
   const stepCount = nodes.filter((n) => n.type === "ruleStep").length
 
-  return (
-    <div className={cn("flex min-h-[620px] flex-col rounded-2xl border border-white/[0.08] bg-[#0d0d10]", className)}>
-      {/* ── toolbar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] bg-zinc-950 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-white/50">
-            {stepCount} step{stepCount !== 1 ? "s" : ""}
-          </span>
-          <span className="text-white/20">·</span>
-          <span className="text-[10px] text-white/35">
-            Use <code className="text-emerald-300/80">{"{{ steps[0].result }}"}</code> to pipe outputs
-          </span>
-          {orderedDraftsMeta.error && (
-            <span className="text-[10px] text-amber-400/95" title={orderedDraftsMeta.error}>
-              · Fix cycle to save
-            </span>
-          )}
-        </div>
-        <div className="relative flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPickerOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-violet-500"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add step
-          </button>
-          {pickerOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2">
-              <NodePicker
-                onPick={addStep}
-                onClose={() => setPickerOpen(false)}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+  /* inspector height: LLM steps need more room for the schema builder */
+  const inspectorH = selectedStepDraft?.step_type === "llm_prompt" ? 600 : 480
 
-      {/* ── canvas + inspector row ────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1">
-        {/* canvas */}
-        <div className="min-h-[560px] min-w-0 flex-1 bg-[#0d0d10]">
+  return (
+    <div className={cn("flex flex-col gap-0", className)}>
+      {/* ── Flow canvas — fixed 440px, never shrinks or grows ── */}
+      <div className="flex h-[440px] flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#0d0d10]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-zinc-950 px-4 py-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-white/50">
+              {stepCount} step{stepCount !== 1 ? "s" : ""}
+            </span>
+            <span className="text-white/20">·</span>
+            <span className="text-[10px] text-white/35">
+              Use <code className="text-emerald-300/80">{"{{ steps[0].result }}"}</code> to pipe outputs
+            </span>
+            {orderedDraftsMeta.error && (
+              <span className="text-[10px] text-amber-400/95" title={orderedDraftsMeta.error}>
+                · Fix cycle to save
+              </span>
+            )}
+          </div>
+          <div className="relative flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((o) => !o)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-violet-500"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add step
+            </button>
+            {pickerOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2">
+                <NodePicker onPick={addStep} onClose={() => setPickerOpen(false)} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 bg-[#0d0d10]">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -416,7 +616,7 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
             minZoom={0.3}
             maxZoom={1.8}
             proOptions={{ hideAttribution: true }}
-            className="bg-[#0d0d10]"
+            className="h-full bg-[#0d0d10]"
             onPaneClick={() => {
               setSelectedId(null)
               setPickerOpen(false)
@@ -428,39 +628,28 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
               size={1.2}
               color="rgba(255,255,255,0.07)"
             />
-            <Controls
-              className="!border-white/[0.08] !bg-zinc-900/95 [&>button]:!border-white/[0.08] [&>button]:!bg-transparent [&>button]:!text-white/60 [&>button:hover]:!bg-white/[0.07]"
-            />
+            <Controls className="!border-white/[0.08] !bg-zinc-900/95 [&>button]:!border-white/[0.08] [&>button]:!bg-transparent [&>button]:!text-white/60 [&>button:hover]:!bg-white/[0.07]" />
           </ReactFlow>
         </div>
+      </div>
 
-        {/* inspector */}
-        {selectedStepDraft && (
-          <div className="flex w-[360px] shrink-0 flex-col border-l border-white/[0.08] bg-zinc-950">
-            {/* inspector toggle header */}
-            <button
-              type="button"
-              onClick={() => setInspectorOpen((o) => !o)}
-              className="flex items-center justify-between border-b border-white/[0.08] px-4 py-2.5 text-left hover:bg-white/[0.03]"
-            >
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Node config</span>
-              {inspectorOpen ? (
-                <ChevronUp className="h-3.5 w-3.5 text-white/40" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-white/40" />
-              )}
-            </button>
-            {inspectorOpen && (
-              <div className="flex-1 overflow-y-auto p-3">
-                <InspectorPanel
-                  step={selectedStepDraft}
-                  onChange={updateSelectedStep}
-                  onRemove={removeSelectedStep}
-                  orderIndex={selectedStepDraft.order_index}
-                />
-              </div>
+      {/* ── Node config — fixed height, always present, never shifts the canvas ── */}
+      <div
+        className="shrink-0 overflow-hidden rounded-b-2xl border-x border-b border-white/[0.08]"
+        style={{ height: inspectorH }}
+      >
+        {selectedStepDraft ? (
+          <InspectorPanel
+            step={selectedStepDraft}
+            onChange={updateSelectedStep}
+            onRemove={removeSelectedStep}
+            orderIndex={selectedStepDraft.order_index}
+            priorDrafts={orderedDraftsMeta.drafts.filter(
+              (d) => d.order_index < selectedStepDraft.order_index
             )}
-          </div>
+          />
+        ) : (
+          <EmptyConfigPlaceholder />
         )}
       </div>
     </div>

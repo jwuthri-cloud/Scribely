@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional, Union
 
 import aiofiles
 import httpx
@@ -188,7 +188,7 @@ async def _step_llm_prompt(
     user_id: str,
     meeting_id: str,
     rule_id: str,
-) -> str:
+) -> Union[str, dict[str, Any]]:
     model = config.get("model") or DEFAULT_TRAINING
     system_prompt = config.get("system_prompt") or "You are a helpful assistant."
     user_tmpl = config.get("user_prompt_template") or "{{ meeting.transcript }}"
@@ -203,7 +203,7 @@ async def _step_llm_prompt(
         enable_langfuse=True,
     )
     callbacks = get_langfuse_callbacks()
-    cfg: dict[str, Any] = {
+    invoke_cfg: dict[str, Any] = {
         "metadata": {
             "rule_id": rule_id,
             "meeting_id": meeting_id,
@@ -212,12 +212,38 @@ async def _step_llm_prompt(
         }
     }
     if callbacks:
-        cfg["callbacks"] = callbacks
+        invoke_cfg["callbacks"] = callbacks
 
-    resp = await llm.ainvoke(
-        [SystemMessage(content=sys_msg), HumanMessage(content=user_msg)],
-        config=cfg,
-    )
+    messages = [SystemMessage(content=sys_msg), HumanMessage(content=user_msg)]
+
+    # ── Structured output branch ─────────────────────────────────────────
+    output_schema = config.get("output_schema")
+    if output_schema and isinstance(output_schema, list) and len(output_schema) > 0:
+        from pydantic import create_model  # local import to keep cold-start fast
+
+        TYPE_MAP: dict[str, type] = {
+            "string": str,
+            "number": float,
+            "boolean": bool,
+            "array": list,
+        }
+        field_defs: dict[str, Any] = {}
+        for f in output_schema:
+            if not isinstance(f, dict) or not f.get("name"):
+                continue
+            python_type = TYPE_MAP.get(f.get("type", "string"), str)
+            field_defs[f["name"]] = (python_type, ...)
+
+        if field_defs:
+            DynModel = create_model("StepOutput", **field_defs)
+            structured_llm = llm.with_structured_output(DynModel)
+            result = await structured_llm.ainvoke(messages, config=invoke_cfg)
+            if hasattr(result, "model_dump"):
+                return result.model_dump()
+            return dict(result) if isinstance(result, dict) else str(result)
+
+    # ── Plain-text branch (default) ───────────────────────────────────────
+    resp = await llm.ainvoke(messages, config=invoke_cfg)
     content = getattr(resp, "content", None)
     return content if isinstance(content, str) else str(content)
 
