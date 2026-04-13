@@ -6,7 +6,6 @@ import Link from "next/link"
 import { ArrowLeft, Trash2, Play } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import type { MeetingRule, RuleExecutionDTO } from "@/lib/api"
-import { PromptOptimizerChat } from "@/components/app/rules/PromptOptimizerChat"
 import { RuleFlowCanvas, type RuleFlowCanvasHandle } from "@/components/app/rules/flow/RuleFlowCanvas"
 import { buildFlowFromRule } from "@/components/app/rules/flow/rule-flow-utils"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
@@ -123,10 +122,6 @@ export default function EditRulePage() {
     }
   }
 
-  const applyOptimizedPrompt = (text: string) => {
-    flowRef.current?.applyPromptToFirstLlm(text)
-  }
-
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -202,12 +197,6 @@ export default function EditRulePage() {
             />
           )}
         </div>
-
-        <PromptOptimizerChat
-          currentPrompt=""
-          getCurrentPrompt={() => flowRef.current?.getFirstLlmPrompt() ?? ""}
-          onApply={applyOptimizedPrompt}
-        />
 
         {err && <p className="text-sm text-red-400">{err}</p>}
 

@@ -29,11 +29,17 @@ const STEP_TYPES: { value: RuleStepType; label: string }[] = [
 ]
 
 const LLM_MODELS = [
-  { value: "openai/gpt-5.4-mini", label: "GPT-5.4 mini" },
-  { value: "openai/gpt-5.4", label: "GPT-5.4" },
-  { value: "openai/gpt-5.4-turbo", label: "GPT-5.4 turbo" },
-  { value: "openai/o4", label: "o4" },
-  { value: "openai/o4-mini", label: "o4 mini" },
+  { value: "openai/gpt-5.4-nano", label: "GPT 5.4 Nano" },
+  { value: "openai/gpt-5.4-mini", label: "GPT 5.4 Mini" },
+  { value: "openai/gpt-5.4", label: "GPT 5.4" },
+  { value: "anthropic/claude-4.5-haiku", label: "Claude 4.5 Haiku" },
+  { value: "anthropic/claude-4.6-sonnet", label: "Claude 4.6 Sonnet" },
+  { value: "anthropic/claude-4.6-opus", label: "Claude 4.6 Opus" },
+  { value: "google/gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite" },
+  { value: "google/gemini-3.1-flash-preview", label: "Gemini 3.1 Flash" },
+  { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+  { value: "x-ai/grok-4.1-fast", label: "Grok 4.1 Fast" },
+  { value: "x-ai/grok-4.20", label: "Grok 4.20" },
 ]
 
 const SCHEMA_TYPES = ["string", "number", "boolean", "array"] as const

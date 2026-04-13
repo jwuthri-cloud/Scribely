@@ -75,8 +75,6 @@ export type RuleFlowSavePayload = {
 
 export type RuleFlowCanvasHandle = {
   getSavePayload: () => RuleFlowSavePayload
-  applyPromptToFirstLlm: (text: string) => void
-  getFirstLlmPrompt: () => string
   getTrigger: () => RuleTrigger
 }
 
@@ -525,30 +523,8 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
         error: null,
       }
     },
-    applyPromptToFirstLlm: (text: string) => {
-      setNodes((ns) => {
-        let done = false
-        return ns.map((n) => {
-          if (n.type !== "ruleStep" || done) return n
-          const d = n.data as RuleStepNodeData
-          if (d.step_type !== "llm_prompt") return n
-          done = true
-          return { ...n, data: { ...d, config: { ...d.config, user_prompt_template: text } } }
-        })
-      })
-    },
-    getFirstLlmPrompt: () => {
-      for (const n of nodes) {
-        if (n.type !== "ruleStep") continue
-        const d = n.data as RuleStepNodeData
-        if (d.step_type !== "llm_prompt") continue
-        const t = d.config?.user_prompt_template
-        return typeof t === "string" ? t : ""
-      }
-      return ""
-    },
     getTrigger: (): RuleTrigger => getTriggerFromNodes(nodes),
-  }), [nodes, edges, setNodes])
+  }), [nodes, edges])
 
   const stepCount = nodes.filter((n) => n.type === "ruleStep").length
 
