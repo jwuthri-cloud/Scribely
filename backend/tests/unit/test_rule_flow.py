@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from app.database.models.rule import Rule, RuleStep
-from app.services.rule_flow import RULE_TRIGGER_NODE_ID, ordered_steps_from_flow
+from app.services.rule_flow import (
+    RULE_TRIGGER_NODE_ID,
+    ancestor_step_ids_sorted,
+    ordered_steps_from_flow,
+)
 
 
 def _step(sid: str, oi: int, name: str = "S") -> RuleStep:
@@ -113,3 +117,44 @@ def test_cycle_detected():
     assert ordered == []
     assert err is not None
     assert "cycle" in err.lower()
+
+
+def test_ancestor_parallel_branches_empty():
+    edges = [
+        {"source": RULE_TRIGGER_NODE_ID, "target": "a"},
+        {"source": RULE_TRIGGER_NODE_ID, "target": "b"},
+    ]
+    order = ["a", "b"]
+    assert ancestor_step_ids_sorted("a", edges, order) == []
+    assert ancestor_step_ids_sorted("b", edges, order) == []
+
+
+def test_ancestor_chain():
+    edges = [
+        {"source": RULE_TRIGGER_NODE_ID, "target": "a"},
+        {"source": "a", "target": "b"},
+        {"source": "b", "target": "c"},
+    ]
+    order = ["a", "b", "c"]
+    assert ancestor_step_ids_sorted("a", edges, order) == []
+    assert ancestor_step_ids_sorted("b", edges, order) == ["a"]
+    assert ancestor_step_ids_sorted("c", edges, order) == ["a", "b"]
+
+
+def test_ancestor_join_two_paths():
+    """trigger -> E, trigger -> S, E -> M, S -> M: M has both E and S as ancestors."""
+    edges = [
+        {"source": RULE_TRIGGER_NODE_ID, "target": "E"},
+        {"source": RULE_TRIGGER_NODE_ID, "target": "S"},
+        {"source": "E", "target": "M"},
+        {"source": "S", "target": "M"},
+    ]
+    order = ["E", "S", "M"]
+    assert ancestor_step_ids_sorted("M", edges, order) == ["E", "S"]
+
+
+def test_ancestor_no_edges_falls_back_to_linear_prefix():
+    order = ["a", "b", "c"]
+    assert ancestor_step_ids_sorted("a", None, order) == []
+    assert ancestor_step_ids_sorted("b", None, order) == ["a"]
+    assert ancestor_step_ids_sorted("c", [], order) == ["a", "b"]

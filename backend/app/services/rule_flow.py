@@ -31,6 +31,58 @@ def _build_outgoing(edges_raw: list) -> dict[str, list[str]]:
     return outgoing
 
 
+def _build_incoming(edges_raw: list) -> dict[str, list[str]]:
+    incoming: dict[str, list[str]] = defaultdict(list)
+    for e in edges_raw:
+        if not isinstance(e, dict):
+            continue
+        src = e.get("source")
+        tgt = e.get("target")
+        if isinstance(src, str) and isinstance(tgt, str):
+            incoming[tgt].append(src)
+    for k in list(incoming.keys()):
+        incoming[k] = list(dict.fromkeys(incoming[k]))
+    return incoming
+
+
+def ancestor_step_ids_sorted(
+    step_id: str,
+    edges_raw: list | None,
+    execution_order_ids: list[str],
+) -> list[str]:
+    """
+    Step ids that are strict ancestors of step_id in the flow graph, ordered like execution_order_ids.
+
+    When there are no edges, fall back to linear order: all steps before step_id in execution_order_ids.
+    """
+    if not execution_order_ids or step_id not in execution_order_ids:
+        return []
+
+    if not edges_raw or len(edges_raw) == 0:
+        i = execution_order_ids.index(step_id)
+        return list(execution_order_ids[:i])
+
+    incoming = _build_incoming(edges_raw)
+    order_set = set(execution_order_ids)
+    ancestors: set[str] = set()
+    q: deque[str] = deque([step_id])
+    queued: set[str] = {step_id}
+
+    while q:
+        u = q.popleft()
+        for src in incoming.get(u, []):
+            if src == RULE_TRIGGER_NODE_ID:
+                continue
+            if src not in order_set:
+                continue
+            ancestors.add(src)
+            if src not in queued:
+                queued.add(src)
+                q.append(src)
+
+    return [sid for sid in execution_order_ids if sid in ancestors]
+
+
 def _reachable_step_ids(
     outgoing: dict[str, list[str]],
     by_id: dict[str, RuleStep],

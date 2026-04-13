@@ -31,6 +31,51 @@ function buildOutgoing(edges: Edge[]): Map<string, string[]> {
   return outgoing
 }
 
+function buildIncoming(edges: Edge[]): Map<string, string[]> {
+  const incoming = new Map<string, string[]>()
+  for (const e of edges) {
+    const arr = incoming.get(e.target) ?? []
+    arr.push(e.source)
+    incoming.set(e.target, Array.from(new Set(arr)))
+  }
+  return incoming
+}
+
+/**
+ * Step ids that lie on a directed path from the trigger to `stepId` (strict ancestors in the flow DAG).
+ * Walks backward along incoming edges until the trigger; parallel siblings are excluded.
+ */
+export function ancestorStepIdsFromEdges(stepId: string, edges: Edge[], stepIds: Set<string>): Set<string> {
+  const incoming = buildIncoming(edges)
+  const ancestors = new Set<string>()
+  const q: string[] = [stepId]
+  const queued = new Set<string>([stepId])
+  while (q.length) {
+    const u = q.shift()!
+    for (const src of incoming.get(u) ?? []) {
+      if (src === RULE_TRIGGER_NODE_ID) continue
+      if (!stepIds.has(src)) continue
+      ancestors.add(src)
+      if (!queued.has(src)) {
+        queued.add(src)
+        q.push(src)
+      }
+    }
+  }
+  return ancestors
+}
+
+/** Prior step drafts for the inspector: ancestors only, in execution (topo) order — matches `steps[i]` indices. */
+export function priorStepDraftsOrdered(
+  selectedStepId: string,
+  allDrafts: StepDraft[],
+  edges: Edge[],
+  stepNodeIds: Set<string>
+): StepDraft[] {
+  const anc = ancestorStepIdsFromEdges(selectedStepId, edges, stepNodeIds)
+  return allDrafts.filter((d) => d.id && anc.has(d.id)).sort((a, b) => a.order_index - b.order_index)
+}
+
 /** Step ids reachable from the trigger via edges (BFS). */
 export function reachableStepIdsFromEdges(edges: Edge[], stepIds: Set<string>): Set<string> {
   const outgoing = buildOutgoing(edges)

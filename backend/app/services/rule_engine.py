@@ -33,7 +33,7 @@ from app.database.models.rule import (
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.push import PushRepository
 from app.database.repositories.rule import RuleRepository
-from app.services.rule_flow import ordered_steps_from_flow
+from app.services.rule_flow import ancestor_step_ids_sorted, ordered_steps_from_flow
 from app.infrastructure.langfuse_handler import get_langfuse_callbacks
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.infrastructure.object_storage import (
@@ -427,8 +427,20 @@ async def execute_rule(
         await db.commit()
         return RuleExecutionStatusEnum.FAILED
 
+    order_ids = [s.id for s in ordered]
+    edges_raw: list | None = None
+    raw_layout = getattr(rule, "flow_layout", None)
+    if isinstance(raw_layout, dict):
+        er = raw_layout.get("edges")
+        edges_raw = er if isinstance(er, list) else None
+
+    results_by_id: dict[str, Any] = {}
+
     try:
         for step in ordered:
+            ancestor_ids = ancestor_step_ids_sorted(step.id, edges_raw, order_ids)
+            context["steps"] = [{"result": results_by_id[aid]} for aid in ancestor_ids]
+
             result, err = await _run_step(
                 db,
                 step,
@@ -456,8 +468,7 @@ async def execute_rule(
                 )
                 await db.commit()
                 return RuleExecutionStatusEnum.FAILED
-            # Append for next step templates: steps[0].result in Jinja
-            context["steps"].append({"result": result})
+            results_by_id[step.id] = result
 
         await RuleRepository.update_execution(
             db,

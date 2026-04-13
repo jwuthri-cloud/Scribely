@@ -36,6 +36,7 @@ import {
   flowLayoutSnapshot,
   flowToStepDrafts,
   getTriggerFromNodes,
+  priorStepDraftsOrdered,
   type RuleStepNodeData,
 } from "./rule-flow-utils"
 
@@ -188,7 +189,7 @@ function InputSidePanel({
                   : null
                 const hasSchema = schema && schema.length > 0
                 return (
-                  <div key={i}>
+                  <div key={draft.id ?? `prior-${i}`}>
                     {/* step label */}
                     <p className="mb-1 text-[10px] text-zinc-600 truncate">
                       {i + 1}. {draft.name}
@@ -221,7 +222,10 @@ function InputSidePanel({
         )}
 
         {priorDrafts.length === 0 && (
-          <p className="text-xs text-zinc-600">First step — no prior step outputs yet.</p>
+          <p className="text-xs text-zinc-600">
+            No upstream steps on this branch. Only meeting context above applies unless you wire a step before this
+            one.
+          </p>
         )}
         <p className="pt-1 text-[10px] text-zinc-600">
           Drag a chip into any template field →
@@ -237,11 +241,13 @@ function InputSidePanel({
 /* ── Output side-panel ──────────────────────────────────────────────────── */
 function OutputSidePanel({
   stepType,
-  orderIndex,
+  runPosition1Based,
+  totalFlowSteps,
   outputSchema,
 }: {
   stepType: string
-  orderIndex: number
+  runPosition1Based: number
+  totalFlowSteps: number
   outputSchema?: OutputSchemaField[]
 }) {
   const hasSchema = Array.isArray(outputSchema) && outputSchema.length > 0
@@ -285,30 +291,21 @@ function OutputSidePanel({
         <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Output</p>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-2 [color-scheme:dark]">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 mb-1.5">
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
           {hasSchema ? "Structured fields" : "Step result"}
         </p>
-        <div className="flex flex-col gap-1.5">
-          {rows.map(({ key, desc }) => {
-            /* token: for structured schema, reference the key directly */
-            const token = hasSchema
-              ? `{{ steps[${orderIndex}].result.${key} }}`
-              : `{{ steps[${orderIndex}].result }}`
-            return (
-              <div key={key} className="space-y-0.5">
-                <VariableChip
-                  label={hasSchema ? key : `steps[${orderIndex}].result`}
-                  varToken={token}
-                  className="w-full justify-start"
-                />
-                <p className="pl-1 text-[10px] text-zinc-500">{desc}</p>
-              </div>
-            )
-          })}
-        </div>
-        <p className="pt-2 text-[10px] text-zinc-600">
-          Drag a chip into any template field in a later step →
+        <p className="mb-2 text-[10px] text-zinc-500">
+          Run order: {runPosition1Based} of {totalFlowSteps}. To paste into a downstream step, open that step and use
+          chips under <span className="text-zinc-400">Prior steps</span> — indices are relative to upstream steps only.
         </p>
+        <div className="flex flex-col gap-2">
+          {rows.map(({ key, desc }) => (
+            <div key={key} className="space-y-0.5 rounded-md border border-zinc-700/40 bg-zinc-900/40 px-2 py-1.5">
+              <p className="font-mono text-[11px] text-emerald-300/90">{key}</p>
+              <p className="text-[10px] text-zinc-500">{desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -321,12 +318,14 @@ function InspectorPanel({
   onRemove,
   orderIndex,
   priorDrafts,
+  totalFlowSteps,
 }: {
   step: StepDraft
   onChange: (s: StepDraft) => void
   onRemove: () => void
   orderIndex: number
   priorDrafts: StepDraft[]
+  totalFlowSteps: number
 }) {
   const cfg = STEP_TYPE_CONFIG[step.step_type] ?? STEP_TYPE_CONFIG.llm_prompt
   const Icon = cfg.icon
@@ -375,7 +374,8 @@ function InspectorPanel({
         <div className="min-w-0 overflow-y-auto overflow-x-hidden bg-zinc-950/60">
           <OutputSidePanel
             stepType={step.step_type}
-            orderIndex={orderIndex}
+            runPosition1Based={orderIndex + 1}
+            totalFlowSteps={totalFlowSteps}
             outputSchema={
               Array.isArray(step.config.output_schema)
                 ? (step.config.output_schema as OutputSchemaField[])
@@ -433,6 +433,16 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
   )
 
   const orderedDraftsMeta = useMemo(() => flowToStepDrafts(nodes, edges), [nodes, edges])
+
+  const stepNodeIds = useMemo(
+    () => new Set(nodes.filter((n) => n.type === "ruleStep").map((n) => n.id)),
+    [nodes]
+  )
+
+  const priorDraftsForSelected = useMemo(() => {
+    if (!selectedId) return []
+    return priorStepDraftsOrdered(selectedId, orderedDraftsMeta.drafts, edges, stepNodeIds)
+  }, [selectedId, orderedDraftsMeta.drafts, edges, stepNodeIds])
 
   const selectedStepDraft = useMemo((): StepDraft | null => {
     if (!selectedNode) return null
@@ -544,7 +554,8 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
             </span>
             <span className="text-white/20">·</span>
             <span className="text-[10px] text-white/35">
-              Use <code className="text-emerald-300/80">{"{{ steps[0].result }}"}</code> to pipe outputs
+              Wire upstream steps, then use <span className="text-white/45">Prior steps</span> chips for{" "}
+              <code className="text-emerald-300/80">{"{{ steps[i].result }}"}</code>
             </span>
             {orderedDraftsMeta.error && (
               <span className="text-[10px] text-amber-400/95" title={orderedDraftsMeta.error}>
@@ -613,9 +624,8 @@ const RuleFlowInner = forwardRef<RuleFlowCanvasHandle, Props>(function RuleFlowI
               onChange={updateSelectedStep}
               onRemove={removeSelectedStep}
               orderIndex={selectedStepDraft.order_index}
-              priorDrafts={orderedDraftsMeta.drafts.filter(
-                (d) => d.order_index < selectedStepDraft.order_index
-              )}
+              priorDrafts={priorDraftsForSelected}
+              totalFlowSteps={orderedDraftsMeta.drafts.length}
             />
           ) : (
             <EmptyConfigPlaceholder />
