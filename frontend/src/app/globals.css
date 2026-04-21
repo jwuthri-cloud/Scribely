@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "highlight.js/styles/atom-one-dark.css";
+
 @layer base {
   :root {
     --background: 240 10% 4%;

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { 
-  Plus, Lightbulb, Paperclip, Image, FileCode,
+  Plus, Lightbulb, Paperclip, Image,
   ChevronDown, Check, Sparkles, Zap, Brain, Github,
   SendHorizontal, Cpu
 } from 'lucide-react'
@@ -193,7 +193,6 @@ export function ChatInput({
                       {[
                         { icon: <Paperclip className="size-4" />, label: 'Upload file' },
                         { icon: <Image className="size-4" />, label: 'Add image' },
-                        { icon: <FileCode className="size-4" />, label: 'Import code' }
                       ].map((item, i) => (
                         <button key={i} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[#a0a0a5] hover:bg-white/5 hover:text-white transition-all duration-150">
                           {item.icon}
@@ -216,7 +215,12 @@ export function ChatInput({
           <div className="flex-1" />
 
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium text-[#6a6a6f] hover:text-white hover:bg-white/5 transition-all duration-200">
+            <button
+              type="button"
+              disabled
+              title="Coming soon"
+              className="flex cursor-not-allowed items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium text-[#6a6a6f] opacity-50 transition-all duration-200"
+            >
               <Lightbulb className="size-4" />
               <span className="hidden sm:inline">Plan</span>
             </button>
