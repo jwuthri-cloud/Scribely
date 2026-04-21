@@ -110,3 +110,30 @@ class TestDealAndContactRepositories:
             test_db_session, user.id, deal.id
         )
         assert len(for_deal) == 2
+
+    async def test_contact_set_deal_for_user(self, test_db_session):
+        user = await self._make_user(test_db_session)
+        d1 = await DealRepository.get_or_create(test_db_session, user.id, "acme.com")
+        d2 = await DealRepository.get_or_create(test_db_session, user.id, "beta.io")
+        c = await ContactRepository.upsert(test_db_session, user.id, "x@acme.com")
+        assert c.deal_id is None
+
+        u1 = await ContactRepository.set_deal_for_user(
+            test_db_session, user.id, c.id, d1.id
+        )
+        assert u1 is not None and u1.deal_id == d1.id
+
+        u2 = await ContactRepository.set_deal_for_user(
+            test_db_session, user.id, c.id, d2.id
+        )
+        assert u2 is not None and u2.deal_id == d2.id
+
+        cleared = await ContactRepository.set_deal_for_user(
+            test_db_session, user.id, c.id, None
+        )
+        assert cleared is not None and cleared.deal_id is None
+
+        bad = await ContactRepository.set_deal_for_user(
+            test_db_session, user.id, c.id, "not-a-real-deal-id"
+        )
+        assert bad is None
