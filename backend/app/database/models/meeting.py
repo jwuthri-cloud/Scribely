@@ -37,6 +37,12 @@ class Meeting(Base):
         ForeignKey("calendar_events.id", ondelete="SET NULL"),
         nullable=True,
     )
+    deal_id = Column(
+        String,
+        ForeignKey("deals.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     title = Column(String(500), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
@@ -53,6 +59,7 @@ class Meeting(Base):
 
     user = relationship("User", backref="meetings")
     calendar_event = relationship("CalendarEvent", foreign_keys=[calendar_event_id])
+    deal = relationship("Deal", foreign_keys=[deal_id])
     processing_state = relationship(
         "MeetingProcessing",
         back_populates="meeting",

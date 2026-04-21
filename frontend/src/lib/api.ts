@@ -286,6 +286,98 @@ export async function fetchChatModels(): Promise<ChatModelsResponse> {
   return res.json()
 }
 
+export interface DealSummary {
+  id: string
+  domain: string
+  name: string
+  status: string
+  contact_count: number
+  meeting_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DealListResponse {
+  deals: DealSummary[]
+  total: number
+}
+
+export interface ContactSummary {
+  id: string
+  email: string
+  full_name: string | null
+  deal_id: string | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+export interface ContactListResponse {
+  contacts: ContactSummary[]
+  total: number
+}
+
+export interface KnowledgeEntry {
+  id: string
+  contact_id: string
+  contact_email: string | null
+  contact_name: string | null
+  deal_id: string | null
+  meeting_id: string
+  meeting_title?: string | null
+  meeting_recorded_at?: string | null
+  fact: string
+  category: string
+  confidence: number
+  source_snippet: string | null
+  created_at: string
+}
+
+export interface MeetingRef {
+  id: string
+  title: string | null
+  recorded_at: string | null
+  status: string
+}
+
+export interface DealDetail {
+  id: string
+  domain: string
+  name: string
+  status: string
+  created_at: string
+  updated_at: string
+  contacts: ContactSummary[]
+  recent_meetings: MeetingRef[]
+  knowledge: KnowledgeEntry[]
+}
+
+export interface ContactDetail {
+  id: string
+  email: string
+  full_name: string | null
+  deal_id: string | null
+  deal_name: string | null
+  deal_domain: string | null
+  first_seen_at: string
+  last_seen_at: string
+  knowledge: KnowledgeEntry[]
+}
+
+export interface MeetingKnowledgeResponse {
+  deal: { id: string; domain: string; name: string; status: string } | null
+  entries: Array<{
+    id: string
+    contact_id: string
+    contact_email: string | null
+    contact_name: string | null
+    fact: string
+    category: string
+    confidence: number
+    source_snippet: string | null
+    created_at: string | null
+  }>
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -557,6 +649,45 @@ export function createApiClient(getToken: GetTokenFn) {
 
     async listRuleExecutions(ruleId: string): Promise<RuleExecutionDTO[]> {
       const res = await fetchWithAuth(`/api/v1/rules/${ruleId}/executions`)
+      return res.json()
+    },
+
+    async listDeals(): Promise<DealListResponse> {
+      const res = await fetchWithAuth("/api/v1/deals")
+      return res.json()
+    },
+
+    async getDeal(id: string): Promise<DealDetail> {
+      const res = await fetchWithAuth(`/api/v1/deals/${id}`)
+      return res.json()
+    },
+
+    async listContacts(params: { deal_id?: string } = {}): Promise<ContactListResponse> {
+      const qs = new URLSearchParams()
+      if (params.deal_id) qs.set("deal_id", params.deal_id)
+      const query = qs.toString()
+      const res = await fetchWithAuth(`/api/v1/contacts${query ? `?${query}` : ""}`)
+      return res.json()
+    },
+
+    async getContact(id: string): Promise<ContactDetail> {
+      const res = await fetchWithAuth(`/api/v1/contacts/${id}`)
+      return res.json()
+    },
+
+    async updateContactDeal(
+      id: string,
+      body: { deal_id: string | null }
+    ): Promise<ContactDetail> {
+      const res = await fetchWithAuth(`/api/v1/contacts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      })
+      return res.json()
+    },
+
+    async getMeetingKnowledge(id: string): Promise<MeetingKnowledgeResponse> {
+      const res = await fetchWithAuth(`/api/v1/meetings/${id}/knowledge`)
       return res.json()
     },
   }

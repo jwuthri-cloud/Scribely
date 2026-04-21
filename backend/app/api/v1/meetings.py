@@ -664,6 +664,77 @@ async def sync_meeting(
 
 
 # ---------------------------------------------------------------------------
+# GET /{meeting_id}/knowledge  — deal + per-contact facts extracted from meeting
+# ---------------------------------------------------------------------------
+
+
+class MeetingKnowledgeResponse(BaseModel):
+    deal: Optional[dict[str, Any]] = None
+    entries: list[dict[str, Any]] = []
+
+
+@router.get("/{meeting_id}/knowledge", response_model=MeetingKnowledgeResponse)
+async def get_meeting_knowledge(
+    meeting_id: str,
+    user: User = Depends(get_current_user_with_db),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> MeetingKnowledgeResponse:
+    """Return the detected deal and per-contact knowledge for a meeting."""
+    from sqlalchemy import select
+
+    from app.database.models.contact import Contact
+    from app.database.models.deal import Deal
+    from app.database.models.knowledge import ContactKnowledge
+
+    meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    deal_payload: Optional[dict[str, Any]] = None
+    if meeting.deal_id:
+        d_res = await db.execute(select(Deal).where(Deal.id == meeting.deal_id))
+        deal = d_res.scalar_one_or_none()
+        if deal is not None:
+            deal_payload = {
+                "id": deal.id,
+                "domain": deal.domain,
+                "name": deal.name,
+                "status": str(deal.status),
+            }
+
+    k_res = await db.execute(
+        select(ContactKnowledge)
+        .where(
+            ContactKnowledge.user_id == user.id,
+            ContactKnowledge.meeting_id == meeting_id,
+        )
+        .order_by(ContactKnowledge.created_at.desc())
+    )
+    rows = list(k_res.scalars().all())
+    contact_ids = {r.contact_id for r in rows}
+    contact_by_id: dict[str, Contact] = {}
+    if contact_ids:
+        c_res = await db.execute(select(Contact).where(Contact.id.in_(contact_ids)))
+        contact_by_id = {c.id: c for c in c_res.scalars().all()}
+
+    entries = [
+        {
+            "id": r.id,
+            "contact_id": r.contact_id,
+            "contact_email": contact_by_id.get(r.contact_id).email if contact_by_id.get(r.contact_id) else None,
+            "contact_name": contact_by_id.get(r.contact_id).full_name if contact_by_id.get(r.contact_id) else None,
+            "fact": r.fact,
+            "category": str(r.category),
+            "confidence": r.confidence,
+            "source_snippet": r.source_snippet,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+    return MeetingKnowledgeResponse(deal=deal_payload, entries=entries)
+
+
+# ---------------------------------------------------------------------------
 # GET /{meeting_id}/status  — processing status
 # ---------------------------------------------------------------------------
 

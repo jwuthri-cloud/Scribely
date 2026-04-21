@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ChevronDown, ChevronRight, Video, Workflow } from "lucide-react"
+import { MeetingPeoplePanel } from "@/components/app/meeting/MeetingPeoplePanel"
 import { MeetingReviewHeader } from "@/components/app/meeting/MeetingReviewHeader"
 import { MeetingRecordingPlayer } from "@/components/app/meeting/MeetingRecordingPlayer"
 import { TranscriptViewer } from "@/components/app/meeting/TranscriptViewer"
@@ -387,6 +388,8 @@ export default function MeetingDetailPage() {
               </ul>
             )}
           </WorkspaceSurface>
+
+          <MeetingPeoplePanel meetingId={id} />
 
           <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:[grid-template-columns:repeat(2,minmax(0,1fr))] lg:items-start lg:gap-8 xl:gap-10">
             <section className="min-w-0 max-w-full space-y-4">

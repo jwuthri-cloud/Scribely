@@ -19,6 +19,15 @@ from app.database.models.calendar import (
     ParticipantResponseStatus,
 )
 from app.database.repositories.calendar import CalendarRepository
+from app.database.repositories.contact import ContactRepository
+from app.database.repositories.deal import DealRepository
+from app.services.deal_detection import (
+    detect_deal_domain,
+    domain_to_deal_name,
+    normalize_email,
+)
+from sqlalchemy import select
+from app.database.models.meeting import Meeting
 from app.infrastructure.clerk_oauth import ClerkOAuthTokenError, get_google_oauth_access_token
 from app.infrastructure.google_calendar import GoogleCalendarClient
 from app.utils.logging import get_logger
@@ -161,6 +170,67 @@ def _participants_from_event(event: dict, self_email_lower: Optional[str]) -> li
             }
         )
     return out
+
+
+async def _sync_deal_and_contacts(
+    db: AsyncSession,
+    *,
+    user_id: str,
+    calendar_event_id: str,
+    owner_email: Optional[str],
+    participants: list[dict],
+) -> None:
+    """Upsert Contact rows for participants and attach/create a tentative Deal.
+
+    Also backfills ``Meeting.deal_id`` for any meeting already linked to this
+    calendar event (tentative deal at calendar-sync time).
+    """
+    owner_lower = normalize_email(owner_email)
+    external: list[dict] = []
+    for p in participants:
+        if not p.get("email"):
+            continue
+        if p.get("is_self"):
+            continue
+        el = p["email"].strip().lower()
+        if owner_lower and el == owner_lower:
+            continue
+        external.append(p)
+    if not external:
+        return
+
+    emails = [p["email"] for p in external]
+    deal = None
+    domain = detect_deal_domain(owner_email, emails)
+    if domain:
+        deal = await DealRepository.get_or_create(
+            db,
+            user_id,
+            domain,
+            default_name=domain_to_deal_name(domain),
+        )
+
+    for p in external:
+        email = p["email"]
+        await ContactRepository.upsert(
+            db,
+            user_id,
+            email,
+            full_name=p.get("display_name"),
+            deal_id=deal.id if deal else None,
+            touch_last_seen=False,
+        )
+
+    if deal is not None:
+        stmt = select(Meeting).where(
+            Meeting.user_id == user_id,
+            Meeting.calendar_event_id == calendar_event_id,
+            Meeting.deal_id.is_(None),
+        )
+        result = await db.execute(stmt)
+        for meeting in result.scalars().all():
+            meeting.deal_id = deal.id
+        await db.flush()
 
 
 class CalendarSyncService:
@@ -386,6 +456,14 @@ class CalendarSyncService:
 
         parts = _participants_from_event(event, self_email)
         await CalendarRepository.replace_participants(db, row.id, parts)
+
+        await _sync_deal_and_contacts(
+            db,
+            user_id=user_id,
+            calendar_event_id=row.id,
+            owner_email=self_email,
+            participants=parts,
+        )
 
     async def renew_webhook_if_needed(
         self,

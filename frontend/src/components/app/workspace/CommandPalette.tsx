@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Command } from "cmdk"
 import {
+  Briefcase,
   CalendarDays,
   FilePlus,
   LayoutDashboard,
   Loader2,
   MessageSquare,
   Settings,
+  Users,
   Video,
   Workflow,
 } from "lucide-react"
@@ -21,6 +23,8 @@ const navPages = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, keywords: "home overview stats" },
   { href: "/meetings", label: "Meetings", icon: Video, keywords: "recordings transcripts calls list" },
   { href: "/calendar", label: "Calendar", icon: CalendarDays, keywords: "schedule google upcoming events" },
+  { href: "/deals", label: "Deals", icon: Briefcase, keywords: "customers prospects accounts companies" },
+  { href: "/contacts", label: "Contacts", icon: Users, keywords: "people attendees knowledge" },
   { href: "/chat", label: "Chat", icon: MessageSquare, keywords: "ai ask question assistant" },
   { href: "/rules", label: "Rules", icon: Workflow, keywords: "automation workflow triggers" },
   { href: "/settings", label: "Settings", icon: Settings, keywords: "account profile preferences" },

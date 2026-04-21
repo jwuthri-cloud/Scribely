@@ -11,6 +11,9 @@ from .calendar import (
     MeetingPlatform,
     ParticipantResponseStatus,
 )
+from .contact import Contact
+from .deal import Deal, DealStatusEnum
+from .knowledge import ContactKnowledge, KnowledgeCategoryEnum
 from .meeting import Meeting, MeetingStatusEnum
 from .meeting_processing import (
     MeetingProcessing,
@@ -35,6 +38,11 @@ __all__ = [
     "CalendarEventParticipant",
     "CalendarEventStatus",
     "CalendarReminderDelivery",
+    "Contact",
+    "ContactKnowledge",
+    "Deal",
+    "DealStatusEnum",
+    "KnowledgeCategoryEnum",
     "Meeting",
     "MeetingProcessing",
     "MeetingProcessingStatus",

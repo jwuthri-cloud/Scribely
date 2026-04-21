@@ -99,6 +99,16 @@ async def _finalize_success(
     except Exception as e:
         logger.warning("Failed to schedule after_meeting rules for %s: %s", meeting_id, e)
 
+    # Deal re-detection + per-contact knowledge extraction (best-effort).
+    try:
+        import asyncio as _asyncio
+
+        from app.services.meeting_knowledge import run_post_meeting_knowledge
+
+        _asyncio.create_task(run_post_meeting_knowledge(meeting_id))
+    except Exception as e:
+        logger.warning("Failed to schedule knowledge extraction for %s: %s", meeting_id, e)
+
     logger.info(f"DB updated for meeting {meeting_id}: completed, duration={duration_seconds}s")
 
 

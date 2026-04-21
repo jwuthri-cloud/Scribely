@@ -6,12 +6,14 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { UserButton } from "@clerk/nextjs"
 import {
+  Briefcase,
   ChevronLeft,
   LayoutDashboard,
   Menu,
   MessageSquare,
   Search,
   Settings,
+  Users,
   Video,
   X,
   CalendarDays,
@@ -26,6 +28,8 @@ const sidebarLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/meetings", label: "Meetings", icon: Video },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/deals", label: "Deals", icon: Briefcase },
+  { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/rules", label: "Rules", icon: Workflow },
   { href: "/settings", label: "Settings", icon: Settings },
