@@ -1,4 +1,11 @@
-/** @type {import('next').NextConfig} */
+/**
+ * @type {import('next').NextConfig}
+ *
+ * Production: set NEXT_SERVER_ACTIONS_ENCRYPTION_KEY at **build** time (openssl rand -base64 32)
+ * and keep the same value across replicas / rebuilds where you need zero-downtime deploys.
+ * Prevents "Failed to find Server Action" when HTML/JS skew or instances disagree on action IDs.
+ * @see https://nextjs.org/docs/messages/failed-to-find-server-action
+ */
 const nextConfig = {
   output: "standalone",
   reactStrictMode: true,

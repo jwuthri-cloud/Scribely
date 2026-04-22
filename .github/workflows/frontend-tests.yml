@@ -112,6 +112,9 @@ jobs:
             echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_$(echo -n 'foo-bar-13.clerk.accounts.dev$' | base64 -w0)" >> "$GITHUB_ENV"
           fi
 
+      - name: Server Actions encryption key (CI)
+        run: echo "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Build
         run: |
           cd frontend
@@ -199,6 +202,9 @@ jobs:
             echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_$(echo -n 'foo-bar-13.clerk.accounts.dev$' | base64 -w0)" >> "$GITHUB_ENV"
           fi
 
+      - name: Server Actions encryption key (Docker build)
+        run: echo "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
@@ -211,6 +217,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=http://localhost:8000
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
 
       - name: Test Docker image health
         run: |
