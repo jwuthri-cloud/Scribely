@@ -1,4 +1,5 @@
-import './instrumentation' // Must be first — Langfuse observability
+import './load-env' // .env from disk before Langfuse / other main code
+import './instrumentation' // Must be first after env — Langfuse observability
 
 import { createLogger, silenceLoggers } from './logger'
 

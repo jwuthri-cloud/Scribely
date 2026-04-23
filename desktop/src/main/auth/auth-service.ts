@@ -110,7 +110,8 @@ export class AuthService {
   }
 
   async startSignIn(): Promise<{ success: boolean; error?: string }> {
-    const publishableKey = process.env.CLERK_PUBLISHABLE_KEY
+    const publishableKey =
+      process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
     if (!publishableKey) {
       return { success: false, error: 'CLERK_PUBLISHABLE_KEY not configured' }
     }

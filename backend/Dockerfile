@@ -62,6 +62,8 @@ RUN adduser --disabled-password --gecos '' --uid 1000 appuser
 # Full tree from builder (venv + app + alembic; avoids COPY from monorepo root)
 COPY --from=builder --chown=appuser:appuser /build/ /app/
 
+RUN chmod +x /app/scripts/docker-entrypoint.sh
+
 # /app stays root-owned; appuser cannot mkdir here — create dirs as root, then drop privileges
 RUN mkdir -p /app/logs /app/data/uploads && chown -R appuser:appuser /app/logs /app/data
 
@@ -73,6 +75,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 EXPOSE 8000
 
-# Railway and other hosts set PORT; default 8000 for local Docker runs
-# Invoke via venv python (Railway startCommand can override CMD with a minimal PATH)
-CMD ["/bin/sh", "-c", "exec /app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Apply Alembic migrations on each start, then uvicorn (ORM and DB stay aligned in prod).
+# Hosts with their own startCommand (e.g. railway.toml) should call the same script.
+CMD ["/bin/sh", "/app/scripts/docker-entrypoint.sh"]

@@ -77,9 +77,9 @@ docker-compose*.yml
 .env*
 !config_template.env
 
-# Development scripts
-scripts/
-*.sh
+# Development scripts (keep scripts/docker-entrypoint.sh for production Docker)
+scripts/*
+!scripts/docker-entrypoint.sh
 Makefile
 
 # Logs
@@ -132,11 +132,7 @@ yarn-error.log*
 *.swo
 *~
 
-# Alembic
-alembic.ini
-!alembic/
-alembic/versions/*.py
-!alembic/versions/001_initial_migration.py
+# Alembic — include full chain (alembic.ini + all versions); never ship a partial migrations set
 
 # Examples (don't include in production)
 examples/

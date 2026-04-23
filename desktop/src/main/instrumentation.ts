@@ -6,15 +6,13 @@
  * or environment. See .env.example.
  */
 
-import { config } from 'dotenv'
 import { createLogger } from './logger'
 
 const log = createLogger('langfuse')
 import { NodeSDK } from '@opentelemetry/sdk-node'
 import { LangfuseSpanProcessor } from '@langfuse/otel'
 
-// Load .env from desktop/ directory (where npm run dev is executed)
-config({ quiet: true })
+// Langfuse keys: loaded via load-env.ts (desktop/.env, Resources/.env in packaged app)
 
 const secretKey = process.env['LANGFUSE_SECRET_KEY']
 const publicKey = process.env['LANGFUSE_PUBLIC_KEY']

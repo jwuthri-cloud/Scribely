@@ -1,9 +1,30 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { loadEnv } from 'vite'
 
-export default defineConfig({
+/** Merge .env files and shell env so packaged builds get Clerk / API URLs baked into main. */
+function mainProcessDefine(mode: string) {
+  const env = loadEnv(mode, process.cwd(), '')
+  const pick = (key: string, fallback = '') =>
+    env[key] || process.env[key] || fallback
+
+  const clerkPub =
+    pick('CLERK_PUBLISHABLE_KEY') || pick('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY')
+
+  return {
+    'process.env.CLERK_PUBLISHABLE_KEY': JSON.stringify(clerkPub),
+    'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY': JSON.stringify(
+      pick('NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY') || clerkPub,
+    ),
+    'process.env.CLERK_JWT_TEMPLATE': JSON.stringify(pick('CLERK_JWT_TEMPLATE', 'scribely')),
+    'process.env.BACKEND_API_URL': JSON.stringify(pick('BACKEND_API_URL')),
+  } as Record<string, string>
+}
+
+export default defineConfig(({ mode }) => ({
   main: {
+    define: mainProcessDefine(mode),
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
@@ -23,4 +44,4 @@ export default defineConfig({
     },
     plugins: [react()],
   },
-})
+}))
