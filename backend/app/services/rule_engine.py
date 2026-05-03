@@ -145,12 +145,12 @@ async def build_rule_context(db: AsyncSession, meeting: Meeting) -> dict[str, An
     """Template context for Jinja: meeting.*, participants, steps (list of step outputs)."""
     meeting_dir = await _ensure_meeting_dir(meeting)
     transcript_text = ""
-    summary_text = ""
+    metadata_text = ""
     stmt = select(MeetingProcessing).where(MeetingProcessing.meeting_id == meeting.id)
     pr = await db.execute(stmt)
     proc = pr.scalar_one_or_none()
     if proc and isinstance(proc.result_summary, dict):
-        summary_text = json.dumps(proc.result_summary, ensure_ascii=False)
+        metadata_text = json.dumps(proc.result_summary, ensure_ascii=False)
 
     if meeting_dir:
         transcript_text, _ = await _load_transcript_bundle(meeting_dir)
@@ -163,7 +163,7 @@ async def build_rule_context(db: AsyncSession, meeting: Meeting) -> dict[str, An
         "duration_seconds": meeting.duration_seconds,
         "entry_count": meeting.entry_count,
         "transcript": transcript_text,
-        "summary": summary_text,
+        "metadata": metadata_text,
         "status": str(meeting.status),
         "recorded_at": meeting.recorded_at.isoformat() if meeting.recorded_at else "",
         "calendar_event_id": meeting.calendar_event_id or "",
@@ -525,8 +525,9 @@ async def stream_prompt_optimize(
     llm = provider.get_llm(model_name=model, temperature=0.3, enable_langfuse=True)
     sys = (
         "You help users refine automation prompts for a meeting assistant product (Scribely). "
-        "Available template variables in user prompts: meeting.title, meeting.transcript, meeting.summary, "
-        "meeting.duration_seconds, participants (list), steps[N].result for prior step outputs. "
+        "Available template variables in user prompts: meeting.title, meeting.recorded_at, "
+        "meeting.transcript, meeting.metadata, meeting.duration_seconds, participants (list), "
+        "steps[N].result for prior step outputs. "
         "Output only the improved prompt text unless asked for JSON."
     )
     human = f"Current prompt (optional):\n{current_prompt or '(none)'}\n\nUser request:\n{user_message}"

@@ -190,8 +190,9 @@ function InputSidePanel({
   const meetingVars = [
     { label: "meeting.id", token: "{{ meeting.id }}" },
     { label: "meeting.title", token: "{{ meeting.title }}" },
+    { label: "meeting.recorded_at", token: "{{ meeting.recorded_at }}" },
     { label: "meeting.transcript", token: "{{ meeting.transcript }}" },
-    { label: "meeting.summary", token: "{{ meeting.summary }}" },
+    { label: "meeting.metadata", token: "{{ meeting.metadata }}" },
   ]
 
   return (

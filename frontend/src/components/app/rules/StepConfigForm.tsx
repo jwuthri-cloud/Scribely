@@ -61,7 +61,7 @@ export function defaultConfig(t: RuleStepType): Record<string, unknown> {
       return {
         to_template: "{{ meeting.title }}@example.com",
         subject_template: "Meeting: {{ meeting.title }}",
-        body_template: "<p>{{ meeting.summary }}</p>",
+        body_template: "<p>{{ meeting.metadata }}</p>",
         body_is_html: true,
       }
     case "push_notification":
