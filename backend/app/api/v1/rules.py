@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_with_db
@@ -18,7 +18,11 @@ from app.database.models.user import User
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.rule import RuleRepository, _MISSING_FLOW
 from app.database.session import get_async_db_session
-from app.model_name import ALLOWED_OPENROUTER_MODEL_IDS, DEFAULT_TRAINING
+from app.model_name import (
+    ALLOWED_OPENROUTER_MODEL_IDS,
+    DEFAULT_TRAINING,
+    OPENROUTER_CHAT_MODEL_CATALOG,
+)
 from app.services.rule_engine import execute_rule, stream_prompt_optimize
 from app.utils.logging import get_logger
 
@@ -46,6 +50,14 @@ class RuleStepIn(BaseModel):
         if v not in allowed:
             raise ValueError(f"step_type must be one of {sorted(allowed)}")
         return v
+
+    @model_validator(mode="after")
+    def validate_llm_model(self) -> "RuleStepIn":
+        if self.step_type == RuleStepTypeEnum.LLM_PROMPT.value:
+            model = self.config.get("model") or DEFAULT_TRAINING
+            if not isinstance(model, str) or model not in ALLOWED_OPENROUTER_MODEL_IDS:
+                raise ValueError(f"Unsupported model {model!r}.")
+        return self
 
 
 class RuleStepOut(BaseModel):
@@ -118,6 +130,13 @@ class RuleExecutionOut(BaseModel):
     completed_at: Optional[str]
     step_results: Optional[list[dict[str, Any]]]
     error: Optional[str]
+
+
+class OpenRouterChatModelOut(BaseModel):
+    id: str
+    label: str
+    description: str
+    provider: str
 
 
 class TestRuleRequest(BaseModel):
@@ -213,6 +232,14 @@ async def prompt_optimize_stream(
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/model-catalog", response_model=list[OpenRouterChatModelOut])
+async def get_model_catalog(
+    _user: User = Depends(get_current_user_with_db),
+) -> list[OpenRouterChatModelOut]:
+    """Return the rule editor's allowed OpenRouter chat models."""
+    return [OpenRouterChatModelOut(**entry) for entry in OPENROUTER_CHAT_MODEL_CATALOG]
 
 
 @router.post("/", response_model=RuleOut, status_code=status.HTTP_201_CREATED)

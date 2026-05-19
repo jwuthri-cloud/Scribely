@@ -3,9 +3,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Trash2, Play } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronRight, Trash2, Play } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import type { MeetingRule, RuleExecutionDTO } from "@/lib/api"
+import { RuleExecutionSteps } from "@/components/app/rules/RuleExecutionSteps"
 import { RuleFlowCanvas, type RuleFlowCanvasHandle } from "@/components/app/rules/flow/RuleFlowCanvas"
 import { buildFlowFromRule } from "@/components/app/rules/flow/rule-flow-utils"
 import { CoreSpinLoader } from "@/components/ui/core-spin-loader"
@@ -23,15 +24,16 @@ export default function EditRulePage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [executions, setExecutions] = useState<RuleExecutionDTO[]>([])
+  const [openExecutionId, setOpenExecutionId] = useState<string | null>(null)
   const [testMeetingId, setTestMeetingId] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    if (!id) return
-    setLoading(true)
+  const load = useCallback(async (showLoading = true): Promise<RuleExecutionDTO[]> => {
+    if (!id) return []
+    if (showLoading) setLoading(true)
     setErr(null)
     try {
       const [r, ex] = await Promise.all([api.getRule(id), api.listRuleExecutions(id)])
@@ -40,10 +42,12 @@ export default function EditRulePage() {
       setDescription(r.description ?? "")
       setFlowKey((k) => k + 1)
       setExecutions(ex)
+      return ex
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load")
+      return []
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }, [api, id])
 
@@ -114,7 +118,8 @@ export default function EditRulePage() {
     setErr(null)
     try {
       await api.testRule(id, testMeetingId.trim())
-      await load()
+      const refreshed = await load(false)
+      setOpenExecutionId(refreshed[0]?.id ?? null)
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Test failed")
     } finally {
@@ -233,15 +238,68 @@ export default function EditRulePage() {
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
         <h2 className="text-sm font-semibold text-white">Recent runs</h2>
-        <ul className="mt-3 space-y-2 text-xs text-white/60">
+        <ul className="mt-3 space-y-2 text-sm text-white/60">
           {executions.length === 0 && <li>No executions yet.</li>}
-          {executions.map((ex) => (
-            <li key={ex.id} className="rounded-lg border border-white/[0.06] px-3 py-2 font-mono">
-              <span className="text-white/80">{ex.status}</span> · meeting {ex.meeting_id.slice(0, 8)}… ·{" "}
-              {ex.started_at ?? "—"}
-              {ex.error && <span className="ml-2 text-red-400/90">{ex.error}</span>}
-            </li>
-          ))}
+          {executions.map((ex) => {
+            const expanded = openExecutionId === ex.id
+            const steps = ex.step_results
+            return (
+              <li key={ex.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                <div
+                  className="flex cursor-pointer items-start gap-2 rounded-md outline-none hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-white/20"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expanded}
+                  onClick={() => setOpenExecutionId((prev) => (prev === ex.id ? null : ex.id))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setOpenExecutionId((prev) => (prev === ex.id ? null : ex.id))
+                    }
+                  }}
+                >
+                  <span className="mt-0.5 shrink-0 text-white/40">
+                    {expanded ? (
+                      <ChevronDown className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" aria-hidden />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="min-w-0 font-mono text-xs text-white/55">
+                        meeting {ex.meeting_id.slice(0, 8)}...
+                      </span>
+                      <span
+                        className={`shrink-0 text-xs uppercase tracking-wide ${
+                          ex.status === "completed"
+                            ? "text-emerald-400/90"
+                            : ex.status === "failed"
+                              ? "text-red-400/90"
+                              : "text-white/50"
+                        }`}
+                      >
+                        {ex.status}
+                      </span>
+                    </div>
+                    {ex.error ? <p className="mt-1 text-xs text-red-400/85">{ex.error}</p> : null}
+                    <p className="mt-1 text-xs text-white/35">
+                      {ex.started_at ? new Date(ex.started_at).toLocaleString() : "—"}
+                    </p>
+                  </div>
+                </div>
+                {expanded ? (
+                  steps && steps.length > 0 ? (
+                    <RuleExecutionSteps steps={steps} />
+                  ) : (
+                    <p className="mt-2 border-t border-white/[0.06] pt-3 text-xs text-white/40">
+                      No per-step output stored for this run.
+                    </p>
+                  )
+                ) : null}
+              </li>
+            )
+          })}
         </ul>
       </div>
     </div>

@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GripVertical, Plus, Trash2 } from "lucide-react"
-import type { RuleStepType } from "@/lib/api"
+import { useApi } from "@/hooks/useApi"
+import type { ChatModelOption, RuleStepType } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 export type StepDraft = {
@@ -28,18 +29,37 @@ const STEP_TYPES: { value: RuleStepType; label: string }[] = [
   { value: "composio_action", label: "Composio action" },
 ]
 
-const LLM_MODELS = [
-  { value: "openai/gpt-5.4-nano", label: "GPT 5.4 Nano" },
-  { value: "openai/gpt-5.4-mini", label: "GPT 5.4 Mini" },
-  { value: "openai/gpt-5.4", label: "GPT 5.4" },
-  { value: "anthropic/claude-4.5-haiku", label: "Claude 4.5 Haiku" },
-  { value: "anthropic/claude-4.6-sonnet", label: "Claude 4.6 Sonnet" },
-  { value: "anthropic/claude-4.6-opus", label: "Claude 4.6 Opus" },
-  { value: "google/gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite" },
-  { value: "google/gemini-3.1-flash-preview", label: "Gemini 3.1 Flash" },
-  { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
-  { value: "x-ai/grok-4.1-fast", label: "Grok 4.1 Fast" },
-  { value: "x-ai/grok-4.20", label: "Grok 4.20" },
+const FALLBACK_LLM_MODELS: ChatModelOption[] = [
+  {
+    id: "openai/gpt-5.4-nano",
+    label: "GPT 5.4 Nano",
+    description: "Fast, low cost",
+    provider: "openai",
+  },
+  {
+    id: "openai/gpt-5.4-mini",
+    label: "GPT 5.4 Mini",
+    description: "Balanced speed and quality",
+    provider: "openai",
+  },
+  {
+    id: "anthropic/claude-4.5-haiku",
+    label: "Claude 4.5 Haiku",
+    description: "Fast Anthropic model",
+    provider: "anthropic",
+  },
+  {
+    id: "google/gemini-3.1-flash-lite-preview",
+    label: "Gemini 3.1 Flash Lite",
+    description: "Lightweight Google model",
+    provider: "google",
+  },
+  {
+    id: "google/gemini-3.1-flash-preview",
+    label: "Gemini 3.1 Flash",
+    description: "Fast Google flagship",
+    provider: "google",
+  },
 ]
 
 const SCHEMA_TYPES = ["string", "number", "boolean", "array"] as const
@@ -559,9 +579,11 @@ function SchemaBuilder({
 function LlmFields({
   config,
   patch,
+  modelCatalog,
 }: {
   config: Record<string, unknown>
   patch: (p: Record<string, unknown>) => void
+  modelCatalog: ChatModelOption[]
 }) {
   const model = str(config.model, "openai/gpt-5.4-mini")
   const systemPrompt = str(config.system_prompt)
@@ -571,13 +593,22 @@ function LlmFields({
   const outputSchema: OutputSchemaField[] = Array.isArray(rawSchema)
     ? (rawSchema as OutputSchemaField[])
     : [{ name: "result", type: "string", description: "Model output" }]
+  const activeModel = modelCatalog.some((m) => m.id === model)
+    ? model
+    : modelCatalog[0]?.id ?? "openai/gpt-5.4-mini"
+
+  useEffect(() => {
+    if (modelCatalog.length > 0 && activeModel !== model) {
+      patch({ model: activeModel })
+    }
+  }, [activeModel, model, modelCatalog.length, patch])
 
   return (
     <div className="space-y-4">
       <Field label="Model">
-        <select value={model} onChange={(e) => patch({ model: e.target.value })} className={selectClass}>
-          {LLM_MODELS.map((m) => (
-            <option key={m.value} value={m.value} className="bg-zinc-950">
+        <select value={activeModel} onChange={(e) => patch({ model: e.target.value })} className={selectClass}>
+          {modelCatalog.map((m) => (
+            <option key={m.id} value={m.id} className="bg-zinc-950">
               {m.label}
             </option>
           ))}
@@ -761,10 +792,6 @@ function ComposioFields({
 const VA_STYLES = `
 .va-mirror {
   color: #e4e4e7;
-  font-size: 0.75rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
   pointer-events: none;
   user-select: none;
 }
@@ -772,7 +799,7 @@ const VA_STYLES = `
   background: #14532d;
   color: #6ee7b7;
   border-radius: 3px;
-  padding: 0 3px;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.35);
   font-style: normal;
 }
 .va-placeholder {
@@ -792,6 +819,24 @@ export function StepConfigForm({
   step: StepDraft
   onChange: (s: StepDraft) => void
 }) {
+  const api = useApi()
+  const [modelCatalog, setModelCatalog] = useState<ChatModelOption[]>(FALLBACK_LLM_MODELS)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .getRuleModelCatalog()
+      .then((models) => {
+        if (!cancelled && models.length > 0) setModelCatalog(models)
+      })
+      .catch(() => {
+        if (!cancelled) setModelCatalog(FALLBACK_LLM_MODELS)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [api])
+
   const setType = (step_type: RuleStepType) => {
     onChange({
       ...step,
@@ -809,7 +854,7 @@ export function StepConfigForm({
   const typeFields = (() => {
     switch (step.step_type) {
       case "llm_prompt":
-        return <LlmFields config={cfg} patch={patchConfig} />
+        return <LlmFields config={cfg} patch={patchConfig} modelCatalog={modelCatalog} />
       case "send_email":
         return <EmailFields config={cfg} patch={patchConfig} />
       case "push_notification":

@@ -221,7 +221,7 @@ export interface RuleExecutionDTO {
   status: string
   started_at: string | null
   completed_at: string | null
-  step_results: Array<Record<string, unknown>> | null
+  step_results: MeetingRuleExecutionStep[] | null
   error: string | null
 }
 
@@ -611,6 +611,11 @@ export function createApiClient(getToken: GetTokenFn) {
 
     async listRules(): Promise<MeetingRule[]> {
       const res = await fetchWithAuth("/api/v1/rules")
+      return res.json()
+    },
+
+    async getRuleModelCatalog(): Promise<ChatModelOption[]> {
+      const res = await fetchWithAuth("/api/v1/rules/model-catalog")
       return res.json()
     },
 
