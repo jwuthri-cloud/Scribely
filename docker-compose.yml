@@ -1,7 +1,12 @@
-version: '3.8'
+# Local stack mirrors Railway prod (MainApp): Redis + Postgres + MinIO + AssistMe(backend) + Frontend.
+# `docker compose up --build` brings up the whole stack; the backend runs migrations and the
+# MinIO bucket is created automatically, so a fresh checkout works with no manual setup.
+#
+# Not in prod (removed): Kafka, Zookeeper, RabbitMQ, Celery. Background work runs in-process
+# via asyncio (app/services/task_runner.py).
 
 services:
-  # Redis for caching and session management
+  # Redis — rate-limit storage / cache (REDIS_ENABLED)
   redis:
     image: redis:7-alpine
     container_name: scribely-redis
@@ -17,327 +22,132 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # PostgreSQL database (conditional)
-  
+  # PostgreSQL — listens on 5435 (not the default 5432) so the port is 5435 everywhere:
+  # host tools use localhost:5435 (matches backend/.env) and the backend uses postgres:5435.
   postgres:
     image: postgres:15-alpine
     container_name: scribely-postgres
+    command: ["postgres", "-p", "5435"]
     environment:
       POSTGRES_DB: scribely
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5435:5435"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -p 5435"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
-  
 
-  # Vector database
-  
-
-  # Zookeeper for Kafka
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    container_name: scribely-zookeeper
+  # MinIO — S3-compatible object storage (meeting recordings/transcripts mirror)
+  minio:
+    image: minio/minio
+    container_name: scribely-minio
+    command: server /data --console-address ":9001"
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web console (http://localhost:9001)
     volumes:
-      - zk_data:/var/lib/zookeeper/data
-      - zk_logs:/var/lib/zookeeper/log
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
-  # Kafka for event streaming
-  kafka:
-    image: confluentinc/cp-kafka:7.4.0
-    container_name: scribely-kafka
+  # One-shot: create the bucket the backend expects (it does not auto-create it).
+  minio-init:
+    image: minio/mc
+    container_name: scribely-minio-init
     depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/scribely &&
+      echo 'MinIO bucket scribely ready'
+      "
+    restart: "no"
 
-  # RabbitMQ for message queuing
-  rabbitmq:
-    image: rabbitmq:3.12-management-alpine
-    container_name: scribely-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 30s
-      timeout: 30s
-      retries: 3
-    restart: unless-stopped
-
-  # FastAPI Backend
+  # FastAPI Backend (AssistMe — www.api.scribely.xyz in prod)
+  # IMPORTANT: build context is the repo ROOT — backend/Dockerfile does `COPY backend/ ./`
+  # and the root .dockerignore is written for root-context builds.
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: scribely-backend
     depends_on:
       redis:
         condition: service_healthy
-      
       postgres:
         condition: service_healthy
-      
-      kafka:
+      minio:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
+    # Secrets (Clerk, OpenAI/OpenRouter, Recall, Langfuse, VAPID, …) come from backend/.env.
+    env_file:
+      - ./backend/.env
+    # Infra URLs use compose-network hostnames and OVERRIDE whatever is in backend/.env.
     environment:
-      # Database configuration
-      
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
-      
-
-      # Redis configuration
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5435/scribely
+      REDIS_ENABLED: "true"
       REDIS_URL: redis://redis:6379/0
-
-      # Celery configuration
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-
-      # Kafka configuration
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-
-      # RabbitMQ configuration
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-
-      # LLM configuration
-      
-
-      # App configuration
+      OBJECT_STORAGE_ENABLED: "true"
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_BUCKET: scribely
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_REGION: us-east-1
+      S3_USE_PATH_STYLE: "true"
       ENVIRONMENT: development
       LOG_LEVEL: info
-    volumes:
-      - ./backend:/app
-      
+    # Apply DB migrations on boot (fresh Postgres has no tables), then serve.
+    command:
+      - /bin/sh
+      - -c
+      - /app/.venv/bin/python -m alembic upgrade head && exec /app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
-  # Celery Worker - General Tasks
-  celery-worker-general:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: scribely-celery-general
-    depends_on:
-      redis:
-        condition: service_healthy
-      
-      postgres:
-        condition: service_healthy
-      
-    command: celery -A app.core.celery_app:celery_app worker --queues=general --concurrency=2 --loglevel=info --hostname=general@%h
-    environment:
-      # Same environment as backend
-      
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
-      
-
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-
-      # LLM configuration
-      
-
-      ENVIRONMENT: development
-      LOG_LEVEL: info
-    volumes:
-      - ./backend:/app
-      
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Celery Worker - Chat Tasks
-  celery-worker-chat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: scribely-celery-chat
-    depends_on:
-      redis:
-        condition: service_healthy
-      
-      postgres:
-        condition: service_healthy
-      
-    command: celery -A app.core.celery_app:celery_app worker --queues=chat --concurrency=3 --loglevel=info --hostname=chat@%h
-    environment:
-      # Same environment as backend
-      
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
-      
-
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-
-      # LLM configuration
-      
-
-      ENVIRONMENT: development
-      LOG_LEVEL: info
-    volumes:
-      - ./backend:/app
-      
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Celery Worker - LLM Tasks (CPU intensive)
-  celery-worker-llm:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: scribely-celery-llm
-    depends_on:
-      redis:
-        condition: service_healthy
-      
-      postgres:
-        condition: service_healthy
-      
-    command: celery -A app.core.celery_app:celery_app worker --queues=llm --concurrency=2 --loglevel=info --hostname=llm@%h --pool=prefork
-    environment:
-      # Same environment as backend
-      
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/scribely
-      
-
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-
-      # LLM configuration
-      
-
-      ENVIRONMENT: development
-      LOG_LEVEL: info
-    volumes:
-      - ./backend:/app
-      
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "celery", "-A", "app.core.celery_app:celery_app", "inspect", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Celery Flower - Monitoring (optional)
-  celery-flower:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: scribely-flower
-    depends_on:
-      redis:
-        condition: service_healthy
-    command: celery -A app.core.celery_app:celery_app flower --port=5555
-    ports:
-      - "5555:5555"
-    environment:
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
-    restart: unless-stopped
-    profiles:
-      - monitoring
-
-  # Next.js Frontend
+  # Next.js Frontend (scribely.xyz in prod). NEXT_PUBLIC_* are baked at BUILD time, so they
+  # must be build args (runtime env can't change an already-built bundle).
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
     container_name: scribely-frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
+    # Server-side Clerk (middleware/SSR) needs CLERK_SECRET_KEY + CLERK_JWKS_URL at RUNTIME.
+    # NEXT_PUBLIC_* are baked at build time (above); the secret is NOT and must be injected here.
+    env_file:
+      - ./frontend/.env.local
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_APP_NAME: "Scribely"
-      NODE_ENV: development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      NODE_ENV: production
     restart: unless-stopped
-
-  # Nginx reverse proxy (optional)
-  nginx:
-    image: nginx:alpine
-    container_name: scribely-nginx
-    depends_on:
-      - frontend
-      - backend
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    restart: unless-stopped
-    profiles:
-      - production
 
 volumes:
   redis_data:
-  
   postgres_data:
-  
-  kafka_data:
-  zk_data:
-  zk_logs:
-  rabbitmq_data:
-  
+  minio_data:
 
 networks:
   default:

@@ -38,6 +38,7 @@ import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
 import { BackendClient, type MeetingSyncPayload } from './backend-client'
 import { resolveCalendarEventIdForTranscript } from './calendar-meeting-match'
+import { resolveCaptureProvider } from './recall/entitlement'
 import { UploadQueueService } from './upload-queue'
 import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
 import { checkForUpdatesNow, registerUpdaterIpc, startAutoUpdater } from './updater'
@@ -230,6 +231,17 @@ const backendClient = new BackendClient(authService)
 
 // ── Upload Queue ─────────────────────────────────────────
 const uploadQueueService = new UploadQueueService(backendClient, authService)
+
+// Fetch the per-user Recall entitlement from the backend and resolve which capture
+// provider to use (recall vs base). Phase 0: logs the decision; Phase 2 acts on it.
+async function refreshRecallDecision(): Promise<void> {
+  if (!backendClient.isConfigured) {
+    resolveCaptureProvider(false)
+    return
+  }
+  const status = await backendClient.validateAuth()
+  resolveCaptureProvider(status.authenticated && status.useRecallSdk)
+}
 
 // ── Live Insights Engine ───────────────────────────────
 function getInsightsConfig() {
@@ -1053,6 +1065,7 @@ app.whenReady().then(async () => {
   // When user signs in, flush any pending uploads (fresh token available)
   authService.setOnSignedIn(() => {
     uploadQueueService.flushPending()
+    void refreshRecallDecision()
   })
 
   // Forward upload queue state changes to renderer
@@ -1073,6 +1086,7 @@ app.whenReady().then(async () => {
   // the renderer load and the auth session token to be read from disk).
   setTimeout(() => {
     uploadQueueService.flushPending()
+    void refreshRecallDecision()
   }, 5000)
 
   // Retry pending uploads every 5 minutes (covers network reconnects and
