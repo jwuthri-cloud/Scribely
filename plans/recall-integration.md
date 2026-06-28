@@ -1,6 +1,6 @@
 # Recall.ai Integration Plan (Desktop + Backend)
 
-Status: **BUILDING** — Phase 0 (entitlement) + Phase 1 (token mint) implemented; Phases 2–6 pending
+Status: **BUILDING** — Phases 0–5 implemented & typechecked & running (entitlement, token mint, SDK realtime, backend recall-enriched landing, language→provider, login-item auto-launch, async recording webhook). Phase 6 (Windows) pending
 Owner: Julien
 Last updated: 2026-06-27
 

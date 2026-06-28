@@ -483,6 +483,41 @@ async def list_meeting_rule_executions(
     return out
 
 
+def _build_recall_enriched(transcript_data: dict) -> dict:
+    """Build a v2 enriched transcript from a Recall-sourced transcript whose entries
+    already carry real speaker names. Mirrors meeting_processor._build_enriched so the
+    web app renders Recall meetings identically to pipeline-diarized ones."""
+    entries = transcript_data.get("entries", []) if isinstance(transcript_data, dict) else []
+    utterances = []
+    for e in entries:
+        speaker = e.get("speaker") or "Speaker"
+        utterances.append({
+            "speaker": speaker,
+            "text": e.get("text", ""),
+            "startMs": e.get("startTime", 0),
+            "endMs": e.get("endTime", 0),
+            "confidence": e.get("confidence", 1.0),
+            "originalLabel": speaker,
+        })
+    speakers = sorted({u["speaker"] for u in utterances})
+    now_iso = datetime.now(timezone.utc).isoformat()
+    created = transcript_data.get("createdAt", now_iso) if isinstance(transcript_data, dict) else now_iso
+    return {
+        "version": 2,
+        "createdAt": created,
+        "diarization": {
+            "provider": "recall",
+            "speakerMap": {s: s for s in speakers},
+            "speakers": speakers,
+            "processedAt": now_iso,
+            "utteranceCount": len(utterances),
+            "utterances": utterances,
+        },
+        "entries": entries,
+        "summary": transcript_data.get("summary", {}) if isinstance(transcript_data, dict) else {},
+    }
+
+
 # ---------------------------------------------------------------------------
 # POST /  — upload meeting files
 # ---------------------------------------------------------------------------
@@ -586,10 +621,16 @@ async def sync_meeting(
     duration_seconds = None
     recorded_at = None
     title = None
+    provider_tag = None
+    recall_upload_id_tag = None
+    transcript_data = {}
     try:
         transcript_data = json.loads(transcript_content)
         entries = transcript_data if isinstance(transcript_data, list) else transcript_data.get("entries", [])
         entry_count = len(entries)
+        if isinstance(transcript_data, dict):
+            provider_tag = transcript_data.get("provider")
+            recall_upload_id_tag = transcript_data.get("recallUploadId")
         if entries:
             first_ts = entries[0].get("timestamp", 0)
             last_ts = entries[-1].get("timestamp", 0)
@@ -617,7 +658,15 @@ async def sync_meeting(
                 detail="calendarEventId not found or not accessible for this user",
             )
 
-    initial_status = MeetingStatusEnum.PROCESSING if recording_path else MeetingStatusEnum.COMPLETED
+    # Recall transcripts arrive already diarized with real speaker names — never run
+    # the Deepgram/AssemblyAI pipeline on them (gated also on the user's entitlement).
+    is_recall = provider_tag == "recall" and bool(user.use_recall_sdk)
+
+    initial_status = (
+        MeetingStatusEnum.PROCESSING
+        if (recording_path is not None and not is_recall)
+        else MeetingStatusEnum.COMPLETED
+    )
 
     db_meeting = await MeetingRepository.create(
         db,
@@ -626,6 +675,7 @@ async def sync_meeting(
         storage_path=storage_rel,
         session_id=session_id,
         calendar_event_id=cal_id,
+        recall_upload_id=recall_upload_id_tag,
         title=title,
         duration_seconds=duration_seconds,
         entry_count=entry_count,
@@ -637,6 +687,31 @@ async def sync_meeting(
         db_meeting.id,
         has_recording=recording_path is not None,
     )
+
+    # Recall-sourced: write the enriched transcript ourselves and mark the pipeline
+    # complete (provider=recall) — no Deepgram/AssemblyAI run.
+    if is_recall:
+        enriched = _build_recall_enriched(transcript_data)
+        enriched_path = meeting_dir / TRANSCRIPT_ENRICHED_JSON
+        try:
+            async with aiofiles.open(enriched_path, "w") as f:
+                await f.write(json.dumps(enriched, indent=2, ensure_ascii=False))
+            if is_object_storage_configured():
+                await upload_file_async(enriched_path, storage_rel, TRANSCRIPT_ENRICHED_JSON)
+        except OSError as e:
+            logger.error(f"Failed to write recall enriched transcript for {db_meeting.id}: {e}")
+        diar = enriched["diarization"]
+        await MeetingProcessingRepository.mark_completed(
+            db,
+            db_meeting.id,
+            provider="recall",
+            utterance_count=diar["utteranceCount"],
+            distinct_speaker_labels=len(diar["speakers"]),
+            enriched_transcript_saved=True,
+            has_nonempty_diarization=diar["utteranceCount"] > 0,
+            result_summary={"source": "recall"},
+        )
+
     await db.commit()
 
     # Lifecycle rules: before every upload; after when there is no recording pipeline
@@ -646,15 +721,18 @@ async def sync_meeting(
         from app.services.rule_engine import execute_rules_for_meeting
 
         asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.BEFORE_MEETING))
-        if recording_path is None:
+        if recording_path is None or is_recall:
             asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.AFTER_MEETING))
     except Exception as e:
         logger.warning("Failed to schedule meeting rules for %s: %s", db_meeting.id, e)
 
-    # --- Trigger background processing if we have a recording ---
-    if recording_path is not None:
+    # --- Trigger background processing if we have a recording (never for Recall —
+    # its transcript is already diarized) ---
+    if recording_path is not None and not is_recall:
         schedule_processing(meeting_dir, meeting_id=db_meeting.id)
         logger.info(f"Background diarization scheduled for meeting {db_meeting.id}")
+    elif is_recall:
+        logger.info(f"Meeting {db_meeting.id} is Recall-sourced — diarization skipped")
 
     return MeetingSyncResponse(
         success=True,
@@ -868,18 +946,24 @@ async def get_meeting_recording(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ) -> FileResponse:
-    """Stream the meeting recording (VP9/Opus in WebM) with the same auth as other meeting APIs."""
+    """Stream the meeting recording. Base SDK records WebM; Recall provides MP4 — serve
+    whichever exists. Same auth as other meeting APIs."""
     meeting_dir = await _resolve_meeting_dir(db, user, meeting_id)
-    recording_path = meeting_dir / RECORDING_WEBM
-    if not recording_path.is_file():
+    webm_path = meeting_dir / RECORDING_WEBM
+    mp4_path = meeting_dir / "recording.mp4"
+    if webm_path.is_file():
+        recording_path, media_type = webm_path, "video/webm"
+    elif mp4_path.is_file():
+        recording_path, media_type = mp4_path, "video/mp4"
+    else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No recording for this meeting",
         )
     return FileResponse(
         path=str(recording_path),
-        media_type="video/webm",
-        filename=RECORDING_WEBM,
+        media_type=media_type,
+        filename=recording_path.name,
     )
 
 

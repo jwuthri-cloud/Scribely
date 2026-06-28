@@ -32,6 +32,9 @@ class Meeting(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     session_id = Column(String(255), nullable=True)
+    # Recall SDK upload id — set for Recall-sourced meetings so the async
+    # sdk_upload.complete webhook can attach the downloaded recording.
+    recall_upload_id = Column(String(255), nullable=True, index=True)
     calendar_event_id = Column(
         String,
         ForeignKey("calendar_events.id", ondelete="SET NULL"),

@@ -50,6 +50,12 @@ export class AudioPipeline {
   private sessionStartTime = 0
   /** Stable id for the current meeting session (set on start, cleared on stop). */
   private meetingSessionId: string | null = null
+  /**
+   * When true, capture/transcription is handled by the Recall SDK in the main
+   * process; the local Whisper/VAD ingestion paths are bypassed. Set by
+   * startRecallSession(), cleared on meeting stop.
+   */
+  private _recallMode = false
 
   // ── Per-stream VAD instances ───────────────────────────
   private micVad: VoiceActivityDetector | null = null
@@ -235,6 +241,7 @@ export class AudioPipeline {
     sampleRate: number,
     timestamp: number,
   ): void {
+    if (this._recallMode) return // Recall captures + transcribes itself
     if (pcm.length === 0) return
     if (source === 'mic' && this._excludeMyMic) return
 
@@ -648,6 +655,55 @@ export class AudioPipeline {
     return true
   }
 
+  // ── Recall SDK session (capture + transcription handled by Recall) ──
+
+  /**
+   * Start a session for Recall-driven capture. Unlike startSessionIfNeeded(), this
+   * does NOT load Whisper/VAD — Recall captures and transcribes in its own process
+   * and pushes entries via pushRecallTranscriptEntry(). Idempotent.
+   */
+  startRecallSession(): string {
+    if (this.isActive && this.meetingSessionId) {
+      this._recallMode = true
+      return this.meetingSessionId
+    }
+    this.isActive = true
+    this._recallMode = true
+    this.sessionStartTime = Date.now()
+    this.meetingSessionId = randomUUID()
+    this.segmentQueue = []
+    this.fallbackBuffers.clear()
+    this._transcribeQueue = []
+    this._recentEntries = []
+    this._onSessionStart?.(this.meetingSessionId)
+    log.success('Meeting session started (Recall)')
+    return this.meetingSessionId
+  }
+
+  /**
+   * Emit a transcript entry produced by the Recall SDK. Reuses the exact same
+   * downstream path as Whisper entries (renderer + Live Insights), so the renderer
+   * and InsightEngine need no changes. Timing is session-relative wall-clock.
+   */
+  pushRecallTranscriptEntry(input: { speaker: string; text: string; source?: string }): void {
+    if (!this.isActive) return
+    const text = input.text?.trim()
+    if (!text) return
+    const elapsed = Math.max(0, Date.now() - this.sessionStartTime)
+    const entry = {
+      id: randomUUID(),
+      speaker: input.speaker || 'Speaker',
+      text,
+      startTime: elapsed,
+      endTime: elapsed,
+      confidence: 1.0,
+      source: input.source ?? 'system',
+      isEdited: false,
+    }
+    this.sendToRenderer('meeting:transcript-entry', entry)
+    this._onTranscriptEntry?.(entry)
+  }
+
   // ── IPC Handlers ───────────────────────────────────────
 
   registerIpcHandlers(): void {
@@ -721,6 +777,7 @@ export class AudioPipeline {
 
       this._excludeMyMic = false
       this.isActive = false
+      this._recallMode = false
       this.meetingSessionId = null
       this.segmentQueue = []
       this.fallbackBuffers.clear()
@@ -756,6 +813,7 @@ export class AudioPipeline {
         },
       ) => {
         if (!this.isActive) return
+        if (this._recallMode) return // Recall captures + transcribes itself
         if (payload.source === 'mic' && this._excludeMyMic) return
 
         const pcm = new Float32Array(payload.pcm)
@@ -1034,6 +1092,10 @@ export class AudioPipeline {
           }>
           sessionId?: string
           recordingFilepath?: string
+          /** 'recall' when this transcript came from the Recall SDK (already diarized). */
+          provider?: string
+          /** Recall upload id — lets the backend attach the async recording via webhook. */
+          recallUploadId?: string
         },
       ) => {
         const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
@@ -1052,6 +1114,8 @@ export class AudioPipeline {
           createdAt: new Date().toISOString(),
           sessionId: payload.sessionId,
           recordingFilepath: payload.recordingFilepath,
+          provider: payload.provider,
+          recallUploadId: payload.recallUploadId,
           entries: payload.entries,
           summary: {
             totalEntries: payload.entries.length,

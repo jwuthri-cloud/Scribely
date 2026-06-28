@@ -28,6 +28,7 @@ class MeetingRepository:
         id: Optional[str] = None,
         session_id: Optional[str] = None,
         calendar_event_id: Optional[str] = None,
+        recall_upload_id: Optional[str] = None,
         title: Optional[str] = None,
         duration_seconds: Optional[int] = None,
         entry_count: int = 0,
@@ -41,6 +42,7 @@ class MeetingRepository:
             storage_path=storage_path,
             session_id=session_id,
             calendar_event_id=calendar_event_id,
+            recall_upload_id=recall_upload_id,
             title=title,
             duration_seconds=duration_seconds,
             entry_count=entry_count,
@@ -64,6 +66,20 @@ class MeetingRepository:
             stmt = stmt.where(Meeting.user_id == user_id)
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_recall_upload_id(
+        db: AsyncSession,
+        recall_upload_id: str,
+        user_id: Optional[str] = None,
+    ) -> Optional[Meeting]:
+        """Find the meeting tagged with a Recall SDK upload id (for the async webhook)."""
+        stmt = select(Meeting).where(Meeting.recall_upload_id == recall_upload_id)
+        if user_id:
+            stmt = stmt.where(Meeting.user_id == user_id)
+        stmt = stmt.order_by(Meeting.created_at.desc())
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
     @staticmethod
     async def list_for_user(

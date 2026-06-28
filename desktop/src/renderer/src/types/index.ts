@@ -155,6 +155,8 @@ export interface ElectronAPI {
     }>
     sessionId?: string
     recordingFilepath?: string
+    provider?: string
+    recallUploadId?: string
   }) => Promise<{ filepath: string; filename: string }>
   getModelStatus: () => Promise<{
     whisperModel: {
@@ -241,6 +243,12 @@ export interface ElectronAPI {
   onExtensionAutoStartMeeting: (callback: () => void) => () => void
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean; filepath?: string }>
+
+  // ── Recall SDK (alternative capture backend) ───
+  onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void
+  onRecallAutoStopMeeting: (callback: () => void) => () => void
+  stopRecallMeeting: () => Promise<{ success: boolean }>
+  getRecallStatus: () => Promise<{ provider: 'recall' | 'base'; entitled: boolean }>
 
   // Meeting toggle
   onToggleMeeting: (callback: () => void) => () => void

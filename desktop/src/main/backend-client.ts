@@ -225,14 +225,14 @@ export class BackendClient {
   /**
    * Mint a per-recording Recall Desktop SDK upload token. The raw Recall API key
    * never reaches the desktop — the backend holds it and returns only this token.
-   * 403 if the user isn't entitled. `recordingConfig` (transcript provider +
-   * realtime_endpoints) is optional and passed through to Recall at mint time.
+   * 403 if the user isn't entitled. `language` ('en' | 'multi', the user's
+   * transcription setting) selects the provider server-side.
    */
-  async getRecallUploadToken(recordingConfig?: unknown): Promise<{ id: string; uploadToken: string }> {
+  async getRecallUploadToken(language?: 'en' | 'multi'): Promise<{ id: string; uploadToken: string }> {
     const res = await this.requestJson<{ id: string; upload_token: string }>(
       'POST',
       '/api/v1/recall/upload-token',
-      recordingConfig !== undefined ? { recording_config: recordingConfig } : {},
+      { language: language ?? 'en' },
     )
     return { id: res.id, uploadToken: res.upload_token }
   }

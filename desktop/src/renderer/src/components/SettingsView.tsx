@@ -487,6 +487,39 @@ const CLOUD_MODELS: Record<CloudProvider, { id: string; label: string }[]> = {
   revai: [],
 }
 
+/** English/Multilingual toggle — shared by the local, cloud, and Recall sections. */
+function LanguageToggle({
+  value,
+  onChange,
+}: {
+  value: TranscriptionLanguage
+  onChange: (l: TranscriptionLanguage) => void
+}) {
+  return (
+    <div>
+      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        Language
+      </span>
+      <div className="flex gap-1.5 mt-1">
+        {(['en', 'multi'] as const).map((l) => (
+          <button
+            key={l}
+            onClick={() => onChange(l)}
+            className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all"
+            style={{
+              backgroundColor: value === l ? 'var(--accent)' : 'var(--surface)',
+              color: value === l ? '#fff' : 'var(--text)',
+              borderColor: value === l ? 'var(--accent)' : 'var(--border)',
+            }}
+          >
+            {l === 'en' ? 'English only' : 'Multilingual'}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function TranscriptionSection({
   transcription,
   onUpdate,
@@ -498,6 +531,17 @@ function TranscriptionSection({
   const localModel = transcription.localModel ?? 'fast'
   const cloudProvider = (transcription.cloudProvider ?? 'deepgram') as CloudProvider
   const language = transcription.language ?? 'en'
+
+  // When the user is entitled to the Recall SDK, capture/transcription runs through
+  // Recall — only the language (en/multi) is user-selectable, so we show a slim
+  // Recall-specific view instead of the local/cloud controls (which don't apply).
+  const [isRecall, setIsRecall] = useState(false)
+  useEffect(() => {
+    window.electronAPI
+      ?.getRecallStatus?.()
+      .then((s) => setIsRecall(s?.provider === 'recall'))
+      .catch(() => {})
+  }, [])
 
   const [modelStatus, setModelStatus] = useState<{
     available: boolean
@@ -555,6 +599,26 @@ function TranscriptionSection({
   const cloudModels = CLOUD_MODELS[cloudProvider] ?? []
   const hasCloudModelSelect = cloudModels.length > 1
 
+  // Recall users: same Language control, mapped to the Recall provider server-side
+  // (English → Recall streaming, Multilingual → AssemblyAI).
+  if (isRecall) {
+    return (
+      <Section title="Transcription">
+        <div className="space-y-3">
+          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Engine: <span style={{ color: 'var(--text)' }}>Recall.ai</span>
+          </div>
+          <LanguageToggle value={language} onChange={setLanguage} />
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            {language === 'en'
+              ? 'English — Recall streaming transcription.'
+              : 'Multilingual — AssemblyAI transcription.'}
+          </p>
+        </div>
+      </Section>
+    )
+  }
+
   return (
     <Section title="Transcription">
       <div className="space-y-3">
@@ -600,27 +664,7 @@ function TranscriptionSection({
                 ))}
               </div>
             </div>
-            <div>
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                Language
-              </span>
-              <div className="flex gap-1.5 mt-1">
-                {(['en', 'multi'] as const).map((l) => (
-                  <button
-                    key={l}
-                    onClick={() => setLanguage(l)}
-                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all"
-                    style={{
-                      backgroundColor: language === l ? 'var(--accent)' : 'var(--surface)',
-                      color: language === l ? '#fff' : 'var(--text)',
-                      borderColor: language === l ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  >
-                    {l === 'en' ? 'English only' : 'Multilingual'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <LanguageToggle value={language} onChange={setLanguage} />
             {modelStatus && (
               <div className="flex items-center justify-between">
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
@@ -724,27 +768,7 @@ function TranscriptionSection({
                 </select>
               </div>
             )}
-            <div>
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                Language
-              </span>
-              <div className="flex gap-1.5 mt-1">
-                {(['en', 'multi'] as const).map((l) => (
-                  <button
-                    key={l}
-                    onClick={() => setLanguage(l)}
-                    className="flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all"
-                    style={{
-                      backgroundColor: language === l ? 'var(--accent)' : 'var(--surface)',
-                      color: language === l ? '#fff' : 'var(--text)',
-                      borderColor: language === l ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  >
-                    {l === 'en' ? 'English only' : 'Multilingual'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <LanguageToggle value={language} onChange={setLanguage} />
             <CloudApiKeyInput
               label={`${CLOUD_PROVIDERS.find((p) => p.id === cloudProvider)?.label ?? cloudProvider} API Key`}
               value={transcription.apiKeys?.[cloudProvider] ?? ''}

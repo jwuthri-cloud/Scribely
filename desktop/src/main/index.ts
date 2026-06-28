@@ -38,7 +38,8 @@ import { flushLangfuse } from './instrumentation'
 import { AuthService } from './auth/auth-service'
 import { BackendClient, type MeetingSyncPayload } from './backend-client'
 import { resolveCalendarEventIdForTranscript } from './calendar-meeting-match'
-import { resolveCaptureProvider } from './recall/entitlement'
+import { resolveCaptureProvider, getRecallDecision } from './recall/entitlement'
+import { RecallController } from './audio/recall-controller'
 import { UploadQueueService } from './upload-queue'
 import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
 import { checkForUpdatesNow, registerUpdaterIpc, startAutoUpdater } from './updater'
@@ -240,7 +241,17 @@ async function refreshRecallDecision(): Promise<void> {
     return
   }
   const status = await backendClient.validateAuth()
-  resolveCaptureProvider(status.authenticated && status.useRecallSdk)
+  const decision = resolveCaptureProvider(status.authenticated && status.useRecallSdk)
+  if (decision.provider === 'recall') {
+    recallController.init()
+    // Keep Scribely running at login so the Recall SDK is alive to auto-detect
+    // meetings — the user doesn't have to launch the app first.
+    try {
+      app.setLoginItemSettings({ openAtLogin: true })
+    } catch (err) {
+      appLog.warn('setLoginItemSettings failed:', err)
+    }
+  }
 }
 
 // ── Live Insights Engine ───────────────────────────────
@@ -307,6 +318,22 @@ const insightEngine = new InsightEngine({
 
 // ── Audio Pipeline ─────────────────────────────────────
 const audioPipeline = new AudioPipeline(store.get('transcription'))
+
+// ── Recall SDK Controller (alternative capture backend, entitled users) ──
+const recallController = new RecallController(
+  backendClient,
+  audioPipeline,
+  (channel, data) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data)
+  },
+  () => ((store.get('transcription') as { language?: 'en' | 'multi' } | undefined)?.language ?? 'en'),
+)
+ipcMain.handle('recall:stop-meeting', async () => {
+  await recallController.stopActiveRecording()
+  return { success: true }
+})
+// Lets the renderer show the Recall-aware Transcription settings (engine + language).
+ipcMain.handle('recall:get-status', () => getRecallDecision())
 
 // ── Screen Recorder ───────────────────────────────────
 const screenRecorder = new ScreenRecorder()

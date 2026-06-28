@@ -19,6 +19,8 @@ function mainProcessDefine(mode: string) {
     ),
     'process.env.CLERK_JWT_TEMPLATE': JSON.stringify(pick('CLERK_JWT_TEMPLATE', 'scribely')),
     'process.env.BACKEND_API_URL': JSON.stringify(pick('BACKEND_API_URL')),
+    // Recall Desktop SDK region base URL — must match the backend's RECALL_API_REGION.
+    'process.env.RECALL_API_URL': JSON.stringify(pick('RECALL_API_URL', 'https://us-west-2.recall.ai')),
   } as Record<string, string>
 }
 
@@ -28,7 +30,7 @@ export default defineConfig(({ mode }) => ({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        external: ['nswindow-napi', 'smart-whisper', 'onnxruntime-node'],
+        external: ['nswindow-napi', 'smart-whisper', 'onnxruntime-node', '@recallai/desktop-sdk'],
       },
     },
   },

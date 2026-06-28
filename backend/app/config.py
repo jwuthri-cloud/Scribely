@@ -159,6 +159,9 @@ class Settings(BaseSettings):
     )
     # Workspace region: us-west-2 | us-east-1 | eu-central-1 | ap-northeast-1
     recall_api_region: str = "us-west-2"
+    # Svix signing secret for the Recall webhook (whsec_...). If unset, signature
+    # verification is skipped (dev only) — set it in production.
+    recall_webhook_secret: str = ""
 
     # Diarization & speaker attribution
     deepgram_api_key: str = ""

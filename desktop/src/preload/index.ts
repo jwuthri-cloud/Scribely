@@ -192,6 +192,8 @@ export interface ElectronAPI {
     }>
     sessionId?: string
     recordingFilepath?: string
+    provider?: string
+    recallUploadId?: string
   }) => Promise<{ filepath: string; filename: string }>
   getModelStatus: () => Promise<unknown>
   downloadWhisperModel: () => Promise<{
@@ -261,6 +263,12 @@ export interface ElectronAPI {
   onExtensionAutoStartMeeting: (callback: () => void) => () => void
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean; filepath?: string }>
+
+  // ── Recall SDK (alternative capture backend) ───
+  onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void
+  onRecallAutoStopMeeting: (callback: () => void) => () => void
+  stopRecallMeeting: () => Promise<{ success: boolean }>
+  getRecallStatus: () => Promise<{ provider: 'recall' | 'base'; entitled: boolean }>
 
   // ── Meeting toggle ─────────────────────────────
   onToggleMeeting: (callback: () => void) => () => void
@@ -880,6 +888,26 @@ const api: ElectronAPI = {
 
   stopExtensionCapture: () => {
     return ipcRenderer.invoke('extension:stop-capture')
+  },
+
+  onRecallAutoStartMeeting: (callback) => {
+    const handler = (_e: Electron.IpcRendererEvent, data: { uploadId?: string }) => callback(data ?? {})
+    ipcRenderer.on('recall:auto-start-meeting', handler)
+    return () => ipcRenderer.removeListener('recall:auto-start-meeting', handler)
+  },
+
+  onRecallAutoStopMeeting: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('recall:auto-stop-meeting', handler)
+    return () => ipcRenderer.removeListener('recall:auto-stop-meeting', handler)
+  },
+
+  stopRecallMeeting: () => {
+    return ipcRenderer.invoke('recall:stop-meeting')
+  },
+
+  getRecallStatus: () => {
+    return ipcRenderer.invoke('recall:get-status')
   },
 
   // ── Meeting toggle ─────────────────────────────

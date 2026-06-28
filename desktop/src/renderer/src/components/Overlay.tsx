@@ -404,6 +404,13 @@ export function Overlay() {
   }, [stt.toggleRecording])
 
   // ── Meeting start/stop ────────────────────────────────
+  /** True while a Recall-driven meeting is active (capture/transcription run in
+   *  the main process via the Recall SDK, not the renderer). */
+  const isRecallMeetingRef = useRef(false)
+  /** Recall upload id for the active meeting — tags the transcript so the backend
+   *  can attach the async recording (Phase 5 webhook). */
+  const recallUploadIdRef = useRef<string | null>(null)
+
   const handleStartMeeting = useCallback(async () => {
     // Guard against double-start (e.g. manual click + auto-start from extension)
     if (transcript.status.isActive) return
@@ -414,6 +421,11 @@ export function Overlay() {
     // before any audio frames arrive (especially important for native capture
     // which starts sending frames immediately).
     await transcript.startSession()
+
+    // Recall captures audio/video AND transcribes in the main process, then pushes
+    // entries through the same pipeline. The renderer must NOT start its own audio
+    // capture or the Electron screen recorder.
+    if (isRecallMeetingRef.current) return
 
     const { mode } = await capture.startCapture({
       mic: true,
@@ -443,15 +455,23 @@ export function Overlay() {
     try {
       // Capture entries before anything gets cleared
       const currentEntries = [...transcript.entries]
+      const isRecall = isRecallMeetingRef.current
       const wasExtensionMode = capture.captureMode === 'extension'
 
-      await capture.stopCapture()
+      // Recall has no renderer-side capture to tear down.
+      if (!isRecall) {
+        await capture.stopCapture()
+      }
 
       // In extension mode, tell the extension to stop capturing and skip
       // the Electron screen recorder (it was never started).
       // stopExtensionCapture now returns the filepath of the external recording.
       let recordingPath: string | null | undefined
-      if (wasExtensionMode) {
+      if (isRecall) {
+        // Recall owns the recording (cloud retrieval is a later phase); stop the SDK.
+        await window.electronAPI?.stopRecallMeeting?.()
+        recordingPath = null
+      } else if (wasExtensionMode) {
         const result = await window.electronAPI?.stopExtensionCapture?.()
         recordingPath = result?.filepath ?? null
       } else {
@@ -472,6 +492,8 @@ export function Overlay() {
               source: e.source || 'unknown',
             })),
             recordingFilepath: recordingPath ?? undefined,
+            provider: isRecall ? 'recall' : undefined,
+            recallUploadId: isRecall ? (recallUploadIdRef.current ?? undefined) : undefined,
           })
           transcriptPath = result?.filepath
           if (transcriptPath) {
@@ -520,6 +542,8 @@ export function Overlay() {
       }
     } finally {
       meetingStopInProgressRef.current = false
+      isRecallMeetingRef.current = false
+      recallUploadIdRef.current = null
     }
   }, [capture, recorder, transcript])
 
@@ -552,6 +576,28 @@ export function Overlay() {
     const unsubStop = window.electronAPI?.onExtensionAutoStopMeeting?.(() => {
       if (transcript.status.isActive) {
         console.log('[overlay] Extension disconnected — auto-stopping meeting')
+        handleStopMeeting()
+      }
+    })
+    return () => {
+      unsubStart?.()
+      unsubStop?.()
+    }
+  }, [transcript.status.isActive, handleStartMeeting, handleStopMeeting])
+
+  // ── Auto-start/stop meeting when Recall detects/ends a meeting ──
+  useEffect(() => {
+    const unsubStart = window.electronAPI?.onRecallAutoStartMeeting?.((data) => {
+      if (!transcript.status.isActive) {
+        console.log('[overlay] Recall meeting detected — auto-starting')
+        isRecallMeetingRef.current = true
+        recallUploadIdRef.current = data?.uploadId ?? null
+        handleStartMeeting()
+      }
+    })
+    const unsubStop = window.electronAPI?.onRecallAutoStopMeeting?.(() => {
+      if (transcript.status.isActive) {
+        console.log('[overlay] Recall recording ended — auto-stopping')
         handleStopMeeting()
       }
     })
