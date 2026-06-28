@@ -4,8 +4,12 @@ Authentication endpoints with Clerk integration for Scribely.
 
 from typing import Any, Dict, Optional
 
+from app.api.deps import get_current_user_with_db
 from app.api.response_wrapper import APIResponseWrapper
 from app.config import Settings, get_settings
+from app.database.models.user import User
+from app.database.repositories.user import UserRepository
+from app.database.session import get_async_db_session
 from app.security.clerk_auth import (
     ClerkAuthProvider,
     ClerkUser,
@@ -16,6 +20,7 @@ from app.security.clerk_auth import (
 from app.utils.logging import get_logger
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("auth_api")
 
@@ -52,6 +57,7 @@ class UserProfileResponse(BaseModel):
     created_at: Optional[str] = Field(None, description="Account creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="User metadata")
+    use_recall_sdk: bool = Field(False, description="Whether this user uses the Recall.ai Desktop SDK")
 
 
 class AuthStatusResponse(BaseModel):
@@ -101,6 +107,7 @@ class ClerkConfigResponse(BaseModel):
 @router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_profile(
     current_user: ClerkUser = Depends(require_current_user),
+    db_user: User = Depends(get_current_user_with_db),
     request: Request = None
 ) -> UserProfileResponse:
     """
@@ -121,7 +128,8 @@ async def get_current_user_profile(
             image_url=user_data["image_url"],
             created_at=user_data["created_at"],
             updated_at=user_data["updated_at"],
-            metadata=user_data["metadata"]
+            metadata=user_data["metadata"],
+            use_recall_sdk=bool(db_user.use_recall_sdk),
         )
 
     except Exception as e:
@@ -134,7 +142,8 @@ async def get_current_user_profile(
 
 @router.get("/status", response_model=AuthStatusResponse)
 async def get_auth_status(
-    current_user: Optional[ClerkUser] = Depends(get_current_user)
+    current_user: Optional[ClerkUser] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db_session),
 ) -> AuthStatusResponse:
     """
     Get the current authentication status.
@@ -144,6 +153,9 @@ async def get_auth_status(
     """
     if current_user:
         user_data = current_user.to_dict()
+        # Entitlement comes from the local DB user (not the Clerk JWT). Default False
+        # if the DB row doesn't exist yet (created lazily on first authed write).
+        db_user = await UserRepository.get_by_clerk_id(db, current_user.id)
         user_profile = UserProfileResponse(
             id=user_data["id"],
             email=user_data["email"],
@@ -154,7 +166,8 @@ async def get_auth_status(
             image_url=user_data["image_url"],
             created_at=user_data["created_at"],
             updated_at=user_data["updated_at"],
-            metadata=user_data["metadata"]
+            metadata=user_data["metadata"],
+            use_recall_sdk=bool(getattr(db_user, "use_recall_sdk", False)),
         )
 
         return AuthStatusResponse(

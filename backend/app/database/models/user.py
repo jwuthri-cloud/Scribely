@@ -41,6 +41,10 @@ class User(Base):
 
     role = Column(String(50), default="user")
 
+    # Entitlement: when true, the desktop app uses the Recall.ai Desktop SDK
+    # capture/transcribe/diarize stack instead of the base local-Whisper path.
+    use_recall_sdk = Column(Boolean, default=False, nullable=False, server_default="false")
+
     @property
     def is_active(self) -> bool:
         """Check if user is active based on status."""

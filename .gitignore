@@ -71,3 +71,4 @@ coverage/
 .eslintcache
 
 *extension*.zip
+.DS_Store

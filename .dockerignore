@@ -23,3 +23,8 @@ backend/.mypy_cache/
 backend/tests/
 backend/htmlcov/
 backend/*.egg-info/
+
+# Secrets: injected at runtime via compose `env_file`, never baked into the image
+backend/.env
+backend/.env.*
+!backend/.env.example
