@@ -139,6 +139,16 @@ class Settings(BaseSettings):
     max_video_size_bytes: int = 1024 * 1024 * 1024
     max_transcript_size_bytes: int = 16 * 1024 * 1024
 
+    # Recall.ai Desktop SDK — server-side only. The raw key must NEVER ship in the
+    # desktop app; the backend mints per-recording upload tokens (see api/v1/recall.py).
+    # Accepts RECALL_API_KEY or the legacy RECALLAI_API_KEY already in backend/.env.
+    recall_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("RECALL_API_KEY", "RECALLAI_API_KEY"),
+    )
+    # Workspace region: us-west-2 | us-east-1 | eu-central-1 | ap-northeast-1
+    recall_api_region: str = "us-west-2"
+
     # Diarization & speaker attribution
     deepgram_api_key: str = ""
     assemblyai_api_key: str = ""

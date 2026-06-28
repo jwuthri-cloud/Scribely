@@ -179,20 +179,36 @@ export class BackendClient {
     })
   }
 
-  async validateAuth(): Promise<{ authenticated: boolean; userId?: string }> {
+  async validateAuth(): Promise<{ authenticated: boolean; userId?: string; useRecallSdk: boolean }> {
     try {
       const result = await this.requestJson<{
         authenticated: boolean
-        user?: { id: string }
+        user?: { id: string; use_recall_sdk?: boolean }
       }>('GET', '/api/v1/auth/status')
       return {
         authenticated: result.authenticated,
         userId: result.user?.id,
+        useRecallSdk: !!result.user?.use_recall_sdk,
       }
     } catch (err: any) {
       log.error(`Auth validation failed: ${err.message}`)
-      return { authenticated: false }
+      return { authenticated: false, useRecallSdk: false }
     }
+  }
+
+  /**
+   * Mint a per-recording Recall Desktop SDK upload token. The raw Recall API key
+   * never reaches the desktop — the backend holds it and returns only this token.
+   * 403 if the user isn't entitled. `recordingConfig` (transcript provider +
+   * realtime_endpoints) is optional and passed through to Recall at mint time.
+   */
+  async getRecallUploadToken(recordingConfig?: unknown): Promise<{ id: string; uploadToken: string }> {
+    const res = await this.requestJson<{ id: string; upload_token: string }>(
+      'POST',
+      '/api/v1/recall/upload-token',
+      recordingConfig !== undefined ? { recording_config: recordingConfig } : {},
+    )
+    return { id: res.id, uploadToken: res.upload_token }
   }
 
   async syncMeeting(payload: MeetingSyncPayload): Promise<MeetingSyncResult> {
