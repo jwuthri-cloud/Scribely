@@ -536,10 +536,17 @@ function TranscriptionSection({
   // Recall — only the language (en/multi) is user-selectable, so we show a slim
   // Recall-specific view instead of the local/cloud controls (which don't apply).
   const [isRecall, setIsRecall] = useState(false)
+  // Reason string when the user is entitled to Recall but their hardware can't run it
+  // (e.g. Intel Mac) — they're on the base engine and we say so.
+  const [recallUnavailable, setRecallUnavailable] = useState<string | null>(null)
   useEffect(() => {
     window.electronAPI
       ?.getRecallStatus?.()
-      .then((s) => setIsRecall(s?.provider === 'recall'))
+      .then((s) => {
+        if (!s) return
+        setIsRecall(s.provider === 'recall')
+        setRecallUnavailable(s.entitled && !s.capable ? s.reason : null)
+      })
       .catch(() => {})
   }, [])
 
@@ -622,6 +629,18 @@ function TranscriptionSection({
   return (
     <Section title="Transcription">
       <div className="space-y-3">
+        {recallUnavailable && (
+          <div
+            className="px-2.5 py-2 rounded-lg text-[10px] leading-snug"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--warning, #f59e0b) 30%, transparent)',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Advanced (Recall) transcription isn't available on this device ({recallUnavailable}) — using the built-in engine below.
+          </div>
+        )}
         {/* Mode toggle: Local / Cloud */}
         <div className="flex gap-1 rounded-lg p-0.5 border" style={{ borderColor: 'var(--border)' }}>
           {(['local', 'cloud'] as const).map((m) => (

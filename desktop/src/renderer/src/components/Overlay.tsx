@@ -24,7 +24,33 @@ import { SourcePicker } from './SourcePicker'
 import { MarkdownContent } from './MarkdownContent'
 import { AuthGate } from './AuthGate'
 import type { ChatAttachment } from '../types'
-import { FONT_SIZE_VALUES } from '../types/settings'
+import { FONT_SIZE_VALUES, modelOptionsForProvider } from '../types/settings'
+
+/**
+ * Point the model chips at the active provider's models and re-read the model
+ * main actually has selected — switching providers in the LLM tab changes both.
+ */
+async function syncModelSelector(provider?: string): Promise<void> {
+  const store = useOverlayUiStore.getState()
+  store.setWebSearchAvailable(provider === 'openai')
+
+  if (provider === 'ollama' || provider === 'lmstudio') {
+    const r = await window.electronAPI?.llmListLocalModels?.()
+    if (r?.models?.length) {
+      store.setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
+    }
+  } else {
+    store.setModelOptions(
+      modelOptionsForProvider(provider === 'anthropic' ? 'anthropic' : 'openai').map((m) => ({
+        id: m.id,
+        label: m.label,
+      })),
+    )
+  }
+
+  const model = await window.electronAPI?.llmGetModel()
+  if (model) store.setCurrentModel(model)
+}
 import { useOverlayUiStore, type OverlayViewId } from '../stores/overlay-ui-store'
 
 type ViewId = OverlayViewId
@@ -136,6 +162,7 @@ export function Overlay() {
     excludeMyMic,
     meetingError,
     savedFiles,
+    recallNotice,
   } = useOverlayUiStore(
     useShallow((s) => ({
       visible: s.visible,
@@ -160,6 +187,7 @@ export function Overlay() {
       excludeMyMic: s.excludeMyMic,
       meetingError: s.meetingError,
       savedFiles: s.savedFiles,
+      recallNotice: s.recallNotice,
     })),
   )
 
@@ -255,36 +283,15 @@ export function Overlay() {
 
   // ── Load quick actions and web search availability ──
   useEffect(() => {
-    window.electronAPI?.getSettings().then(async (s) => {
+    window.electronAPI?.getSettings().then((s) => {
       if (s?.llm?.quickActions) useOverlayUiStore.getState().setQuickActions(s.llm.quickActions)
-      const provider = (s?.llm as { provider?: string })?.provider
-      useOverlayUiStore.getState().setWebSearchAvailable(provider === 'openai')
-      if (provider === 'ollama' || provider === 'lmstudio') {
-        const r = await window.electronAPI?.llmListLocalModels?.()
-        if (r?.models?.length) {
-          useOverlayUiStore.getState().setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
-        }
-      }
+      syncModelSelector((s?.llm as { provider?: string })?.provider)
     })
   }, [])
   useEffect(() => {
     const unsub = window.electronAPI?.onSettingsChanged?.((s) => {
       if (s?.llm?.quickActions) useOverlayUiStore.getState().setQuickActions(s.llm.quickActions)
-      const provider = (s?.llm as { provider?: string })?.provider
-      useOverlayUiStore.getState().setWebSearchAvailable(provider === 'openai')
-      if (provider === 'ollama' || provider === 'lmstudio') {
-        window.electronAPI?.llmListLocalModels?.().then((r) => {
-          if (r?.models?.length) {
-            useOverlayUiStore.getState().setModelOptions(r.models.map((m) => ({ id: m.id, label: m.name })))
-          }
-        })
-      } else {
-        useOverlayUiStore.getState().setModelOptions([
-          { id: 'gpt-5-nano', label: 'Nano' },
-          { id: 'gpt-5-mini', label: 'Mini' },
-          { id: 'gpt-5.2', label: 'Normal' },
-        ])
-      }
+      syncModelSelector((s?.llm as { provider?: string })?.provider)
     })
     return () => unsub?.()
   }, [])
@@ -564,6 +571,16 @@ export function Overlay() {
       unsubscribe?.()
     }
   }, [handleToggleMeeting])
+
+  // ── Recall capability notice (entitled user on hardware that can't run it, e.g. Intel Mac) ──
+  useEffect(() => {
+    const unsub = window.electronAPI?.onRecallNotice?.((data) => {
+      if (localStorage.getItem('recallNoticeDismissed') === '1') return
+      const reason = data?.reason ? ` (${data.reason})` : ''
+      useOverlayUiStore.getState().setRecallNotice(`${data.message}${reason}`)
+    })
+    return () => unsub?.()
+  }, [])
 
   // ── Auto-start/stop meeting when Chrome extension connects/disconnects ──
   useEffect(() => {
@@ -906,6 +923,30 @@ export function Overlay() {
                       )}
                     </div>
                   )} */}
+
+                  {recallNotice && (
+                    <div
+                      className="mx-3 mb-2 px-3 py-2 rounded-xl text-[11px] flex items-start gap-2"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--warning, #f59e0b) 30%, transparent)',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      <span className="flex-1 leading-snug">{recallNotice}</span>
+                      <button
+                        onClick={() => {
+                          localStorage.setItem('recallNoticeDismissed', '1')
+                          useOverlayUiStore.getState().setRecallNotice(null)
+                        }}
+                        className="opacity-60 hover:opacity-100 leading-none"
+                        style={{ color: 'var(--text-muted)' }}
+                        aria-label="Dismiss notice"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
 
                   <ResponseCard
                     messages={messages}

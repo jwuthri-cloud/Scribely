@@ -9,7 +9,7 @@ import { createLogger } from '../logger'
 
 const log = createLogger('provider-config')
 
-export type LLMProvider = 'openai' | 'ollama' | 'lmstudio'
+export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio'
 
 export interface LocalModelInfo {
   id: string
@@ -21,6 +21,10 @@ export interface LocalModelInfo {
 export const PROVIDER_DEFAULTS: Record<LLMProvider, { baseUrl: string; apiKeyRequired: boolean }> = {
   openai: {
     baseUrl: 'https://api.openai.com/v1',
+    apiKeyRequired: true,
+  },
+  anthropic: {
+    baseUrl: 'https://api.anthropic.com',
     apiKeyRequired: true,
   },
   ollama: {
@@ -69,6 +73,10 @@ export function createLLMClient(
   } = {},
 ): OpenAI | null {
   const { baseUrl, apiKey, enableLangfuse = true } = options
+
+  // Anthropic does not speak the OpenAI protocol — llm-service routes Claude
+  // requests through anthropic-chat.ts with its own SDK client.
+  if (provider === 'anthropic') return null
 
   if (provider === 'openai') {
     if (!apiKey?.trim()) return null

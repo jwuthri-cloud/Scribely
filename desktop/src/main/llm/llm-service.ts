@@ -106,6 +106,13 @@ function filterTranscriptDeltaForSummary(
   const content = `<transcript>\n${header}\n${transcriptText}\n</transcript>\n\n${queryBlock}`
   return { content, transcriptDelta: filtered }
 }
+import {
+  ANTHROPIC_MODEL_CONFIGS,
+  ANTHROPIC_MODEL_PRICING,
+  isAnthropicModel,
+  streamAnthropicChat,
+  type AnthropicModelId,
+} from './anthropic-chat'
 import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
@@ -236,6 +243,10 @@ interface PersistedConversation {
 // - If the transcript doesn't contain enough information to answer, say so clearly.
 // - Format with markdown when helpful (lists, bold for emphasis).`
 
+// Appended to every system prompt (built-in or user-defined) — the renderer needs fenced
+// blocks to syntax-highlight code; unfenced code collapses into a single paragraph.
+const CODE_FENCE_RULE = '- ALWAYS put code in a fenced block with a language tag (```python … ```), never as prose or bare indented lines. Preserve newlines and indentation.'
+
 const DEFAULT_SYSTEM_PROMPT = `You are Scribely, an AI meeting assistant embedded in a desktop overlay.
 You help users understand, navigate, and act on their meeting conversations in real time.
 
@@ -262,6 +273,7 @@ TRANSCRIPT USAGE:
 FORMAT:
 - Use lightweight markdown only when it improves scan speed or asking for coding help.
 - Prioritize readability and quick comprehension.
+${CODE_FENCE_RULE}
 
 LANGUAGE:
 - Always respond in the same language as the user's query. If the user writes in French, respond in French. If in English, respond in English. Match the language of the transcript when the question references it.
@@ -269,6 +281,8 @@ LANGUAGE:
 Your responses should feel immediate, focused, and optimized for real-time use.`;
 
 // ── LLMService ────────────────────────────────────────────
+
+const DEFAULT_ANTHROPIC_MODEL: AnthropicModelId = 'claude-sonnet-5'
 
 export class LLMService {
   private client: OpenAI | null = null
@@ -334,7 +348,9 @@ export class LLMService {
     const provider = this.getProvider()
     if (llm?.defaultModel) {
       const dm = migrateLegacyOpenAIModelId(llm.defaultModel)
-      if (provider === 'openai' && MODEL_CONFIGS[dm as ModelId]) {
+      if (provider === 'anthropic') {
+        this.currentModel = isAnthropicModel(dm) ? dm : DEFAULT_ANTHROPIC_MODEL
+      } else if (provider === 'openai' && MODEL_CONFIGS[dm as ModelId]) {
         this.currentModel = dm
       } else if (provider !== 'openai') {
         this.currentModel = llm.defaultModel
@@ -345,6 +361,9 @@ export class LLMService {
   /** Get effective model config for prompt assembly and API calls */
   private getEffectiveModelConfig(): ModelConfig {
     const provider = this.getProvider()
+    if (provider === 'anthropic') {
+      return ANTHROPIC_MODEL_CONFIGS[this.anthropicModelId() ?? DEFAULT_ANTHROPIC_MODEL]
+    }
     if (provider === 'openai') {
       const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
       if (cfg) return cfg
@@ -360,7 +379,14 @@ export class LLMService {
   }
 
   private isLocalProvider(): boolean {
-    return this.getProvider() !== 'openai'
+    const p = this.getProvider()
+    return p === 'ollama' || p === 'lmstudio'
+  }
+
+  /** The Claude model to use, or null when the active provider isn't Anthropic. */
+  private anthropicModelId(): AnthropicModelId | null {
+    if (this.getProvider() !== 'anthropic') return null
+    return isAnthropicModel(this.currentModel) ? this.currentModel : DEFAULT_ANTHROPIC_MODEL
   }
 
   /** Seed built-in "Tech interview" system prompt if not already in the store */
@@ -431,7 +457,7 @@ export class LLMService {
   private getProvider(): LLMProvider {
     const llm = this.store.get('llm') as { provider?: LLMProvider } | undefined
     const p = llm?.provider
-    return p === 'ollama' || p === 'lmstudio' ? p : 'openai'
+    return p === 'anthropic' || p === 'ollama' || p === 'lmstudio' ? p : 'openai'
   }
 
   private getLocalBaseUrl(): string {
@@ -495,6 +521,38 @@ export class LLMService {
       return plain
     }
     return null
+  }
+
+  /** Decrypt the Anthropic key. Same encrypted-at-rest scheme as the OpenAI key. */
+  private getAnthropicApiKey(): string | null {
+    const llm = this.store.get('llm') as
+      | { anthropicApiKey?: string; anthropicApiKeyEncrypted?: string }
+      | undefined
+    const encrypted = llm?.anthropicApiKeyEncrypted
+    if (encrypted && safeStorage.isEncryptionAvailable()) {
+      try {
+        return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+      } catch {
+        return null
+      }
+    }
+    return llm?.anthropicApiKey?.trim() || null
+  }
+
+  private setAnthropicApiKey(apiKey: string): boolean {
+    if (!apiKey.trim()) return false
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const buf = safeStorage.encryptString(apiKey)
+        this.store.set('llm.anthropicApiKeyEncrypted' as any, buf.toString('base64'))
+        this.store.delete('llm.anthropicApiKey' as any)
+        return true
+      } catch {
+        // fall through to plain storage
+      }
+    }
+    this.store.set('llm.anthropicApiKey' as any, apiKey)
+    return true
   }
 
   /** Encrypt and store API key. */
@@ -579,6 +637,16 @@ export class LLMService {
 
     ipcMain.handle('llm:set-model', (_event, modelId: string) => {
       const provider = this.getProvider()
+      if (provider === 'anthropic') {
+        if (!isAnthropicModel(modelId)) return { success: false, model: this.currentModel }
+        this.currentModel = modelId
+        this.store.set('llm.defaultModel' as any, modelId)
+        return { success: true, model: this.currentModel }
+      }
+      if (isAnthropicModel(modelId)) {
+        // Claude model picked while a different provider is active — ignore it
+        return { success: false, model: this.currentModel }
+      }
       if (provider === 'openai') {
         const normalized = migrateLegacyOpenAIModelId(modelId)
         if (MODEL_CONFIGS[normalized as ModelId]) {
@@ -605,13 +673,29 @@ export class LLMService {
       return !!this.client
     })
 
+    // ── Anthropic API key (Claude models live alongside the OpenAI ones) ──
+    ipcMain.handle('llm:set-anthropic-api-key', (_event, apiKey: string) => {
+      const ok = this.setAnthropicApiKey(apiKey)
+      return { success: ok }
+    })
+
+    ipcMain.handle('llm:has-anthropic-api-key', () => !!this.getAnthropicApiKey())
+
     // ── Provider (OpenAI vs Ollama vs LM Studio) ──
     ipcMain.handle('llm:get-provider', () => this.getProvider())
 
     ipcMain.handle('llm:set-provider', (_event, provider: LLMProvider) => {
       this.store.set('llm.provider' as any, provider)
       this.initClient()
-      return { success: true, provider }
+      // Keep the selected model valid for the new provider
+      if (provider === 'anthropic' && !isAnthropicModel(this.currentModel)) {
+        this.currentModel = DEFAULT_ANTHROPIC_MODEL
+        this.store.set('llm.defaultModel' as any, this.currentModel)
+      } else if (provider === 'openai' && isAnthropicModel(this.currentModel)) {
+        this.currentModel = 'gpt-5-mini'
+        this.store.set('llm.defaultModel' as any, this.currentModel)
+      }
+      return { success: true, provider, model: this.currentModel }
     })
 
     ipcMain.handle('llm:get-local-base-url', () => this.getLocalBaseUrl())
@@ -625,7 +709,7 @@ export class LLMService {
     // ── Local models (Ollama / LM Studio) ──
     ipcMain.handle('llm:list-local-models', async () => {
       const provider = this.getProvider()
-      if (provider === 'openai') {
+      if (provider !== 'ollama' && provider !== 'lmstudio') {
         return { models: [], error: 'Not a local provider' }
       }
       const result = await listLocalModels(provider, this.getLocalBaseUrl())
@@ -637,7 +721,7 @@ export class LLMService {
 
     ipcMain.handle('llm:test-local-connection', async () => {
       const provider = this.getProvider()
-      if (provider === 'openai') {
+      if (provider !== 'ollama' && provider !== 'lmstudio') {
         return { ok: false, error: 'Not a local provider' }
       }
       return testLocalConnection(provider, this.getLocalBaseUrl())
@@ -842,10 +926,15 @@ export class LLMService {
   }
 
   private async handleChat(request: LLMChatRequest): Promise<void> {
-    if (!this.client) {
-      const msg = this.getProvider() === 'openai'
-        ? 'API key not configured. Open the LLM tab to set your OpenAI key.'
-        : 'Ollama or LM Studio not running. Start the app and try again.'
+    const anthropicModel = this.anthropicModelId()
+    const anthropicKey = anthropicModel ? this.getAnthropicApiKey() : null
+
+    if (anthropicModel ? !anthropicKey : !this.client) {
+      const msg = anthropicModel
+        ? 'Anthropic API key not configured. Open the LLM tab to set your Claude key.'
+        : this.getProvider() === 'openai'
+          ? 'API key not configured. Open the LLM tab to set your OpenAI key.'
+          : 'Ollama or LM Studio not running. Start the app and try again.'
       this.sendError(request.requestId, msg, 'API_ERROR', false)
       return
     }
@@ -933,8 +1022,8 @@ export class LLMService {
       stream_options: { include_usage: true },
     }
 
-    // OpenAI-specific params — omit for local providers
-    if (!this.isLocalProvider()) {
+    // OpenAI-specific params — omit for local providers and for Claude
+    if (!this.isLocalProvider() && !anthropicModel) {
       const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
       const isFlagshipGpt5 = this.currentModel === 'gpt-5.2'
       Object.assign(requestParams, {
@@ -953,33 +1042,47 @@ export class LLMService {
           sessionId: this.sessionId,
         },
         async () => {
-          const stream = await this.client!.chat.completions.create(
-            requestParams as any,
-            { signal: abortController.signal },
-          )
-
           let fullContent = ''
           let chunkIndex = 0
           let usage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
 
-          for await (const chunk of stream as any) {
-            const delta = chunk.choices[0]?.delta?.content
-            if (delta) {
-              fullContent += delta
-              this.sendDelta(request.requestId, delta, chunkIndex++)
-            }
+          if (anthropicModel) {
+            const result = await streamAnthropicChat({
+              apiKey: anthropicKey!,
+              model: anthropicModel,
+              messages: apiMessages,
+              maxTokens: modelConfig.maxResponseTokens,
+              signal: abortController.signal,
+              onDelta: (delta) =>
+                this.sendDelta(request.requestId, delta, chunkIndex++),
+            })
+            fullContent = result.fullContent
+            usage = result.usage
+          } else {
+            const stream = await this.client!.chat.completions.create(
+              requestParams as any,
+              { signal: abortController.signal },
+            )
 
-            if (chunk.usage) {
-              const u = chunk.usage as any
-              // Support both prompt_tokens_details (Chat) and input_tokens_details (Responses API)
-              const cached =
-                u.prompt_tokens_details?.cached_tokens ??
-                u.input_tokens_details?.cached_tokens ??
-                0
-              usage = {
-                promptTokens: chunk.usage.prompt_tokens,
-                completionTokens: chunk.usage.completion_tokens,
-                cachedTokens: cached,
+            for await (const chunk of stream as any) {
+              const delta = chunk.choices[0]?.delta?.content
+              if (delta) {
+                fullContent += delta
+                this.sendDelta(request.requestId, delta, chunkIndex++)
+              }
+
+              if (chunk.usage) {
+                const u = chunk.usage as any
+                // Support both prompt_tokens_details (Chat) and input_tokens_details (Responses API)
+                const cached =
+                  u.prompt_tokens_details?.cached_tokens ??
+                  u.input_tokens_details?.cached_tokens ??
+                  0
+                usage = {
+                  promptTokens: chunk.usage.prompt_tokens,
+                  completionTokens: chunk.usage.completion_tokens,
+                  cachedTokens: cached,
+                }
               }
             }
           }
@@ -1556,6 +1659,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     outputPer1M: number
     cachedPer1M: number
   } {
+    if (isAnthropicModel(modelId)) return ANTHROPIC_MODEL_PRICING[modelId]
     const p = MODEL_PRICING[modelId as ModelId]
     if (p) return p
     return { inputPer1M: 0, outputPer1M: 0, cachedPer1M: 0 }
@@ -1667,12 +1771,18 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     if (!activeId) {
       // No system prompt selected — use default (override or built-in)
       const override = llm?.defaultSystemPromptOverride
-      return (override && override.trim()) ? override.trim() : DEFAULT_SYSTEM_PROMPT
+      const base = (override && override.trim()) ? override.trim() : DEFAULT_SYSTEM_PROMPT
+      return this.withCodeFenceRule(base)
     }
 
     const prompts = llm?.systemPrompts ?? []
     const found = prompts.find((p) => p.id === activeId)
-    return found?.content ?? DEFAULT_SYSTEM_PROMPT
+    return this.withCodeFenceRule(found?.content ?? DEFAULT_SYSTEM_PROMPT)
+  }
+
+  /** Custom/stored prompts predate CODE_FENCE_RULE — append it unless already present. */
+  private withCodeFenceRule(prompt: string): string {
+    return prompt.includes(CODE_FENCE_RULE) ? prompt : `${prompt}\n\n${CODE_FENCE_RULE}`
   }
 
   private getSystemPrompts(): SystemPrompt[] {

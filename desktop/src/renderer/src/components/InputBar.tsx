@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, memo, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
-import { type ModelId, MODEL_CONFIGS } from '../types/settings'
+import { type ModelId, MODEL_CONFIGS, modelOptionsForProvider } from '../types/settings'
 
 /** Wraps content and shows tooltip on hover (z-[9999] so it appears above overlay) */
 function WithTooltip({
@@ -88,11 +88,9 @@ function IconBtnWithTooltip({
   )
 }
 
-const DEFAULT_MODEL_OPTIONS: { id: string; label: string }[] = [
-  { id: 'gpt-5-nano', label: 'Nano' },
-  { id: 'gpt-5-mini', label: 'Mini' },
-  { id: 'gpt-5.2', label: 'Normal' },
-]
+const DEFAULT_MODEL_OPTIONS: { id: string; label: string }[] = modelOptionsForProvider(
+  'openai',
+).map((m) => ({ id: m.id, label: m.label }))
 
 const SUMMARIZE_ICON = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

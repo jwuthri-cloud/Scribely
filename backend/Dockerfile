@@ -48,7 +48,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH="/app"
+    PYTHONPATH="/app" \
+    UPLOAD_DIR="/app/data/uploads"
 
 # Install runtime dependencies only (no build tools = smaller image)
 RUN apt-get update && apt-get install -y \

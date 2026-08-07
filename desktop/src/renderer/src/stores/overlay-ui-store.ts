@@ -1,14 +1,14 @@
 import { create } from 'zustand'
+import { modelOptionsForProvider } from '../types/settings'
 import type { FontSize } from '../types/settings'
 
 export type OverlayViewId = 'chat' | 'llm' | 'settings' | 'insights' | 'sync'
 export type OverlayAppPhase = 'loading' | 'auth' | 'onboarding' | 'app'
 
-const DEFAULT_MODEL_OPTIONS = [
-  { id: 'gpt-5-nano', label: 'Nano' },
-  { id: 'gpt-5-mini', label: 'Mini' },
-  { id: 'gpt-5.2', label: 'Normal' },
-] as const
+const DEFAULT_MODEL_OPTIONS = modelOptionsForProvider('openai').map((m) => ({
+  id: m.id as string,
+  label: m.label,
+}))
 
 export function formatMeetingDurationSeconds(meetingDurationSec: number): string {
   const h = Math.floor(meetingDurationSec / 3600)
@@ -41,6 +41,8 @@ export interface OverlayUiStore {
   excludeMyMic: boolean
   meetingError: string | null
   savedFiles: { recording?: string; transcript?: string } | null
+  /** One-line notice shown as a dismissible banner (e.g. Recall unavailable on this device). */
+  recallNotice: string | null
   /** Updated by MeetingDurationSync — subscribe in leaf components to avoid full-tree rerenders */
   meetingDurationFormatted: string
 
@@ -68,6 +70,7 @@ export interface OverlayUiStore {
   setExcludeMyMic: (v: boolean) => void
   setMeetingError: (v: string | null) => void
   setSavedFiles: (v: { recording?: string; transcript?: string } | null) => void
+  setRecallNotice: (v: string | null) => void
   setMeetingDurationFormatted: (v: string) => void
 }
 
@@ -94,6 +97,7 @@ export const useOverlayUiStore = create<OverlayUiStore>((set) => ({
   excludeMyMic: false,
   meetingError: null,
   savedFiles: null,
+  recallNotice: null,
   meetingDurationFormatted: '0:00',
 
   setVisible: (visible) => set({ visible }),
@@ -120,5 +124,6 @@ export const useOverlayUiStore = create<OverlayUiStore>((set) => ({
   setExcludeMyMic: (excludeMyMic) => set({ excludeMyMic }),
   setMeetingError: (meetingError) => set({ meetingError }),
   setSavedFiles: (savedFiles) => set({ savedFiles }),
+  setRecallNotice: (recallNotice) => set({ recallNotice }),
   setMeetingDurationFormatted: (meetingDurationFormatted) => set({ meetingDurationFormatted }),
 }))

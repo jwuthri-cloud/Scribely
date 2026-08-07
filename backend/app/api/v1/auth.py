@@ -4,7 +4,7 @@ Authentication endpoints with Clerk integration for Scribely.
 
 from typing import Any, Dict, Optional
 
-from app.api.deps import get_current_user_with_db
+from app.api.deps import get_current_user_with_db, get_or_create_user
 from app.api.response_wrapper import APIResponseWrapper
 from app.config import Settings, get_settings
 from app.database.models.user import User
@@ -153,9 +153,9 @@ async def get_auth_status(
     """
     if current_user:
         user_data = current_user.to_dict()
-        # Entitlement comes from the local DB user (not the Clerk JWT). Default False
-        # if the DB row doesn't exist yet (created lazily on first authed write).
-        db_user = await UserRepository.get_by_clerk_id(db, current_user.id)
+        # Upsert the local DB user here so the row exists as soon as the desktop signs
+        # in — required for the per-user Recall entitlement (use_recall_sdk) to be set.
+        db_user = await get_or_create_user(db, current_user)
         user_profile = UserProfileResponse(
             id=user_data["id"],
             email=user_data["email"],

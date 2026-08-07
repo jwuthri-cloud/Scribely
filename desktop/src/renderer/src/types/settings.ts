@@ -85,9 +85,14 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 }
 
 // ── LLM Settings ────────────────────────────────────────
-export type LLMProvider = 'openai' | 'ollama' | 'lmstudio'
+export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio'
 
-export type ModelId = 'gpt-5-nano' | 'gpt-5-mini' | 'gpt-5.2'
+export type ModelId =
+  | 'gpt-5.4-nano'
+  | 'gpt-5.4-mini'
+  | 'gpt-5.4'
+  | 'claude-sonnet-5'
+  | 'claude-opus-5'
 
 /** Local model info from Ollama/LM Studio API */
 export interface LocalModelInfo {
@@ -99,6 +104,8 @@ export interface LocalModelInfo {
 
 export interface ModelConfig {
   id: ModelId
+  /** Which cloud provider serves this model */
+  provider: 'openai' | 'anthropic'
   apiModel: string
   contextWindow: number
   maxResponseTokens: number
@@ -107,30 +114,60 @@ export interface ModelConfig {
 }
 
 export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt-5-nano': {
-    id: 'gpt-5-nano',
-    apiModel: 'gpt-5-nano',
+  'gpt-5.4-nano': {
+    id: 'gpt-5.4-nano',
+    provider: 'openai',
+    apiModel: 'gpt-5.4-nano',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
     label: 'Nano',
     description: 'Fast, low cost',
   },
-  'gpt-5-mini': {
-    id: 'gpt-5-mini',
-    apiModel: 'gpt-5-mini',
+  'gpt-5.4-mini': {
+    id: 'gpt-5.4-mini',
+    provider: 'openai',
+    apiModel: 'gpt-5.4-mini',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
     label: 'Mini',
     description: 'Balanced',
   },
-  'gpt-5.2': {
-    id: 'gpt-5.2',
-    apiModel: 'gpt-5.2',
+  'gpt-5.4': {
+    id: 'gpt-5.4',
+    provider: 'openai',
+    apiModel: 'gpt-5.4',
     contextWindow: 1_050_000,
     maxResponseTokens: 128_000,
     label: 'Normal',
     description: 'High intelligence',
   },
+  'claude-sonnet-5': {
+    id: 'claude-sonnet-5',
+    provider: 'anthropic',
+    apiModel: 'claude-sonnet-5',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
+    label: 'Sonnet',
+    description: 'Claude Sonnet 5 — fast, strong at code',
+  },
+  'claude-opus-5': {
+    id: 'claude-opus-5',
+    provider: 'anthropic',
+    apiModel: 'claude-opus-5',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
+    label: 'Opus',
+    description: 'Claude Opus 5 — highest capability',
+  },
+}
+
+/** Model options for the selector, per cloud provider, in display order. */
+export function modelOptionsForProvider(
+  provider: 'openai' | 'anthropic',
+): { id: ModelId; label: string; description: string }[] {
+  return Object.values(MODEL_CONFIGS)
+    .filter((m) => m.provider === provider)
+    .map((m) => ({ id: m.id, label: m.label, description: m.description }))
 }
 
 /** Per-1M-token pricing (USD) for cost display. Cached tokens = 50% of input. */
@@ -138,9 +175,12 @@ export const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.2': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  // Anthropic: cached = cache-read (0.1x input)
+  'claude-sonnet-5': { inputPer1M: 3.0, outputPer1M: 15.0, cachedPer1M: 0.3 },
+  'claude-opus-5': { inputPer1M: 5.0, outputPer1M: 25.0, cachedPer1M: 0.5 },
 }
 
 export function estimateMessageCost(

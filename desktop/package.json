@@ -21,12 +21,15 @@
     "build:icon": "mkdir -p build && magick ../chrome-extension/icons/icon128.png -resize 512x512 build/icon.png",
     "export:question-classifier": "python scripts/export-question-classifier.py",
     "dist": "npm run build:all && electron-builder --mac",
+    "dist:win": "npm run build:all:win && electron-builder --win",
     "build:all": "npm run build:proto && npm run build:native && npm run build",
+    "build:all:win": "npm run build:proto && npm run build",
     "build:extension": "cd .. && ./scripts/pack-extension.sh",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@clerk/clerk-js": "^6.3.0",
     "@deepgram/sdk": "^4.11.3",
     "@huggingface/transformers": "^3.8.1",
@@ -44,7 +47,6 @@
     "framer-motion": "^11.15.0",
     "gpt-tokenizer": "^3.4.0",
     "node-machine-id": "^1.1.12",
-    "nswindow-napi": "^0.0.3",
     "onnxruntime-node": "^1.24.1",
     "openai": "^6.22.0",
     "protobufjs": "^8.0.0",
@@ -55,9 +57,16 @@
     "ws": "^8.19.0",
     "zustand": "^5.0.12"
   },
+  "optionalDependencies": {
+    "@recallai/desktop-sdk": "^2.0.12",
+    "nswindow-napi": "^0.0.3"
+  },
   "build": {
     "appId": "com.scribely.desktop",
     "productName": "Scribely",
+    "asarUnpack": [
+      "**/node_modules/@recallai/**"
+    ],
     "mac": {
       "target": [
         "dmg",
@@ -69,6 +78,12 @@
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
       "notarize": true,
+      "extraResources": [
+        {
+          "from": "resources/native/NativeHelper",
+          "to": "native/NativeHelper"
+        }
+      ],
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Scribely needs microphone access for meeting transcription and recording.",
         "NSAudioCaptureUsageDescription": "Scribely needs system audio capture for recording meetings with participant audio.",
@@ -83,11 +98,17 @@
         ]
       }
     },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "extraResources": [
-      {
-        "from": "resources/native/NativeHelper",
-        "to": "native/NativeHelper"
-      },
       {
         "from": "resources/trayIcon.png",
         "to": "trayIcon.png"
@@ -107,7 +128,8 @@
     }
   },
   "overrides": {
-    "onnxruntime-node": "$onnxruntime-node"
+    "onnxruntime-node": "$onnxruntime-node",
+    "@electron/osx-sign": "github:recallai/osx-sign"
   },
   "devDependencies": {
     "@types/form-data": "^2.2.1",

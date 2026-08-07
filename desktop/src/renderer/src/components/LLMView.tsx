@@ -10,17 +10,14 @@ import {
   DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
   DEFAULT_QUICK_ACTIONS,
   PRESET_SYSTEM_PROMPT_IDS,
+  modelOptionsForProvider,
 } from '../types/settings'
 import { IconPicker, getQuickActionIcon } from './QuickActionIcons'
-
-const OPENAI_MODEL_OPTIONS: { id: ModelId; label: string; description: string }[] = [
-  { id: 'gpt-5-nano', label: 'Nano', description: 'Fast, low cost' },
-  { id: 'gpt-5-mini', label: 'Mini', description: 'Balanced' },
-  { id: 'gpt-5.2', label: 'Normal', description: 'High intelligence' },
-]
+import { useOverlayUiStore } from '../stores/overlay-ui-store'
 
 const PROVIDER_OPTIONS: { id: LLMProvider; label: string }[] = [
   { id: 'openai', label: 'OpenAI' },
+  { id: 'anthropic', label: 'Anthropic' },
   { id: 'ollama', label: 'Ollama' },
   { id: 'lmstudio', label: 'LM Studio' },
 ]
@@ -57,6 +54,9 @@ export function LLMView() {
   const [hasApiKey, setHasApiKey] = useState(false)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [hasAnthropicKey, setHasAnthropicKey] = useState(false)
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState('')
+  const [anthropicKeyStatus, setAnthropicKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [temperature, setTemperature] = useState(0.3)
   const [currentModel, setCurrentModel] = useState<string>('gpt-5-mini')
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([])
@@ -103,6 +103,7 @@ export function LLMView() {
     api.llmGetProvider().then((p) => setProvider((p as LLMProvider) || 'openai'))
     api.llmGetLocalBaseUrl?.().then((url) => setLocalBaseUrl(url || ''))
     api.llmHasApiKey().then(setHasApiKey)
+    api.llmHasAnthropicApiKey?.().then(setHasAnthropicKey)
     api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5-mini'))
     api.getSettings().then((s) => {
       if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
@@ -144,6 +145,8 @@ export function LLMView() {
     if (result?.success) {
       setProvider(p)
       setHasApiKey(!!(await window.electronAPI?.llmHasApiKey?.()))
+      setHasAnthropicKey(!!(await window.electronAPI?.llmHasAnthropicApiKey?.()))
+      if (result.model) setCurrentModel(result.model)
       if (p === 'ollama' || p === 'lmstudio') {
         const url = await window.electronAPI?.llmGetLocalBaseUrl?.()
         setLocalBaseUrl(url || '')
@@ -178,6 +181,8 @@ export function LLMView() {
     const result = await window.electronAPI?.llmSetModel(modelId)
     if (result?.success) {
       setCurrentModel(modelId)
+      // Keep the overlay's model chip in step with the LLM tab
+      useOverlayUiStore.getState().setCurrentModel(modelId)
     }
   }, [])
 
@@ -201,6 +206,26 @@ export function LLMView() {
       setTimeout(() => setApiKeyStatus('idle'), 2000)
     }
   }, [apiKeyInput])
+
+  const handleSaveAnthropicKey = useCallback(async () => {
+    if (!anthropicKeyInput.trim()) return
+    setAnthropicKeyStatus('saving')
+    try {
+      const result = await window.electronAPI?.llmSetAnthropicApiKey?.(anthropicKeyInput.trim())
+      if (result?.success) {
+        setHasAnthropicKey(true)
+        setAnthropicKeyStatus('saved')
+        setAnthropicKeyInput('')
+        setTimeout(() => setAnthropicKeyStatus('idle'), 2000)
+      } else {
+        setAnthropicKeyStatus('error')
+        setTimeout(() => setAnthropicKeyStatus('idle'), 2000)
+      }
+    } catch {
+      setAnthropicKeyStatus('error')
+      setTimeout(() => setAnthropicKeyStatus('idle'), 2000)
+    }
+  }, [anthropicKeyInput])
 
   // ── Temperature ──
   const handleTemperatureChange = useCallback((value: number) => {
@@ -301,7 +326,7 @@ export function LLMView() {
       </Section>
 
       {/* ── API Key (OpenAI only) ──────────────────────────────── */}
-      {!isLocal && (
+      {provider === 'openai' && (
       <Section title="OpenAI API Key">
         <div className="space-y-2">
           {hasApiKey ? (
@@ -358,6 +383,68 @@ export function LLMView() {
               )}
               <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                 Your key is stored locally and never sent anywhere except OpenAI.
+              </p>
+            </div>
+          )}
+        </div>
+      </Section>
+      )}
+
+      {/* ── API Key (Anthropic only) ───────────────────────────── */}
+      {provider === 'anthropic' && (
+      <Section title="Anthropic API Key">
+        <div className="space-y-2">
+          {hasAnthropicKey ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: 'var(--success)' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text)' }}>
+                  API key configured
+                </span>
+              </div>
+              <button
+                onClick={() => setHasAnthropicKey(false)}
+                className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={anthropicKeyInput}
+                  onChange={(e) => setAnthropicKeyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveAnthropicKey()}
+                  placeholder="sk-ant-..."
+                  className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border transition-colors focus:border-[var(--accent)]"
+                  style={{
+                    color: 'var(--text)',
+                    borderColor: 'var(--input-border)',
+                    backgroundColor: 'var(--input-bg)',
+                  }}
+                />
+                <button
+                  onClick={handleSaveAnthropicKey}
+                  disabled={!anthropicKeyInput.trim() || anthropicKeyStatus === 'saving'}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                >
+                  {anthropicKeyStatus === 'saving' ? '...' : 'Save'}
+                </button>
+              </div>
+              {anthropicKeyStatus === 'error' && (
+                <span className="text-[10px]" style={{ color: 'var(--error)' }}>
+                  Failed to save key. Check format.
+                </span>
+              )}
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Your key is stored locally and never sent anywhere except Anthropic.
               </p>
             </div>
           )}
@@ -521,7 +608,7 @@ export function LLMView() {
           </div>
         ) : (
         <div className="flex gap-1.5">
-          {OPENAI_MODEL_OPTIONS.map((opt) => {
+          {modelOptionsForProvider(provider === 'anthropic' ? 'anthropic' : 'openai').map((opt) => {
             const isActive = currentModel === opt.id
             return (
               <button

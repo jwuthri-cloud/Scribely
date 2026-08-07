@@ -1,6 +1,6 @@
 # Recall.ai Integration Plan (Desktop + Backend)
 
-Status: **BUILDING** — Phases 0–5 implemented & typechecked & running (entitlement, token mint, SDK realtime, backend recall-enriched landing, language→provider, login-item auto-launch, async recording webhook). Phase 6 (Windows) pending
+Status: **BUILDING** — Phases 0–5 done; Phase 6 Windows Tier-A prep + Intel-Mac fallback notice done. Full Windows base-SDK (Tier B / WASAPI capture) deferred.
 Owner: Julien
 Last updated: 2026-06-27
 

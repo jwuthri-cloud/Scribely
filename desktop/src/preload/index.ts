@@ -24,8 +24,12 @@ export interface ElectronAPI {
   llmGetModel: () => Promise<string>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmSetAnthropicApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasAnthropicApiKey: () => Promise<boolean>
   llmGetProvider: () => Promise<string>
-  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') => Promise<{ success: boolean; provider: string }>
+  llmSetProvider: (
+    provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio',
+  ) => Promise<{ success: boolean; provider: string; model?: string }>
   llmGetLocalBaseUrl: () => Promise<string>
   llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>
   llmListLocalModels: () => Promise<{ models: Array<{ id: string; name: string; contextWindow: number; maxResponseTokens: number }>; error?: string }>
@@ -268,7 +272,13 @@ export interface ElectronAPI {
   onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void
   onRecallAutoStopMeeting: (callback: () => void) => () => void
   stopRecallMeeting: () => Promise<{ success: boolean }>
-  getRecallStatus: () => Promise<{ provider: 'recall' | 'base'; entitled: boolean }>
+  getRecallStatus: () => Promise<{
+    provider: 'recall' | 'base'
+    entitled: boolean
+    capable: boolean
+    reason: string
+  }>
+  onRecallNotice: (callback: (data: { message: string; reason: string }) => void) => () => void
 
   // ── Meeting toggle ─────────────────────────────
   onToggleMeeting: (callback: () => void) => () => void
@@ -356,8 +366,16 @@ const api: ElectronAPI = {
     return ipcRenderer.invoke('llm:has-api-key')
   },
 
+  llmSetAnthropicApiKey: (apiKey: string) => {
+    return ipcRenderer.invoke('llm:set-anthropic-api-key', apiKey)
+  },
+
+  llmHasAnthropicApiKey: () => {
+    return ipcRenderer.invoke('llm:has-anthropic-api-key')
+  },
+
   llmGetProvider: () => ipcRenderer.invoke('llm:get-provider'),
-  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') =>
+  llmSetProvider: (provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio') =>
     ipcRenderer.invoke('llm:set-provider', provider),
   llmGetLocalBaseUrl: () => ipcRenderer.invoke('llm:get-local-base-url'),
   llmSetLocalBaseUrl: (baseUrl: string) =>
@@ -908,6 +926,13 @@ const api: ElectronAPI = {
 
   getRecallStatus: () => {
     return ipcRenderer.invoke('recall:get-status')
+  },
+
+  onRecallNotice: (callback) => {
+    const handler = (_e: Electron.IpcRendererEvent, data: { message: string; reason: string }) =>
+      callback(data)
+    ipcRenderer.on('recall:notice', handler)
+    return () => ipcRenderer.removeListener('recall:notice', handler)
   },
 
   // ── Meeting toggle ─────────────────────────────

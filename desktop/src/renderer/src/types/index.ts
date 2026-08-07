@@ -248,7 +248,13 @@ export interface ElectronAPI {
   onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void
   onRecallAutoStopMeeting: (callback: () => void) => () => void
   stopRecallMeeting: () => Promise<{ success: boolean }>
-  getRecallStatus: () => Promise<{ provider: 'recall' | 'base'; entitled: boolean }>
+  getRecallStatus: () => Promise<{
+    provider: 'recall' | 'base'
+    entitled: boolean
+    capable: boolean
+    reason: string
+  }>
+  onRecallNotice: (callback: (data: { message: string; reason: string }) => void) => () => void
 
   // Meeting toggle
   onToggleMeeting: (callback: () => void) => () => void
@@ -267,8 +273,12 @@ export interface ElectronAPI {
   llmGetModel: () => Promise<string>
   llmSetApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasApiKey: () => Promise<boolean>
+  llmSetAnthropicApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasAnthropicApiKey: () => Promise<boolean>
   llmGetProvider: () => Promise<string>
-  llmSetProvider: (provider: 'openai' | 'ollama' | 'lmstudio') => Promise<{ success: boolean; provider: string }>
+  llmSetProvider: (
+    provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio',
+  ) => Promise<{ success: boolean; provider: string; model?: string }>
   llmGetLocalBaseUrl: () => Promise<string>
   llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>
   llmListLocalModels: () => Promise<{ models: import('./settings').LocalModelInfo[]; error?: string }>

@@ -251,6 +251,16 @@ async function refreshRecallDecision(): Promise<void> {
     } catch (err) {
       appLog.warn('setLoginItemSettings failed:', err)
     }
+  } else if (decision.entitled && !decision.capability.capable) {
+    // Paid/entitled, but the advanced (Recall) SDK can't run on this hardware
+    // (e.g. Intel Mac) — fell back to the base SDK. Tell the renderer to inform the user.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recall:notice', {
+        message:
+          'The advanced transcription engine is not supported on this device — Scribely is using its built-in engine instead.',
+        reason: decision.capability.reason,
+      })
+    }
   }
 }
 
@@ -333,7 +343,15 @@ ipcMain.handle('recall:stop-meeting', async () => {
   return { success: true }
 })
 // Lets the renderer show the Recall-aware Transcription settings (engine + language).
-ipcMain.handle('recall:get-status', () => getRecallDecision())
+ipcMain.handle('recall:get-status', () => {
+  const d = getRecallDecision()
+  return {
+    provider: d.provider,
+    entitled: d.entitled,
+    capable: d.capability.capable,
+    reason: d.capability.reason,
+  }
+})
 
 // ── Screen Recorder ───────────────────────────────────
 const screenRecorder = new ScreenRecorder()

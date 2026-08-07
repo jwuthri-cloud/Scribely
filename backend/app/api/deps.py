@@ -54,14 +54,12 @@ async def verify_api_key(
     return x_api_key
 
 
-async def get_current_user_with_db(
-    clerk_user: ClerkUser = Depends(require_current_user),
-    db: AsyncSession = Depends(get_async_db_session),
-) -> User:
-    """
-    Authenticate via Clerk JWT, then upsert the user into the local DB.
-    Returns the SQLAlchemy User instance so downstream endpoints have both
-    the DB record and the Clerk identity.
+async def get_or_create_user(db: AsyncSession, clerk_user: ClerkUser) -> User:
+    """Get-or-create the local DB user for a Clerk identity, syncing basic fields.
+
+    Shared by ``get_current_user_with_db`` and the (optional-auth) ``/auth/status``
+    endpoint so the user row exists as soon as the desktop signs in — required for the
+    per-user Recall entitlement (use_recall_sdk) to be flippable.
     """
     user = await UserRepository.get_by_clerk_id(db, clerk_user.id)
 
@@ -94,3 +92,15 @@ async def get_current_user_with_db(
         await db.commit()
 
     return user
+
+
+async def get_current_user_with_db(
+    clerk_user: ClerkUser = Depends(require_current_user),
+    db: AsyncSession = Depends(get_async_db_session),
+) -> User:
+    """
+    Authenticate via Clerk JWT, then upsert the user into the local DB.
+    Returns the SQLAlchemy User instance so downstream endpoints have both
+    the DB record and the Clerk identity.
+    """
+    return await get_or_create_user(db, clerk_user)
