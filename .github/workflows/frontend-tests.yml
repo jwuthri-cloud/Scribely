@@ -2,12 +2,12 @@ name: Frontend Tests & Quality
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master, develop]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-tests.yml'
   pull_request:
-    branches: [main, develop]
+    branches: [master, develop]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-tests.yml'
@@ -133,8 +133,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: build
-    # Only run E2E tests on main/develop or when explicitly requested
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    # Only run E2E tests on master/develop or when explicitly requested
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v5
 
