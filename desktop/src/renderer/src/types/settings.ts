@@ -1,4 +1,3 @@
-import { migrateLegacyOpenAIModelId } from '../../../shared/openai-models'
 
 export interface HotkeyConfig {
   toggleOverlay: string
@@ -88,9 +87,9 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio'
 
 export type ModelId =
-  | 'gpt-5.4-nano'
-  | 'gpt-5.4-mini'
-  | 'gpt-5.4'
+  | 'gpt-5.6-luna'
+  | 'gpt-5.6-terra'
+  | 'gpt-5.6-sol'
   | 'claude-sonnet-5'
   | 'claude-opus-5'
 
@@ -114,31 +113,31 @@ export interface ModelConfig {
 }
 
 export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt-5.4-nano': {
-    id: 'gpt-5.4-nano',
+  'gpt-5.6-luna': {
+    id: 'gpt-5.6-luna',
     provider: 'openai',
-    apiModel: 'gpt-5.4-nano',
+    apiModel: 'gpt-5.6-luna',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
-    label: 'Nano',
+    label: 'Luna',
     description: 'Fast, low cost',
   },
-  'gpt-5.4-mini': {
-    id: 'gpt-5.4-mini',
+  'gpt-5.6-terra': {
+    id: 'gpt-5.6-terra',
     provider: 'openai',
-    apiModel: 'gpt-5.4-mini',
+    apiModel: 'gpt-5.6-terra',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
-    label: 'Mini',
+    label: 'Terra',
     description: 'Balanced',
   },
-  'gpt-5.4': {
-    id: 'gpt-5.4',
+  'gpt-5.6-sol': {
+    id: 'gpt-5.6-sol',
     provider: 'openai',
-    apiModel: 'gpt-5.4',
+    apiModel: 'gpt-5.6-sol',
     contextWindow: 1_050_000,
     maxResponseTokens: 128_000,
-    label: 'Normal',
+    label: 'Sol',
     description: 'High intelligence',
   },
   'claude-sonnet-5': {
@@ -175,9 +174,9 @@ export const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5.4-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5.4-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.4': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.6-luna': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
+  'gpt-5.6-terra': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
+  'gpt-5.6-sol': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
   // Anthropic: cached = cache-read (0.1x input)
   'claude-sonnet-5': { inputPer1M: 3.0, outputPer1M: 15.0, cachedPer1M: 0.3 },
   'claude-opus-5': { inputPer1M: 5.0, outputPer1M: 25.0, cachedPer1M: 0.5 },
@@ -187,7 +186,7 @@ export function estimateMessageCost(
   usage: { promptTokens: number; completionTokens: number; cachedTokens: number },
   modelId: string,
 ): number {
-  const pricing = MODEL_PRICING[migrateLegacyOpenAIModelId(modelId) as ModelId]
+  const pricing = MODEL_PRICING[modelId as ModelId]
   if (!pricing) return 0
   const uncachedInput = usage.promptTokens - usage.cachedTokens
   const inputCost = (uncachedInput / 1_000_000) * pricing.inputPer1M

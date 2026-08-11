@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { ChatMessage } from '../types'
 import type { HotkeyConfig, ModelId } from '../types/settings'
 import { DEFAULT_HOTKEYS, MODEL_CONFIGS, estimateMessageCost } from '../types/settings'
-import { migrateLegacyOpenAIModelId } from '../../../shared/openai-models'
 import { MarkdownContent } from './MarkdownContent'
 
 /** Example prompts shown in the empty state */
@@ -437,7 +436,7 @@ export const ResponseCard = memo(function ResponseCard({ messages, isLoading, on
                     color: 'var(--accent)',
                   }}
                 >
-                  {MODEL_CONFIGS[migrateLegacyOpenAIModelId(msg.model) as ModelId]?.label ?? msg.model}
+                  {MODEL_CONFIGS[msg.model as ModelId]?.label ?? msg.model}
                 </span>
                 {msg.usage?.latencyMs != null && (
                   <span

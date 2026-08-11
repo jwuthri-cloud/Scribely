@@ -1,9 +1,9 @@
 """Central mapping of model names to OpenRouter model IDs."""
 
 # OpenAI GPT
-GPT_NANO = "openai/gpt-5.4-nano"
-GPT_MINI = "openai/gpt-5.4-mini"
-GPT_NORMAL = "openai/gpt-5.4"
+GPT_NANO = "openai/gpt-5.6-luna"
+GPT_MINI = "openai/gpt-5.6-terra"
+GPT_NORMAL = "openai/gpt-5.6-sol"
 
 # Anthropic Claude
 CLAUDE_HAIKU = "anthropic/claude-4.5-haiku"
@@ -46,19 +46,19 @@ DEFAULT_EMBEDDING = OPENAI_EMBEDDING_SMALL
 OPENROUTER_CHAT_MODEL_CATALOG: list[dict[str, str]] = [
     {
         "id": GPT_NANO,
-        "label": "GPT 5.4 Nano",
+        "label": "GPT 5.6 Luna",
         "description": "Fast, low cost",
         "provider": "openai",
     },
     {
         "id": GPT_MINI,
-        "label": "GPT 5.4 Mini",
+        "label": "GPT 5.6 Terra",
         "description": "Balanced speed and quality",
         "provider": "openai",
     },
     # {
     #     "id": GPT_NORMAL,
-    #     "label": "GPT 5.4",
+    #     "label": "GPT 5.6 Sol",
     #     "description": "Highest quality (OpenAI)",
     #     "provider": "openai",
     # },

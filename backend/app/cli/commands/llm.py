@@ -222,7 +222,7 @@ def chat_fallback(models, temperature):
     The first model is primary, others are fallbacks.
     
     Example:
-        llm chat-fallback anthropic/claude-4.6-sonnet openai/gpt-5.4-mini x-ai/grok-4.1-fast
+        llm chat-fallback anthropic/claude-4.6-sonnet openai/gpt-5.6-terra x-ai/grok-4.1-fast
     """
     if not models:
         console.print("[red]✗ At least one model must be provided[/red]")

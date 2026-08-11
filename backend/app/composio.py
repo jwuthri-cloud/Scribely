@@ -18,7 +18,7 @@
 # tools = session.tools()
 
 # # Initialize LangChain model
-# model = ChatOpenAI(model="gpt-5.4", api_key=settings.openai_api_key)
+# model = ChatOpenAI(model="gpt-5.6-sol", api_key=settings.openai_api_key)
 
 # # Create agent
 # agent = create_agent(

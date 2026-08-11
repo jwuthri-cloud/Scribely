@@ -41,7 +41,6 @@ import { resolveCalendarEventIdForTranscript } from './calendar-meeting-match'
 import { resolveCaptureProvider, getRecallDecision } from './recall/entitlement'
 import { RecallController } from './audio/recall-controller'
 import { UploadQueueService } from './upload-queue'
-import { migrateLegacyOpenAIModelId } from '../shared/openai-models'
 import { checkForUpdatesNow, registerUpdaterIpc, startAutoUpdater } from './updater'
 
 interface HotkeyConfig {
@@ -175,15 +174,6 @@ const store = new Store<AppSettings>({
     },
   },
 })
-
-// Migrate: legacy OpenAI model ids (gpt-5.4-*) → gpt-5-nano / gpt-5-mini / gpt-5.2
-const storedLlmForModel = store.get('llm') as { defaultModel?: string } | undefined
-if (storedLlmForModel?.defaultModel) {
-  const migratedModel = migrateLegacyOpenAIModelId(storedLlmForModel.defaultModel)
-  if (migratedModel !== storedLlmForModel.defaultModel) {
-    store.set('llm.defaultModel' as any, migratedModel)
-  }
-}
 
 // Migrate: ensure new hotkey defaults exist in stored config
 const storedHotkeys = store.get('hotkeys')

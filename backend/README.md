@@ -271,7 +271,7 @@ from langchain_core.output_parsers import StrOutputParser
 provider = OpenRouterProvider()
 
 # Get LLM instance (Langfuse automatically enabled if configured)
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini", temperature=0.7)
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra", temperature=0.7)
 
 # Create chain
 prompt = ChatPromptTemplate.from_messages([
@@ -298,13 +298,13 @@ provider = OpenRouterProvider()
 # Method 1: Using get_llm with fallback_models parameter
 llm = provider.get_llm(
     model_name="anthropic/claude-4.6-sonnet",
-    fallback_models=["openai/gpt-5.4-mini", "gryphe/mythomax-l2-13b"]
+    fallback_models=["openai/gpt-5.6-terra", "gryphe/mythomax-l2-13b"]
 )
 
 # Method 2: Using get_llm_with_fallbacks (convenience method)
 llm = provider.get_llm_with_fallbacks([
     "anthropic/claude-4.6-sonnet",  # Primary model
-    "openai/gpt-5.4-mini",            # First fallback
+    "openai/gpt-5.6-terra",            # First fallback
     "gryphe/mythomax-l2-13b"        # Second fallback
 ])
 
@@ -366,7 +366,7 @@ LANGFUSE_BASE_URL=https://cloud.langfuse.com
 2. Langfuse is automatically enabled for all LLM calls:
 ```python
 # Langfuse automatically tracks this call
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 response = chain.invoke({"input": "Hello!"})
 ```
 
@@ -400,7 +400,7 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 
 # Initialize provider
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 
 # Create agent with structured output
 agent = create_agent(
@@ -441,7 +441,7 @@ result = agent.invoke(
 **Disable Langfuse for specific calls:**
 ```python
 llm = provider.get_llm(
-    model_name="openai/gpt-5.4-mini",
+    model_name="openai/gpt-5.6-terra",
     enable_langfuse=False  # Disable Langfuse for this call
 )
 ```
@@ -458,7 +458,7 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 provider = OpenRouterProvider()
 agent = CustomerSupportAgent(
     llm_provider=provider,
-    model_name="openai/gpt-5.4-mini",
+    model_name="openai/gpt-5.6-terra",
     temperature=0.7
 )
 
@@ -492,7 +492,7 @@ order_info = check_order_status.invoke({"order_id": "ORD-123"})
 from app.infrastructure.llm_provider import OpenRouterProvider
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 llm_with_tools = llm.bind_tools(CUSTOMER_SUPPORT_TOOLS)
 
 # LLM can now use these tools
@@ -506,14 +506,14 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 from app.utils.token_counter import count_tokens_llm, get_model_limits
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 
 # Count tokens
 text = "Hello, how are you?"
 token_count = count_tokens_llm(llm, text)
 
 # Get model limits
-limits = get_model_limits(provider, "openai/gpt-5.4-mini")
+limits = get_model_limits(provider, "openai/gpt-5.6-terra")
 print(f"Context length: {limits['context_length']}")
 print(f"Max completion: {limits['max_completion_tokens']}")
 ```
@@ -544,7 +544,7 @@ DIARIZATION_PROVIDER=deepgram          # or "assemblyai"
 DEEPGRAM_API_KEY=your-key-here
 ASSEMBLYAI_API_KEY=your-key-here       # only needed if using assemblyai
 OPENROUTER_API_KEY=your-key-here       # used for vision speaker identification
-# SPEAKER_ID_VISION_MODEL=openai/gpt-5.4  # default vision model
+# SPEAKER_ID_VISION_MODEL=openai/gpt-5.6-sol  # default vision model
 # FRAMES_PER_SPEAKER=10                   # frames extracted per speaker
 ```
 
@@ -729,23 +729,23 @@ python -m app.cli llm test
 python -m app.cli llm list
 
 # Interactive chat with a model
-python -m app.cli llm chat --model openai/gpt-5.4-mini
+python -m app.cli llm chat --model openai/gpt-5.6-terra
 
 # Chat with fallback models
 python -m app.cli llm chat \
   --model anthropic/claude-4.6-sonnet \
-  --fallback openai/gpt-5.4-mini \
+  --fallback openai/gpt-5.6-terra \
   --fallback gryphe/mythomax-l2-13b
 
 # Get a single completion
 python -m app.cli llm complete "Tell me a joke" \
-  --model openai/gpt-5.4-mini \
+  --model openai/gpt-5.6-terra \
   --temperature 0.7
 
 # Chat with multiple fallback models (convenience command)
 python -m app.cli llm chat-fallback \
   anthropic/claude-4.6-sonnet \
-  openai/gpt-5.4-mini \
+  openai/gpt-5.6-terra \
   gryphe/mythomax-l2-13b
 
 # Configure OpenRouter interactively

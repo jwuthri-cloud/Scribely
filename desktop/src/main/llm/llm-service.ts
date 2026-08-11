@@ -117,7 +117,6 @@ import { TranscriptMemory } from './transcript-memory'
 import { runBackgroundSummarization } from './background-summarizer'
 import { runWebSearch, runWebSearchStreaming } from './web-search'
 import { runSuggestFollowUp } from './follow-up-suggestions'
-import { migrateLegacyOpenAIModelId } from '../../shared/openai-models'
 import {
   TECH_INTERVIEW_SYSTEM_PROMPT_ID,
   buildTechInterviewSystemPrompt,
@@ -347,7 +346,7 @@ export class LLMService {
     const llm = this.store.get('llm') as { defaultModel?: string; provider?: LLMProvider } | undefined
     const provider = this.getProvider()
     if (llm?.defaultModel) {
-      const dm = migrateLegacyOpenAIModelId(llm.defaultModel)
+      const dm = llm.defaultModel
       if (provider === 'anthropic') {
         this.currentModel = isAnthropicModel(dm) ? dm : DEFAULT_ANTHROPIC_MODEL
       } else if (provider === 'openai' && MODEL_CONFIGS[dm as ModelId]) {
@@ -367,7 +366,7 @@ export class LLMService {
     if (provider === 'openai') {
       const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
       if (cfg) return cfg
-      return MODEL_CONFIGS['gpt-5.2']
+      return MODEL_CONFIGS['gpt-5.6-terra']
     }
     const local = this.localModels.find((m) => m.id === this.currentModel)
     return {
@@ -402,13 +401,6 @@ export class LLMService {
   private migrateSettings(): void {
     const llm = this.store.get('llm') as Record<string, unknown> | undefined
     if (llm) {
-      const dm = llm.defaultModel
-      if (typeof dm === 'string') {
-        const migrated = migrateLegacyOpenAIModelId(dm)
-        if (migrated !== dm) {
-          this.store.set('llm.defaultModel' as any, migrated)
-        }
-      }
       if (!('provider' in llm)) {
         this.store.set('llm.provider' as any, 'openai')
       }
@@ -648,10 +640,9 @@ export class LLMService {
         return { success: false, model: this.currentModel }
       }
       if (provider === 'openai') {
-        const normalized = migrateLegacyOpenAIModelId(modelId)
-        if (MODEL_CONFIGS[normalized as ModelId]) {
-          this.currentModel = normalized
-          this.store.set('llm.defaultModel' as any, normalized)
+        if (MODEL_CONFIGS[modelId as ModelId]) {
+          this.currentModel = modelId
+          this.store.set('llm.defaultModel' as any, modelId)
           return { success: true, model: this.currentModel }
         }
         return { success: false, model: this.currentModel }

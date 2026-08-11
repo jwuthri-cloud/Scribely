@@ -50,7 +50,7 @@ class OpenRouterProvider:
         Get configured OpenRouter LLM instance.
         
         Args:
-            model_name: OpenRouter model name (e.g., "openai/gpt-5.4-mini")
+            model_name: OpenRouter model name (e.g., "openai/gpt-5.6-terra")
             temperature: Model temperature (0-2)
             callbacks: Optional list of callback handlers (Langfuse is added automatically if enabled)
             fallback_models: Optional list of fallback model names. If provided, OpenRouter
@@ -250,7 +250,7 @@ class OpenRouterProvider:
         Get model context limit from OpenRouter models cache.
         
         Args:
-            model_name: Model name (e.g., "openai/gpt-5.4-mini")
+            model_name: Model name (e.g., "openai/gpt-5.6-terra")
             use_cache: Whether to use cached models
         
         Returns:
@@ -280,7 +280,7 @@ class OpenRouterProvider:
         Get model max completion tokens from OpenRouter models cache.
         
         Args:
-            model_name: Model name (e.g., "openai/gpt-5.4-mini")
+            model_name: Model name (e.g., "openai/gpt-5.6-terra")
             use_cache: Whether to use cached models
         
         Returns:

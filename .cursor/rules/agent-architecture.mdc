@@ -58,7 +58,7 @@ from app.agents.structured_output.my_agent import MyResponse
 from app.agents.tool.my_agent import MY_TOOLS
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 agent = create_agent(
     model=llm,
     system_prompt=SYSTEM_PROMPT,
@@ -74,7 +74,7 @@ from app.infrastructure.llm_provider import OpenRouterProvider
 from app.agents.structured_output.my_agent import MyResponse
 
 provider = OpenRouterProvider()
-llm = provider.get_llm(model_name="openai/gpt-5.4-mini")
+llm = provider.get_llm(model_name="openai/gpt-5.6-terra")
 structured_llm = llm.with_structured_output(MyResponse)
 result = await structured_llm.ainvoke(messages)
 ```

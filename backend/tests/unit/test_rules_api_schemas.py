@@ -9,7 +9,7 @@ from app.api.v1.rules import RuleCreateRequest, RuleStepIn, RuleUpdateRequest
 
 
 def test_rule_step_accepts_llm_prompt():
-    s = RuleStepIn(name="Summarize", order_index=0, step_type="llm_prompt", config={"model": "openai/gpt-5.4-mini"})
+    s = RuleStepIn(name="Summarize", order_index=0, step_type="llm_prompt", config={"model": "openai/gpt-5.6-terra"})
     assert s.step_type == "llm_prompt"
 
 

@@ -31,14 +31,14 @@ const STEP_TYPES: { value: RuleStepType; label: string }[] = [
 
 const FALLBACK_LLM_MODELS: ChatModelOption[] = [
   {
-    id: "openai/gpt-5.4-nano",
-    label: "GPT 5.4 Nano",
+    id: "openai/gpt-5.6-luna",
+    label: "GPT 5.6 Luna",
     description: "Fast, low cost",
     provider: "openai",
   },
   {
-    id: "openai/gpt-5.4-mini",
-    label: "GPT 5.4 Mini",
+    id: "openai/gpt-5.6-terra",
+    label: "GPT 5.6 Terra",
     description: "Balanced speed and quality",
     provider: "openai",
   },
@@ -70,7 +70,7 @@ export function defaultConfig(t: RuleStepType): Record<string, unknown> {
   switch (t) {
     case "llm_prompt":
       return {
-        model: "openai/gpt-5.4-mini",
+        model: "openai/gpt-5.6-terra",
         system_prompt: "You are a helpful assistant summarizing meeting content.",
         user_prompt_template:
           "Summarize the following transcript in 5 bullet points:\n\n{{ meeting.transcript }}",
@@ -585,7 +585,7 @@ function LlmFields({
   patch: (p: Record<string, unknown>) => void
   modelCatalog: ChatModelOption[]
 }) {
-  const model = str(config.model, "openai/gpt-5.4-mini")
+  const model = str(config.model, "openai/gpt-5.6-terra")
   const systemPrompt = str(config.system_prompt)
   const userTmpl = str(config.user_prompt_template)
   const temperature = num(config.temperature, 0.2)
@@ -595,7 +595,7 @@ function LlmFields({
     : [{ name: "result", type: "string", description: "Model output" }]
   const activeModel = modelCatalog.some((m) => m.id === model)
     ? model
-    : modelCatalog[0]?.id ?? "openai/gpt-5.4-mini"
+    : modelCatalog[0]?.id ?? "openai/gpt-5.6-terra"
 
   useEffect(() => {
     if (modelCatalog.length > 0 && activeModel !== model) {
