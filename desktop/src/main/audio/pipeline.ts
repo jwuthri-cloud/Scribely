@@ -150,7 +150,9 @@ export class AudioPipeline {
   // ── Initialization ─────────────────────────────────────
 
   async init(): Promise<void> {
-    await this.transcriber.init()
+    // Resolve the provider/mode only. Whisper itself is loaded on demand when a
+    // meeting or push-to-talk recording starts — see _ensureTranscriberLoaded().
+    await this.transcriber.init({ loadModel: false })
     // Background VAD download; _initVad() no-ops until file exists — modelManager
     // 'complete' will init VAD when download finishes.
     this._autoDownloadModel(VAD_MODEL_ID)
@@ -158,6 +160,15 @@ export class AudioPipeline {
     log.success(
       `Initialized — transcription: ${this.transcriber.mode}, VAD: ${this.vadReady ? 'enabled (Silero)' : 'pending download / chunk fallback'}`,
     )
+  }
+
+  /** Load Whisper if it isn't resident yet — startup defers the load. */
+  private async _ensureTranscriberLoaded(): Promise<void> {
+    if (this.transcriber.isLoaded) return
+    await this.transcriber.reinit()
+    this.sendToRenderer('meeting:status-update', {
+      transcriptionMode: this.transcriber.mode,
+    })
   }
 
   /** Initialize per-stream VAD instances if the model is available */
@@ -627,12 +638,7 @@ export class AudioPipeline {
     if (modelId) this._autoDownloadModel(modelId as any)
 
     // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
-    if (!this.transcriber.isLoaded) {
-      await this.transcriber.reinit()
-      this.sendToRenderer('meeting:status-update', {
-        transcriptionMode: this.transcriber.mode,
-      })
-    }
+    await this._ensureTranscriberLoaded()
     if (!this.vadReady) {
       await this._initVad()
       if (this.vadReady) {
@@ -724,12 +730,7 @@ export class AudioPipeline {
       }
 
       // Reload Whisper if it was unloaded (e.g. after previous meeting stop)
-      if (!this.transcriber.isLoaded) {
-        await this.transcriber.reinit()
-        this.sendToRenderer('meeting:status-update', {
-          transcriptionMode: this.transcriber.mode,
-        })
-      }
+      await this._ensureTranscriberLoaded()
 
       if (!this.vadReady) {
         await this._initVad()
@@ -875,6 +876,7 @@ export class AudioPipeline {
         const pcm = new Float32Array(payload.pcm)
         if (pcm.length < payload.sampleRate * 0.3) return null
 
+        await this._ensureTranscriberLoaded()
         const result = await this.transcriber.transcribe(pcm, payload.sampleRate)
 
         if (result.text) {

@@ -265,6 +265,9 @@ export interface ElectronAPI {
   // Focus chat input
   onFocusChatInput?: (callback: () => void) => () => void
 
+  // Fill chat input with the first quick action prompt
+  onFillChatInput?: (callback: (text: string) => void) => () => void
+
   // LLM
   llmChat: (request: LLMChatRequest) => void
   llmCancel: (requestId: string) => void
@@ -275,9 +278,11 @@ export interface ElectronAPI {
   llmHasApiKey: () => Promise<boolean>
   llmSetAnthropicApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasAnthropicApiKey: () => Promise<boolean>
+  llmSetGeminiApiKey?: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasGeminiApiKey?: () => Promise<boolean>
   llmGetProvider: () => Promise<string>
   llmSetProvider: (
-    provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio',
+    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'lmstudio',
   ) => Promise<{ success: boolean; provider: string; model?: string }>
   llmGetLocalBaseUrl: () => Promise<string>
   llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>

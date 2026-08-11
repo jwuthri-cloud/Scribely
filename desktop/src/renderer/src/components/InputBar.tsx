@@ -2,7 +2,12 @@ import { useState, useRef, useEffect, memo, type FormEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MicWaveform } from './MicWaveform'
 import type { ChatAttachment } from '../types'
-import { type ModelId, MODEL_CONFIGS, modelOptionsForProvider } from '../types/settings'
+import {
+  type ModelId,
+  DEFAULT_QUICK_ACTIONS,
+  MODEL_CONFIGS,
+  modelOptionsForProvider,
+} from '../types/settings'
 
 /** Wraps content and shows tooltip on hover (z-[9999] so it appears above overlay) */
 function WithTooltip({
@@ -155,7 +160,7 @@ export const InputBar = memo(function InputBar({
   micLevel = 0,
   modelDownloading,
   modelProgress = 0,
-  currentModel = 'gpt-5-mini',
+  currentModel = 'gpt-5.6-terra',
   onModelChange,
   modelOptions: modelOptionsProp,
   onSummarizeTranscript,
@@ -207,9 +212,8 @@ export const InputBar = memo(function InputBar({
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }, [value])
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    const trimmed = value.trim()
+  const send = (text: string) => {
+    const trimmed = text.trim()
     if (!trimmed || disabled) return
 
     const attachments: ChatAttachment[] = pendingScreenshots.map((data, i) => ({
@@ -223,6 +227,23 @@ export const InputBar = memo(function InputBar({
     setJustSent(true)
     setTimeout(() => setJustSent(false), 1500)
     inputRef.current?.focus()
+  }
+
+  // Latest send, for listeners registered once (hotkeys)
+  const sendRef = useRef(send)
+  sendRef.current = send
+
+  // Send the first quick action's prompt (Option+Z hotkey)
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onFillChatInput?.((text) => {
+      sendRef.current(text || DEFAULT_QUICK_ACTIONS[0].value)
+    })
+    return () => unsubscribe?.()
+  }, [])
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    send(value)
   }
 
   return (

@@ -1,5 +1,5 @@
-import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
+import { createReadStream, existsSync } from 'fs'
+import { readFile, stat } from 'fs/promises'
 import { net } from 'electron'
 import FormData from 'form-data'
 import { createLogger } from './logger'
@@ -180,10 +180,16 @@ export class BackendClient {
         reject(new Error(`Request to ${path} failed: ${err.message}`))
       })
 
-      // Pipe the form data into the request
-      const buffer = form.getBuffer()
-      request.write(buffer)
-      request.end()
+      // Stream the form into the request. Never form.getBuffer() here — it
+      // concatenates every part (including a possibly GB-scale recording that
+      // was itself fully read) into one giant Buffer. A 1GB webm cost ~2GB of
+      // heap per attempt; streamed, it costs ~64KB.
+      request.setHeader('Content-Length', String(form.getLengthSync()))
+      form.on('error', (err: Error) => {
+        request.abort()
+        reject(new Error(`Form stream error: ${err.message}`))
+      })
+      form.pipe(request as unknown as NodeJS.WritableStream)
     })
   }
 
@@ -257,14 +263,16 @@ export class BackendClient {
         contentType: 'application/json',
       })
 
-      // Optionally upload the recording webm
+      // Optionally upload the recording webm — streamed from disk, never
+      // buffered. knownLength lets form-data compute Content-Length synchronously.
       if (payload.recordingFilepath && existsSync(payload.recordingFilepath)) {
-        const videoData = await readFile(payload.recordingFilepath)
-        form.append('video', videoData, {
+        const { size } = await stat(payload.recordingFilepath)
+        form.append('video', createReadStream(payload.recordingFilepath), {
           filename: 'recording.webm',
           contentType: 'video/webm',
+          knownLength: size,
         })
-        log.info(`Attaching recording: ${(videoData.byteLength / (1024 * 1024)).toFixed(1)}MB`)
+        log.info(`Attaching recording: ${(size / (1024 * 1024)).toFixed(1)}MB (streamed)`)
       }
 
       // Add optional session ID as a form field

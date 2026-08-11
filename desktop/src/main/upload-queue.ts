@@ -46,6 +46,13 @@ interface UploadQueueStore {
  *  - Manual: retryItem(id) called from the renderer UI
  */
 export class UploadQueueService extends EventEmitter {
+  /**
+   * Auto-retry gives up after this many attempts; manual retry resets the count.
+   * Without a cap, a permanently-failing upload (413, dead backend) retried on
+   * every startup/reconnect forever — observed in the wild at 132 attempts.
+   */
+  private static readonly MAX_AUTO_ATTEMPTS = 5
+
   private store: Store<UploadQueueStore>
   private backendClient: BackendClient
   private authService: AuthService
@@ -184,9 +191,19 @@ export class UploadQueueService extends EventEmitter {
 
   /** Retry all pending and failed items. Called on startup and network reconnect. */
   async flushPending(): Promise<void> {
-    const pending = this.store
+    const retryable = this.store
       .get('items')
       .filter((i) => i.status === 'pending' || i.status === 'failed')
+
+    const pending = retryable.filter(
+      (i) => i.attemptCount < UploadQueueService.MAX_AUTO_ATTEMPTS,
+    )
+    const givenUp = retryable.length - pending.length
+    if (givenUp > 0) {
+      log.warn(
+        `${givenUp} upload(s) exceeded ${UploadQueueService.MAX_AUTO_ATTEMPTS} attempts — auto-retry stopped (retry manually from the queue UI)`,
+      )
+    }
 
     if (pending.length === 0) return
 
@@ -203,8 +220,9 @@ export class UploadQueueService extends EventEmitter {
       log.warn(`retryItem: not found: ${id}`)
       return
     }
-    // Reset status before retrying so _attemptItem doesn't re-check 'uploading' guard
-    const reset: UploadQueueItem = { ...item, status: 'pending', error: undefined }
+    // Reset status + attempt count — a manual retry is a fresh start and
+    // re-arms auto-retry for this item
+    const reset: UploadQueueItem = { ...item, status: 'pending', attemptCount: 0, error: undefined }
     this.upsertItem(reset)
     await this._attemptItem(reset)
   }

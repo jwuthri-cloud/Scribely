@@ -1,6 +1,10 @@
 import { countTokens, encodeChat } from 'gpt-tokenizer'
 
-/** Model name recognized by gpt-tokenizer for chat overhead calculation (o200k_base). */
+/**
+ * Model name recognized by gpt-tokenizer for chat overhead calculation (o200k_base).
+ * ponytail: gpt-tokenizer doesn't know the 5.6 ids yet; any o200k_base model gives the
+ * same count. Swap to a gpt-5.6-* id once the package ships them.
+ */
 const CHAT_MODEL = 'gpt-5-mini' as const
 
 /**

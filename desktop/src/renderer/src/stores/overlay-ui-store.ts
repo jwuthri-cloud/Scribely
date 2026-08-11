@@ -82,7 +82,7 @@ export const useOverlayUiStore = create<OverlayUiStore>((set) => ({
   windowOpacity: 1,
   fontSize: 'medium',
   compactMode: false,
-  currentModel: 'gpt-5-mini',
+  currentModel: 'gpt-5.6-terra',
   summarizeInProgress: false,
   summarizeFeedback: null,
   hasSummary: false,

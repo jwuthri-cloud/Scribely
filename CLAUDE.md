@@ -142,7 +142,7 @@ Whisper models: `local-fast` (small.en ~488MB), `local-balanced` (medium.en ~1.5
 
 ### LLM Service (`src/main/llm/llm-service.ts`)
 
-Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Three models: `gpt-5-nano`, `gpt-5-mini`, `gpt-5.2` — nano/mini 400k context, 128k max response; `gpt-5.2` uses 1.05M context in-app.
+Uses **OpenAI SDK directly** (not OpenRouter or LangChain). Gemini reuses the same client against Google's OpenAI-compatible endpoint; Anthropic has its own SDK path in `anthropic-chat.ts`. Three models: `gpt-5.6-luna`, `gpt-5.6-terra`, `gpt-5.6-sol` — luna/terra 400k context, 128k max response; `gpt-5.6-sol` uses 1.05M context in-app.
 
 **Append-only prompt strategy** (optimized for OpenAI prefix caching):
 

@@ -4,12 +4,11 @@
  */
 
 import OpenAI from 'openai'
-import { observeOpenAI } from '@langfuse/openai'
 import { createLogger } from '../logger'
 
 const log = createLogger('provider-config')
 
-export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio'
+export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'lmstudio'
 
 export interface LocalModelInfo {
   id: string
@@ -25,6 +24,12 @@ export const PROVIDER_DEFAULTS: Record<LLMProvider, { baseUrl: string; apiKeyReq
   },
   anthropic: {
     baseUrl: 'https://api.anthropic.com',
+    apiKeyRequired: true,
+  },
+  // Gemini speaks the OpenAI Chat Completions protocol at this endpoint —
+  // no separate SDK needed, unlike Anthropic.
+  gemini: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     apiKeyRequired: true,
   },
   ollama: {
@@ -62,26 +67,27 @@ function isBenignLocalUnreachable(err: unknown): boolean {
 /**
  * Create an OpenAI-compatible client for the given provider.
  * For local providers, apiKey is optional (Ollama/LM Studio accept any placeholder).
- * Langfuse tracing is only applied for OpenAI.
  */
 export function createLLMClient(
   provider: LLMProvider,
   options: {
     baseUrl?: string
     apiKey?: string | null
-    enableLangfuse?: boolean
   } = {},
 ): OpenAI | null {
-  const { baseUrl, apiKey, enableLangfuse = true } = options
+  const { baseUrl, apiKey } = options
 
   // Anthropic does not speak the OpenAI protocol — llm-service routes Claude
   // requests through anthropic-chat.ts with its own SDK client.
   if (provider === 'anthropic') return null
 
-  if (provider === 'openai') {
+  if (provider === 'openai' || provider === 'gemini') {
     if (!apiKey?.trim()) return null
-    const client = new OpenAI({ apiKey: apiKey.trim() })
-    return enableLangfuse ? (observeOpenAI(client) as unknown as OpenAI) : client
+    const client = new OpenAI({
+      apiKey: apiKey.trim(),
+      ...(provider === 'gemini' && { baseURL: PROVIDER_DEFAULTS.gemini.baseUrl }),
+    })
+    return client
   }
 
   // Local providers: Ollama and LM Studio

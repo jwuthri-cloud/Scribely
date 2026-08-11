@@ -96,11 +96,18 @@ export class Transcriber {
   }
 
   // ── Initialization ───────────────────────────────────────
-  async init(): Promise<void> {
-    await this._initProvider(this.config.provider)
+  /**
+   * @param loadModel false = resolve the provider/mode but do NOT pull Whisper
+   *   (0.5–1.6GB) into memory. Session start calls reinit() to load it for real.
+   */
+  async init(options: { loadModel?: boolean } = {}): Promise<void> {
+    await this._initProvider(this.config.provider, options.loadModel !== false)
   }
 
-  private async _initProvider(provider: TranscriptionProvider): Promise<void> {
+  private async _initProvider(
+    provider: TranscriptionProvider,
+    loadModel = true,
+  ): Promise<void> {
     // Free existing whisper instance if switching local models
     if (this.whisper && this._activeModelId) {
       try {
@@ -121,7 +128,10 @@ export class Transcriber {
     if (modelId) {
       // Local provider — try to load whisper
       const modelPath = this.modelManager.getModelPath(modelId as any)
-      if (modelPath) {
+      if (modelPath && !loadModel) {
+        this._mode = provider
+        log.info(`Model ${modelId} ready — loading deferred until recording starts`)
+      } else if (modelPath) {
         try {
           const mod = require('smart-whisper')
           const SmartWhisper = mod.default || mod.Whisper || mod

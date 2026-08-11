@@ -16,6 +16,7 @@ interface HotkeyConfig {
   resetChat: string
   toggleMeeting: string
   focusChatInput: string
+  quickAction1: string
 }
 
 // Must match main's TranscriptionSettings for Store compatibility
@@ -42,6 +43,7 @@ interface LLMSettings {
     createdAt: number
     updatedAt: number
   }>
+  quickActions?: Array<{ label: string; value: string; icon?: string }>
 }
 
 interface AppSettings {
@@ -137,6 +139,19 @@ export function registerAllHotkeys(
     }
     win.focus()
     win.webContents.send('focus-chat-input')
+  }))
+
+  // Send the first quick action's prompt as a chat message
+  // (empty string = renderer falls back to DEFAULT_QUICK_ACTIONS[0])
+  tryRegister(hotkeys.quickAction1, guard(() => {
+    if (!win.isVisible()) {
+      win.show()
+      win.webContents.send('toggle-visibility', true)
+    }
+    win.focus()
+    // read on fire, not at registration — quick actions change without a re-register
+    const llm = store.get('llm') as LLMSettings | undefined
+    win.webContents.send('fill-chat-input', llm?.quickActions?.[0]?.value ?? '')
   }))
 }
 

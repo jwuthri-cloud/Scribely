@@ -1,8 +1,7 @@
 import OpenAI from 'openai'
-import { propagateAttributes } from '@langfuse/tracing'
 import { machineIdSync } from 'node-machine-id'
 import Store from 'electron-store'
-import { BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { createLogger } from '../logger'
 import { PromptAssembler } from './prompt-assembler'
 import {
@@ -124,7 +123,18 @@ import {
 
 // ── Types (mirrored from renderer for main process use) ──
 
-type ModelId = 'gpt-5-nano' | 'gpt-5-mini' | 'gpt-5.2'
+type ModelId =
+  | 'gpt-5.6-luna'
+  | 'gpt-5.6-terra'
+  | 'gpt-5.6-sol'
+  | 'gemini-3.5-flash-lite'
+  | 'gemini-3.6-flash'
+
+const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash'
+
+export function isGeminiModel(id: string): boolean {
+  return id.startsWith('gemini-')
+}
 
 interface ModelConfig {
   id: string
@@ -134,23 +144,35 @@ interface ModelConfig {
 }
 
 const OPENAI_MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
-  'gpt-5-nano': {
-    id: 'gpt-5-nano',
-    apiModel: 'gpt-5-nano',
+  'gpt-5.6-luna': {
+    id: 'gpt-5.6-luna',
+    apiModel: 'gpt-5.6-luna',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
   },
-  'gpt-5-mini': {
-    id: 'gpt-5-mini',
-    apiModel: 'gpt-5-mini',
+  'gpt-5.6-terra': {
+    id: 'gpt-5.6-terra',
+    apiModel: 'gpt-5.6-terra',
     contextWindow: 400_000,
     maxResponseTokens: 128_000,
   },
-  'gpt-5.2': {
-    id: 'gpt-5.2',
-    apiModel: 'gpt-5.2',
+  'gpt-5.6-sol': {
+    id: 'gpt-5.6-sol',
+    apiModel: 'gpt-5.6-sol',
     contextWindow: 1_050_000,
     maxResponseTokens: 128_000,
+  },
+  'gemini-3.5-flash-lite': {
+    id: 'gemini-3.5-flash-lite',
+    apiModel: 'gemini-3.5-flash-lite',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
+  },
+  'gemini-3.6-flash': {
+    id: 'gemini-3.6-flash',
+    apiModel: 'gemini-3.6-flash',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
   },
 }
 
@@ -161,9 +183,11 @@ const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5-nano': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5-mini': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.2': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.6-luna': { inputPer1M: 1.0, outputPer1M: 6.0, cachedPer1M: 0.1 },
+  'gpt-5.6-terra': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.6-sol': { inputPer1M: 5.0, outputPer1M: 30.0, cachedPer1M: 0.5 },
+  'gemini-3.5-flash-lite': { inputPer1M: 0.30, outputPer1M: 2.5, cachedPer1M: 0.03 },
+  'gemini-3.6-flash': { inputPer1M: 1.5, outputPer1M: 7.5, cachedPer1M: 0.15 },
 }
 
 interface TranscriptEntry {
@@ -213,16 +237,6 @@ interface SystemPrompt {
   content: string
   createdAt: number
   updatedAt: number
-}
-
-interface PersistedConversation {
-  sessionId: string
-  meetingSessionId: string | null
-  messages: ConversationMessage[]
-  createdAt: number
-  lastMessageAt: number
-  systemPromptId: string | null
-  model: string
 }
 
 // ── Default system prompt ─────────────────────────────────
@@ -294,8 +308,8 @@ export class LLMService {
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
 
-  // Current model (user-switchable). For OpenAI: gpt-5-nano, gpt-5-mini, gpt-5.2. For local: model name from API.
-  private currentModel: string = 'gpt-5-mini'
+  // Current model (user-switchable). For OpenAI: gpt-5.6-luna, gpt-5.6-terra, gpt-5.6-sol. For local: model name from API.
+  private currentModel: string = 'gpt-5.6-terra'
 
   // Cached local models (context window, etc.) from Ollama/LM Studio API
   private localModels: LocalModelInfo[] = []
@@ -329,7 +343,7 @@ export class LLMService {
     }
   >()
 
-  // Conversation state (in-memory, also persisted to electron-store)
+  // Conversation state (in-memory only — cleared on reset, gone on quit)
   // In the append-only strategy, each user message's `content` already contains
   // its transcript delta. The conversation array is strictly append-only.
   private conversationMessages: ConversationMessage[] = []
@@ -340,7 +354,10 @@ export class LLMService {
     this.transcriptMemory = new TranscriptMemory()
     this.assembler = new PromptAssembler(this.tokenCounter)
     this.migrateSettings()
-    this.initClient()
+    this.cleanupLegacyConversations()
+    // safeStorage is only reliable after app ready, and this constructor runs at
+    // module load — initing here reads the encrypted keys as null. See getDecryptedApiKey.
+    app.whenReady().then(() => this.initClient())
 
     // Restore persisted model preference
     const llm = this.store.get('llm') as { defaultModel?: string; provider?: LLMProvider } | undefined
@@ -349,9 +366,12 @@ export class LLMService {
       const dm = llm.defaultModel
       if (provider === 'anthropic') {
         this.currentModel = isAnthropicModel(dm) ? dm : DEFAULT_ANTHROPIC_MODEL
-      } else if (provider === 'openai' && MODEL_CONFIGS[dm as ModelId]) {
+      } else if (
+        (provider === 'openai' || provider === 'gemini') &&
+        MODEL_CONFIGS[dm as ModelId]
+      ) {
         this.currentModel = dm
-      } else if (provider !== 'openai') {
+      } else if (provider !== 'openai' && provider !== 'gemini') {
         this.currentModel = llm.defaultModel
       }
     }
@@ -363,10 +383,10 @@ export class LLMService {
     if (provider === 'anthropic') {
       return ANTHROPIC_MODEL_CONFIGS[this.anthropicModelId() ?? DEFAULT_ANTHROPIC_MODEL]
     }
-    if (provider === 'openai') {
+    if (provider === 'openai' || provider === 'gemini') {
       const cfg = MODEL_CONFIGS[this.currentModel as ModelId]
       if (cfg) return cfg
-      return MODEL_CONFIGS['gpt-5.6-terra']
+      return MODEL_CONFIGS[provider === 'gemini' ? DEFAULT_GEMINI_MODEL : 'gpt-5.6-terra']
     }
     const local = this.localModels.find((m) => m.id === this.currentModel)
     return {
@@ -380,6 +400,23 @@ export class LLMService {
   private isLocalProvider(): boolean {
     const p = this.getProvider()
     return p === 'ollama' || p === 'lmstudio'
+  }
+
+  /** Why `this.client` is missing, phrased for the active provider. */
+  private noClientMessage(): string {
+    switch (this.getProvider()) {
+      case 'openai':
+        return 'API key not configured. Open the LLM tab to set your OpenAI key.'
+      case 'gemini':
+        return 'API key not configured. Open the LLM tab to set your Gemini key.'
+      default:
+        return 'Ollama or LM Studio not running. Start the app and try again.'
+    }
+  }
+
+  /** OpenAI-only request params (reasoning_effort etc.) must be stripped elsewhere. */
+  private stripsOpenAIParams(): boolean {
+    return this.getProvider() !== 'openai'
   }
 
   /** The Claude model to use, or null when the active provider isn't Anthropic. */
@@ -449,7 +486,9 @@ export class LLMService {
   private getProvider(): LLMProvider {
     const llm = this.store.get('llm') as { provider?: LLMProvider } | undefined
     const p = llm?.provider
-    return p === 'anthropic' || p === 'ollama' || p === 'lmstudio' ? p : 'openai'
+    return p === 'anthropic' || p === 'gemini' || p === 'ollama' || p === 'lmstudio'
+      ? p
+      : 'openai'
   }
 
   private getLocalBaseUrl(): string {
@@ -460,11 +499,41 @@ export class LLMService {
     return PROVIDER_DEFAULTS[provider].baseUrl
   }
 
+  /**
+   * Decrypted keys, memoized. Every safeStorage read hits the macOS Keychain and
+   * blocks the main process; the LLM settings tab asks "do I have a key?" for all
+   * three providers on mount and again on every provider click. Cleared on set.
+   */
+  private keyCache = new Map<'openai' | 'gemini' | 'anthropic', string | null>()
+
+  private getDecryptedApiKey(): string | null {
+    return this.cachedKey('openai', () => this.readOpenAIKeyUncached())
+  }
+
+  private getGeminiApiKey(): string | null {
+    return this.cachedKey('gemini', () => this.readGeminiKeyUncached())
+  }
+
+  private getAnthropicApiKey(): string | null {
+    return this.cachedKey('anthropic', () => this.readAnthropicKeyUncached())
+  }
+
+  private cachedKey(
+    which: 'openai' | 'gemini' | 'anthropic',
+    read: () => string | null,
+  ): string | null {
+    const hit = this.keyCache.get(which)
+    if (hit !== undefined) return hit
+    const value = read()
+    this.keyCache.set(which, value)
+    return value
+  }
+
   private initClient(): void {
     const provider = this.getProvider()
-    if (provider === 'openai') {
-      const apiKey = this.getDecryptedApiKey()
-      this.client = createLLMClient('openai', { apiKey }) ?? null
+    if (provider === 'openai' || provider === 'gemini') {
+      const apiKey = provider === 'gemini' ? this.getGeminiApiKey() : this.getDecryptedApiKey()
+      this.client = createLLMClient(provider, { apiKey }) ?? null
     } else {
       this.client = createLLMClient(provider, {
         baseUrl: this.getLocalBaseUrl(),
@@ -486,16 +555,21 @@ export class LLMService {
   }
 
   /** Decrypt API key from store. Migrates plain-text keys to encrypted on first read. */
-  private getDecryptedApiKey(): string | null {
+  private readOpenAIKeyUncached(): string | null {
     const llm = this.store.get('llm') as { apiKey?: string; apiKeyEncrypted?: string } | undefined
     const encrypted = llm?.apiKeyEncrypted
     const plain = llm?.apiKey
 
-    if (encrypted && safeStorage.isEncryptionAvailable()) {
+    if (encrypted) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        log.error('OpenAI key: safeStorage unavailable (called before app ready?)')
+        return null
+      }
       try {
         const buf = Buffer.from(encrypted, 'base64')
         return safeStorage.decryptString(buf)
-      } catch {
+      } catch (err) {
+        log.error('OpenAI key: decrypt failed — re-enter the key', err)
         return null
       }
     }
@@ -515,16 +589,59 @@ export class LLMService {
     return null
   }
 
+  /** Decrypt the Gemini key. Same encrypted-at-rest scheme as the OpenAI key. */
+  private readGeminiKeyUncached(): string | null {
+    const llm = this.store.get('llm') as
+      | { geminiApiKey?: string; geminiApiKeyEncrypted?: string }
+      | undefined
+    const encrypted = llm?.geminiApiKeyEncrypted
+    if (encrypted) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        log.error('Gemini key: safeStorage unavailable (called before app ready?)')
+        return null
+      }
+      try {
+        return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+      } catch (err) {
+        log.error('Gemini key: decrypt failed — re-enter the key', err)
+        return null
+      }
+    }
+    return llm?.geminiApiKey?.trim() || null
+  }
+
+  private setGeminiApiKey(apiKey: string): boolean {
+    if (!apiKey.trim()) return false
+    this.keyCache.delete('gemini')
+    if (safeStorage.isEncryptionAvailable()) {
+      try {
+        const buf = safeStorage.encryptString(apiKey)
+        this.store.set('llm.geminiApiKeyEncrypted' as any, buf.toString('base64'))
+        this.store.delete('llm.geminiApiKey' as any)
+        return true
+      } catch {
+        // fall through to plain
+      }
+    }
+    this.store.set('llm.geminiApiKey' as any, apiKey)
+    return true
+  }
+
   /** Decrypt the Anthropic key. Same encrypted-at-rest scheme as the OpenAI key. */
-  private getAnthropicApiKey(): string | null {
+  private readAnthropicKeyUncached(): string | null {
     const llm = this.store.get('llm') as
       | { anthropicApiKey?: string; anthropicApiKeyEncrypted?: string }
       | undefined
     const encrypted = llm?.anthropicApiKeyEncrypted
-    if (encrypted && safeStorage.isEncryptionAvailable()) {
+    if (encrypted) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        log.error('Anthropic key: safeStorage unavailable (called before app ready?)')
+        return null
+      }
       try {
         return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
-      } catch {
+      } catch (err) {
+        log.error('Anthropic key: decrypt failed — re-enter the key', err)
         return null
       }
     }
@@ -533,6 +650,7 @@ export class LLMService {
 
   private setAnthropicApiKey(apiKey: string): boolean {
     if (!apiKey.trim()) return false
+    this.keyCache.delete('anthropic')
     if (safeStorage.isEncryptionAvailable()) {
       try {
         const buf = safeStorage.encryptString(apiKey)
@@ -550,6 +668,7 @@ export class LLMService {
   /** Encrypt and store API key. */
   private setEncryptedApiKey(apiKey: string): boolean {
     if (!apiKey.trim()) return false
+    this.keyCache.delete('openai')
     if (safeStorage.isEncryptionAvailable()) {
       try {
         const buf = safeStorage.encryptString(apiKey)
@@ -569,12 +688,9 @@ export class LLMService {
     this.window = window
   }
 
-  /** Called when a meeting session starts/stops so persisted conversations link to the right meeting. */
+  /** Called when a meeting session starts/stops. */
   setMeetingSessionId(id: string | null): void {
     this.activeMeetingSessionId = id
-    if (this.conversationMessages.length > 0) {
-      this.persistConversation()
-    }
   }
 
   registerIpcHandlers(): void {
@@ -639,8 +755,10 @@ export class LLMService {
         // Claude model picked while a different provider is active — ignore it
         return { success: false, model: this.currentModel }
       }
-      if (provider === 'openai') {
-        if (MODEL_CONFIGS[modelId as ModelId]) {
+      if (provider === 'openai' || provider === 'gemini') {
+        // Each cloud provider only accepts its own model ids
+        const belongs = provider === 'gemini' ? isGeminiModel(modelId) : !isGeminiModel(modelId)
+        if (belongs && MODEL_CONFIGS[modelId as ModelId]) {
           this.currentModel = modelId
           this.store.set('llm.defaultModel' as any, modelId)
           return { success: true, model: this.currentModel }
@@ -655,14 +773,15 @@ export class LLMService {
 
     // ── API key (encrypted via safeStorage; only for OpenAI) ──
     ipcMain.handle('llm:set-api-key', (_event, apiKey: string) => {
-      this.setEncryptedApiKey(apiKey)
+      // Report whether the key was *stored*. initClient only builds an OpenAI
+      // client when OpenAI is the active provider, so `!!this.client` would
+      // report failure for a perfectly good key saved while on another provider.
+      const ok = this.setEncryptedApiKey(apiKey)
       this.initClient()
-      return { success: !!this.client }
+      return { success: ok }
     })
 
-    ipcMain.handle('llm:has-api-key', () => {
-      return !!this.client
-    })
+    ipcMain.handle('llm:has-api-key', () => !!this.getDecryptedApiKey())
 
     // ── Anthropic API key (Claude models live alongside the OpenAI ones) ──
     ipcMain.handle('llm:set-anthropic-api-key', (_event, apiKey: string) => {
@@ -671,6 +790,15 @@ export class LLMService {
     })
 
     ipcMain.handle('llm:has-anthropic-api-key', () => !!this.getAnthropicApiKey())
+
+    // ── Gemini API key (OpenAI-compatible endpoint, own key) ──
+    ipcMain.handle('llm:set-gemini-api-key', (_event, apiKey: string) => {
+      const ok = this.setGeminiApiKey(apiKey)
+      this.initClient()
+      return { success: ok }
+    })
+
+    ipcMain.handle('llm:has-gemini-api-key', () => !!this.getGeminiApiKey())
 
     // ── Provider (OpenAI vs Ollama vs LM Studio) ──
     ipcMain.handle('llm:get-provider', () => this.getProvider())
@@ -682,8 +810,14 @@ export class LLMService {
       if (provider === 'anthropic' && !isAnthropicModel(this.currentModel)) {
         this.currentModel = DEFAULT_ANTHROPIC_MODEL
         this.store.set('llm.defaultModel' as any, this.currentModel)
-      } else if (provider === 'openai' && isAnthropicModel(this.currentModel)) {
-        this.currentModel = 'gpt-5-mini'
+      } else if (provider === 'gemini' && !isGeminiModel(this.currentModel)) {
+        this.currentModel = DEFAULT_GEMINI_MODEL
+        this.store.set('llm.defaultModel' as any, this.currentModel)
+      } else if (
+        provider === 'openai' &&
+        (isAnthropicModel(this.currentModel) || isGeminiModel(this.currentModel))
+      ) {
+        this.currentModel = 'gpt-5.6-terra'
         this.store.set('llm.defaultModel' as any, this.currentModel)
       }
       return { success: true, provider, model: this.currentModel }
@@ -791,9 +925,7 @@ export class LLMService {
           }
         }
         if (!this.client) {
-          const msg = this.getProvider() === 'openai'
-            ? 'API key not configured'
-            : 'Ollama or LM Studio not running. Start the app and try again.'
+          const msg = this.noClientMessage()
           return { success: false, error: msg }
         }
         if (this.transcriptMemory.isSummarizationInProgress()) {
@@ -825,7 +957,7 @@ export class LLMService {
     ipcMain.handle(
       'llm:web-search',
       async (_event, query: string) => {
-        if (this.isLocalProvider()) {
+        if (this.getProvider() !== 'openai') {
           return { content: '', error: 'Web search requires OpenAI. Switch to OpenAI in LLM settings.' }
         }
         if (!this.client) {
@@ -845,9 +977,7 @@ export class LLMService {
         payload: { prompt: string; transcriptEntries?: Array<{ id: string; speaker: string; text: string; startTime: number; endTime: number; source?: string }> },
       ) => {
         if (!this.client) {
-          const msg = this.getProvider() === 'openai'
-            ? 'API key not configured'
-            : 'Ollama or LM Studio not running.'
+          const msg = this.noClientMessage()
           return { content: '', error: msg }
         }
         const { prompt, transcriptEntries = [] } = payload ?? {}
@@ -856,7 +986,7 @@ export class LLMService {
         }
         return runSuggestFollowUp(this.client, prompt.trim(), transcriptEntries, {
           model: this.getEffectiveModelConfig().apiModel,
-          stripOpenAIParams: this.isLocalProvider(),
+          stripOpenAIParams: this.stripsOpenAIParams(),
         })
       },
     )
@@ -871,7 +1001,7 @@ export class LLMService {
           if (!sender.isDestroyed()) sender.send(channel, data)
         }
 
-        if (this.isLocalProvider()) {
+        if (this.getProvider() !== 'openai') {
           send('llm:web-search-error', {
             requestId,
             error: 'Web search requires OpenAI. Switch to OpenAI in LLM settings.',
@@ -923,9 +1053,7 @@ export class LLMService {
     if (anthropicModel ? !anthropicKey : !this.client) {
       const msg = anthropicModel
         ? 'Anthropic API key not configured. Open the LLM tab to set your Claude key.'
-        : this.getProvider() === 'openai'
-          ? 'API key not configured. Open the LLM tab to set your OpenAI key.'
-          : 'Ollama or LM Studio not running. Start the app and try again.'
+        : this.noClientMessage()
       this.sendError(request.requestId, msg, 'API_ERROR', false)
       return
     }
@@ -993,9 +1121,6 @@ export class LLMService {
       log.info(`[llm] User message includes ${imgCount} image attachment(s)`)
     }
 
-    // Persist user message to disk
-    this.persistConversation()
-
     // Create abort controller
     const abortController = new AbortController()
     this.activeRequests.set(request.requestId, abortController)
@@ -1013,26 +1138,22 @@ export class LLMService {
       stream_options: { include_usage: true },
     }
 
-    // OpenAI-specific params — omit for local providers and for Claude
-    if (!this.isLocalProvider() && !anthropicModel) {
-      const reasoningEffort = this.currentModel === 'gpt-5.2' ? 'none' : 'low'
-      const isFlagshipGpt5 = this.currentModel === 'gpt-5.2'
+    // OpenAI-specific params — omit for local providers, Claude, and Gemini
+    // (Gemini's OpenAI-compatible endpoint rejects reasoning_effort / prompt_cache_key)
+    if (this.getProvider() === 'openai' && !anthropicModel) {
+      const isFlagshipGpt5 = this.currentModel === 'gpt-5.6-sol'
       Object.assign(requestParams, {
         prompt_cache_key: this.sessionId,
         ...(isFlagshipGpt5 && { prompt_cache_retention: '24h' }),
-        reasoning_effort: reasoningEffort,
+        // 'none' = no thinking pass before the first token; lowest latency
+        reasoning_effort: 'none',
       })
     }
 
     const startTime = Date.now()
 
     try {
-      await propagateAttributes(
-        {
-          userId: this.getDeviceUserId(),
-          sessionId: this.sessionId,
-        },
-        async () => {
+      await (async () => {
           let fullContent = ''
           let chunkIndex = 0
           let usage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
@@ -1089,15 +1210,11 @@ export class LLMService {
           }
           this.conversationMessages.push(assistantMsg)
 
-          // Persist assistant message to disk
-          this.persistConversation()
-
           this.sendDone(request.requestId, fullContent, usage, startTime)
 
           // Phase 2: maybe trigger background summarization (async, non-blocking)
           this.maybeTriggerSummarization(modelConfig.contextWindow)
-        },
-      )
+        })()
     } catch (err: any) {
       // Remove the user message from conversation on error
       // (so the user can retry without duplicates)
@@ -1559,9 +1676,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     keepRawCount?: number,
   ): Promise<{ summary: string | null; error?: string }> {
     if (!this.client) {
-      const msg = this.getProvider() === 'openai'
-        ? 'API key not configured'
-        : 'Ollama or LM Studio not running.'
+      const msg = this.noClientMessage()
       return { summary: null, error: msg }
     }
     const { summarizerSystemPrompt } = this.getSummarizationConfig()
@@ -1571,7 +1686,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
       transcriptMemory: this.transcriptMemory,
       entries,
       model: modelConfig.apiModel,
-      stripOpenAIParams: this.isLocalProvider(),
+      stripOpenAIParams: this.stripsOpenAIParams(),
       keepRawCount,
       systemPrompt: summarizerSystemPrompt,
       userId: this.getDeviceUserId(),
@@ -1742,7 +1857,6 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
       tokenCount: this.tokenCounter.count(assistantContent),
     }
     this.conversationMessages.push(userMsg, assistantMsg)
-    this.persistConversation()
   }
 
   // ── System Prompt CRUD ──
@@ -1819,33 +1933,27 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     return { success: true }
   }
 
-  // ── Conversation Persistence ──
+  // ── Conversation cleanup ──
 
-  private persistConversation(): void {
+  /**
+   * One-time cleanup: conversations used to be persisted into electron-store
+   * after every message, with nothing ever reading them back. The blob grew to
+   * 118MB inside config.json, and electron-store re-parses that whole file on
+   * every store.get() — seconds-long main-thread stalls on each settings read.
+   * Conversations are session-scoped and in-memory only now; delete the key.
+   */
+  private cleanupLegacyConversations(): void {
     try {
-      const llm = this.store.get('llm') as { activeSystemPromptId?: string | null } | undefined
-      const conversation: PersistedConversation = {
-        sessionId: this.sessionId,
-        meetingSessionId: this.activeMeetingSessionId,
-        messages: this.conversationMessages,
-        createdAt: this.conversationMessages[0]?.timestamp ?? Date.now(),
-        lastMessageAt:
-          this.conversationMessages[this.conversationMessages.length - 1]?.timestamp ?? Date.now(),
-        systemPromptId: llm?.activeSystemPromptId ?? null,
-        model: this.currentModel,
+      if (this.store.has('conversations' as any)) {
+        log.warn('Deleting legacy conversations blob from config.json')
+        this.store.delete('conversations' as any)
       }
-      this.store.set(`conversations.${this.sessionId}` as any, conversation)
     } catch (err) {
-      log.error('[llm-service] Failed to persist conversation:', err)
+      log.error('[llm-service] Legacy conversations cleanup failed:', err)
     }
   }
 
   destroy(): void {
-    // Persist final conversation state before shutdown
-    if (this.conversationMessages.length > 0) {
-      this.persistConversation()
-    }
-
     for (const controller of this.activeRequests.values()) {
       controller.abort()
     }

@@ -18,6 +18,7 @@ import { useOverlayUiStore } from '../stores/overlay-ui-store'
 const PROVIDER_OPTIONS: { id: LLMProvider; label: string }[] = [
   { id: 'openai', label: 'OpenAI' },
   { id: 'anthropic', label: 'Anthropic' },
+  { id: 'gemini', label: 'Gemini' },
   { id: 'ollama', label: 'Ollama' },
   { id: 'lmstudio', label: 'LM Studio' },
 ]
@@ -55,10 +56,13 @@ export function LLMView() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [hasAnthropicKey, setHasAnthropicKey] = useState(false)
+  const [hasGeminiKey, setHasGeminiKey] = useState(false)
+  const [geminiKeyInput, setGeminiKeyInput] = useState('')
+  const [geminiKeyStatus, setGeminiKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [anthropicKeyInput, setAnthropicKeyInput] = useState('')
   const [anthropicKeyStatus, setAnthropicKeyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [temperature, setTemperature] = useState(0.3)
-  const [currentModel, setCurrentModel] = useState<string>('gpt-5-mini')
+  const [currentModel, setCurrentModel] = useState<string>('gpt-5.6-terra')
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([])
   const [activePromptId, setActivePromptId] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<SystemPrompt | null>(null)
@@ -86,6 +90,17 @@ export function LLMView() {
   const [newQuickActionValue, setNewQuickActionValue] = useState('')
   const [newQuickActionIcon, setNewQuickActionIcon] = useState<string>('pencil')
   const [showNewQuickAction, setShowNewQuickAction] = useState(false)
+  const [dragQuickActionIndex, setDragQuickActionIndex] = useState(-1)
+
+  /** Move a quick action to a new position and persist. Order = chip order; [0] is the Option+Z action. */
+  const moveQuickAction = (from: number, to: number) => {
+    const base = quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS
+    if (from < 0 || to < 0 || from === to || to >= base.length) return
+    const updated = [...base]
+    updated.splice(to, 0, ...updated.splice(from, 1))
+    setQuickActions(updated)
+    window.electronAPI?.updateSettings({ llm: { quickActions: updated } } as any)
+  }
 
   // Usage/cost tracking (Phase 3)
   const [usageStats, setUsageStats] = useState<{
@@ -104,13 +119,14 @@ export function LLMView() {
     api.llmGetLocalBaseUrl?.().then((url) => setLocalBaseUrl(url || ''))
     api.llmHasApiKey().then(setHasApiKey)
     api.llmHasAnthropicApiKey?.().then(setHasAnthropicKey)
-    api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5-mini'))
-    api.getSettings().then((s) => {
-      if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
-    })
+    api.llmHasGeminiApiKey?.().then(setHasGeminiKey)
+    api.llmGetModel().then((m) => setCurrentModel(m || 'gpt-5.6-terra'))
     api.llmGetSystemPrompts().then(setSystemPrompts)
     api.llmGetActiveSystemPrompt().then(setActivePromptId)
+    // One getSettings for everything — this ran twice, and the whole settings
+    // blob is serialized across IPC each time.
     api.getSettings().then((s) => {
+      if (s?.llm?.temperature !== undefined) setTemperature(s.llm.temperature)
       if (s?.llm?.summarization) setSummarization(s.llm.summarization)
       if (s?.llm?.quickActions) setQuickActions(s.llm.quickActions)
       if (s?.llm?.defaultSystemPromptOverride !== undefined) setDefaultSystemPromptOverride(s.llm.defaultSystemPromptOverride)
@@ -146,6 +162,7 @@ export function LLMView() {
       setProvider(p)
       setHasApiKey(!!(await window.electronAPI?.llmHasApiKey?.()))
       setHasAnthropicKey(!!(await window.electronAPI?.llmHasAnthropicApiKey?.()))
+      setHasGeminiKey(!!(await window.electronAPI?.llmHasGeminiApiKey?.()))
       if (result.model) setCurrentModel(result.model)
       if (p === 'ollama' || p === 'lmstudio') {
         const url = await window.electronAPI?.llmGetLocalBaseUrl?.()
@@ -206,6 +223,24 @@ export function LLMView() {
       setTimeout(() => setApiKeyStatus('idle'), 2000)
     }
   }, [apiKeyInput])
+
+  const handleSaveGeminiKey = useCallback(async () => {
+    if (!geminiKeyInput.trim()) return
+    setGeminiKeyStatus('saving')
+    try {
+      const result = await window.electronAPI?.llmSetGeminiApiKey?.(geminiKeyInput.trim())
+      if (result?.success) {
+        setHasGeminiKey(true)
+        setGeminiKeyStatus('saved')
+        setGeminiKeyInput('')
+      } else {
+        setGeminiKeyStatus('error')
+      }
+    } catch {
+      setGeminiKeyStatus('error')
+    }
+    setTimeout(() => setGeminiKeyStatus('idle'), 2000)
+  }, [geminiKeyInput])
 
   const handleSaveAnthropicKey = useCallback(async () => {
     if (!anthropicKeyInput.trim()) return
@@ -378,7 +413,7 @@ export function LLMView() {
               </div>
               {apiKeyStatus === 'error' && (
                 <span className="text-[10px]" style={{ color: 'var(--error)' }}>
-                  Failed to save key. Check format.
+                  Failed to save key. See the app log for details.
                 </span>
               )}
               <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
@@ -440,11 +475,72 @@ export function LLMView() {
               </div>
               {anthropicKeyStatus === 'error' && (
                 <span className="text-[10px]" style={{ color: 'var(--error)' }}>
-                  Failed to save key. Check format.
+                  Failed to save key. See the app log for details.
                 </span>
               )}
               <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                 Your key is stored locally and never sent anywhere except Anthropic.
+              </p>
+            </div>
+          )}
+        </div>
+      </Section>
+      )}
+
+      {provider === 'gemini' && (
+      <Section title="Gemini API Key">
+        <div className="space-y-2">
+          {hasGeminiKey ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: 'var(--success)' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text)' }}>
+                  API key configured
+                </span>
+              </div>
+              <button
+                onClick={() => setHasGeminiKey(false)}
+                className="text-[10px] px-2 py-0.5 rounded-md border transition-colors hover:brightness-110"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveGeminiKey()}
+                  placeholder="AIza..."
+                  className="flex-1 bg-transparent outline-none text-xs px-2.5 py-1.5 rounded-lg border transition-colors focus:border-[var(--accent)]"
+                  style={{
+                    color: 'var(--text)',
+                    borderColor: 'var(--input-border)',
+                    backgroundColor: 'var(--input-bg)',
+                  }}
+                />
+                <button
+                  onClick={handleSaveGeminiKey}
+                  disabled={!geminiKeyInput.trim() || geminiKeyStatus === 'saving'}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 disabled:opacity-40"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                >
+                  {geminiKeyStatus === 'saving' ? '...' : 'Save'}
+                </button>
+              </div>
+              {geminiKeyStatus === 'error' && (
+                <span className="text-[10px]" style={{ color: 'var(--error)' }}>
+                  Failed to save key. See the app log for details.
+                </span>
+              )}
+              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Your key is stored locally and never sent anywhere except Google.
               </p>
             </div>
           )}
@@ -608,7 +704,9 @@ export function LLMView() {
           </div>
         ) : (
         <div className="flex gap-1.5">
-          {modelOptionsForProvider(provider === 'anthropic' ? 'anthropic' : 'openai').map((opt) => {
+          {modelOptionsForProvider(
+            provider === 'anthropic' || provider === 'gemini' ? provider : 'openai',
+          ).map((opt) => {
             const isActive = currentModel === opt.id
             return (
               <button
@@ -787,6 +885,7 @@ export function LLMView() {
         <div className="space-y-2">
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
             Add quick action chips. Label = button text, Value = message sent.
+            Drag to reorder — the first one is sent by ⌥Z.
           </p>
           {(quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS).map((a, i) => {
             const isEditing = editingQuickActionIndex === i
@@ -863,7 +962,16 @@ export function LLMView() {
             }
 
             return (
-              <div key={`${a.value}-${i}`} className="flex items-center gap-1.5">
+              <div
+                key={`${a.value}-${i}`}
+                className="flex items-center gap-1.5"
+                draggable
+                onDragStart={() => setDragQuickActionIndex(i)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => moveQuickAction(dragQuickActionIndex, i)}
+                onDragEnd={() => setDragQuickActionIndex(-1)}
+                style={{ opacity: dragQuickActionIndex === i ? 0.4 : 1, cursor: 'grab' }}
+              >
                 <div
                   className="flex-1 flex items-center gap-2 px-2.5 py-2 rounded-lg border min-w-0"
                   style={{
@@ -871,6 +979,24 @@ export function LLMView() {
                     borderColor: 'var(--border)',
                   }}
                 >
+                  {/* Grip: also the keyboard path for reordering (drag alone isn't accessible) */}
+                  <button
+                    type="button"
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp') { e.preventDefault(); moveQuickAction(i, i - 1) }
+                      if (e.key === 'ArrowDown') { e.preventDefault(); moveQuickAction(i, i + 1) }
+                    }}
+                    className="shrink-0 cursor-grab"
+                    style={{ color: 'var(--text-muted)', opacity: 0.5 }}
+                    title="Drag to reorder (or focus and press ↑ / ↓)"
+                    aria-label={`Reorder ${a.label}`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+                      <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+                      <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+                    </svg>
+                  </button>
                   <span style={{ opacity: 0.6 }}>{getQuickActionIcon(a.icon, a.value)}</span>
                   <span className="text-xs font-medium truncate">{a.label}</span>
                   <span

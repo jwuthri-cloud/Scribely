@@ -41,7 +41,9 @@ async function syncModelSelector(provider?: string): Promise<void> {
     }
   } else {
     store.setModelOptions(
-      modelOptionsForProvider(provider === 'anthropic' ? 'anthropic' : 'openai').map((m) => ({
+      modelOptionsForProvider(
+        provider === 'anthropic' || provider === 'gemini' ? provider : 'openai',
+      ).map((m) => ({
         id: m.id,
         label: m.label,
       })),
@@ -271,7 +273,7 @@ export function Overlay() {
 
   // ── Load current model ──
   useEffect(() => {
-    window.electronAPI?.llmGetModel().then((m) => useOverlayUiStore.getState().setCurrentModel(m || 'gpt-5-mini'))
+    window.electronAPI?.llmGetModel().then((m) => useOverlayUiStore.getState().setCurrentModel(m || 'gpt-5.6-terra'))
   }, [])
 
   // ── Load summarization status ──

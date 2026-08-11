@@ -26,9 +26,11 @@ export interface ElectronAPI {
   llmHasApiKey: () => Promise<boolean>
   llmSetAnthropicApiKey: (apiKey: string) => Promise<{ success: boolean }>
   llmHasAnthropicApiKey: () => Promise<boolean>
+  llmSetGeminiApiKey: (apiKey: string) => Promise<{ success: boolean }>
+  llmHasGeminiApiKey: () => Promise<boolean>
   llmGetProvider: () => Promise<string>
   llmSetProvider: (
-    provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio',
+    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'lmstudio',
   ) => Promise<{ success: boolean; provider: string; model?: string }>
   llmGetLocalBaseUrl: () => Promise<string>
   llmSetLocalBaseUrl: (baseUrl: string) => Promise<{ success: boolean }>
@@ -289,6 +291,9 @@ export interface ElectronAPI {
   // ── Focus chat input ─────────────────────────────
   onFocusChatInput: (callback: () => void) => () => void
 
+  // ── Fill chat input (quick action hotkey) ────────
+  onFillChatInput: (callback: (text: string) => void) => () => void
+
   // ── Invisibility ──────────────────────────────
   toggleInvisibility: () => Promise<boolean>
   getInvisibility: () => Promise<boolean>
@@ -374,8 +379,16 @@ const api: ElectronAPI = {
     return ipcRenderer.invoke('llm:has-anthropic-api-key')
   },
 
+  llmSetGeminiApiKey: (apiKey: string) => {
+    return ipcRenderer.invoke('llm:set-gemini-api-key', apiKey)
+  },
+
+  llmHasGeminiApiKey: () => {
+    return ipcRenderer.invoke('llm:has-gemini-api-key')
+  },
+
   llmGetProvider: () => ipcRenderer.invoke('llm:get-provider'),
-  llmSetProvider: (provider: 'openai' | 'anthropic' | 'ollama' | 'lmstudio') =>
+  llmSetProvider: (provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'lmstudio') =>
     ipcRenderer.invoke('llm:set-provider', provider),
   llmGetLocalBaseUrl: () => ipcRenderer.invoke('llm:get-local-base-url'),
   llmSetLocalBaseUrl: (baseUrl: string) =>
@@ -954,6 +967,13 @@ const api: ElectronAPI = {
     const handler = () => callback()
     ipcRenderer.on('focus-chat-input', handler)
     return () => ipcRenderer.removeListener('focus-chat-input', handler)
+  },
+
+  // ── Fill chat input (quick action hotkey) ────────
+  onFillChatInput: (callback) => {
+    const handler = (_e: unknown, text: string) => callback(text)
+    ipcRenderer.on('fill-chat-input', handler)
+    return () => ipcRenderer.removeListener('fill-chat-input', handler)
   },
 
   // ── Invisibility ──────────────────────────────

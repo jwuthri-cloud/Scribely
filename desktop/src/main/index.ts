@@ -54,6 +54,7 @@ interface HotkeyConfig {
   resetChat: string
   toggleMeeting: string
   focusChatInput: string
+  quickAction1: string
 }
 
 interface TranscriptionSettings {
@@ -134,6 +135,7 @@ const store = new Store<AppSettings>({
       resetChat: 'Alt+R',
       toggleMeeting: 'Alt+M',
       focusChatInput: 'Alt+Enter',
+      quickAction1: 'Alt+Z',
     },
     moveStepPx: 50,
     windowOpacity: 0.85,
@@ -148,7 +150,7 @@ const store = new Store<AppSettings>({
     },
     llm: {
       apiKey: '',
-      defaultModel: 'gpt-5-mini',
+      defaultModel: 'gpt-5.6-terra',
       temperature: 0.3,
       activeSystemPromptId: null,
       systemPrompts: [],
@@ -182,6 +184,9 @@ if (!storedHotkeys.toggleMeeting) {
 }
 if (!storedHotkeys.focusChatInput) {
   store.set('hotkeys.focusChatInput' as any, 'Alt+Enter')
+}
+if (!storedHotkeys.quickAction1) {
+  store.set('hotkeys.quickAction1' as any, 'Alt+Z')
 }
 
 // Migrate: transcription from legacy (provider) to new (mode, localModel, cloudProvider)
@@ -1034,7 +1039,6 @@ app.whenReady().then(async () => {
 
   // Initialize audio pipeline (registers its own IPC handlers)
   audioPipeline.registerIpcHandlers()
-  await audioPipeline.init()
 
   // Wire Live Insights to pipeline
   audioPipeline.setOnTranscriptEntry((entry) => {
@@ -1095,6 +1099,12 @@ app.whenReady().then(async () => {
 
   createWindow()
   createTray()
+
+  // Loads Whisper (488MB–1.6GB) + Silero VAD. Deliberately NOT awaited: this used
+  // to run before createWindow(), so the app showed nothing until the model was in
+  // memory. Session start reloads whichever half isn't ready yet.
+  void audioPipeline.init()
+
   startAutoUpdater(() => mainWindow)
 
   // When user signs in, flush any pending uploads (fresh token available)

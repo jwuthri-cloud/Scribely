@@ -208,9 +208,9 @@ Older installed builds keep using whatever **`publish`** configuration was compi
 
 | Model | Context Window | Max Response |
 |-------|---------------|--------------|
-| `gpt-5-nano` | 400K tokens | 128K tokens |
-| `gpt-5-mini` | 400K tokens | 128K tokens |
-| `gpt-5.2` | 1.05M tokens | 128K tokens |
+| `gpt-5.6-luna` | 400K tokens | 128K tokens |
+| `gpt-5.6-terra` | 400K tokens | 128K tokens |
+| `gpt-5.6-sol` | 1.05M tokens | 128K tokens |
 
 ---
 
@@ -909,7 +909,7 @@ Same flow for Frontend (Next.js):
 | **Desktop** | [GitHub Releases](https://github.com/Jwuthri/Scribely-Release/releases) (DMG + updater feed) | `electron-builder`, `electron-updater`, macOS signing & notarization |
 | **Extension** | Chrome Web Store | Packed as `extension_*.zip` |
 | **Auth** | Clerk (SaaS) | Google OAuth, JWT, JWKS |
-| **LLM (Desktop)** | OpenAI Direct | gpt-5-nano, mini, 5.2 |
+| **LLM (Desktop)** | OpenAI Direct | gpt-5.6 luna, terra, sol |
 | **LLM (Backend)** | OpenRouter | Via LangChain ChatOpenAI |
 | **Observability** | Langfuse | Both desktop (OTEL) and backend |
 

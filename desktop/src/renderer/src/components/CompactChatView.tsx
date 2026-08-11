@@ -75,7 +75,7 @@ export const CompactChatView = memo(function CompactChatView({
   isRecording = false,
   onToggleRecording,
   onToggleCompactMode,
-  currentModel = 'gpt-5-mini',
+  currentModel = 'gpt-5.6-terra',
   onModelChange,
   modelOptions,
   sttTranscript,

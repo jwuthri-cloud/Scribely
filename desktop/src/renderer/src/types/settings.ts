@@ -10,6 +10,7 @@ export interface HotkeyConfig {
   resetChat: string
   toggleMeeting: string
   focusChatInput: string
+  quickAction1: string
 }
 
 export const DEFAULT_HOTKEYS: HotkeyConfig = {
@@ -23,6 +24,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig = {
   resetChat: 'Alt+R',
   toggleMeeting: 'Alt+M',
   focusChatInput: 'Alt+Enter',
+  quickAction1: 'Alt+Z',
 }
 
 // ── Transcription Provider Settings ─────────────────────
@@ -84,7 +86,7 @@ export function deriveTranscriptionProvider(settings: TranscriptionSettings): Tr
 }
 
 // ── LLM Settings ────────────────────────────────────────
-export type LLMProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio'
+export type LLMProvider = 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'lmstudio'
 
 export type ModelId =
   | 'gpt-5.6-luna'
@@ -92,6 +94,8 @@ export type ModelId =
   | 'gpt-5.6-sol'
   | 'claude-sonnet-5'
   | 'claude-opus-5'
+  | 'gemini-3.5-flash-lite'
+  | 'gemini-3.6-flash'
 
 /** Local model info from Ollama/LM Studio API */
 export interface LocalModelInfo {
@@ -104,7 +108,7 @@ export interface LocalModelInfo {
 export interface ModelConfig {
   id: ModelId
   /** Which cloud provider serves this model */
-  provider: 'openai' | 'anthropic'
+  provider: 'openai' | 'anthropic' | 'gemini'
   apiModel: string
   contextWindow: number
   maxResponseTokens: number
@@ -158,11 +162,29 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
     label: 'Opus',
     description: 'Claude Opus 5 — highest capability',
   },
+  'gemini-3.5-flash-lite': {
+    id: 'gemini-3.5-flash-lite',
+    provider: 'gemini',
+    apiModel: 'gemini-3.5-flash-lite',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
+    label: 'Flash Lite',
+    description: 'Gemini 3.5 Flash-Lite — fastest, cheapest',
+  },
+  'gemini-3.6-flash': {
+    id: 'gemini-3.6-flash',
+    provider: 'gemini',
+    apiModel: 'gemini-3.6-flash',
+    contextWindow: 1_000_000,
+    maxResponseTokens: 64_000,
+    label: 'Flash',
+    description: 'Gemini 3.6 Flash — balanced',
+  },
 }
 
 /** Model options for the selector, per cloud provider, in display order. */
 export function modelOptionsForProvider(
-  provider: 'openai' | 'anthropic',
+  provider: 'openai' | 'anthropic' | 'gemini',
 ): { id: ModelId; label: string; description: string }[] {
   return Object.values(MODEL_CONFIGS)
     .filter((m) => m.provider === provider)
@@ -174,12 +196,14 @@ export const MODEL_PRICING: Record<
   ModelId,
   { inputPer1M: number; outputPer1M: number; cachedPer1M: number }
 > = {
-  'gpt-5.6-luna': { inputPer1M: 0.20, outputPer1M: 1.25, cachedPer1M: 0.02 },
-  'gpt-5.6-terra': { inputPer1M: 0.75, outputPer1M: 4.5, cachedPer1M: 0.075 },
-  'gpt-5.6-sol': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.6-luna': { inputPer1M: 1.0, outputPer1M: 6.0, cachedPer1M: 0.1 },
+  'gpt-5.6-terra': { inputPer1M: 2.5, outputPer1M: 15.0, cachedPer1M: 0.25 },
+  'gpt-5.6-sol': { inputPer1M: 5.0, outputPer1M: 30.0, cachedPer1M: 0.5 },
   // Anthropic: cached = cache-read (0.1x input)
   'claude-sonnet-5': { inputPer1M: 3.0, outputPer1M: 15.0, cachedPer1M: 0.3 },
   'claude-opus-5': { inputPer1M: 5.0, outputPer1M: 25.0, cachedPer1M: 0.5 },
+  'gemini-3.5-flash-lite': { inputPer1M: 0.30, outputPer1M: 2.5, cachedPer1M: 0.03 },
+  'gemini-3.6-flash': { inputPer1M: 1.5, outputPer1M: 7.5, cachedPer1M: 0.15 },
 }
 
 export function estimateMessageCost(
@@ -343,7 +367,7 @@ export interface LLMSettings {
   /** Base URL for local providers (e.g. http://localhost:11434) */
   localBaseUrl?: string
   apiKey: string
-  /** For OpenAI: gpt-5-nano, gpt-5-mini, gpt-5.2. For local: model name from API */
+  /** For OpenAI: gpt-5.6-luna, gpt-5.6-terra, gpt-5.6-sol. For local: model name from API */
   defaultModel: string
   temperature: number
   /** ID of the active system prompt, or null for no system prompt */
@@ -363,7 +387,7 @@ export interface LLMSettings {
 export const DEFAULT_LLM: LLMSettings = {
   provider: 'openai',
   apiKey: '',
-  defaultModel: 'gpt-5-mini',
+  defaultModel: 'gpt-5.6-terra',
   temperature: 0.3,
   activeSystemPromptId: null,
   systemPrompts: [],
@@ -476,4 +500,5 @@ export const HOTKEY_LABELS: Record<keyof HotkeyConfig, string> = {
   resetChat: 'Reset Chat',
   toggleMeeting: 'Toggle Meeting',
   focusChatInput: 'Focus Ask Anything',
+  quickAction1: 'First Quick Action',
 }
