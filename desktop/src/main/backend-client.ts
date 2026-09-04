@@ -180,11 +180,14 @@ export class BackendClient {
         reject(new Error(`Request to ${path} failed: ${err.message}`))
       })
 
-      // Stream the form into the request. Never form.getBuffer() here — it
-      // concatenates every part (including a possibly GB-scale recording that
-      // was itself fully read) into one giant Buffer. A 1GB webm cost ~2GB of
-      // heap per attempt; streamed, it costs ~64KB.
-      request.setHeader('Content-Length', String(form.getLengthSync()))
+      // Stream the form into the request. Two traps:
+      //  1. Never form.getBuffer() — it concatenates every part into one Buffer.
+      //  2. Without chunkedEncoding, Electron's net.ClientRequest slurps the whole
+      //     body with Buffer.concat per 64KB chunk (quadratic). A 669MB webm pegged
+      //     the main thread for minutes per attempt, then failed with
+      //     net::ERR_INVALID_ARGUMENT. Chunked streams via a data pipe instead;
+      //     Content-Length must not be set alongside it.
+      request.chunkedEncoding = true
       form.on('error', (err: Error) => {
         request.abort()
         reject(new Error(`Form stream error: ${err.message}`))

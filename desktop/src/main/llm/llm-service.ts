@@ -2,6 +2,8 @@ import OpenAI from 'openai'
 import { machineIdSync } from 'node-machine-id'
 import Store from 'electron-store'
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { join } from 'path'
+import { appendFile, mkdir } from 'fs/promises'
 import { createLogger } from '../logger'
 import { PromptAssembler } from './prompt-assembler'
 import {
@@ -316,6 +318,8 @@ export class LLMService {
 
   // Session ID for prefix cache routing (one per app session, reset on conversation reset)
   private sessionId: string = crypto.randomUUID()
+  /** ponytail: write-only chat log path, created lazily on first exchange of a session. */
+  private chatLogPath: string | null = null
 
   /** When a meeting is active, matches AudioPipeline's meeting session (persisted with conversations). */
   private activeMeetingSessionId: string | null = null
@@ -711,6 +715,7 @@ export class LLMService {
       this.sessionUsage = { promptTokens: 0, completionTokens: 0, cachedTokens: 0 }
       this.storedPrompts.clear()
       this.sessionId = crypto.randomUUID()
+      this.chatLogPath = null
     })
 
     // ── Full prompt (for debugging / transparency) ──
@@ -1771,6 +1776,32 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
     return { inputPer1M: 0, outputPer1M: 0, cachedPer1M: 0 }
   }
 
+  /**
+   * Append one Q/A exchange to a markdown file next to the recordings, so users
+   * can find past conversations in Finder. Write-only — never read back by the app.
+   */
+  private async appendChatLog(question: string, answer: string): Promise<void> {
+    try {
+      const dir = join(app.getPath('documents'), 'Scribely', 'recordings')
+      await mkdir(dir, { recursive: true })
+      if (!this.chatLogPath) {
+        const ts = new Date()
+          .toISOString()
+          .replace(/[:.]/g, '-')
+          .replace('T', '_')
+          .slice(0, 19)
+        this.chatLogPath = join(dir, `chat-${ts}.md`)
+      }
+      const time = new Date().toLocaleTimeString()
+      await appendFile(
+        this.chatLogPath,
+        `## [${time}] ${question.trim()}\n\n${answer.trim()}\n\n`,
+      )
+    } catch (err) {
+      log.warn(`[llm] chat log append failed: ${err}`)
+    }
+  }
+
   private sendDone(
     requestId: string,
     fullContent: string,
@@ -1800,6 +1831,9 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
         `[llm] No cache: ${usage.promptTokens} prompt tokens (OpenAI caching needs 1024+)`,
       )
     }
+
+    const asked = this.conversationMessages.find((m) => m.id === requestId)
+    void this.appendChatLog(asked?.rawQuery ?? asked?.content ?? '(question)', fullContent)
 
     this.safeSend('llm:chat-done', {
       requestId,
@@ -1857,6 +1891,7 @@ LANGUAGE: Produce all output (title, description, suggested action labels and pa
       tokenCount: this.tokenCounter.count(assistantContent),
     }
     this.conversationMessages.push(userMsg, assistantMsg)
+    void this.appendChatLog(`\u{1F50D} ${query}`, assistantContent)
   }
 
   // ── System Prompt CRUD ──
