@@ -290,10 +290,9 @@ function CommitField({
 function describeDocStatus(s: DocStatus | null): string {
   if (!s || s.state === 'idle') return 'Not synced yet'
   if (s.state === 'error') return `Error: ${s.error}`
-  const via = s.source === 'api' ? 'Google account' : 'Chrome extension (read-only)'
   const when = s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString() : ''
   const write = s.lastWrite ? ` · last write ${s.lastWrite.ok ? 'ok' : `failed: ${s.lastWrite.error}`}` : ''
-  return `Synced ${s.chars.toLocaleString()} chars via ${via} at ${when}${write}`
+  return `Synced ${s.chars.toLocaleString()} chars at ${when}${write}`
 }
 
 const clampInt = (v: string, min: number, max: number, dflt: number): number => {
@@ -683,7 +682,7 @@ export function InsightsView() {
                 Write results into the doc
               </span>
               <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Insert-only, at the line the agent picks. Needs the Google-account sync path.
+                Insert-only, at the line the agent picks.
               </span>
             </div>
             <Toggle on={!!insights.writeToDoc} onChange={(writeToDoc) => updateInsights({ writeToDoc })} />
@@ -713,8 +712,7 @@ export function InsightsView() {
           </div>
 
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            The doc is read through your Google account (sign in with Google) during meetings, or as a read-only
-            fallback through the Chrome extension while a tab is shared.
+            Read and written through your Google account (sign in with Google) while a meeting is active.
           </p>
         </div>
       </Section>

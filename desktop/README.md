@@ -77,7 +77,7 @@ In the desktop app: **gear icon** (Settings) → a **sliders icon** appears in t
 | Standing task | Your instruction, plain English |
 | Write results into the doc | **On** if you want the doc edited, otherwise you only get cards |
 | Task interval (s) / Doc poll (s) | How often the task runs / the doc is re-read. Min 5. Each task run is one LLM call. |
-| Status line + **Sync now** | Shows the sync source, char count, last sync time and last write result |
+| Status line + **Sync now** | Char count, last sync time, last write result, or the error |
 
 ---
 
@@ -172,11 +172,12 @@ Any `.txt`/`.md` is read line by line (`[00:01:12]`, `John Raptis:` prefixes str
 | Status: `BACKEND_API_URL not configured` / `No session token` | Path A: Scribely wasn't started with the two env vars. Path B: backend/sign-in missing. |
 | `403` on Sync now (Path B) | `documents` scope not on the Clerk Google connection |
 | Cards appear but nothing written | *Write results into the doc* is off, or status shows a write error |
+| Status: `Doc is ~N tokens; <model> handles …` | Doc bigger than the model's context — switch to gpt-5.6-sol / Gemini or trim it |
 | No transcript at all | Whisper model still downloading on first run — check the app log |
 
 ### How it works under the hood
 
-- **Read** — `src/main/doc-sync.ts` polls `documents.get` with the user's Google token (backend `GET /api/v1/integrations/google/token`, resolved from Clerk) while a meeting is active. The Chrome extension also pushes a cookie-based plain-text export as a read-only fallback when the API path isn't available.
+- **Read** — `src/main/doc-sync.ts` polls `documents.get` with the user's Google token (backend `GET /api/v1/integrations/google/token`, resolved from Clerk) while a meeting is active. @-mention chips come back resolved to names.
 - **Task** — `src/main/insights/live-task.ts` buffers transcript lines and every interval calls the LLM with the task; the doc rides in the system prompt so prefix caching absorbs it between doc changes. The model answers `{"note": …, "after": "<verbatim doc line to insert after>"}` or `{"note": null}`.
 - **Write** — `src/main/google-docs.ts` re-fetches the doc for its current layout and `revisionId`, then one `batchUpdate` inserting a new paragraph after the anchor (falling back to end of doc), guarded by `writeControl.requiredRevisionId`; on conflict it refetches and retries once. Google has no push for Docs, so "realtime" = the poll interval.
 

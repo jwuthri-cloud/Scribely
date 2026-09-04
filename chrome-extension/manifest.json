@@ -9,10 +9,6 @@
     "activeTab",
     "tabs"
   ],
-  "host_permissions": [
-    "https://docs.google.com/*",
-    "https://*.googleusercontent.com/*"
-  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

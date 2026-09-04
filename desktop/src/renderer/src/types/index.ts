@@ -38,7 +38,6 @@ export interface AuthState {
  */
 /** Mirrored from main/doc-sync.ts */
 export interface DocStatus {
-  source: 'none' | 'api' | 'extension'
   state: 'idle' | 'synced' | 'error'
   chars: number
   updatedAt: number | null

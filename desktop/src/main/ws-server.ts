@@ -225,10 +225,6 @@ export class ExtensionWsServer extends EventEmitter {
       this.emit('connected')
     }
 
-    if (msg.type === 'doc' && ws === this.captureClient) {
-      this.emit('doc', msg as { text?: string; error?: string })
-    }
-
     if (msg.type === 'capture-stopped' && ws === this.captureClient) {
       log.info('Capture client signaled stop')
       this.captureClient = null

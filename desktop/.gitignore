@@ -69,3 +69,7 @@ coverage/
 *.p12
 *.key
 .eslintcache
+
+# local test fixtures for scripts/simulate.mjs
+notes.md
+test_transcript.txt

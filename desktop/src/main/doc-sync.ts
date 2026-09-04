@@ -5,7 +5,6 @@ const log = createLogger('doc-sync')
 
 /** Mirrored in renderer/src/types/index.ts */
 export interface DocStatus {
-  source: 'none' | 'api' | 'extension'
   state: 'idle' | 'synced' | 'error'
   chars: number
   updatedAt: number | null
@@ -13,15 +12,12 @@ export interface DocStatus {
   lastWrite: { at: number; ok: boolean; error?: string } | null
 }
 
-const IDLE: DocStatus = { source: 'none', state: 'idle', chars: 0, updatedAt: null, error: null, lastWrite: null }
+const IDLE: DocStatus = { state: 'idle', chars: 0, updatedAt: null, error: null, lastWrite: null }
 
 /**
- * Keeps the live Google Doc in the LLM's context and writes task results back.
- *
- * Primary path: Google Docs API with the user's OAuth token (backend → Clerk).
- * Polls while a meeting is active. Fallback: plain-text export pushed by the
- * Chrome extension (cookie auth, read-only) — accepted only while the API path
- * has not succeeded.
+ * Keeps the live Google Doc in the LLM's context and writes task results back,
+ * via the Docs API with the user's OAuth token (backend → Clerk). Polls while a
+ * meeting is active.
  */
 export function createDocSync(opts: {
   getDocUrl: () => string
@@ -62,13 +58,13 @@ export function createDocSync(opts: {
   }
 
   let rejected: string | null = null
-  function publish(text: string, source: DocStatus['source']): void {
+  function publish(text: string): void {
     if (text !== lastText) {
       lastText = text
       rejected = opts.onText(text) || null
     }
     lastError = null
-    set({ source, state: rejected ? 'error' : 'synced', chars: text.length, updatedAt: Date.now(), error: rejected })
+    set({ state: rejected ? 'error' : 'synced', chars: text.length, updatedAt: Date.now(), error: rejected })
   }
 
   async function poll(): Promise<DocStatus> {
@@ -76,13 +72,12 @@ export function createDocSync(opts: {
     if (!id) return status
     try {
       const doc = await withToken((t) => fetchDoc(id, t))
-      publish(doc.text, 'api')
+      publish(doc.text)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      if (msg !== lastError) log.warn(`Poll failed (extension fallback stays active): ${msg}`)
+      if (msg !== lastError) log.warn(`Poll failed: ${msg}`)
       lastError = msg
-      // Keep whatever the extension gave us; only flag the error.
-      set({ state: status.source === 'extension' ? status.state : 'error', error: msg })
+      set({ state: 'error', error: msg })
     }
     return status
   }
@@ -121,16 +116,6 @@ export function createDocSync(opts: {
         return status
       }
       return poll()
-    },
-
-    /** Text pushed by the Chrome extension's export poll (fallback path). */
-    fromExtension(msg: { text?: string; error?: string }): void {
-      if (status.source === 'api') return // API path is authoritative
-      if (msg.error) {
-        set({ source: 'extension', state: 'error', error: msg.error })
-        return
-      }
-      publish(msg.text ?? '', 'extension')
     },
 
     /** Insert a task result into the doc (insert-only, revision-guarded). */

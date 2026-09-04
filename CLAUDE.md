@@ -19,7 +19,7 @@ desktop/                          # Electron overlay app (macOS only)
 │   ├── screen-recorder.ts        # Screen recording via ScreenCaptureKit
 │   ├── screenshot.ts             # Screenshot capture
 │   ├── instrumentation.ts        # Langfuse/OpenTelemetry setup (must be first import)
-│   ├── doc-sync.ts               # Live Google Doc: API poll (token via backend/Clerk) + extension fallback, status, writes
+│   ├── doc-sync.ts               # Live Google Doc: Docs API poll (token via backend/Clerk), status, writes
 │   ├── google-docs.ts            # Docs API: documents.get, revision-guarded insertAfter
 │   ├── audio/                    # Audio processing pipeline
 │   │   ├── pipeline.ts           # Central orchestrator: VAD + Whisper + frame routing

@@ -364,14 +364,7 @@ const liveAgentSettings = (): {
   writeToDoc?: boolean
 } => (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
 
-/** Tell the extension which Google Doc to poll for the cookie-based fallback (empty url = stop). */
-function sendWatchDoc(): void {
-  if (!extensionWsServer.isClientConnected) return
-  const { docUrl = '', docPollSec = 15 } = liveAgentSettings()
-  extensionWsServer.sendControl({ type: 'watch-doc', url: docUrl, pollSec: docPollSec })
-}
-
-// ── Live Google Doc: API poll (backend → Clerk → Google) with extension fallback ──
+// ── Live Google Doc: API poll (backend → Clerk → Google) ──
 const docSync = createDocSync({
   getDocUrl: () => liveAgentSettings().docUrl ?? '',
   getPollMs: () => Math.max(5, liveAgentSettings().docPollSec ?? 15) * 1000,
@@ -642,7 +635,6 @@ function registerIpcHandlers(): void {
         enrichmentEnabled: insights.enrichmentEnabled !== false,
         transcriptionLanguage,
       })
-      sendWatchDoc()
       void docSync.refresh()
     }
 
@@ -844,10 +836,7 @@ function initExtensionWsServer(): void {
     screenRecorder.startExternalRecording()
     // Tell renderer to start meeting UI (mic capture, etc.)
     safeSend('extension:auto-start-meeting', {})
-    sendWatchDoc()
   })
-
-  extensionWsServer.on('doc', (msg: { text?: string; error?: string }) => docSync.fromExtension(msg))
 
   extensionWsServer.on('disconnected', () => {
     extensionWsLog.info('Chrome extension disconnected')

@@ -4,9 +4,8 @@
 //
 //   node scripts/simulate.mjs transcript.txt            # each line spoken via macOS `say`
 //   node scripts/simulate.mjs call.mp3|mp4              # any media, decoded by ffmpeg
-//   node scripts/simulate.mjs x.txt --doc notes.md      # local file stands in for the Google Doc:
-//                                                       # pushed over WS (extension path) AND served by
-//                                                       # a fake Docs API on :9878 so write-back works.
+//   node scripts/simulate.mjs x.txt --doc notes.md      # local file stands in for the Google Doc, served by
+//                                                       # a fake Docs API on :9878 (read + write-back).
 //                                                       # Start Scribely with
 //                                                       #   SCRIBELY_DOCS_API_URL=http://127.0.0.1:9878 SCRIBELY_GOOGLE_TOKEN=x
 //   --speed 2   stream faster than real time      --port 9876
@@ -15,7 +14,7 @@
 // meeting), streams 16 kHz PCM as "Them", then stays connected until Ctrl+C
 // (which ends the meeting). Requires ffmpeg (`brew install ffmpeg`).
 import { spawn, execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync, statSync, watch, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, statSync, mkdtempSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -50,17 +49,9 @@ const control = (msg) => ws.send(new Uint8Array([0x03, ...new TextEncoder().enco
 control({ type: 'hello', source: 'chrome-extension', sampleRate: RATE })
 console.log('connected — meeting auto-started')
 
-// ── Live doc: push now, re-push on save ──
+// ── Live doc: fake Google Docs API (documents.get + batchUpdate/insertText) over a local file ──
 if (opts.doc) {
-  const push = () => {
-    control({ type: 'doc', text: readFileSync(opts.doc, 'utf8') })
-    console.log(`doc pushed: ${opts.doc}`)
-  }
-  push()
-  let t
-  watch(opts.doc, () => { clearTimeout(t); t = setTimeout(push, 150) }) // editors write in bursts
-
-  // Fake Google Docs API (documents.get + batchUpdate/insertText) over the same file.
+  // Reads the file on every request, so edits you make are picked up on Scribely's next poll.
   // Index space matches Docs: body starts at index 1, one paragraph per line, '\n' terminated.
   const lines = () => readFileSync(opts.doc, 'utf8').replace(/\n$/, '').split('\n')
   const snapshot = () => {

@@ -299,7 +299,7 @@ export interface InsightsSettings {
   insightPreset: InsightPreset
   /** Speaker filter: detect insights from you, them, or both */
   speakerFilter: SpeakerFilter
-  /** Google Doc URL read live during meetings (via the Chrome extension, user's own session) */
+  /** Google Doc URL read + written live during meetings (Docs API, user's Google token) */
   docUrl?: string
   /** Standing instruction run on a cadence against new transcript lines; results show as insight cards */
   liveTask?: string
