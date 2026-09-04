@@ -53,6 +53,24 @@ describe('PromptAssembler', () => {
     expect(firstUser).toBeDefined()
   })
 
+  it('prepends live doc before the summary on the last user message only', () => {
+    const { messages } = assembler.assemble({
+      modelConfig: { contextWindow: 400_000, maxResponseTokens: 16_000 },
+      systemPrompt: 'sys',
+      conversationMessages: [
+        { role: 'user', content: 'first' },
+        { role: 'assistant', content: 'ok' },
+        { role: 'user', content: 'second' },
+      ],
+      transcriptSummary: 'summary',
+      docContext: 'doc body',
+    })
+    const lastUser = messages.filter((m) => m.role === 'user').pop()!
+    expect(lastUser.content.indexOf('<document>')).toBeLessThan(lastUser.content.indexOf('<transcript_summary>'))
+    expect(lastUser.content).toContain('doc body')
+    expect(messages.find((m) => m.content === 'first')).toBeDefined()
+  })
+
   it('drops oldest pairs when budget is exceeded and adds truncation note', () => {
     const filler = 'x'.repeat(600)
     const { messages, truncatedPairs } = assemblerTight.assemble({

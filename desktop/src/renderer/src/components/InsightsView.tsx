@@ -3,7 +3,7 @@ import {
   getAllBuiltInKeywords,
   type TranscriptionLanguage,
 } from '../../../shared/insight-defaults'
-import type { AppSettings } from '../types'
+import type { AppSettings, DocStatus } from '../types'
 import {
   DEFAULT_INSIGHTS,
   INSIGHT_PRESETS,
@@ -262,6 +262,45 @@ function AddChipRow({
   )
 }
 
+/** Text input that only persists on blur (typing a URL char-by-char would spam settings + the extension). */
+function CommitField({
+  value,
+  onCommit,
+  placeholder,
+  multiline,
+}: {
+  value: string
+  onCommit: (v: string) => void
+  placeholder: string
+  multiline?: boolean
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const props = {
+    value: draft,
+    placeholder,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setDraft(e.target.value),
+    onBlur: () => draft.trim() !== value && onCommit(draft.trim()),
+    className: 'mt-1 w-full px-2 py-1.5 rounded-lg text-[11px] border bg-transparent',
+    style: { borderColor: 'var(--border)', color: 'var(--text)' },
+  }
+  return multiline ? <textarea rows={3} {...props} /> : <input type="text" {...props} />
+}
+
+function describeDocStatus(s: DocStatus | null): string {
+  if (!s || s.state === 'idle') return 'Not synced yet'
+  if (s.state === 'error') return `Error: ${s.error}`
+  const via = s.source === 'api' ? 'Google account' : 'Chrome extension (read-only)'
+  const when = s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString() : ''
+  const write = s.lastWrite ? ` · last write ${s.lastWrite.ok ? 'ok' : `failed: ${s.lastWrite.error}`}` : ''
+  return `Synced ${s.chars.toLocaleString()} chars via ${via} at ${when}${write}`
+}
+
+const clampInt = (v: string, min: number, max: number, dflt: number): number => {
+  const n = parseInt(v, 10)
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt
+}
+
 // ── Main component ───────────────────────────────────────
 
 export function InsightsView() {
@@ -270,6 +309,12 @@ export function InsightsView() {
   const [keywordsOpen, setKeywordsOpen] = useState(false)
   const [viewBuiltInOpen, setViewBuiltInOpen] = useState(false)
   const [transcriptionLanguage, setTranscriptionLanguage] = useState<TranscriptionLanguage>('en')
+  const [docStatus, setDocStatus] = useState<DocStatus | null>(null)
+
+  useEffect(() => {
+    window.electronAPI?.getDocStatus?.().then(setDocStatus)
+    return window.electronAPI?.onDocStatus?.(setDocStatus)
+  }, [])
 
   useEffect(() => {
     window.electronAPI?.getSettings().then((s) => {
@@ -586,6 +631,93 @@ export function InsightsView() {
           </Section>
         </>
       )}
+
+      {/* Live doc + standing task (independent of the insights master toggle) */}
+      <Section title="Live agent">
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+              Google Doc to follow
+            </span>
+            <CommitField
+              value={insights.docUrl ?? ''}
+              onCommit={(docUrl) => updateInsights({ docUrl })}
+              placeholder="https://docs.google.com/document/d/…"
+            />
+          </label>
+
+          {/* Sync status */}
+          <div className="flex items-center gap-2 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{
+                backgroundColor:
+                  docStatus?.state === 'synced' ? '#4caf50' : docStatus?.state === 'error' ? '#e5484d' : 'var(--border)',
+              }}
+            />
+            <span className="flex-1 break-words">{describeDocStatus(docStatus)}</span>
+            <button
+              type="button"
+              className="underline shrink-0"
+              onClick={() => window.electronAPI?.refreshDocSync?.().then(setDocStatus)}
+            >
+              Sync now
+            </button>
+          </div>
+
+          <label className="block">
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+              Standing task
+            </span>
+            <CommitField
+              multiline
+              value={insights.liveTask ?? ''}
+              onCommit={(liveTask) => updateInsights({ liveTask })}
+              placeholder="e.g. Take notes: capture decisions and action items as they happen"
+            />
+          </label>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-medium block" style={{ color: 'var(--text)' }}>
+                Write results into the doc
+              </span>
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                Insert-only, at the line the agent picks. Needs the Google-account sync path.
+              </span>
+            </div>
+            <Toggle on={!!insights.writeToDoc} onChange={(writeToDoc) => updateInsights({ writeToDoc })} />
+          </div>
+
+          <div className="flex gap-3">
+            <label className="block flex-1">
+              <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                Task interval (s)
+              </span>
+              <CommitField
+                value={String(insights.liveTaskIntervalSec ?? 30)}
+                onCommit={(v) => updateInsights({ liveTaskIntervalSec: clampInt(v, 5, 600, 30) })}
+                placeholder="30"
+              />
+            </label>
+            <label className="block flex-1">
+              <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                Doc poll (s)
+              </span>
+              <CommitField
+                value={String(insights.docPollSec ?? 15)}
+                onCommit={(v) => updateInsights({ docPollSec: clampInt(v, 5, 300, 15) })}
+                placeholder="15"
+              />
+            </label>
+          </div>
+
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            The doc is read through your Google account (sign in with Google) during meetings, or as a read-only
+            fallback through the Chrome extension while a tab is shared.
+          </p>
+        </div>
+      </Section>
     </div>
   )
 }

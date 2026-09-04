@@ -6,6 +6,7 @@ import { join } from 'path'
 import { appendFile, mkdir } from 'fs/promises'
 import { createLogger } from '../logger'
 import { PromptAssembler } from './prompt-assembler'
+import type { LiveTaskResult } from '../insights/live-task'
 import {
   type LLMProvider,
   createLLMClient,
@@ -306,6 +307,8 @@ export class LLMService {
   private assembler: PromptAssembler
   private tokenCounter: TokenCounter
   private transcriptMemory: TranscriptMemory
+  /** Live Google Doc text synced from the Chrome extension (null when none) */
+  private docContext: string | null = null
 
   // Active request tracking for cancellation
   private activeRequests = new Map<string, AbortController>()
@@ -693,6 +696,26 @@ export class LLMService {
   }
 
   /** Called when a meeting session starts/stops. */
+  /**
+   * Set the live doc for chat + live task. Refuses (and returns why) when the
+   * doc alone would eat most of the current model's context window.
+   */
+  setDocContext(text: string | null): string | null {
+    if (!text) {
+      this.docContext = null
+      return null
+    }
+    const model = this.getEffectiveModelConfig()
+    const tokens = this.tokenCounter.count(text)
+    const limit = Math.floor(model.contextWindow * 0.75) // leave room for transcript + answer
+    if (tokens > limit) {
+      this.docContext = null
+      return `Doc is ~${tokens.toLocaleString()} tokens; ${model.id} handles ${model.contextWindow.toLocaleString()}. Switch to a larger-context model (gpt-5.6-sol or Gemini, 1M) or trim the doc.`
+    }
+    this.docContext = text
+    return null
+  }
+
   setMeetingSessionId(id: string | null): void {
     this.activeMeetingSessionId = id
   }
@@ -1112,6 +1135,7 @@ export class LLMService {
         content: m.content,
       })),
       transcriptSummary,
+      docContext: this.docContext,
     })
 
     this.storePromptForRequest(request.requestId, assembled.messages, request.attachments)
@@ -1549,6 +1573,51 @@ Rules for question_with_context:
    * One-shot completion for Live Insights enrichment.
    * Uses the configured chat model. Returns parsed JSON or null on failure.
    */
+  /**
+   * Run the user's standing live task against the newest transcript lines.
+   * The live doc rides in the system prompt so OpenAI prefix caching absorbs it
+   * between doc changes. Returns null when there is nothing to report.
+   */
+  async runLiveTask(task: string, transcriptDelta: string): Promise<LiveTaskResult | null> {
+    if (!this.client) return null
+
+    const docBlock = this.docContext
+      ? `\n\nThe user's working document is below. Notes you previously inserted appear in it — never repeat them.\n<document>\n${this.docContext}\n</document>`
+      : ''
+    const systemPrompt = `You are a live meeting agent with a standing task from the user. Every few seconds you receive the newest transcript lines. Do the task ONLY when the new lines give you something concrete to act on.
+
+Respond with JSON only (no markdown):
+{"note": "<plain text, under 400 characters, in the language of the transcript>", "after": "<verbatim copy of the ONE existing document line this note belongs right after, or null to append at the end>"}
+If there is nothing worth surfacing: {"note": null}
+
+TASK:
+${task}${docBlock}`
+
+    const baseParams: Record<string, unknown> = {
+      model: this.getEffectiveModelConfig().apiModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `<transcript>\n${transcriptDelta}\n</transcript>` },
+      ],
+      max_completion_tokens: 400,
+    }
+    if (!this.isLocalProvider()) {
+      ;(baseParams as any).reasoning_effort = 'low'
+    }
+    try {
+      const response = await this.client.chat.completions.create(baseParams as any)
+      const raw = response.choices?.[0]?.message?.content?.trim()
+      if (!raw) return null
+      const parsed = JSON.parse(raw.replace(/^```json?\s*|\s*```$/g, '')) as { note?: string | null; after?: string | null }
+      const text = parsed.note?.trim()
+      if (!text) return null
+      return { text, after: typeof parsed.after === 'string' && parsed.after.trim() ? parsed.after.trim() : null }
+    } catch (err) {
+      log.error('[llm-service] runLiveTask error:', err)
+      return null
+    }
+  }
+
   async enrichForInsight(
     eventType: string,
     text: string,

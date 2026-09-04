@@ -20,6 +20,8 @@ export interface AssembleInput {
   conversationMessages: ConversationMessage[]
   /** Optional transcript summary (Phase 2 safety net). Prepended to the LAST user message when present. */
   transcriptSummary?: string | null
+  /** Optional live document text (synced Google Doc). Prepended to the LAST user message, before the summary. */
+  docContext?: string | null
 }
 
 export interface AssembledPrompt {
@@ -63,6 +65,7 @@ export class PromptAssembler {
       systemPrompt,
       conversationMessages,
       transcriptSummary,
+      docContext,
     } = input
 
     // ── System prompt tokens ──
@@ -72,8 +75,13 @@ export class PromptAssembler {
     const summaryBlock = transcriptSummary
       ? `<transcript_summary>\n${transcriptSummary}\n</transcript_summary>\n\n`
       : ''
-    const summaryTokens = summaryBlock
-      ? this.counter.count(summaryBlock)
+    // Live doc goes in the same last-user-message slot so earlier messages stay cached.
+    const docBlock = docContext
+      ? `<document>\n${docContext}\n</document>\n\n`
+      : ''
+    const prefixBlock = docBlock + summaryBlock
+    const summaryTokens = prefixBlock
+      ? this.counter.count(prefixBlock)
       : 0
 
     // ── Available budget for conversation messages ──
@@ -92,13 +100,13 @@ export class PromptAssembler {
     )
 
     // ── Prepend transcript summary to the LAST user message ──
-    if (summaryBlock && fittedMessages.length > 0) {
+    if (prefixBlock && fittedMessages.length > 0) {
       // Find the last user message (should be the final element)
       for (let i = fittedMessages.length - 1; i >= 0; i--) {
         if (fittedMessages[i].role === 'user') {
           fittedMessages[i] = {
             ...fittedMessages[i],
-            content: summaryBlock + fittedMessages[i].content,
+            content: prefixBlock + fittedMessages[i].content,
           }
           break
         }

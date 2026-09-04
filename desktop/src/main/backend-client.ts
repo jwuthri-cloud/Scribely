@@ -214,6 +214,12 @@ export class BackendClient {
     )
   }
 
+  /** Google OAuth access token (via Clerk) for live Google Doc read/write. */
+  async getGoogleAccessToken(): Promise<string> {
+    const r = await this.requestJson<{ access_token: string }>('GET', '/api/v1/integrations/google/token')
+    return r.access_token
+  }
+
   async validateAuth(): Promise<{ authenticated: boolean; userId?: string; useRecallSdk: boolean }> {
     try {
       const result = await this.requestJson<{

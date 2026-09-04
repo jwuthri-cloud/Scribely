@@ -299,6 +299,16 @@ export interface InsightsSettings {
   insightPreset: InsightPreset
   /** Speaker filter: detect insights from you, them, or both */
   speakerFilter: SpeakerFilter
+  /** Google Doc URL read live during meetings (via the Chrome extension, user's own session) */
+  docUrl?: string
+  /** Standing instruction run on a cadence against new transcript lines; results show as insight cards */
+  liveTask?: string
+  /** Seconds between live-task runs (default 30, min 5) */
+  liveTaskIntervalSec?: number
+  /** Seconds between doc polls (default 15, min 5) */
+  docPollSec?: number
+  /** Insert live-task results into the doc (needs the Google-account path) */
+  writeToDoc?: boolean
 }
 
 export const INSIGHT_PRESETS: Record<Exclude<InsightPreset, 'custom'>, {

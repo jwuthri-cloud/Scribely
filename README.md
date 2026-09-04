@@ -68,6 +68,7 @@ A simple, production-ready AI chat application featuring unified access to 500+ 
 The **Electron** overlay lives in **`desktop/`**. Users install from a signed **DMG**; **in-app updates** use [electron-updater](https://www.electron.build/auto-update) and load **`latest-mac.yml`** plus ZIP artifacts from **[GitHub Releases — Scribely-Release](https://github.com/Jwuthri/Scribely-Release/releases)** (a dedicated release repo, not necessarily the same repo as application source).
 
 - **Developer details:** [desktop/README.md](desktop/README.md) (build, release checklist, `SCRIBELY_DISABLE_AUTO_UPDATE`)
+- **Live agent (Google Doc + standing task, write-back, simulator):** [desktop/README.md → Live agent](desktop/README.md#live-agent-google-doc--standing-task)
 - **Architecture:** [PROJECT.md](PROJECT.md#desktop-auto-updates)
 
 ---

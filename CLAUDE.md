@@ -19,6 +19,8 @@ desktop/                          # Electron overlay app (macOS only)
 │   ├── screen-recorder.ts        # Screen recording via ScreenCaptureKit
 │   ├── screenshot.ts             # Screenshot capture
 │   ├── instrumentation.ts        # Langfuse/OpenTelemetry setup (must be first import)
+│   ├── doc-sync.ts               # Live Google Doc: API poll (token via backend/Clerk) + extension fallback, status, writes
+│   ├── google-docs.ts            # Docs API: documents.get, revision-guarded insertAfter
 │   ├── audio/                    # Audio processing pipeline
 │   │   ├── pipeline.ts           # Central orchestrator: VAD + Whisper + frame routing
 │   │   ├── transcriber.ts        # Local Whisper transcription wrapper
@@ -34,6 +36,7 @@ desktop/                          # Electron overlay app (macOS only)
 │   └── insights/                 # Live Insights feature
 │       ├── insight-engine.ts     # Orchestrator: detection → validation → enrichment → emit
 │       ├── heuristic-detector.ts # Zero-cost regex pattern matching on transcript entries
+│       ├── live-task.ts          # User's standing instruction, run on a cadence over new transcript lines
 │       └── types.ts              # Shared insight types
 ├── src/preload/index.ts          # Secure IPC bridge (contextBridge) — defines ElectronAPI
 ├── src/renderer/src/             # React 18 frontend
@@ -91,7 +94,7 @@ npm run build:all          # Proto + native + build (no packaging)
 npm run dist               # Full macOS DMG distribution
 ```
 
-No test framework is configured. The Chrome extension has no build step — loaded as unpacked extension in Chrome.
+Tests: vitest, `npm test` — a few unit tests live next to their modules (`*.test.ts`). `node scripts/simulate.mjs <file>` fakes a meeting (see desktop/README.md → Live agent). The Chrome extension has no build step — loaded as unpacked extension in Chrome.
 
 ## Architecture
 

@@ -36,6 +36,16 @@ export interface AuthState {
  * ElectronAPI exposed via contextBridge in the preload script.
  * Defined here (not imported from preload) to avoid rootDir issues.
  */
+/** Mirrored from main/doc-sync.ts */
+export interface DocStatus {
+  source: 'none' | 'api' | 'extension'
+  state: 'idle' | 'synced' | 'error'
+  chars: number
+  updatedAt: number | null
+  error: string | null
+  lastWrite: { at: number; ok: boolean; error?: string } | null
+}
+
 export interface ElectronAPI {
   // Visibility
   onToggleVisibility: (callback: (visible: boolean) => void) => () => void
@@ -243,6 +253,11 @@ export interface ElectronAPI {
   onExtensionAutoStartMeeting: (callback: () => void) => () => void
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean; filepath?: string }>
+
+  // Live Google Doc sync
+  getDocStatus: () => Promise<DocStatus>
+  refreshDocSync: () => Promise<DocStatus>
+  onDocStatus: (callback: (status: DocStatus) => void) => () => void
 
   // ── Recall SDK (alternative capture backend) ───
   onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void

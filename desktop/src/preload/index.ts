@@ -269,6 +269,9 @@ export interface ElectronAPI {
   onExtensionAutoStartMeeting: (callback: () => void) => () => void
   onExtensionAutoStopMeeting: (callback: () => void) => () => void
   stopExtensionCapture: () => Promise<{ success: boolean; filepath?: string }>
+  getDocStatus: () => Promise<unknown>
+  refreshDocSync: () => Promise<unknown>
+  onDocStatus: (callback: (status: unknown) => void) => () => void
 
   // ── Recall SDK (alternative capture backend) ───
   onRecallAutoStartMeeting: (callback: (data: { uploadId?: string }) => void) => () => void
@@ -892,6 +895,14 @@ const api: ElectronAPI = {
   // ── Chrome Extension Capture ───────────────────
   getExtensionStatus: () => {
     return ipcRenderer.invoke('extension:get-status')
+  },
+
+  getDocStatus: () => ipcRenderer.invoke('doc:get-status'),
+  refreshDocSync: () => ipcRenderer.invoke('doc:refresh'),
+  onDocStatus: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status)
+    ipcRenderer.on('doc:status', handler)
+    return () => ipcRenderer.removeListener('doc:status', handler)
   },
 
   onExtensionStatusChanged: (callback) => {

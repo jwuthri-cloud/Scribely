@@ -63,6 +63,8 @@ function connectWebSocket(port) {
           if (msg.type === 'stop-capture') {
             console.log('[offscreen] Received stop-capture from Electron')
             stopCapture()
+          } else if (msg.type === 'watch-doc') {
+            watchDoc(msg.url, msg.pollSec)
           }
         } catch { /* ignore parse errors */ }
       } else if (view[0] === MSG_MIC) {
@@ -122,6 +124,55 @@ function sendVideoChunk(socket, data) {
   msg.set(header)
   msg.set(bytes, 1)
   socket.send(msg.buffer)
+}
+
+// ── Live doc sync ─────────────────────────────────────
+//
+// Google Docs exposes a plain-text export of any doc the signed-in user can
+// read.  Fetching it from the extension (host_permissions + credentials:
+// 'include') rides on the user's existing Chrome session — no OAuth, no API
+// key.  Electron tells us which doc via a `watch-doc` control message; we
+// poll it and push the text back whenever it changes.
+//
+let docTimer = null
+let docLastSent = null
+
+function docExportUrl(url) {
+  const m = /docs\.google\.com\/document\/d\/([^/?#]+)/.exec(url || '')
+  return m ? `https://docs.google.com/document/d/${m[1]}/export?format=txt` : null
+}
+
+async function pollDoc(exportUrl) {
+  let payload
+  try {
+    const res = await fetch(exportUrl, { credentials: 'include' })
+    const text = await res.text()
+    // A sign-in / consent page comes back as HTML, not the doc.
+    payload = !res.ok || /^\s*<(!doctype|html)/i.test(text)
+      ? { type: 'doc', error: `HTTP ${res.status} — open the doc in this Chrome profile and sign in` }
+      : { type: 'doc', text }
+  } catch (err) {
+    payload = { type: 'doc', error: err.message }
+  }
+  const key = payload.text ?? `err:${payload.error}`
+  if (key === docLastSent) return
+  docLastSent = key
+  sendControl(ws, payload)
+}
+
+function watchDoc(url, pollSec = 15) {
+  stopDocWatch()
+  const exportUrl = docExportUrl(url)
+  if (!exportUrl) return
+  console.log('[offscreen] Watching doc', exportUrl)
+  pollDoc(exportUrl)
+  docTimer = setInterval(() => pollDoc(exportUrl), pollSec * 1000)
+}
+
+function stopDocWatch() {
+  if (docTimer) clearInterval(docTimer)
+  docTimer = null
+  docLastSent = null
 }
 
 // ── Start capture via tabCapture stream ID ─
@@ -371,6 +422,7 @@ function stopCapture() {
   // document (USER_MEDIA justification is lost), which tears down the
   // WebSocket before we can send capture-stopped. Sending first ensures
   // the desktop receives the signal and stops its recording.
+  stopDocWatch()
   if (ws && ws.readyState === WebSocket.OPEN) {
     sendControl(ws, { type: 'capture-stopped' })
     ws.close()

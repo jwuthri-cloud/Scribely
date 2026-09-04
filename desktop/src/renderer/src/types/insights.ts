@@ -8,6 +8,7 @@ export type DetectedEventType =
   | 'action_item'
   | 'key_mention'
   | 'decision'
+  | 'task'
 
 export interface DetectedEvent {
   type: DetectedEventType

@@ -72,5 +72,6 @@ Creates `extension_<version>.zip` in the repo root, syncing version from `deskto
 - `offscreen` — Hidden document for capture
 - `activeTab` — Access current tab
 - `tabs` — Tab management
+- `host_permissions` on `docs.google.com` / `googleusercontent.com` — read the plain-text export of the Google Doc configured in Scribely's *Live agent* settings, using the user's own Chrome session. Read-only; only while a tab is being shared. Electron sends `{ type: 'watch-doc', url, pollSec }`, the extension answers `{ type: 'doc', text }` whenever the text changes.
 
-All data stays local. No audio is sent to external servers.
+All data stays local. No audio is sent to external servers; the doc text goes only to the desktop app.

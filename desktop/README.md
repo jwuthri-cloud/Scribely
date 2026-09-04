@@ -55,6 +55,131 @@ desktop/
 - **Ollama** — Free, local. Recommended: `ollama pull qwen3:1.7b`
 - **LM Studio** — Free, local. Load Qwen3-1.7B-Instruct
 
+## Live agent: Google Doc + standing task
+
+**What it does.** During a meeting, Scribely keeps a Google Doc in the LLM's context and runs a *standing task* — an instruction you write once, e.g. *"log every praise as '@name — what for'"* — over the transcript every N seconds. Each result shows up as a **task** card in Live Insights and, if you turn it on, is **inserted into the doc** at the line the agent picks (insert-only; the rest of the doc is never touched).
+
+### The three pieces — don't mix them up
+
+| Piece | What it is | Where |
+|-------|------------|-------|
+| **Standing task** | The prompt. *What* to extract. | Typed in the app (see *Where the settings are*) |
+| **The doc** | *Where* results go, and context the agent reads (it sees its own earlier notes and won't repeat them). Headings in it just give the agent lines to file things under; an empty doc works too — everything appends at the end. | A real Google Doc, **or** a local file standing in for it while testing |
+| **Transcript** | The meeting audio. In tests, a text file the simulator reads aloud with macOS `say`, transcribed by real Whisper. | `test_transcript.txt` (Google Meet export, works as-is) |
+
+### Where the settings are
+
+In the desktop app: **gear icon** (Settings) → a **sliders icon** appears in the title bar (tooltip *Insights settings*) → scroll to the bottom → **LIVE AGENT**.
+
+| Field | Put |
+|-------|-----|
+| Google Doc to follow | The doc's URL. For offline tests any Docs-shaped URL, e.g. `https://docs.google.com/document/d/test/edit` |
+| Standing task | Your instruction, plain English |
+| Write results into the doc | **On** if you want the doc edited, otherwise you only get cards |
+| Task interval (s) / Doc poll (s) | How often the task runs / the doc is re-read. Min 5. Each task run is one LLM call. |
+| Status line + **Sync now** | Shows the sync source, char count, last sync time and last write result |
+
+---
+
+### Test it end to end — Path A: offline, no Google account needed
+
+Everything below is run **from the `desktop/` folder**. Three terminals.
+
+**Step 1 — files.**
+
+```bash
+cd desktop
+cat > notes.md <<'EOF'
+Praise log
+Decisions
+Action items
+EOF
+```
+
+`notes.md` is your fake Google Doc. Put whatever headings match your task (or leave it empty). `test_transcript.txt` is already in this folder.
+
+**Step 2 — terminal 1: start Scribely, pointed at the fake doc.**
+
+```bash
+cd desktop
+SCRIBELY_DOCS_API_URL=http://127.0.0.1:9878 SCRIBELY_GOOGLE_TOKEN=x npm run dev
+```
+
+The two variables redirect Google Docs API calls to the simulator and skip the backend token fetch. **Only for this test** — never set them normally. OpenAI key must be set in the app's LLM tab.
+
+**Step 3 — terminal 2: start the simulator.** This creates the fake doc API and the meeting.
+
+```bash
+cd desktop
+node scripts/simulate.mjs test_transcript.txt --doc notes.md --speed 2
+```
+
+Expected output: `connected — meeting auto-started`, `fake Docs API on http://127.0.0.1:9878`, then `▶ <line>` for every line spoken. Scribely starts a meeting on its own.
+
+**Step 4 — in the app: fill the Live agent settings** (location above).
+
+- Google Doc to follow: `https://docs.google.com/document/d/test/edit`
+- Standing task: e.g. `Log every praise given to someone as "@name — what for", under Praise log. Log decisions and action items under their headings.`
+- Write results into the doc: **on**
+- Click **Sync now** → status must read `Synced N chars via Google account at HH:MM`. If it says `cannot reach http://127.0.0.1:9878` the simulator (step 3) isn't running.
+
+**Step 5 — terminal 3: watch the doc change.**
+
+```bash
+cd desktop
+tail -f notes.md
+```
+
+Within one task interval of relevant speech you get a task card in the app, `· last write ok` on the status line, a `doc write: "…"` line in terminal 2, and the new line under the heading in terminal 3. Edit `notes.md` yourself and save — the agent sees it on the next poll.
+
+**Step 6 — stop.** Ctrl+C in terminal 2 ends the meeting. Transcript JSON lands in `~/Documents/Scribely/recordings/`.
+
+53 minutes of transcript ≈ 21 min at `--speed 2`. Use `--speed 4` just to see it work.
+
+---
+
+### Path B: a real Google Doc
+
+One-time setup:
+
+1. **Clerk dashboard** → SSO connections → Google → custom credentials → add scope `https://www.googleapis.com/auth/documents`.
+2. **Backend running** with `CLERK_SECRET_KEY`: `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8000`.
+3. `desktop/.env` has `BACKEND_API_URL=http://localhost:8000` and **does not** have the two `SCRIBELY_DOCS_*` variables.
+4. `cd desktop && npm run dev` (plain), then sign out and back in **with Google** so the new scope gets consented.
+
+Then:
+
+5. Create a Google Doc, paste its URL in *Google Doc to follow*, **Sync now** → `Synced N chars via Google account`. `403` = scope missing in Clerk. `404 No Google OAuth token` = not signed in with Google.
+6. Terminal: `cd desktop && node scripts/simulate.mjs test_transcript.txt --speed 2` — **no `--doc`**, the real doc is the doc.
+7. Keep the Doc open in the browser and watch lines get inserted. Safe to type in it at the same time: every write is guarded by the doc's revision id and retried if you edited in between.
+
+### Which simulator command
+
+| The doc is… | Command (from `desktop/`) | Scribely started with |
+|-------------|---------------------------|-----------------------|
+| a local file (Path A) | `node scripts/simulate.mjs test_transcript.txt --doc notes.md --speed 2` | the two `SCRIBELY_DOCS_*` vars |
+| a real Google Doc (Path B) | `node scripts/simulate.mjs test_transcript.txt --speed 2` | plain `npm run dev` |
+
+Any `.txt`/`.md` is read line by line (`[00:01:12]`, `John Raptis:` prefixes stripped, blank lines skipped). Any other file (`.mp3`, `.mp4`, `.webm`) is decoded with ffmpeg and streamed as-is. Needs `ffmpeg` (`brew install ffmpeg`). Everything arrives as "Them"; Whisper transcribes the synthesized voice, so the app's text won't match the file word for word.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---------|-------|
+| `Cannot find module '…/scripts/simulate.mjs'` | You're not in `desktop/`. `cd desktop` first. |
+| `cannot reach ws://127.0.0.1:9876` | Scribely isn't running |
+| Status: `cannot reach http://127.0.0.1:9878 (ECONNREFUSED)` | Path A: simulator not running, or started without `--doc` |
+| Status: `BACKEND_API_URL not configured` / `No session token` | Path A: Scribely wasn't started with the two env vars. Path B: backend/sign-in missing. |
+| `403` on Sync now (Path B) | `documents` scope not on the Clerk Google connection |
+| Cards appear but nothing written | *Write results into the doc* is off, or status shows a write error |
+| No transcript at all | Whisper model still downloading on first run — check the app log |
+
+### How it works under the hood
+
+- **Read** — `src/main/doc-sync.ts` polls `documents.get` with the user's Google token (backend `GET /api/v1/integrations/google/token`, resolved from Clerk) while a meeting is active. The Chrome extension also pushes a cookie-based plain-text export as a read-only fallback when the API path isn't available.
+- **Task** — `src/main/insights/live-task.ts` buffers transcript lines and every interval calls the LLM with the task; the doc rides in the system prompt so prefix caching absorbs it between doc changes. The model answers `{"note": …, "after": "<verbatim doc line to insert after>"}` or `{"note": null}`.
+- **Write** — `src/main/google-docs.ts` re-fetches the doc for its current layout and `revisionId`, then one `batchUpdate` inserting a new paragraph after the anchor (falling back to end of doc), guarded by `writeControl.requiredRevisionId`; on conflict it refetches and retries once. Google has no push for Docs, so "realtime" = the poll interval.
+
 ## Build for Distribution
 
 ```bash

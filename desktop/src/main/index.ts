@@ -32,6 +32,8 @@ import { ScreenRecorder } from './screen-recorder'
 import { ExtensionWsServer } from './ws-server'
 import { LLMService } from './llm/llm-service'
 import { InsightEngine } from './insights/insight-engine'
+import { createLiveTaskRunner } from './insights/live-task'
+import { createDocSync } from './doc-sync'
 import { unloadQuestionClassifier } from './insights/question-classifier'
 import { unloadEmbeddingService } from './insights/embedding-service'
 import { flushLangfuse } from './instrumentation'
@@ -354,6 +356,49 @@ const screenRecorder = new ScreenRecorder()
 // ── Chrome Extension WebSocket Server ──────────────────
 const extensionWsServer = new ExtensionWsServer()
 
+const liveAgentSettings = (): {
+  docUrl?: string
+  liveTask?: string
+  liveTaskIntervalSec?: number
+  docPollSec?: number
+  writeToDoc?: boolean
+} => (store.get('llm') as { insights?: Record<string, unknown> })?.insights ?? {}
+
+/** Tell the extension which Google Doc to poll for the cookie-based fallback (empty url = stop). */
+function sendWatchDoc(): void {
+  if (!extensionWsServer.isClientConnected) return
+  const { docUrl = '', docPollSec = 15 } = liveAgentSettings()
+  extensionWsServer.sendControl({ type: 'watch-doc', url: docUrl, pollSec: docPollSec })
+}
+
+// ── Live Google Doc: API poll (backend → Clerk → Google) with extension fallback ──
+const docSync = createDocSync({
+  getDocUrl: () => liveAgentSettings().docUrl ?? '',
+  getPollMs: () => Math.max(5, liveAgentSettings().docPollSec ?? 15) * 1000,
+  // ponytail: SCRIBELY_GOOGLE_TOKEN skips the backend so the simulator's fake Docs API works offline
+  getToken: () =>
+    process.env.SCRIBELY_GOOGLE_TOKEN
+      ? Promise.resolve(process.env.SCRIBELY_GOOGLE_TOKEN)
+      : backendClient.getGoogleAccessToken(),
+  onText: (text) => llmService.setDocContext(text),
+  onStatus: (status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('doc:status', status)
+  },
+})
+
+// ── Live task: user's standing instruction, run on a cadence over new transcript lines ──
+const liveTask = createLiveTaskRunner({
+  getTask: () => liveAgentSettings().liveTask ?? '',
+  getIntervalMs: () => Math.max(5, liveAgentSettings().liveTaskIntervalSec ?? 30) * 1000,
+  run: (task, delta) => llmService.runLiveTask(task, delta),
+  emit: (insight) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('insight:new', insight)
+  },
+  write: (text, after) => {
+    if (liveAgentSettings().writeToDoc) void docSync.write(text, after)
+  },
+})
+
 // ── Native Helper Bridge ───────────────────────────────
 let nativeBridge: NativeHelperBridge | null = null
 
@@ -597,6 +642,8 @@ function registerIpcHandlers(): void {
         enrichmentEnabled: insights.enrichmentEnabled !== false,
         transcriptionLanguage,
       })
+      sendWatchDoc()
+      void docSync.refresh()
     }
 
     // Notify renderer that settings changed
@@ -797,7 +844,10 @@ function initExtensionWsServer(): void {
     screenRecorder.startExternalRecording()
     // Tell renderer to start meeting UI (mic capture, etc.)
     safeSend('extension:auto-start-meeting', {})
+    sendWatchDoc()
   })
+
+  extensionWsServer.on('doc', (msg: { text?: string; error?: string }) => docSync.fromExtension(msg))
 
   extensionWsServer.on('disconnected', () => {
     extensionWsLog.info('Chrome extension disconnected')
@@ -857,6 +907,8 @@ function initExtensionWsServer(): void {
   ipcMain.handle('extension:get-status', () => {
     return { connected: extensionWsServer.isClientConnected }
   })
+  ipcMain.handle('doc:get-status', () => docSync.status)
+  ipcMain.handle('doc:refresh', () => docSync.refresh())
 
   // IPC handler to tell the extension to stop capturing.
   // Stops the external recording first (so we have the filepath) then closes
@@ -1042,6 +1094,7 @@ app.whenReady().then(async () => {
 
   // Wire Live Insights to pipeline
   audioPipeline.setOnTranscriptEntry((entry) => {
+    liveTask.push(entry)
     const config = getInsightsConfig()
     if (!config.enabled) {
       appLog.debug('Insights disabled — skipping entry')
@@ -1051,11 +1104,15 @@ app.whenReady().then(async () => {
   })
   audioPipeline.setOnSessionStart((sessionId) => {
     llmService.setMeetingSessionId(sessionId)
+    liveTask.start()
+    docSync.setActive(true)
     isMeetingActive = true
     rebuildTrayMenu()
   })
   audioPipeline.setOnSessionStop(async () => {
     llmService.setMeetingSessionId(null)
+    liveTask.stop()
+    docSync.setActive(false)
     insightEngine.reset()
     llmService.resetInsightsValidation()
     await unloadQuestionClassifier()
