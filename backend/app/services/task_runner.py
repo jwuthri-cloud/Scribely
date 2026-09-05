@@ -95,9 +95,13 @@ async def _finalize_success(
         from app.database.models.rule import RuleTriggerEnum
         from app.services.rule_engine import execute_rules_for_meeting
 
-        asyncio.create_task(execute_rules_for_meeting(meeting_id, RuleTriggerEnum.AFTER_MEETING))
+        asyncio.create_task(
+            execute_rules_for_meeting(meeting_id, RuleTriggerEnum.AFTER_MEETING)
+        )
     except Exception as e:
-        logger.warning("Failed to schedule after_meeting rules for %s: %s", meeting_id, e)
+        logger.warning(
+            "Failed to schedule after_meeting rules for %s: %s", meeting_id, e
+        )
 
     # Deal re-detection + per-contact knowledge extraction (best-effort).
     try:
@@ -107,9 +111,13 @@ async def _finalize_success(
 
         _asyncio.create_task(run_post_meeting_knowledge(meeting_id))
     except Exception as e:
-        logger.warning("Failed to schedule knowledge extraction for %s: %s", meeting_id, e)
+        logger.warning(
+            "Failed to schedule knowledge extraction for %s: %s", meeting_id, e
+        )
 
-    logger.info(f"DB updated for meeting {meeting_id}: completed, duration={duration_seconds}s")
+    logger.info(
+        f"DB updated for meeting {meeting_id}: completed, duration={duration_seconds}s"
+    )
 
 
 async def _finalize_failure(
@@ -126,7 +134,9 @@ async def _finalize_failure(
     msg = str(exc)
 
     async with get_async_session() as db:
-        await MeetingRepository.update_after_processing(db, meeting_id, MeetingStatusEnum.FAILED, None)
+        await MeetingRepository.update_after_processing(
+            db, meeting_id, MeetingStatusEnum.FAILED, None
+        )
         await MeetingProcessingRepository.mark_failed(
             db,
             meeting_id,
@@ -189,7 +199,9 @@ def _write_status(meeting_dir: Path, status: TaskStatus, **extra: Any) -> None:
         if is_object_storage_configured():
             mirror_processing_status_json(meeting_dir, derive_storage_path(meeting_dir))
     except Exception as e:
-        logger.warning("Failed to mirror processing_status.json to object storage: %s", e)
+        logger.warning(
+            "Failed to mirror processing_status.json to object storage: %s", e
+        )
 
 
 # In-flight tasks keyed by meeting_dir string to prevent duplicate processing
@@ -265,7 +277,9 @@ async def recover_interrupted_processing_tasks() -> int:
     return recovered
 
 
-def schedule_processing(meeting_dir: Path, meeting_id: str | None = None, provider: str | None = None) -> bool:
+def schedule_processing(
+    meeting_dir: Path, meeting_id: str | None = None, provider: str | None = None
+) -> bool:
     """Schedule background meeting processing.
 
     Returns ``True`` if a new task was created, ``False`` if one is already
@@ -294,7 +308,11 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
 
     sem = _get_processing_semaphore()
     async with sem:
-        _write_status(meeting_dir, TaskStatus.PROCESSING, startedAt=datetime.now(timezone.utc).isoformat())
+        _write_status(
+            meeting_dir,
+            TaskStatus.PROCESSING,
+            startedAt=datetime.now(timezone.utc).isoformat(),
+        )
 
         if meeting_id:
             await _mark_processing_started(meeting_id)
@@ -338,14 +356,18 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
                             TRANSCRIPT_ENRICHED_JSON,
                         )
             except Exception as e:
-                logger.warning("Failed to upload enriched transcript to object storage: %s", e)
+                logger.warning(
+                    "Failed to upload enriched transcript to object storage: %s", e
+                )
 
             if meeting_id:
                 await _finalize_success(meeting_id, result, duration_seconds)
 
         except PipelineStepError as e:
             tb = traceback.format_exc()
-            logger.error(f"Processing failed (step={e.step}) for {meeting_dir.name}: {e}\n{tb}")
+            logger.error(
+                f"Processing failed (step={e.step}) for {meeting_dir.name}: {e}\n{tb}"
+            )
             _write_status(
                 meeting_dir,
                 TaskStatus.FAILED,
@@ -367,4 +389,3 @@ async def _run(meeting_dir: Path, meeting_id: str | None, provider: str | None) 
             )
             if meeting_id:
                 await _finalize_failure(meeting_id, e, tb)
-

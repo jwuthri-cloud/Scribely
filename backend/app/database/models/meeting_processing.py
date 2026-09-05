@@ -6,8 +6,17 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy import JSON
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from ..base import Base
@@ -75,7 +84,9 @@ class MeetingProcessing(Base):
     result_summary = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     meeting = relationship("Meeting", back_populates="processing_state")
 
@@ -83,4 +94,3 @@ class MeetingProcessing(Base):
 
     def __repr__(self) -> str:
         return f"<MeetingProcessing(meeting_id={self.meeting_id}, status={self.processing_status})>"
-

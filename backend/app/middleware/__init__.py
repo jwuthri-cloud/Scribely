@@ -5,13 +5,14 @@ Middleware package for Scribely.
 import time
 from uuid import uuid4
 
-from app.config import get_settings
-from app.utils.logging import get_logger
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from starlette.datastructures import MutableHeaders, URL
+from starlette.datastructures import URL, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+from app.config import get_settings
+from app.utils.logging import get_logger
 
 logger = get_logger("middleware")
 
@@ -125,6 +126,7 @@ def setup_middleware(app):
 
     # Rate limiting
     from .rate_limit import setup_rate_limiting
+
     setup_rate_limiting(app)
 
     # Railway / reverse proxies terminate TLS and set X-Forwarded-Proto. Without this,

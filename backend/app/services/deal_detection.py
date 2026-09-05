@@ -64,7 +64,9 @@ def normalize_email(email: Optional[str]) -> Optional[str]:
     return s or None
 
 
-def is_same_address_as_owner(owner_email: Optional[str], participant_email: str) -> bool:
+def is_same_address_as_owner(
+    owner_email: Optional[str], participant_email: str
+) -> bool:
     """True when the participant is the account owner (calendar ``is_self`` can be wrong)."""
     o = normalize_email(owner_email)
     p = normalize_email(participant_email)

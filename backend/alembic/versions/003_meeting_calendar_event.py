@@ -1,7 +1,8 @@
 """Link meetings to calendar events for participant-based transcription hints."""
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "003_meeting_calendar_event"
 down_revision = "002"

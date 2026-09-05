@@ -32,8 +32,8 @@ class LoadTestConfig:
 
     # Performance thresholds
     ACCEPTABLE_RESPONSE_TIME = 2.0  # seconds
-    EXCELLENT_RESPONSE_TIME = 0.5   # seconds
-    MAX_ERROR_RATE = 0.05           # 5% error rate
+    EXCELLENT_RESPONSE_TIME = 0.5  # seconds
+    MAX_ERROR_RATE = 0.05  # 5% error rate
 
     # Request patterns
     THINK_TIME = 1.0  # seconds between user actions
@@ -85,7 +85,7 @@ class PerformanceMetrics:
                 "median": statistics.median(self.response_times),
                 "p95": self._percentile(self.response_times, 95),
                 "p99": self._percentile(self.response_times, 99),
-            }
+            },
         }
 
     def _percentile(self, data: List[float], p: float) -> float:
@@ -101,16 +101,19 @@ class PerformanceMetrics:
         summary = self.get_summary()
 
         # Check error rate
-        assert summary["error_rate"] <= LoadTestConfig.MAX_ERROR_RATE, \
-            f"Error rate {summary['error_rate']:.2%} exceeds maximum {LoadTestConfig.MAX_ERROR_RATE:.2%}"
+        assert (
+            summary["error_rate"] <= LoadTestConfig.MAX_ERROR_RATE
+        ), f"Error rate {summary['error_rate']:.2%} exceeds maximum {LoadTestConfig.MAX_ERROR_RATE:.2%}"
 
         # Check response times
-        assert summary["response_times"]["p95"] <= LoadTestConfig.ACCEPTABLE_RESPONSE_TIME, \
-            f"95th percentile response time {summary['response_times']['p95']:.2f}s exceeds threshold"
+        assert (
+            summary["response_times"]["p95"] <= LoadTestConfig.ACCEPTABLE_RESPONSE_TIME
+        ), f"95th percentile response time {summary['response_times']['p95']:.2f}s exceeds threshold"
 
         # Check that we got some successful responses
-        assert summary["total_requests"] > summary["error_count"], \
-            "More errors than successful requests"
+        assert (
+            summary["total_requests"] > summary["error_count"]
+        ), "More errors than successful requests"
 
 
 class UserSimulator:
@@ -131,25 +134,17 @@ class UserSimulator:
         return self.client.post(
             "/api/v1/chat/",
             headers=self.authenticate(),
-            json={
-                "message": message,
-                "session_id": self.session_id,
-                "context": {}
-            }
+            json={"message": message, "session_id": self.session_id, "context": {}},
         )
 
     def list_sessions(self) -> requests.Response:
         """List user's chat sessions."""
-        return self.client.get(
-            "/api/v1/chat/sessions",
-            headers=self.authenticate()
-        )
+        return self.client.get("/api/v1/chat/sessions", headers=self.authenticate())
 
     def get_session(self, session_id: str) -> requests.Response:
         """Get a specific session."""
         return self.client.get(
-            f"/api/v1/chat/sessions/{session_id}",
-            headers=self.authenticate()
+            f"/api/v1/chat/sessions/{session_id}", headers=self.authenticate()
         )
 
     def health_check(self) -> requests.Response:
@@ -165,7 +160,7 @@ class UserSimulator:
             "Can you help me with Python programming?",
             "What's the difference between lists and tuples?",
             "How do I handle exceptions in Python?",
-            "Thanks for your help!"
+            "Thanks for your help!",
         ]
 
         for i in range(min(num_messages, len(messages))):
@@ -231,10 +226,7 @@ class TestBasicPerformance:
 
         # Run concurrent requests
         with ThreadPoolExecutor(max_workers=LoadTestConfig.LOW_CONCURRENCY) as executor:
-            futures = [
-                executor.submit(make_health_request)
-                for _ in range(50)
-            ]
+            futures = [executor.submit(make_health_request) for _ in range(50)]
 
             for future in as_completed(futures):
                 response_time, success = future.result()
@@ -250,8 +242,10 @@ class TestBasicPerformance:
         assert summary["response_times"]["p95"] < 0.1  # 100ms
         assert summary["error_rate"] == 0  # No errors expected
 
-    @pytest.mark.skip(reason="Chat endpoint requires Clerk auth; no ChatService in current architecture")
-    @patch('app.services.chat_service.ChatService')
+    @pytest.mark.skip(
+        reason="Chat endpoint requires Clerk auth; no ChatService in current architecture"
+    )
+    @patch("app.services.chat_service.ChatService")
     def test_chat_endpoint_performance(self, mock_chat_service, client: TestClient):
         """Test chat endpoint performance."""
         # Mock chat service for consistent responses
@@ -259,7 +253,7 @@ class TestBasicPerformance:
         mock_instance.process_message.return_value = {
             "message": "This is a test response",
             "session_id": "test-session",
-            "response_time": 0.1
+            "response_time": 0.1,
         }
 
         metrics = PerformanceMetrics()
@@ -269,8 +263,7 @@ class TestBasicPerformance:
             start_time = time.time()
             try:
                 response = client.post(
-                    "/api/v1/chat/",
-                    json={"message": "Test message"}
+                    "/api/v1/chat/", json={"message": "Test message"}
                 )
                 end_time = time.time()
                 success = response.status_code == 200
@@ -282,10 +275,7 @@ class TestBasicPerformance:
 
         # Run concurrent chat requests
         with ThreadPoolExecutor(max_workers=LoadTestConfig.LOW_CONCURRENCY) as executor:
-            futures = [
-                executor.submit(make_chat_request)
-                for _ in range(25)
-            ]
+            futures = [executor.submit(make_chat_request) for _ in range(25)]
 
             for future in as_completed(futures):
                 response_time, success = future.result()
@@ -298,7 +288,9 @@ class TestBasicPerformance:
         print(f"Chat endpoint performance: {summary}")
 
         # Chat should respond reasonably quickly
-        assert summary["response_times"]["p95"] < LoadTestConfig.ACCEPTABLE_RESPONSE_TIME
+        assert (
+            summary["response_times"]["p95"] < LoadTestConfig.ACCEPTABLE_RESPONSE_TIME
+        )
         metrics.assert_performance_requirements()
 
 
@@ -307,8 +299,10 @@ class TestBasicPerformance:
 class TestLoadTesting:
     """Comprehensive load testing."""
 
-    @pytest.mark.skip(reason="Chat endpoint requires Clerk auth; no ChatService in current architecture")
-    @patch('app.services.chat_service.ChatService')
+    @pytest.mark.skip(
+        reason="Chat endpoint requires Clerk auth; no ChatService in current architecture"
+    )
+    @patch("app.services.chat_service.ChatService")
     def test_sustained_load(self, mock_chat_service, client: TestClient):
         """Test sustained load over time."""
         # Mock dependencies
@@ -316,7 +310,7 @@ class TestLoadTesting:
         mock_instance.process_message.return_value = {
             "message": "Load test response",
             "session_id": "load-test-session",
-            "response_time": 0.05
+            "response_time": 0.05,
         }
 
         metrics = PerformanceMetrics()
@@ -346,7 +340,9 @@ class TestLoadTesting:
             return responses
 
         # Run concurrent user sessions
-        with ThreadPoolExecutor(max_workers=LoadTestConfig.MEDIUM_CONCURRENCY) as executor:
+        with ThreadPoolExecutor(
+            max_workers=LoadTestConfig.MEDIUM_CONCURRENCY
+        ) as executor:
             # Submit multiple user sessions
             futures = [
                 executor.submit(user_session)
@@ -359,7 +355,9 @@ class TestLoadTesting:
                 for response in responses:
                     # Record timing (mock timing for load test)
                     response_time = 0.1 + (hash(str(response)) % 100) / 1000
-                    success = hasattr(response, 'status_code') and response.status_code < 400
+                    success = (
+                        hasattr(response, "status_code") and response.status_code < 400
+                    )
                     metrics.record_request(response_time, success)
 
         metrics.end_test()
@@ -389,9 +387,7 @@ class TestLoadTesting:
                 with ThreadPoolExecutor(max_workers=current_users) as executor:
                     futures = []
                     for _ in range(current_users):
-                        future = executor.submit(
-                            lambda: client.get("/api/v1/health/")
-                        )
+                        future = executor.submit(lambda: client.get("/api/v1/health/"))
                         futures.append(future)
 
                     # Wait for completion and record metrics
@@ -416,7 +412,9 @@ class TestLoadTesting:
         print(f"Ramp-up test results: {summary}")
 
         # Should handle gradual load increase
-        assert summary["error_rate"] <= 0.1  # Allow slightly higher error rate during ramp-up
+        assert (
+            summary["error_rate"] <= 0.1
+        )  # Allow slightly higher error rate during ramp-up
 
     def test_spike_load(self, client: TestClient):
         """Test performance during sudden load spikes."""
@@ -437,7 +435,9 @@ class TestLoadTesting:
                 time.sleep(0.1)
 
             # Sudden spike
-            with ThreadPoolExecutor(max_workers=LoadTestConfig.MEDIUM_CONCURRENCY) as executor:
+            with ThreadPoolExecutor(
+                max_workers=LoadTestConfig.MEDIUM_CONCURRENCY
+            ) as executor:
                 futures = [
                     executor.submit(lambda: client.get("/api/v1/health/"))
                     for _ in range(LoadTestConfig.MEDIUM_CONCURRENCY * 2)
@@ -462,7 +462,10 @@ class TestLoadTesting:
 
         # Should handle spikes gracefully (may have higher response times)
         assert summary["error_rate"] <= 0.2  # Allow higher error rate during spike
-        assert summary["response_times"]["median"] < LoadTestConfig.ACCEPTABLE_RESPONSE_TIME
+        assert (
+            summary["response_times"]["median"]
+            < LoadTestConfig.ACCEPTABLE_RESPONSE_TIME
+        )
 
 
 @pytest.mark.performance
@@ -496,10 +499,7 @@ class TestStressTesting:
 
         # Run multiple threads to stress memory
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
-                executor.submit(memory_stress_test)
-                for _ in range(5)
-            ]
+            futures = [executor.submit(memory_stress_test) for _ in range(5)]
 
             for future in as_completed(futures):
                 future.result()
@@ -509,7 +509,9 @@ class TestStressTesting:
         final_memory = process.memory_info().rss / 1024 / 1024  # MB
         memory_increase = final_memory - initial_memory
 
-        print(f"Memory usage: {initial_memory:.1f}MB -> {final_memory:.1f}MB (Δ{memory_increase:.1f}MB)")
+        print(
+            f"Memory usage: {initial_memory:.1f}MB -> {final_memory:.1f}MB (Δ{memory_increase:.1f}MB)"
+        )
 
         # Memory should not increase dramatically
         assert memory_increase < 100  # Less than 100MB increase
@@ -533,7 +535,9 @@ class TestStressTesting:
             return end_time - start_time, success
 
         # High concurrency to stress connection pool
-        with ThreadPoolExecutor(max_workers=LoadTestConfig.HIGH_CONCURRENCY) as executor:
+        with ThreadPoolExecutor(
+            max_workers=LoadTestConfig.HIGH_CONCURRENCY
+        ) as executor:
             futures = [
                 executor.submit(db_stress_request)
                 for _ in range(LoadTestConfig.HIGH_CONCURRENCY * 3)
@@ -587,20 +591,23 @@ class TestStressTesting:
             summary = metrics.get_summary()
 
             # Check if system is breaking down
-            if (summary["error_rate"] > 0.5 or
-                summary["response_times"]["p95"] > 10.0):
+            if summary["error_rate"] > 0.5 or summary["response_times"]["p95"] > 10.0:
                 breaking_point_found = True
                 print(f"Breaking point found at concurrency: {current_concurrency}")
                 print(f"Error rate: {summary['error_rate']:.2%}")
                 print(f"P95 response time: {summary['response_times']['p95']:.2f}s")
             else:
                 print(f"Concurrency {current_concurrency} handled successfully")
-                print(f"Error rate: {summary['error_rate']:.2%}, P95: {summary['response_times']['p95']:.2f}s")
+                print(
+                    f"Error rate: {summary['error_rate']:.2%}, P95: {summary['response_times']['p95']:.2f}s"
+                )
 
             current_concurrency += 10
 
         # System should handle at least 20 concurrent users
-        assert current_concurrency > 20, f"System broke at too low concurrency: {current_concurrency}"
+        assert (
+            current_concurrency > 20
+        ), f"System broke at too low concurrency: {current_concurrency}"
 
 
 @pytest.mark.performance
@@ -640,7 +647,7 @@ class TestPerformanceRegression:
             "p95_response_time": summary["response_times"]["p95"],
             "mean_response_time": summary["response_times"]["mean"],
             "error_rate": summary["error_rate"],
-            "rps": summary["requests_per_second"]
+            "rps": summary["requests_per_second"],
         }
 
         print(f"Baseline performance established: {baseline_metrics}")

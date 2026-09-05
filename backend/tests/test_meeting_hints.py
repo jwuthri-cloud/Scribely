@@ -9,7 +9,9 @@ from app.services.meeting_hints import (
 
 
 class _P:
-    def __init__(self, status: ParticipantResponseStatus = ParticipantResponseStatus.ACCEPTED):
+    def __init__(
+        self, status: ParticipantResponseStatus = ParticipantResponseStatus.ACCEPTED
+    ):
         self.response_status = status
 
 

@@ -1,4 +1,5 @@
 """Structured output model for the AssistantAgent."""
+
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field

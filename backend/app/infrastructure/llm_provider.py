@@ -1,4 +1,5 @@
 """LLM provider integrations using LangChain."""
+
 import os
 from typing import Any, Dict, List, Optional
 
@@ -20,11 +21,11 @@ logger = get_logger("llm_provider")
 
 class OpenRouterProvider:
     """OpenRouter LLM provider integration with model querying capabilities."""
-    
+
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize OpenRouter provider.
-        
+
         Args:
             api_key: OpenRouter API key (defaults to OPENROUTER_API_KEY from settings)
         """
@@ -36,7 +37,7 @@ class OpenRouterProvider:
             )
         self._base_url = "https://openrouter.ai/api/v1"
         self._models_cache: Optional[List[Dict[str, Any]]] = None
-    
+
     def get_llm(
         self,
         model_name: str = DEFAULT_TRAINING,
@@ -48,7 +49,7 @@ class OpenRouterProvider:
     ) -> ChatOpenAI:
         """
         Get configured OpenRouter LLM instance.
-        
+
         Args:
             model_name: OpenRouter model name (e.g., "openai/gpt-5.6-terra")
             temperature: Model temperature (0-2)
@@ -63,10 +64,10 @@ class OpenRouterProvider:
                 - only: List of provider names to restrict to
                 - ignore: List of provider names to exclude
             enable_langfuse: If True (default), automatically add Langfuse callback if enabled in settings
-        
+
         Returns:
             Configured ChatOpenAI instance for OpenRouter
-        
+
         Example:
             ```python
             # With fallback models (Langfuse automatically enabled if configured)
@@ -74,7 +75,7 @@ class OpenRouterProvider:
                 model_name=CLAUDE_SONNET,
                 fallback_models=[GPT_MINI, GROK_FAST]
             )
-            
+
             # With provider routing
             llm = provider.get_llm(
                 model_name=GROK_NORMAL,
@@ -83,7 +84,7 @@ class OpenRouterProvider:
                     "allow_fallbacks": True
                 }
             )
-            
+
             # Disable Langfuse for this specific call
             llm = provider.get_llm(
                 model_name=GPT_MINI,
@@ -92,22 +93,22 @@ class OpenRouterProvider:
             ```
         """
         extra_body = {}
-        
+
         # Add fallback models if provided
         if fallback_models:
             extra_body["models"] = fallback_models
             logger.debug(f"Configured fallback models: {fallback_models}")
-        
+
         # Add provider configuration if provided
         if provider_config:
             extra_body["provider"] = provider_config
             logger.debug(f"Configured provider routing: {provider_config}")
-        
+
         # Automatically add Langfuse callbacks if enabled
         final_callbacks = callbacks
         if enable_langfuse:
             final_callbacks = get_langfuse_callbacks(callbacks)
-        
+
         return ChatOpenAI(
             model=model_name,
             api_key=self.api_key,
@@ -117,7 +118,7 @@ class OpenRouterProvider:
             callbacks=final_callbacks,
             extra_body=extra_body if extra_body else None,
         )
-    
+
     def get_llm_with_fallbacks(
         self,
         models: List[str],
@@ -128,23 +129,23 @@ class OpenRouterProvider:
     ) -> ChatOpenAI:
         """
         Get configured OpenRouter LLM instance with model fallbacks.
-        
+
         The first model in the list is the primary model. If it fails, OpenRouter
         will automatically try the next model in the list.
-        
+
         Args:
-            models: List of model names in priority order (e.g., 
+            models: List of model names in priority order (e.g.,
                 [CLAUDE_SONNET, GPT_MINI])
             temperature: Model temperature (0-2)
             callbacks: Optional list of callback handlers
             provider_config: Optional provider routing configuration (see get_llm for details)
-        
+
         Returns:
             Configured ChatOpenAI instance for OpenRouter with fallbacks
-        
+
         Raises:
             ValueError: If models list is empty
-        
+
         Example:
             ```python
             llm = provider.get_llm_with_fallbacks([
@@ -156,10 +157,10 @@ class OpenRouterProvider:
         """
         if not models:
             raise ValueError("At least one model must be provided")
-        
+
         primary_model = models[0]
         fallback_models = models[1:] if len(models) > 1 else None
-        
+
         return self.get_llm(
             model_name=primary_model,
             temperature=temperature,
@@ -168,33 +169,31 @@ class OpenRouterProvider:
             provider_config=provider_config,
             enable_langfuse=enable_langfuse,
         )
-    
+
     def get_models(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Get list of available models from OpenRouter.
-        
+
         Args:
             use_cache: Whether to use cached models if available
-        
+
         Returns:
             List of model dictionaries with id, context_length, pricing, etc.
-        
+
         Raises:
             requests.RequestException: If the API request fails
         """
         if use_cache and self._models_cache is not None:
             return self._models_cache
-        
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         try:
             response = requests.get(
-                f"{self._base_url}/models",
-                headers=headers,
-                timeout=10
+                f"{self._base_url}/models", headers=headers, timeout=10
             )
             response.raise_for_status()
             models = response.json().get("data", [])
@@ -204,14 +203,14 @@ class OpenRouterProvider:
         except requests.RequestException as e:
             logger.error(f"Failed to fetch OpenRouter models: {e}")
             raise
-    
+
     def get_balance(self) -> Dict[str, Any]:
         """
         Get OpenRouter account balance/credits.
-        
+
         Returns:
             Dictionary with balance information
-        
+
         Raises:
             requests.RequestException: If the API request fails
         """
@@ -219,12 +218,10 @@ class OpenRouterProvider:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         try:
             response = requests.get(
-                f"{self._base_url}/auth/key",
-                headers=headers,
-                timeout=10
+                f"{self._base_url}/auth/key", headers=headers, timeout=10
             )
             response.raise_for_status()
             balance = response.json()
@@ -233,36 +230,34 @@ class OpenRouterProvider:
         except requests.RequestException as e:
             logger.error(f"Failed to fetch OpenRouter balance: {e}")
             raise
-    
+
     @staticmethod
     def get_provider_from_id(model_id: str) -> Optional[str]:
         """Extract provider name from model ID (e.g., 'openai/gpt-4' -> 'openai')."""
         if "/" in model_id:
             return model_id.split("/")[0]
         return None
-    
+
     def get_model_context_limit(
-        self,
-        model_name: str,
-        use_cache: bool = True
+        self, model_name: str, use_cache: bool = True
     ) -> Optional[int]:
         """
         Get model context limit from OpenRouter models cache.
-        
+
         Args:
             model_name: Model name (e.g., "openai/gpt-5.6-terra")
             use_cache: Whether to use cached models
-        
+
         Returns:
             Context limit if found, None otherwise
         """
         try:
             models = self.get_models(use_cache=use_cache)
             for model in models:
-                if model.get('id') == model_name:
-                    top_provider = model.get('top_provider', {})
+                if model.get("id") == model_name:
+                    top_provider = model.get("top_provider", {})
                     if isinstance(top_provider, dict):
-                        context_length = top_provider.get('context_length')
+                        context_length = top_provider.get("context_length")
                         if context_length:
                             return int(context_length)
             logger.warning(f"Model {model_name} not found in OpenRouter models")
@@ -270,29 +265,27 @@ class OpenRouterProvider:
         except Exception as e:
             logger.error(f"Failed to get model context limit: {e}")
             return None
-    
+
     def get_model_max_completion(
-        self,
-        model_name: str,
-        use_cache: bool = True
+        self, model_name: str, use_cache: bool = True
     ) -> Optional[int]:
         """
         Get model max completion tokens from OpenRouter models cache.
-        
+
         Args:
             model_name: Model name (e.g., "openai/gpt-5.6-terra")
             use_cache: Whether to use cached models
-        
+
         Returns:
             Max completion tokens if found, None otherwise
         """
         try:
             models = self.get_models(use_cache=use_cache)
             for model in models:
-                if model.get('id') == model_name:
-                    top_provider = model.get('top_provider', {})
+                if model.get("id") == model_name:
+                    top_provider = model.get("top_provider", {})
                     if isinstance(top_provider, dict):
-                        max_completion = top_provider.get('max_completion_tokens')
+                        max_completion = top_provider.get("max_completion_tokens")
                         if max_completion:
                             return int(max_completion)
             logger.warning(f"Model {model_name} not found in OpenRouter models")
@@ -341,13 +334,13 @@ class OpenRouterEmbeddings(Embeddings):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         # Add optional headers if configured
         if self.app_url:
             headers["HTTP-Referer"] = self.app_url
         if self.app_name:
             headers["X-Title"] = self.app_name
-        
+
         response = requests.post(
             self.base_url,
             headers=headers,
@@ -356,7 +349,9 @@ class OpenRouterEmbeddings(Embeddings):
         )
 
         if response.status_code != 200:
-            raise Exception(f"API request failed: {response.status_code} - {response.text}")
+            raise Exception(
+                f"API request failed: {response.status_code} - {response.text}"
+            )
 
         data = response.json()
         return [item["embedding"] for item in data["data"]]
@@ -390,13 +385,13 @@ class OpenRouterEmbeddings(Embeddings):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        
+
         # Add optional headers if configured
         if self.app_url:
             headers["HTTP-Referer"] = self.app_url
         if self.app_name:
             headers["X-Title"] = self.app_name
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 self.base_url,
@@ -405,7 +400,9 @@ class OpenRouterEmbeddings(Embeddings):
             )
 
             if response.status_code != 200:
-                raise Exception(f"API request failed: {response.status_code} - {response.text}")
+                raise Exception(
+                    f"API request failed: {response.status_code} - {response.text}"
+                )
 
             data = response.json()
             return [item["embedding"] for item in data["data"]]

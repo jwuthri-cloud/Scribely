@@ -10,6 +10,7 @@ def _utc_naive() -> datetime:
     """Return naive UTC datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,14 +24,21 @@ class UserRepository:
     """Repository for User model operations."""
 
     @staticmethod
-    async def create(db: AsyncSession, clerk_id: str, email: str = None, username: str = None, full_name: str = None, **kwargs) -> User:
+    async def create(
+        db: AsyncSession,
+        clerk_id: str,
+        email: str = None,
+        username: str = None,
+        full_name: str = None,
+        **kwargs,
+    ) -> User:
         """Create a new user from Clerk authentication."""
         user = User(
             clerk_id=clerk_id,
             email=email,
             username=username,
             full_name=full_name,
-            **kwargs
+            **kwargs,
         )
         db.add(user)
         await db.flush()
@@ -95,7 +103,6 @@ class UserRepository:
             return True
         return False
 
-
     @staticmethod
     async def update_last_login(db: AsyncSession, user_id: str) -> Optional[User]:
         """Update user's last login timestamp."""
@@ -108,7 +115,9 @@ class UserRepository:
         return user
 
     @staticmethod
-    async def search_users(db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50) -> List[User]:
+    async def search_users(
+        db: AsyncSession, search_term: str, skip: int = 0, limit: int = 50
+    ) -> List[User]:
         """Search users by email, username or full name."""
         result = await db.execute(
             select(User)
@@ -116,7 +125,7 @@ class UserRepository:
                 or_(
                     User.email.ilike(f"%{search_term}%"),
                     User.username.ilike(f"%{search_term}%"),
-                    User.full_name.ilike(f"%{search_term}%")
+                    User.full_name.ilike(f"%{search_term}%"),
                 )
             )
             .offset(skip)

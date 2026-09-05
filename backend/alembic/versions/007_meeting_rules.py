@@ -7,8 +7,9 @@ Uses IF NOT EXISTS so ``alembic upgrade`` succeeds when tables were already crea
 by app startup (``Base.metadata.create_all``) before the version table advanced.
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "007_meeting_rules"
 down_revision = "006_varchar_status"
@@ -20,7 +21,12 @@ def upgrade() -> None:
     op.create_table(
         "rules",
         sa.Column("id", sa.String(), nullable=False),
-        sa.Column("user_id", sa.String(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.String(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("trigger", sa.String(32), nullable=False),
@@ -44,7 +50,12 @@ def upgrade() -> None:
     op.create_table(
         "rule_steps",
         sa.Column("id", sa.String(), nullable=False),
-        sa.Column("rule_id", sa.String(), sa.ForeignKey("rules.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "rule_id",
+            sa.String(),
+            sa.ForeignKey("rules.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("order_index", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("step_type", sa.String(32), nullable=False),
@@ -53,7 +64,11 @@ def upgrade() -> None:
         if_not_exists=True,
     )
     op.create_index(
-        "ix_rule_steps_rule_id", "rule_steps", ["rule_id"], unique=False, if_not_exists=True
+        "ix_rule_steps_rule_id",
+        "rule_steps",
+        ["rule_id"],
+        unique=False,
+        if_not_exists=True,
     )
     op.create_index(
         "ix_rule_steps_rule_order",
@@ -66,8 +81,18 @@ def upgrade() -> None:
     op.create_table(
         "rule_executions",
         sa.Column("id", sa.String(), nullable=False),
-        sa.Column("rule_id", sa.String(), sa.ForeignKey("rules.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("meeting_id", sa.String(), sa.ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "rule_id",
+            sa.String(),
+            sa.ForeignKey("rules.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "meeting_id",
+            sa.String(),
+            sa.ForeignKey("meetings.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("trigger", sa.String(32), nullable=False),
         sa.Column("status", sa.String(32), nullable=False),
         sa.Column("started_at", sa.DateTime(), nullable=True),

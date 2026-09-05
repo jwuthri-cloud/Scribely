@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from .types import DiarizedUtterance, DiarizationHints
+from .types import DiarizationHints, DiarizedUtterance
 
 
 class BaseDiarizer(ABC):

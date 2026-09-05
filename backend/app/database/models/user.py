@@ -19,6 +19,7 @@ def _utc_naive() -> datetime:
 
 class UserStatusEnum(str, enum.Enum):
     """User account status."""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
@@ -26,6 +27,7 @@ class UserStatusEnum(str, enum.Enum):
 
 class User(Base):
     """User account model."""
+
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -43,7 +45,9 @@ class User(Base):
 
     # Entitlement: when true, the desktop app uses the Recall.ai Desktop SDK
     # capture/transcribe/diarize stack instead of the base local-Whisper path.
-    use_recall_sdk = Column(Boolean, default=False, nullable=False, server_default="false")
+    use_recall_sdk = Column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
 
     @property
     def is_active(self) -> bool:
@@ -51,7 +55,9 @@ class User(Base):
         return self.status == UserStatusEnum.ACTIVE
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
     last_login_at = Column(DateTime, nullable=True)
 
     preferences = Column(JSON, default={})

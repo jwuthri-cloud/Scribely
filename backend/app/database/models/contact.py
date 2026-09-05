@@ -19,7 +19,9 @@ class Contact(Base):
     __tablename__ = "contacts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     email = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     deal_id = Column(
@@ -32,7 +34,9 @@ class Contact(Base):
     first_seen_at = Column(DateTime, default=_utc_naive, nullable=False)
     last_seen_at = Column(DateTime, default=_utc_naive, nullable=False)
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     user = relationship("User", backref="contacts")
     deal = relationship("Deal", back_populates="contacts")

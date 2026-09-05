@@ -34,15 +34,20 @@ class KnowledgeExtractorAgent:
     ) -> None:
         settings = get_settings()
         self.llm_provider = llm_provider or OpenRouterProvider()
-        self.model_name = model_name or getattr(
-            settings, "knowledge_extractor_model", None
-        ) or getattr(settings, "default_model", None) or "openai/gpt-4o-mini"
+        self.model_name = (
+            model_name
+            or getattr(settings, "knowledge_extractor_model", None)
+            or getattr(settings, "default_model", None)
+            or "openai/gpt-4o-mini"
+        )
         self.temperature = temperature
         self.llm = self.llm_provider.get_llm(
             model_name=self.model_name,
             temperature=self.temperature,
         )
-        logger.info(f"[KnowledgeExtractorAgent] Initialized with model: {self.model_name}")
+        logger.info(
+            f"[KnowledgeExtractorAgent] Initialized with model: {self.model_name}"
+        )
 
     async def extract(
         self,
@@ -59,7 +64,8 @@ class KnowledgeExtractorAgent:
         Non-owner participants are the extraction targets.
         """
         external = [
-            p for p in participants
+            p
+            for p in participants
             if p.get("email") and p["email"].lower() != (owner_email or "").lower()
         ]
         if not external:
@@ -70,7 +76,9 @@ class KnowledgeExtractorAgent:
             return KnowledgeExtractionResponse(facts=[])
 
         if len(transcript_text) > MAX_TRANSCRIPT_CHARS:
-            transcript_text = transcript_text[:MAX_TRANSCRIPT_CHARS] + "\n[...truncated]"
+            transcript_text = (
+                transcript_text[:MAX_TRANSCRIPT_CHARS] + "\n[...truncated]"
+            )
 
         participant_block = "\n".join(
             f"- {p['email'].lower()}"
@@ -109,11 +117,15 @@ class KnowledgeExtractorAgent:
         circuit_breaker = get_llm_circuit_breaker()
 
         async def invoke_llm() -> KnowledgeExtractionResponse:
-            structured_llm = self.llm.with_structured_output(KnowledgeExtractionResponse)
+            structured_llm = self.llm.with_structured_output(
+                KnowledgeExtractionResponse
+            )
             return await structured_llm.ainvoke(messages, config=langfuse_config)
 
         try:
-            response: KnowledgeExtractionResponse = await circuit_breaker.call(invoke_llm)
+            response: KnowledgeExtractionResponse = await circuit_breaker.call(
+                invoke_llm
+            )
         except Exception as e:
             logger.error(f"[KnowledgeExtractorAgent] LLM call failed: {e}")
             return KnowledgeExtractionResponse(facts=[])

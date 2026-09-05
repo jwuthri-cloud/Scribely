@@ -9,7 +9,9 @@ from app.main import app
 
 @patch("app.config.get_settings")
 def test_google_calendar_webhook_rejects_wrong_channel_token(mock_get_settings) -> None:
-    mock_get_settings.return_value = MagicMock(google_calendar_webhook_token="expected-token")
+    mock_get_settings.return_value = MagicMock(
+        google_calendar_webhook_token="expected-token"
+    )
     with TestClient(app) as client:
         r = client.post(
             "/api/v1/calendar/webhook/google",

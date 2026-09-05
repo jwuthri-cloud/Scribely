@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.database.models.contact import Contact
 from app.database.models.knowledge import ContactKnowledge
@@ -18,9 +22,6 @@ from app.models.deal import (
     MeetingRefOut,
 )
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("deals_api")
 router = APIRouter()
@@ -88,12 +89,28 @@ async def get_deal(
         KnowledgeEntryOut(
             id=k.id,
             contact_id=k.contact_id,
-            contact_email=contact_by_id.get(k.contact_id).email if contact_by_id.get(k.contact_id) else None,
-            contact_name=contact_by_id.get(k.contact_id).full_name if contact_by_id.get(k.contact_id) else None,
+            contact_email=(
+                contact_by_id.get(k.contact_id).email
+                if contact_by_id.get(k.contact_id)
+                else None
+            ),
+            contact_name=(
+                contact_by_id.get(k.contact_id).full_name
+                if contact_by_id.get(k.contact_id)
+                else None
+            ),
             deal_id=k.deal_id,
             meeting_id=k.meeting_id,
-            meeting_title=meeting_by_id.get(k.meeting_id).title if meeting_by_id.get(k.meeting_id) else None,
-            meeting_recorded_at=meeting_by_id.get(k.meeting_id).recorded_at if meeting_by_id.get(k.meeting_id) else None,
+            meeting_title=(
+                meeting_by_id.get(k.meeting_id).title
+                if meeting_by_id.get(k.meeting_id)
+                else None
+            ),
+            meeting_recorded_at=(
+                meeting_by_id.get(k.meeting_id).recorded_at
+                if meeting_by_id.get(k.meeting_id)
+                else None
+            ),
             fact=k.fact,
             category=str(k.category),
             confidence=k.confidence,

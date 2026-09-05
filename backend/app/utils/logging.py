@@ -2,6 +2,7 @@
 Logging utilities for Scribely.
 Enhanced with Rich for beautiful console output and JSON for production.
 """
+
 import logging
 from typing import Optional
 
@@ -39,7 +40,7 @@ def setup_logging(log_level: str = "INFO", environment: str = "development"):
                 markup=True,
             )
         ],
-        force=True  # Override any existing config
+        force=True,  # Override any existing config
     )
 
     # Configure uvicorn to use our Rich handler
@@ -75,7 +76,7 @@ def setup_cli_logging(level: str = "INFO", verbose: bool = False):
                 markup=True,
             )
         ],
-        force=True
+        force=True,
     )
 
     # Set global logger

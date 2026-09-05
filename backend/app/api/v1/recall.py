@@ -12,13 +12,20 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.config import get_settings
 from app.database.models.user import User
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.user import UserRepository
 from app.database.session import get_async_db_session
-from app.infrastructure.object_storage import is_object_storage_configured, upload_file_async
+from app.infrastructure.object_storage import (
+    is_object_storage_configured,
+    upload_file_async,
+)
 from app.infrastructure.recall.client import (
     build_recording_config,
     create_sdk_upload,
@@ -28,9 +35,6 @@ from app.infrastructure.recall.client import (
 )
 from app.security.clerk_auth import ClerkUser, require_admin
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("recall_api")
 
@@ -39,12 +43,16 @@ router = APIRouter()
 
 class UploadTokenBody(BaseModel):
     # Mirrors the desktop's transcription.language setting: 'en' | 'multi'.
-    language: Optional[str] = Field(default=None, description="'en' (default) or 'multi'")
+    language: Optional[str] = Field(
+        default=None, description="'en' (default) or 'multi'"
+    )
 
 
 class UploadTokenResponse(BaseModel):
     id: str = Field(..., description="Recall upload id (used later for retrieval)")
-    upload_token: str = Field(..., description="Per-recording token handed to the desktop SDK")
+    upload_token: str = Field(
+        ..., description="Per-recording token handed to the desktop SDK"
+    )
 
 
 @router.post("/upload-token", response_model=UploadTokenResponse)
@@ -58,7 +66,9 @@ async def mint_upload_token(
     cost/provider policy stays on the backend (en→recallai_streaming, multi→AssemblyAI).
     """
     if not user.use_recall_sdk:
-        raise HTTPException(status_code=403, detail="Recall SDK not enabled for this user")
+        raise HTTPException(
+            status_code=403, detail="Recall SDK not enabled for this user"
+        )
 
     language = body.language if body else None
     try:
@@ -68,7 +78,9 @@ async def mint_upload_token(
         )
     except Exception as e:
         logger.error(f"Recall upload-token mint failed for user {user.id}: {e}")
-        raise HTTPException(status_code=502, detail="Failed to mint Recall upload token")
+        raise HTTPException(
+            status_code=502, detail="Failed to mint Recall upload token"
+        )
 
     return UploadTokenResponse(id=data["id"], upload_token=data["upload_token"])
 
@@ -101,13 +113,15 @@ def _verify_svix(headers: Any, body: bytes, secret: str) -> bool:
     svix_sig = headers.get("svix-signature")
     if not (svix_id and svix_ts and svix_sig):
         return False
-    key = secret[len("whsec_"):] if secret.startswith("whsec_") else secret
+    key = secret[len("whsec_") :] if secret.startswith("whsec_") else secret
     try:
         key_bytes = base64.b64decode(key)
     except Exception:
         return False
     signed = f"{svix_id}.{svix_ts}.{body.decode('utf-8')}".encode("utf-8")
-    expected = base64.b64encode(hmac.new(key_bytes, signed, hashlib.sha256).digest()).decode()
+    expected = base64.b64encode(
+        hmac.new(key_bytes, signed, hashlib.sha256).digest()
+    ).decode()
     # svix-signature is a space-separated list of "v1,<base64sig>" entries.
     for part in svix_sig.split(" "):
         _, _, sig = part.partition(",")
@@ -130,7 +144,9 @@ async def recall_webhook(
         if not _verify_svix(request.headers, body, settings.recall_webhook_secret):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
     else:
-        logger.warning("RECALL_WEBHOOK_SECRET not set — skipping signature verification (dev only)")
+        logger.warning(
+            "RECALL_WEBHOOK_SECRET not set — skipping signature verification (dev only)"
+        )
 
     try:
         payload = json.loads(body)
@@ -150,10 +166,14 @@ async def recall_webhook(
         logger.warning("recall webhook: missing sdk_upload.id")
         return {"ok": True}
 
-    meeting = await MeetingRepository.get_by_recall_upload_id(db, upload_id, user_id=user_id)
+    meeting = await MeetingRepository.get_by_recall_upload_id(
+        db, upload_id, user_id=user_id
+    )
     if not meeting:
         # The transcript upload may not have landed yet — ask Svix to retry later.
-        logger.info(f"recall webhook: no meeting for upload {upload_id} yet — requesting retry")
+        logger.info(
+            f"recall webhook: no meeting for upload {upload_id} yet — requesting retry"
+        )
         raise HTTPException(status_code=503, detail="meeting not ready")
 
     try:
@@ -162,7 +182,9 @@ async def recall_webhook(
         logger.error(f"recall webhook: retrieve failed for {upload_id}: {e}")
         raise HTTPException(status_code=503, detail="retrieve failed")
     if not recording:
-        logger.info(f"recall webhook: recording not available yet for {upload_id} — retry")
+        logger.info(
+            f"recall webhook: recording not available yet for {upload_id} — retry"
+        )
         raise HTTPException(status_code=503, detail="recording not ready")
 
     video_url = extract_media_urls(recording).get("video")
@@ -178,8 +200,12 @@ async def recall_webhook(
     try:
         size = await download_to_file(video_url, dest)
         if is_object_storage_configured():
-            await upload_file_async(dest, f"{meeting.user_id}/{meeting.id}", "recording.mp4")
-        logger.info(f"recall webhook: saved recording.mp4 ({size} bytes) for meeting {meeting.id}")
+            await upload_file_async(
+                dest, f"{meeting.user_id}/{meeting.id}", "recording.mp4"
+            )
+        logger.info(
+            f"recall webhook: saved recording.mp4 ({size} bytes) for meeting {meeting.id}"
+        )
     except Exception as e:
         logger.error(f"recall webhook: download failed for meeting {meeting.id}: {e}")
         raise HTTPException(status_code=503, detail="download failed")

@@ -64,7 +64,9 @@ class CalendarRepository:
         last_synced_at: Optional[datetime] = None,
         last_error: Optional[str] = None,
     ) -> CalendarConnection:
-        row = await CalendarRepository.get_connection_by_user_provider(db, user_id, provider)
+        row = await CalendarRepository.get_connection_by_user_provider(
+            db, user_id, provider
+        )
         if row is None:
             row = CalendarConnection(
                 user_id=user_id,
@@ -239,7 +241,9 @@ class CalendarRepository:
         limit: int = 50,
     ) -> tuple[list[CalendarEvent], int]:
         base = select(CalendarEvent).where(CalendarEvent.user_id == user_id)
-        count_stmt = select(func.count(CalendarEvent.id)).where(CalendarEvent.user_id == user_id)
+        count_stmt = select(func.count(CalendarEvent.id)).where(
+            CalendarEvent.user_id == user_id
+        )
 
         if start_from is not None:
             base = base.where(CalendarEvent.start_time >= start_from)
@@ -256,11 +260,7 @@ class CalendarRepository:
         total = total_result.scalar() or 0
 
         offset = (page - 1) * limit
-        stmt = (
-            base.order_by(CalendarEvent.start_time.asc())
-            .offset(offset)
-            .limit(limit)
-        )
+        stmt = base.order_by(CalendarEvent.start_time.asc()).offset(offset).limit(limit)
         result = await db.execute(stmt)
         rows = list(result.scalars().all())
         return rows, total

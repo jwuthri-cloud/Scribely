@@ -18,7 +18,9 @@ class PushRepository:
         auth: str,
         user_agent: str | None,
     ) -> UserPushSubscription:
-        stmt = select(UserPushSubscription).where(UserPushSubscription.endpoint == endpoint)
+        stmt = select(UserPushSubscription).where(
+            UserPushSubscription.endpoint == endpoint
+        )
         result = await db.execute(stmt)
         row = result.scalar_one_or_none()
         if row is None:
@@ -41,12 +43,9 @@ class PushRepository:
 
     @staticmethod
     async def delete_by_endpoint(db: AsyncSession, user_id: str, endpoint: str) -> bool:
-        stmt = (
-            delete(UserPushSubscription)
-            .where(
-                UserPushSubscription.user_id == user_id,
-                UserPushSubscription.endpoint == endpoint,
-            )
+        stmt = delete(UserPushSubscription).where(
+            UserPushSubscription.user_id == user_id,
+            UserPushSubscription.endpoint == endpoint,
         )
         result = await db.execute(stmt)
         return (result.rowcount or 0) > 0
@@ -55,13 +54,19 @@ class PushRepository:
     async def count_for_user(db: AsyncSession, user_id: str) -> int:
         from sqlalchemy import func
 
-        stmt = select(func.count(UserPushSubscription.id)).where(UserPushSubscription.user_id == user_id)
+        stmt = select(func.count(UserPushSubscription.id)).where(
+            UserPushSubscription.user_id == user_id
+        )
         r = await db.execute(stmt)
         return int(r.scalar() or 0)
 
     @staticmethod
-    async def list_subscriptions_for_user(db: AsyncSession, user_id: str) -> list[UserPushSubscription]:
-        stmt = select(UserPushSubscription).where(UserPushSubscription.user_id == user_id)
+    async def list_subscriptions_for_user(
+        db: AsyncSession, user_id: str
+    ) -> list[UserPushSubscription]:
+        stmt = select(UserPushSubscription).where(
+            UserPushSubscription.user_id == user_id
+        )
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
@@ -94,4 +99,3 @@ class PushRepository:
                 return True
             except IntegrityError:
                 return False
-

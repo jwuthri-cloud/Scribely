@@ -5,10 +5,10 @@ Database configuration and session management for Scribely.
 import logging
 from typing import Generator
 
-from app.config import get_settings
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from app.config import get_settings
 
 # Get settings
 settings = get_settings()
@@ -30,29 +30,31 @@ if database_url.startswith("postgresql://") and "+asyncpg" not in database_url:
         pool_pre_ping=True,
         pool_size=10,
         max_overflow=20,
-        echo=settings.debug
+        echo=settings.debug,
     )
 elif database_url.startswith("sqlite://") and "+aiosqlite" not in database_url:
     # Sync SQLite
     engine = create_engine(
-        database_url,
-        connect_args={"check_same_thread": False},
-        echo=settings.debug
+        database_url, connect_args={"check_same_thread": False}, echo=settings.debug
     )
-elif not database_url or database_url.startswith("postgresql+asyncpg") or database_url.startswith("sqlite+aiosqlite"):
+elif (
+    not database_url
+    or database_url.startswith("postgresql+asyncpg")
+    or database_url.startswith("sqlite+aiosqlite")
+):
     # Async URL or no URL - create a dummy sync engine that won't be used
     # This prevents errors but the sync engine won't actually work with async URLs
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
-        echo=False  # Don't echo for dummy engine
+        echo=False,  # Don't echo for dummy engine
     )
 else:
     # Fallback - in-memory SQLite for testing
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
-        echo=settings.debug
+        echo=settings.debug,
     )
 
 # Create SessionLocal class (legacy sync support)

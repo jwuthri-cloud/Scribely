@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 from typing import Any, AsyncGenerator, Callable, Generator
 
-from app.exceptions import DatabaseError
-from app.utils.logging import get_logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
+
+from app.exceptions import DatabaseError
+from app.utils.logging import get_logger
 
 logger = get_logger("database.transaction")
 
@@ -36,7 +37,9 @@ def transaction_scope(db: Session) -> Generator[Session, None, None]:
 
 
 @asynccontextmanager
-async def async_transaction_scope(db: AsyncSession) -> AsyncGenerator[AsyncSession, None]:
+async def async_transaction_scope(
+    db: AsyncSession,
+) -> AsyncGenerator[AsyncSession, None]:
     """
     Provide an async transactional scope around a series of operations.
 
@@ -67,6 +70,7 @@ def transactional(func: Callable) -> Callable:
             session = session_repo.create(db, user_id=user.id, **session_data)
             return user, session
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs) -> Any:
         # Find the database session in arguments
@@ -102,6 +106,7 @@ def async_transactional(func: Callable) -> Callable:
             session = await session_repo.async_create(db, user_id=user.id, **session_data)
             return user, session
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         # Find the database session in arguments
@@ -186,7 +191,10 @@ class TransactionManager:
 
 # Bulk operations helpers to prevent N+1 queries
 
-def bulk_load_related(db: Session, primary_objects: list, relation_loader: Callable) -> dict:
+
+def bulk_load_related(
+    db: Session, primary_objects: list, relation_loader: Callable
+) -> dict:
     """
     Bulk load related objects to prevent N+1 queries.
 
@@ -202,7 +210,7 @@ def bulk_load_related(db: Session, primary_objects: list, relation_loader: Calla
         return {}
 
     # Extract IDs from primary objects
-    primary_ids = [getattr(obj, 'id') for obj in primary_objects]
+    primary_ids = [getattr(obj, "id") for obj in primary_objects]
 
     # Bulk load related objects
     related_objects = relation_loader(db, primary_ids)
@@ -210,7 +218,9 @@ def bulk_load_related(db: Session, primary_objects: list, relation_loader: Calla
     # Group related objects by primary ID
     related_by_id = {}
     for related in related_objects:
-        primary_id = getattr(related, f"{primary_objects[0].__class__.__name__.lower()}_id")
+        primary_id = getattr(
+            related, f"{primary_objects[0].__class__.__name__.lower()}_id"
+        )
         if primary_id not in related_by_id:
             related_by_id[primary_id] = []
         related_by_id[primary_id].append(related)

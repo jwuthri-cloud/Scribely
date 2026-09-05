@@ -2,14 +2,15 @@
 Web Push: subscribe / unsubscribe for calendar meeting reminders.
 """
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.config import get_settings
 from app.database.models.user import User
 from app.database.repositories.push import PushRepository
 from app.database.session import get_async_db_session
 from app.models.push import PushStatusOut, PushSubscribeIn
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -73,4 +74,6 @@ async def push_unsubscribe(
     deleted = await PushRepository.delete_by_endpoint(db, user.id, endpoint)
     await db.commit()
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"
+        )

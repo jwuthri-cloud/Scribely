@@ -7,8 +7,9 @@ Revision ID: 010_recall_entitlement
 Revises: 009_deals_and_knowledge
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "010_recall_entitlement"
 down_revision = "009_deals_and_knowledge"

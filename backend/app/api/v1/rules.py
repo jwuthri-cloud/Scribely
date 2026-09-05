@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_with_db
-from app.database.models.rule import RuleTriggerEnum, RuleStepTypeEnum
+from app.database.models.rule import RuleStepTypeEnum, RuleTriggerEnum
 from app.database.models.user import User
 from app.database.repositories.meeting import MeetingRepository
-from app.database.repositories.rule import RuleRepository, _MISSING_FLOW
+from app.database.repositories.rule import _MISSING_FLOW, RuleRepository
 from app.database.session import get_async_db_session
 from app.model_name import (
     ALLOWED_OPENROUTER_MODEL_IDS,
@@ -311,7 +311,9 @@ async def delete_rule(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ) -> None:
-    rule = await RuleRepository.get_by_id(db, rule_id, user_id=user.id, load_steps=False)
+    rule = await RuleRepository.get_by_id(
+        db, rule_id, user_id=user.id, load_steps=False
+    )
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
     await RuleRepository.delete_rule(db, rule)
@@ -344,7 +346,9 @@ async def list_rule_executions(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ) -> list[RuleExecutionOut]:
-    rule = await RuleRepository.get_by_id(db, rule_id, user_id=user.id, load_steps=False)
+    rule = await RuleRepository.get_by_id(
+        db, rule_id, user_id=user.id, load_steps=False
+    )
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
     rows = await RuleRepository.list_executions_for_rule(db, rule_id, user.id)
@@ -362,4 +366,3 @@ async def list_rule_executions(
         )
         for e in rows
     ]
-

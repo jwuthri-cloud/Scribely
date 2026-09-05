@@ -18,14 +18,18 @@ class UserPushSubscription(Base):
     __tablename__ = "user_push_subscriptions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     endpoint = Column(Text, nullable=False, unique=True)
     p256dh = Column(String(255), nullable=False)
     auth = Column(String(255), nullable=False)
     user_agent = Column(String(500), nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
 
 class CalendarReminderDelivery(Base):
@@ -34,7 +38,9 @@ class CalendarReminderDelivery(Base):
     __tablename__ = "calendar_reminder_deliveries"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     calendar_event_id = Column(
         String,
         ForeignKey("calendar_events.id", ondelete="CASCADE"),

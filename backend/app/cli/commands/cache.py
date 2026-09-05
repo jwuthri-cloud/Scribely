@@ -31,7 +31,7 @@ def status():
             "total_keys": 1247,
             "memory_used": "45.2 MB",
             "hit_rate": "87.3%",
-            "connections": 12
+            "connections": 12,
         }
 
         table = Table(title="Redis Cache Status")
@@ -48,10 +48,7 @@ def status():
 
 
 @cache.command()
-@click.option(
-    "--pattern",
-    help="Key pattern to match (e.g., 'user:*')"
-)
+@click.option("--pattern", help="Key pattern to match (e.g., 'user:*')")
 def list(pattern):
     """List cache keys."""
     pattern_str = pattern or "*"
@@ -66,7 +63,7 @@ def list(pattern):
             "conversation:abc123",
             "conversation:def456",
             "llm:model:gpt-4:config",
-            "session:xyz789"
+            "session:xyz789",
         ]
 
         if pattern:
@@ -105,10 +102,7 @@ def get(key):
         # Placeholder response
         value = f"cached_value_for_{key}"
 
-        console.print(Panel.fit(
-            f"[green]{value}[/green]",
-            title=f"Cache Value: {key}"
-        ))
+        console.print(Panel.fit(f"[green]{value}[/green]", title=f"Cache Value: {key}"))
 
     except Exception as e:
         console.print(f"[red]✗ Failed to get cache value: {e}[/red]")
@@ -117,12 +111,7 @@ def get(key):
 @cache.command()
 @click.argument("key")
 @click.argument("value")
-@click.option(
-    "--ttl",
-    default=300,
-    type=int,
-    help="Time to live in seconds"
-)
+@click.option("--ttl", default=300, type=int, help="Time to live in seconds")
 def set(key, value, ttl):
     """Set a cache key-value pair."""
     console.print(f"[bold blue]Setting cache key: {key}[/bold blue]")
@@ -152,20 +141,14 @@ def delete(key):
 
 
 @cache.command()
-@click.option(
-    "--pattern",
-    default="*",
-    help="Key pattern to match for deletion"
-)
-@click.option(
-    "--force",
-    is_flag=True,
-    help="Skip confirmation prompt"
-)
+@click.option("--pattern", default="*", help="Key pattern to match for deletion")
+@click.option("--force", is_flag=True, help="Skip confirmation prompt")
 def flush(pattern, force):
     """Clear cache keys matching pattern."""
     if not force:
-        if not click.confirm(f"This will delete all keys matching '{pattern}'. Continue?"):
+        if not click.confirm(
+            f"This will delete all keys matching '{pattern}'. Continue?"
+        ):
             console.print("[yellow]Flush cancelled[/yellow]")
             return
 
@@ -176,13 +159,16 @@ def flush(pattern, force):
         # Simulate deletion process
         for step in track(
             ["Scanning keys", "Preparing deletion", "Executing flush"],
-            description="Flushing cache..."
+            description="Flushing cache...",
         ):
             import time
+
             time.sleep(0.3)
 
         console.print("[green]✓ Cache flush completed[/green]")
-        console.print("[yellow]Note: Integrate with actual cache client for real flushing[/yellow]")
+        console.print(
+            "[yellow]Note: Integrate with actual cache client for real flushing[/yellow]"
+        )
 
     except Exception as e:
         console.print(f"[red]✗ Cache flush failed: {e}[/red]")
@@ -196,26 +182,19 @@ def stats():
     try:
         # Here you would get actual cache statistics
         stats = {
-            "Memory": {
-                "Used": "45.2 MB",
-                "Peak": "67.8 MB",
-                "Limit": "512 MB"
-            },
+            "Memory": {"Used": "45.2 MB", "Peak": "67.8 MB", "Limit": "512 MB"},
             "Operations": {
                 "Total Commands": "1,247,893",
                 "Hits": "1,089,524",
                 "Misses": "158,369",
-                "Hit Rate": "87.3%"
+                "Hit Rate": "87.3%",
             },
-            "Connections": {
-                "Current": "12",
-                "Total": "1,456"
-            },
+            "Connections": {"Current": "12", "Total": "1,456"},
             "Performance": {
                 "Avg Response": "0.8ms",
                 "Max Response": "45ms",
-                "Operations/sec": "2,456"
-            }
+                "Operations/sec": "2,456",
+            },
         }
 
         for category, metrics in stats.items():

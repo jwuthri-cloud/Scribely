@@ -12,16 +12,12 @@ console = Console()
 
 
 @click.group()
-@click.option(
-    "--verbose", "-v",
-    is_flag=True,
-    help="Enable verbose output"
-)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option(
     "--log-level",
     default="INFO",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
-    help="Set log level"
+    help="Set log level",
 )
 @click.pass_context
 def cli(ctx, verbose, log_level):
@@ -29,8 +25,8 @@ def cli(ctx, verbose, log_level):
 
     # Ensure context object exists
     ctx.ensure_object(dict)
-    ctx.obj['verbose'] = verbose
-    ctx.obj['log_level'] = log_level
+    ctx.obj["verbose"] = verbose
+    ctx.obj["log_level"] = log_level
 
     # Setup logging for CLI
     setup_cli_logging(log_level, verbose)

@@ -29,6 +29,7 @@ T = TypeVar("T", bound=BaseModel)
 
 class AgentConfig(BaseModel):
     """Configuration for an agent."""
+
     model_name: str = DEFAULT_TRAINING
     temperature: float = 0.7
     max_tokens: Optional[int] = None
@@ -37,6 +38,7 @@ class AgentConfig(BaseModel):
 
 class AgentContext(BaseModel):
     """Context passed to agent invocations."""
+
     user_id: Optional[str] = None
     session_id: Optional[str] = None
     conversation_id: Optional[str] = None
@@ -77,7 +79,7 @@ class BaseAgent(ABC, Generic[T]):
     def __init__(
         self,
         llm_provider: Optional[OpenRouterProvider] = None,
-        config: Optional[AgentConfig] = None
+        config: Optional[AgentConfig] = None,
     ):
         """
         Initialize the agent.
@@ -91,8 +93,7 @@ class BaseAgent(ABC, Generic[T]):
 
         # Get LLM instance
         self.llm = self.llm_provider.get_llm(
-            model_name=self.config.model_name,
-            temperature=self.config.temperature
+            model_name=self.config.model_name, temperature=self.config.temperature
         )
 
         # Create LangChain agent
@@ -115,9 +116,9 @@ class BaseAgent(ABC, Generic[T]):
                 "agent_name": self.name,
                 "model": self.config.model_name,
                 "conversation_id": context.conversation_id,
-                **context.metadata
+                **context.metadata,
             },
-            run_name=f"{self.name}-invocation"
+            run_name=f"{self.name}-invocation",
         )
 
     @abstractmethod
@@ -139,7 +140,7 @@ class BaseAgent(ABC, Generic[T]):
         self,
         message: str,
         context: Optional[AgentContext] = None,
-        use_circuit_breaker: bool = True
+        use_circuit_breaker: bool = True,
     ) -> T:
         """
         Invoke the agent with a message.
@@ -162,8 +163,7 @@ class BaseAgent(ABC, Generic[T]):
 
         async def invoke_llm():
             return await self._agent.ainvoke(
-                {"messages": [HumanMessage(content=message)]},
-                config=langfuse_config
+                {"messages": [HumanMessage(content=message)]}, config=langfuse_config
             )
 
         # Execute with or without circuit breaker
@@ -182,7 +182,7 @@ class BaseAgent(ABC, Generic[T]):
         self,
         message: str,
         context: Optional[AgentContext] = None,
-        use_circuit_breaker: bool = True
+        use_circuit_breaker: bool = True,
     ) -> AsyncGenerator[T, None]:
         """
         Invoke the agent with streaming output.
@@ -210,6 +210,7 @@ class BaseAgent(ABC, Generic[T]):
         circuit_breaker = get_llm_circuit_breaker() if use_circuit_breaker else None
         if circuit_breaker and circuit_breaker.state.value == "open":
             import time
+
             retry_after = circuit_breaker.config.timeout
             if circuit_breaker.stats.opened_at:
                 elapsed = time.time() - circuit_breaker.stats.opened_at
@@ -225,7 +226,7 @@ class BaseAgent(ABC, Generic[T]):
             async for token, metadata in self._agent.astream(
                 {"messages": [HumanMessage(content=message)]},
                 config=langfuse_config,
-                stream_mode="messages"
+                stream_mode="messages",
             ):
                 content = self._extract_content_from_stream(token)
                 if content:
@@ -271,7 +272,7 @@ class BaseAgent(ABC, Generic[T]):
         self,
         message: str,
         context: Optional[AgentContext] = None,
-        use_circuit_breaker: bool = True
+        use_circuit_breaker: bool = True,
     ) -> T:
         """
         Synchronous version of invoke.
@@ -294,8 +295,7 @@ class BaseAgent(ABC, Generic[T]):
 
         def invoke_llm():
             return self._agent.invoke(
-                {"messages": [HumanMessage(content=message)]},
-                config=langfuse_config
+                {"messages": [HumanMessage(content=message)]}, config=langfuse_config
             )
 
         # For sync version, we wrap in async and run

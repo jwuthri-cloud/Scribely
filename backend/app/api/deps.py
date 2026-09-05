@@ -4,14 +4,15 @@ API-specific dependencies for Scribely.
 
 from typing import Optional
 
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import Settings, get_settings
 from app.database.models.user import User
 from app.database.repositories.user import UserRepository
 from app.database.session import get_async_db_session
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
-from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("deps")
 
@@ -25,7 +26,7 @@ def get_user_id_from_header(
 
 def get_client_ip(
     x_forwarded_for: Optional[str] = Header(None, alias="X-Forwarded-For"),
-    x_real_ip: Optional[str] = Header(None, alias="X-Real-IP")
+    x_real_ip: Optional[str] = Header(None, alias="X-Real-IP"),
 ) -> str:
     """Get client IP address from headers."""
     if x_forwarded_for:
@@ -37,7 +38,7 @@ def get_client_ip(
 
 async def verify_api_key(
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> Optional[str]:
     """Verify API key if provided (optional authentication)."""
     if not x_api_key:
@@ -47,8 +48,7 @@ async def verify_api_key(
 
     if valid_api_keys and x_api_key not in valid_api_keys:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
         )
 
     return x_api_key

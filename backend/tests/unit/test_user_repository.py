@@ -7,6 +7,7 @@ Tests cover all CRUD operations and Clerk-based authentication flow.
 from datetime import datetime
 
 import pytest
+
 from app.database.models import UserStatusEnum
 from app.database.repositories import UserRepository
 
@@ -24,7 +25,7 @@ class TestUserRepository:
             clerk_id="user_test123",
             username="testuser",
             email="test@example.com",
-            full_name="Test User"
+            full_name="Test User",
         )
 
         assert user.clerk_id == "user_test123"
@@ -40,8 +41,7 @@ class TestUserRepository:
     async def test_create_user_minimal(self, test_db_session):
         """Test user creation with only Clerk ID (minimal required fields)."""
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_minimal123"
+            db=test_db_session, clerk_id="user_minimal123"
         )
 
         assert user.clerk_id == "user_minimal123"
@@ -57,7 +57,7 @@ class TestUserRepository:
             db=test_db_session,
             clerk_id="user_get_by_id",
             username="getuser",
-            email="get@example.com"
+            email="get@example.com",
         )
         await test_db_session.commit()
 
@@ -80,61 +80,69 @@ class TestUserRepository:
             db=test_db_session,
             clerk_id="user_clerk_lookup",
             username="clerkuser",
-            email="clerk@example.com"
+            email="clerk@example.com",
         )
         await test_db_session.commit()
 
         # Get user by Clerk ID
-        found_user = await UserRepository.get_by_clerk_id(test_db_session, "user_clerk_lookup")
+        found_user = await UserRepository.get_by_clerk_id(
+            test_db_session, "user_clerk_lookup"
+        )
         assert found_user is not None
         assert found_user.clerk_id == "user_clerk_lookup"
         assert found_user.id == user.id
 
     async def test_get_user_by_clerk_id_not_found(self, test_db_session):
         """Test getting non-existent user by Clerk ID."""
-        found_user = await UserRepository.get_by_clerk_id(test_db_session, "nonexistent-clerk-id")
+        found_user = await UserRepository.get_by_clerk_id(
+            test_db_session, "nonexistent-clerk-id"
+        )
         assert found_user is None
 
     async def test_get_user_by_email(self, test_db_session):
         """Test getting user by email."""
         # Create user
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_email_lookup",
-            email="email@example.com"
+            db=test_db_session, clerk_id="user_email_lookup", email="email@example.com"
         )
         await test_db_session.commit()
 
         # Get user by email
-        found_user = await UserRepository.get_by_email(test_db_session, "email@example.com")
+        found_user = await UserRepository.get_by_email(
+            test_db_session, "email@example.com"
+        )
         assert found_user is not None
         assert found_user.email == "email@example.com"
         assert found_user.id == user.id
 
     async def test_get_user_by_email_not_found(self, test_db_session):
         """Test getting non-existent user by email."""
-        found_user = await UserRepository.get_by_email(test_db_session, "notfound@example.com")
+        found_user = await UserRepository.get_by_email(
+            test_db_session, "notfound@example.com"
+        )
         assert found_user is None
 
     async def test_get_user_by_username(self, test_db_session):
         """Test getting user by username."""
         # Create user
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_username_lookup",
-            username="usernameuser"
+            db=test_db_session, clerk_id="user_username_lookup", username="usernameuser"
         )
         await test_db_session.commit()
 
         # Get user by username
-        found_user = await UserRepository.get_by_username(test_db_session, "usernameuser")
+        found_user = await UserRepository.get_by_username(
+            test_db_session, "usernameuser"
+        )
         assert found_user is not None
         assert found_user.username == "usernameuser"
         assert found_user.id == user.id
 
     async def test_get_user_by_username_not_found(self, test_db_session):
         """Test getting non-existent user by username."""
-        found_user = await UserRepository.get_by_username(test_db_session, "nonexistentuser")
+        found_user = await UserRepository.get_by_username(
+            test_db_session, "nonexistentuser"
+        )
         assert found_user is None
 
     async def test_update_user(self, test_db_session):
@@ -145,7 +153,7 @@ class TestUserRepository:
             clerk_id="user_update_test",
             username="originaluser",
             email="original@example.com",
-            full_name="Original Name"
+            full_name="Original Name",
         )
         await test_db_session.commit()
 
@@ -154,7 +162,7 @@ class TestUserRepository:
             db=test_db_session,
             user_id=user.id,
             full_name="Updated Name",
-            preferences={"theme": "dark", "language": "en"}
+            preferences={"theme": "dark", "language": "en"},
         )
 
         assert updated_user is not None
@@ -167,17 +175,13 @@ class TestUserRepository:
         """Test updating user status."""
         # Create user
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_status_test",
-            username="statususer"
+            db=test_db_session, clerk_id="user_status_test", username="statususer"
         )
         await test_db_session.commit()
 
         # Update status to INACTIVE
         updated_user = await UserRepository.update(
-            db=test_db_session,
-            user_id=user.id,
-            status=UserStatusEnum.INACTIVE
+            db=test_db_session, user_id=user.id, status=UserStatusEnum.INACTIVE
         )
 
         assert updated_user.status == UserStatusEnum.INACTIVE
@@ -185,9 +189,7 @@ class TestUserRepository:
 
         # Update status back to ACTIVE
         reactivated_user = await UserRepository.update(
-            db=test_db_session,
-            user_id=user.id,
-            status=UserStatusEnum.ACTIVE
+            db=test_db_session, user_id=user.id, status=UserStatusEnum.ACTIVE
         )
 
         assert reactivated_user.status == UserStatusEnum.ACTIVE
@@ -196,9 +198,7 @@ class TestUserRepository:
     async def test_update_user_not_found(self, test_db_session):
         """Test updating non-existent user."""
         updated_user = await UserRepository.update(
-            db=test_db_session,
-            user_id="nonexistent-id",
-            full_name="Should Not Work"
+            db=test_db_session, user_id="nonexistent-id", full_name="Should Not Work"
         )
         assert updated_user is None
 
@@ -206,9 +206,7 @@ class TestUserRepository:
         """Test user deletion."""
         # Create user
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_delete_test",
-            username="deleteuser"
+            db=test_db_session, clerk_id="user_delete_test", username="deleteuser"
         )
         await test_db_session.commit()
 
@@ -233,7 +231,7 @@ class TestUserRepository:
                 db=test_db_session,
                 clerk_id=f"user_list_{i}",
                 username=f"user{i}",
-                email=f"user{i}@example.com"
+                email=f"user{i}@example.com",
             )
         await test_db_session.commit()
 
@@ -257,9 +255,7 @@ class TestUserRepository:
         """Test updating user's last login timestamp."""
         # Create user
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_login_test",
-            username="loginuser"
+            db=test_db_session, clerk_id="user_login_test", username="loginuser"
         )
         await test_db_session.commit()
 
@@ -273,7 +269,9 @@ class TestUserRepository:
 
     async def test_update_last_login_not_found(self, test_db_session):
         """Test updating last login for non-existent user."""
-        updated_user = await UserRepository.update_last_login(test_db_session, "nonexistent-id")
+        updated_user = await UserRepository.update_last_login(
+            test_db_session, "nonexistent-id"
+        )
         assert updated_user is None
 
     async def test_search_users_by_email(self, test_db_session):
@@ -283,13 +281,13 @@ class TestUserRepository:
             db=test_db_session,
             clerk_id="user_search1",
             email="john.doe@example.com",
-            full_name="John Doe"
+            full_name="John Doe",
         )
         await UserRepository.create(
             db=test_db_session,
             clerk_id="user_search2",
             email="jane.smith@example.com",
-            full_name="Jane Smith"
+            full_name="Jane Smith",
         )
         await test_db_session.commit()
 
@@ -305,13 +303,13 @@ class TestUserRepository:
             db=test_db_session,
             clerk_id="user_search3",
             username="johndoe",
-            full_name="John Doe"
+            full_name="John Doe",
         )
         await UserRepository.create(
             db=test_db_session,
             clerk_id="user_search4",
             username="janesmith",
-            full_name="Jane Smith"
+            full_name="Jane Smith",
         )
         await test_db_session.commit()
 
@@ -324,14 +322,10 @@ class TestUserRepository:
         """Test searching users by full name."""
         # Create users
         await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_search5",
-            full_name="John Doe"
+            db=test_db_session, clerk_id="user_search5", full_name="John Doe"
         )
         await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_search6",
-            full_name="Jane Smith"
+            db=test_db_session, clerk_id="user_search6", full_name="Jane Smith"
         )
         await test_db_session.commit()
 
@@ -348,15 +342,19 @@ class TestUserRepository:
                 db=test_db_session,
                 clerk_id=f"user_search_pag_{i}",
                 username=f"user{i}",
-                email=f"user{i}@example.com"
+                email=f"user{i}@example.com",
             )
         await test_db_session.commit()
 
         # Search with pagination
-        results = await UserRepository.search_users(test_db_session, "user", skip=0, limit=5)
+        results = await UserRepository.search_users(
+            test_db_session, "user", skip=0, limit=5
+        )
         assert len(results) == 5
 
-        results_page2 = await UserRepository.search_users(test_db_session, "user", skip=5, limit=5)
+        results_page2 = await UserRepository.search_users(
+            test_db_session, "user", skip=5, limit=5
+        )
         assert len(results_page2) == 5
 
     async def test_search_users_no_results(self, test_db_session):
@@ -368,25 +366,19 @@ class TestUserRepository:
         """Test user is_active property based on status."""
         # Create active user
         active_user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_active",
-            status=UserStatusEnum.ACTIVE
+            db=test_db_session, clerk_id="user_active", status=UserStatusEnum.ACTIVE
         )
         assert active_user.is_active is True
 
         # Update to inactive
         inactive_user = await UserRepository.update(
-            db=test_db_session,
-            user_id=active_user.id,
-            status=UserStatusEnum.INACTIVE
+            db=test_db_session, user_id=active_user.id, status=UserStatusEnum.INACTIVE
         )
         assert inactive_user.is_active is False
 
         # Update to suspended
         suspended_user = await UserRepository.update(
-            db=test_db_session,
-            user_id=active_user.id,
-            status=UserStatusEnum.SUSPENDED
+            db=test_db_session, user_id=active_user.id, status=UserStatusEnum.SUSPENDED
         )
         assert suspended_user.is_active is False
 
@@ -396,13 +388,11 @@ class TestUserRepository:
             "theme": "dark",
             "language": "en",
             "notifications": True,
-            "timezone": "UTC"
+            "timezone": "UTC",
         }
 
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_prefs",
-            preferences=preferences
+            db=test_db_session, clerk_id="user_prefs", preferences=preferences
         )
 
         assert user.preferences == preferences
@@ -413,13 +403,11 @@ class TestUserRepository:
         metadata = {
             "source": "clerk",
             "signup_method": "oauth",
-            "custom_field": "value"
+            "custom_field": "value",
         }
 
         user = await UserRepository.create(
-            db=test_db_session,
-            clerk_id="user_metadata",
-            extra_metadata=metadata
+            db=test_db_session, clerk_id="user_metadata", extra_metadata=metadata
         )
 
         assert user.extra_metadata == metadata

@@ -116,8 +116,12 @@ async def upload_file_async(local_path: Path, storage_path: str, filename: str) 
     await asyncio.to_thread(upload_file_sync, local_path, storage_path, filename)
 
 
-async def mirror_meeting_from_object_storage_async(meeting_dir: Path, storage_path: str) -> None:
-    await asyncio.to_thread(mirror_meeting_from_object_storage, meeting_dir, storage_path)
+async def mirror_meeting_from_object_storage_async(
+    meeting_dir: Path, storage_path: str
+) -> None:
+    await asyncio.to_thread(
+        mirror_meeting_from_object_storage, meeting_dir, storage_path
+    )
 
 
 def mirror_processing_status_json(meeting_dir: Path, storage_path: str) -> None:

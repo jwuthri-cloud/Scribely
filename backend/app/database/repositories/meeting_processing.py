@@ -83,7 +83,9 @@ class MeetingProcessingRepository:
         now = _utc_naive()
         row = await MeetingProcessingRepository.get_by_meeting_id(db, meeting_id)
         if row is None:
-            row = MeetingProcessing(meeting_id=meeting_id, created_at=now, updated_at=now)
+            row = MeetingProcessing(
+                meeting_id=meeting_id, created_at=now, updated_at=now
+            )
             db.add(row)
 
         if not has_recording:

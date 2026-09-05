@@ -27,24 +27,24 @@ def logs():
 @click.option(
     "--format",
     type=click.Choice(["rich", "json"]),
-    help="Force specific log format for testing"
+    help="Force specific log format for testing",
 )
 @click.option(
     "--level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
     default="INFO",
-    help="Log level for test messages"
+    help="Log level for test messages",
 )
 def test(format, level):
     """Test logging output with sample messages."""
 
     if format:
         # Temporarily override environment for testing
-        original_env = os.environ.get('ENVIRONMENT')
+        original_env = os.environ.get("ENVIRONMENT")
         if format == "json":
-            os.environ['ENVIRONMENT'] = 'production'
+            os.environ["ENVIRONMENT"] = "production"
         else:
-            os.environ['ENVIRONMENT'] = 'development'
+            os.environ["ENVIRONMENT"] = "development"
 
     try:
         # Setup logging with current environment
@@ -54,13 +54,15 @@ def test(format, level):
         # Get logger for testing
         logger = get_logger("test_logger")
 
-        console.print(Panel.fit(
-            f"[bold blue]Testing logging output[/bold blue]\n"
-            f"Format: {format or 'auto-detect'}\n"
-            f"Environment: {os.environ.get('ENVIRONMENT', 'not set')}\n"
-            f"Level: {level}",
-            title="Log Test"
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold blue]Testing logging output[/bold blue]\n"
+                f"Format: {format or 'auto-detect'}\n"
+                f"Environment: {os.environ.get('ENVIRONMENT', 'not set')}\n"
+                f"Level: {level}",
+                title="Log Test",
+            )
+        )
 
         # Test different log levels
         test_messages = [
@@ -68,7 +70,7 @@ def test(format, level):
             ("INFO", "Application started successfully"),
             ("WARNING", "This is a warning message about potential issues"),
             ("ERROR", "An error occurred while processing request"),
-            ("CRITICAL", "Critical system failure detected")
+            ("CRITICAL", "Critical system failure detected"),
         ]
 
         for msg_level, message in test_messages:
@@ -82,14 +84,16 @@ def test(format, level):
             logger.exception("Exception caught during test")
 
         console.print("\n[green]✓ Log test completed![/green]")
-        console.print(f"[dim]Check logs/app.log and logs/error.log for file output[/dim]")
+        console.print(
+            f"[dim]Check logs/app.log and logs/error.log for file output[/dim]"
+        )
 
     finally:
         # Restore original environment
         if format and original_env:
-            os.environ['ENVIRONMENT'] = original_env
+            os.environ["ENVIRONMENT"] = original_env
         elif format and not original_env:
-            os.environ.pop('ENVIRONMENT', None)
+            os.environ.pop("ENVIRONMENT", None)
 
 
 @logs.command()
@@ -97,7 +101,7 @@ def status():
     """Show current logging configuration."""
 
     settings = get_settings()
-    environment = os.environ.get('ENVIRONMENT', 'not set')
+    environment = os.environ.get("ENVIRONMENT", "not set")
 
     table = Table(title="Logging Configuration")
     table.add_column("Setting", style="cyan")
@@ -105,45 +109,40 @@ def status():
 
     table.add_row("Environment", environment)
     table.add_row("Log Level", settings.log_level)
-    table.add_row("DataDog Service", os.environ.get('DD_SERVICE', 'not set'))
-    table.add_row("DataDog Environment", os.environ.get('DD_ENV', 'not set'))
-    table.add_row("DataDog Version", os.environ.get('DD_VERSION', 'not set'))
+    table.add_row("DataDog Service", os.environ.get("DD_SERVICE", "not set"))
+    table.add_row("DataDog Environment", os.environ.get("DD_ENV", "not set"))
+    table.add_row("DataDog Version", os.environ.get("DD_VERSION", "not set"))
 
     console.print(table)
 
     # Show log format based on environment
-    if environment == 'production':
-        console.print(Panel.fit(
-            "[bold]Production Mode[/bold]\n"
-            "• JSON logs to stdout\n"
-            "• DataDog correlation IDs\n"
-            "• Structured error logging\n"
-            "• File backup logging",
-            title="Active Log Format"
-        ))
+    if environment == "production":
+        console.print(
+            Panel.fit(
+                "[bold]Production Mode[/bold]\n"
+                "• JSON logs to stdout\n"
+                "• DataDog correlation IDs\n"
+                "• Structured error logging\n"
+                "• File backup logging",
+                title="Active Log Format",
+            )
+        )
     else:
-        console.print(Panel.fit(
-            "[bold]Development Mode[/bold]\n"
-            "• Rich console formatting\n"
-            "• Colored output with tracebacks\n"
-            "• Human-readable file logs\n"
-            "• Enhanced error details",
-            title="Active Log Format"
-        ))
+        console.print(
+            Panel.fit(
+                "[bold]Development Mode[/bold]\n"
+                "• Rich console formatting\n"
+                "• Colored output with tracebacks\n"
+                "• Human-readable file logs\n"
+                "• Enhanced error details",
+                title="Active Log Format",
+            )
+        )
 
 
 @logs.command()
-@click.option(
-    "--lines", "-n",
-    default=50,
-    type=int,
-    help="Number of lines to show"
-)
-@click.option(
-    "--follow", "-f",
-    is_flag=True,
-    help="Follow log file (like tail -f)"
-)
+@click.option("--lines", "-n", default=50, type=int, help="Number of lines to show")
+@click.option("--follow", "-f", is_flag=True, help="Follow log file (like tail -f)")
 def tail(lines, follow):
     """Show recent log entries."""
     import subprocess
@@ -165,12 +164,14 @@ def tail(lines, follow):
             # Use tail equivalent
             cmd = ["tail", "-n", str(lines), log_file]
 
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
 
         try:
             if follow:
                 # Stream output for follow mode
-                for line in iter(process.stdout.readline, ''):
+                for line in iter(process.stdout.readline, ""):
                     console.print(line.rstrip(), highlight=False)
             else:
                 # Get all output at once
@@ -186,13 +187,17 @@ def tail(lines, follow):
                 process.terminate()
 
     except FileNotFoundError:
-        console.print("[red]tail command not found. Showing file content instead:[/red]\n")
+        console.print(
+            "[red]tail command not found. Showing file content instead:[/red]\n"
+        )
 
         # Fallback: read file directly
         try:
-            with open(log_file, 'r') as f:
+            with open(log_file, "r") as f:
                 all_lines = f.readlines()
-                recent_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                recent_lines = (
+                    all_lines[-lines:] if len(all_lines) > lines else all_lines
+                )
 
             for line in recent_lines:
                 console.print(line.rstrip(), highlight=False)
@@ -223,18 +228,15 @@ def json_example():
         "extra": {
             "user_id": "user_123",
             "session_id": "session_abc",
-            "duration_ms": 150
-        }
+            "duration_ms": 150,
+        },
     }
 
     # Format JSON for display
     json_str = json.dumps(example_log, indent=2)
     syntax = Syntax(json_str, "json", theme="monokai", line_numbers=True)
 
-    console.print(Panel.fit(
-        syntax,
-        title="Production JSON Log Example"
-    ))
+    console.print(Panel.fit(syntax, title="Production JSON Log Example"))
 
     console.print("\n[bold blue]Key Features:[/bold blue]")
     features = [
@@ -242,7 +244,7 @@ def json_example():
         "• DataDog correlation IDs for distributed tracing",
         "• Service metadata for monitoring",
         "• Consistent timestamp format",
-        "• Structured extra data for analysis"
+        "• Structured extra data for analysis",
     ]
 
     for feature in features:
@@ -250,7 +252,9 @@ def json_example():
 
 
 @logs.command()
-@click.argument("level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]))
+@click.argument(
+    "level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+)
 @click.argument("message")
 def send(level, message):
     """Send a test log message at specified level."""

@@ -20,6 +20,7 @@ from ..models.rule import (
     RuleTriggerEnum,
 )
 
+
 def _utc_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -196,7 +197,9 @@ class RuleRepository:
         if description is not None:
             rule.description = description
         if trigger is not None:
-            rule.trigger = trigger.value if isinstance(trigger, RuleTriggerEnum) else str(trigger)
+            rule.trigger = (
+                trigger.value if isinstance(trigger, RuleTriggerEnum) else str(trigger)
+            )
         if enabled is not None:
             rule.enabled = enabled
         if flow_layout is not _MISSING_FLOW:
@@ -226,7 +229,11 @@ class RuleRepository:
             rule_id=rule_id,
             meeting_id=meeting_id,
             trigger=trigger,
-            status=status.value if isinstance(status, RuleExecutionStatusEnum) else str(status),
+            status=(
+                status.value
+                if isinstance(status, RuleExecutionStatusEnum)
+                else str(status)
+            ),
             started_at=_utc_naive(),
         )
         db.add(ex)
@@ -243,7 +250,9 @@ class RuleRepository:
         step_results: Optional[list[dict[str, Any]]] = None,
         error: Optional[str] = None,
     ) -> RuleExecution:
-        execution.status = status.value if isinstance(status, RuleExecutionStatusEnum) else str(status)
+        execution.status = (
+            status.value if isinstance(status, RuleExecutionStatusEnum) else str(status)
+        )
         if step_results is not None:
             execution.step_results = step_results
         if error is not None:

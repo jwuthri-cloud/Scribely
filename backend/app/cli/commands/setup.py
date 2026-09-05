@@ -22,31 +22,37 @@ def setup():
 @setup.command()
 def init():
     """Initialize the application with all necessary setup."""
-    console.print(Panel.fit(
-        "[bold blue]Initializing Scribely[/bold blue]\n"
-        "This will set up the application with default configuration.",
-        title="Application Setup"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Initializing Scribely[/bold blue]\n"
+            "This will set up the application with default configuration.",
+            title="Application Setup",
+        )
+    )
 
     try:
         setup_tasks = [
             ("Creating configuration files", _create_config_files),
             ("Setting up environment", _setup_environment),
             ("Initializing services", _init_services),
-            ("Running health checks", _run_initial_health_checks)
+            ("Running health checks", _run_initial_health_checks),
         ]
 
-        for task_name, task_func in track(setup_tasks, description="Setting up application..."):
+        for task_name, task_func in track(
+            setup_tasks, description="Setting up application..."
+        ):
             task_func()
 
-        console.print(Panel.fit(
-            "[bold green]✓ Application setup completed successfully![/bold green]\n\n"
-            "Next steps:\n"
-            "• Review your .env file\n"
-            "• Set OPENROUTER_API_KEY for LLM access\n"
-            "• Run: [bold]python -m app.cli server start[/bold]",
-            title="Setup Complete"
-        ))
+        console.print(
+            Panel.fit(
+                "[bold green]✓ Application setup completed successfully![/bold green]\n\n"
+                "Next steps:\n"
+                "• Review your .env file\n"
+                "• Set OPENROUTER_API_KEY for LLM access\n"
+                "• Run: [bold]python -m app.cli server start[/bold]",
+                title="Setup Complete",
+            )
+        )
 
     except Exception as e:
         console.print(f"[red]✗ Setup failed: {e}[/red]")
@@ -135,7 +141,9 @@ def deps():
             subprocess.run(["uv", "pip", "install", "-e", "."], check=True)
         else:
             console.print("[dim]Using pip for installation...[/dim]")
-            subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], check=True)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-e", "."], check=True
+            )
 
         console.print("[green]✓ Dependencies installed successfully[/green]")
 
@@ -154,21 +162,25 @@ def dev():
         dev_tasks = [
             ("Installing development dependencies", _install_dev_deps),
             ("Setting up pre-commit hooks", _setup_pre_commit),
-            ("Creating development config", _create_dev_config)
+            ("Creating development config", _create_dev_config),
         ]
 
-        for task_name, task_func in track(dev_tasks, description="Setting up dev environment..."):
+        for task_name, task_func in track(
+            dev_tasks, description="Setting up dev environment..."
+        ):
             task_func()
 
-        console.print(Panel.fit(
-            "[bold green]✓ Development environment ready![/bold green]\n\n"
-            "Available tools:\n"
-            "• Pre-commit hooks for code quality\n"
-            "• Pytest for testing\n"
-            "• Black for code formatting\n"
-            "• Ruff for linting",
-            title="Dev Setup Complete"
-        ))
+        console.print(
+            Panel.fit(
+                "[bold green]✓ Development environment ready![/bold green]\n\n"
+                "Available tools:\n"
+                "• Pre-commit hooks for code quality\n"
+                "• Pytest for testing\n"
+                "• Black for code formatting\n"
+                "• Ruff for linting",
+                title="Dev Setup Complete",
+            )
+        )
 
     except Exception as e:
         console.print(f"[red]✗ Dev setup failed: {e}[/red]")
@@ -201,10 +213,20 @@ def _run_initial_health_checks():
 def _install_dev_deps():
     """Install development dependencies."""
     try:
-        subprocess.run([
-            sys.executable, "-m", "pip", "install",
-            "pytest", "black", "ruff", "pre-commit"
-        ], check=True, capture_output=True)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "pytest",
+                "black",
+                "ruff",
+                "pre-commit",
+            ],
+            check=True,
+            capture_output=True,
+        )
     except subprocess.CalledProcessError:
         pass  # Will be handled by calling function
 

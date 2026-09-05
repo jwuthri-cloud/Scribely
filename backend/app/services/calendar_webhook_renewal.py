@@ -28,7 +28,11 @@ async def calendar_webhook_renewal_loop(stop_event: asyncio.Event) -> None:
         try:
             before = datetime.utcnow() + timedelta(hours=24)
             async with get_async_session() as db:
-                conns = await CalendarRepository.list_connections_expiring_webhook_before(db, before)
+                conns = (
+                    await CalendarRepository.list_connections_expiring_webhook_before(
+                        db, before
+                    )
+                )
                 svc = CalendarSyncService()
                 for c in conns:
                     user = await UserRepository.get_by_id(db, c.user_id)

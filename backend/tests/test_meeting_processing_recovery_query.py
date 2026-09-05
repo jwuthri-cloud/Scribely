@@ -26,7 +26,9 @@ async def test_list_scheduled_incomplete_pipeline_includes_pending(
     )
     await test_db_session.commit()
 
-    rows = await MeetingProcessingRepository.list_scheduled_incomplete_pipeline(test_db_session)
+    rows = await MeetingProcessingRepository.list_scheduled_incomplete_pipeline(
+        test_db_session
+    )
     paths = {r[1] for r in rows}
     assert "user_x/m1" in paths
 
@@ -59,6 +61,8 @@ async def test_list_scheduled_incomplete_pipeline_excludes_completed(
     )
     await test_db_session.commit()
 
-    rows = await MeetingProcessingRepository.list_scheduled_incomplete_pipeline(test_db_session)
+    rows = await MeetingProcessingRepository.list_scheduled_incomplete_pipeline(
+        test_db_session
+    )
     ids = {r[0] for r in rows}
     assert "meet-rec-2" not in ids

@@ -47,7 +47,9 @@ def build_recording_config(language: Optional[str] = None) -> dict:
     multi: assembly_ai_v3_streaming — multi-language; billed by AssemblyAI directly
     (configure the AssemblyAI key on the Recall dashboard for the workspace region).
     """
-    provider = "assembly_ai_v3_streaming" if language == "multi" else "recallai_streaming"
+    provider = (
+        "assembly_ai_v3_streaming" if language == "multi" else "recallai_streaming"
+    )
     return {
         "transcript": {"provider": {provider: {}}},
         "realtime_endpoints": [
@@ -109,12 +111,19 @@ async def get_recording_for_upload(desktop_sdk_upload_id: str) -> Optional[dict]
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
             url,
-            headers={"Authorization": f"Token {settings.recall_api_key}", "Accept": "application/json"},
+            headers={
+                "Authorization": f"Token {settings.recall_api_key}",
+                "Accept": "application/json",
+            },
             params={"desktop_sdk_upload_id": desktop_sdk_upload_id},
         )
     resp.raise_for_status()
     data = resp.json()
-    if isinstance(data, dict) and isinstance(data.get("results"), list) and data["results"]:
+    if (
+        isinstance(data, dict)
+        and isinstance(data.get("results"), list)
+        and data["results"]
+    ):
         return data["results"][0]
     if isinstance(data, dict) and data.get("id"):
         return data

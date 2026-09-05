@@ -6,8 +6,9 @@ Revision ID: 006_varchar_status
 Revises: 005_web_push_reminders
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "006_varchar_status"
 down_revision = "005_web_push_reminders"
@@ -33,7 +34,9 @@ def upgrade() -> None:
                 "ALTER TABLE meetings ALTER COLUMN status TYPE VARCHAR(32) USING status::text"
             )
         )
-        op.execute(sa.text("ALTER TABLE meetings ALTER COLUMN status SET DEFAULT 'uploaded'"))
+        op.execute(
+            sa.text("ALTER TABLE meetings ALTER COLUMN status SET DEFAULT 'uploaded'")
+        )
         op.execute(sa.text("DROP TYPE IF EXISTS meetingstatusenum"))
         return
 

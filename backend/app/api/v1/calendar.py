@@ -6,27 +6,27 @@ import math
 from datetime import datetime, timezone
 from typing import Optional
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.database.models.calendar import CalendarConnectionStatus
 from app.database.models.user import User
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.user import UserRepository
+from app.database.session import get_async_db_session
 from app.middleware.rate_limit import get_rate_limiter
 from app.models.calendar import (
-    CalendarConnectResponse,
     CalendarConnectionStatusOut,
+    CalendarConnectResponse,
     CalendarEventDetailOut,
     CalendarEventListOut,
     CalendarEventSummaryOut,
     CalendarParticipantOut,
     CalendarSyncResponse,
 )
-from app.services.calendar_sync import CalendarSyncService, PROVIDER_GOOGLE
+from app.services.calendar_sync import PROVIDER_GOOGLE, CalendarSyncService
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.database.session import get_async_db_session
 
 logger = get_logger("calendar_api")
 
@@ -101,7 +101,9 @@ async def connect_google_calendar(
         )
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except Exception as e:
         await db.rollback()
         logger.exception("connect calendar failed: %s", e)
@@ -126,7 +128,9 @@ async def calendar_status(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ):
-    conn = await CalendarRepository.get_connection_by_user_provider(db, user.id, PROVIDER_GOOGLE)
+    conn = await CalendarRepository.get_connection_by_user_provider(
+        db, user.id, PROVIDER_GOOGLE
+    )
     if not conn:
         return CalendarConnectionStatusOut(connected=False)
     return CalendarConnectionStatusOut(
@@ -145,8 +149,12 @@ async def list_calendar_events(
     db: AsyncSession = Depends(get_async_db_session),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    date_from: Optional[str] = Query(None, description="ISO date/datetime lower bound (start_time)"),
-    date_to: Optional[str] = Query(None, description="ISO date/datetime upper bound (start_time)"),
+    date_from: Optional[str] = Query(
+        None, description="ISO date/datetime lower bound (start_time)"
+    ),
+    date_to: Optional[str] = Query(
+        None, description="ISO date/datetime upper bound (start_time)"
+    ),
     search: Optional[str] = None,
 ):
     start_from: Optional[datetime] = None
@@ -157,7 +165,9 @@ async def list_calendar_events(
             if start_from.tzinfo is not None:
                 start_from = start_from.astimezone(timezone.utc).replace(tzinfo=None)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid date_from: {e}") from e
+            raise HTTPException(
+                status_code=400, detail=f"Invalid date_from: {e}"
+            ) from e
     if date_to:
         try:
             end_before = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
@@ -192,7 +202,9 @@ async def upcoming_calendar_events(
     limit: int = Query(20, ge=1, le=50),
 ):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    rows = await CalendarRepository.list_upcoming_for_user(db, user.id, now=now, limit=limit)
+    rows = await CalendarRepository.list_upcoming_for_user(
+        db, user.id, now=now, limit=limit
+    )
     return [_event_summary_row(r) for r in rows]
 
 
@@ -244,7 +256,9 @@ async def get_calendar_event(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ):
-    ev = await CalendarRepository.get_event_by_id(db, event_id, user.id, with_participants=True)
+    ev = await CalendarRepository.get_event_by_id(
+        db, event_id, user.id, with_participants=True
+    )
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
     return _event_detail(ev)
@@ -255,7 +269,9 @@ async def manual_sync_calendar(
     user: User = Depends(get_current_user_with_db),
     db: AsyncSession = Depends(get_async_db_session),
 ):
-    conn = await CalendarRepository.get_connection_by_user_provider(db, user.id, PROVIDER_GOOGLE)
+    conn = await CalendarRepository.get_connection_by_user_provider(
+        db, user.id, PROVIDER_GOOGLE
+    )
     if not conn or conn.status != CalendarConnectionStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Google Calendar is not connected")
 
@@ -288,12 +304,16 @@ async def google_calendar_webhook(
     settings = get_settings()
     if settings.google_calendar_webhook_token:
         if x_goog_channel_token != settings.google_calendar_webhook_token:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid channel token")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid channel token"
+            )
 
     if not x_goog_channel_id:
         raise HTTPException(status_code=400, detail="Missing X-Goog-Channel-ID")
 
-    conn = await CalendarRepository.get_connection_by_webhook_channel(db, x_goog_channel_id)
+    conn = await CalendarRepository.get_connection_by_webhook_channel(
+        db, x_goog_channel_id
+    )
     if not conn:
         logger.warning("webhook: unknown channel id %s", x_goog_channel_id)
         return {"ok": True}
@@ -317,7 +337,9 @@ async def google_calendar_webhook(
         await db.rollback()
         logger.exception("webhook sync failed: %s", e)
         try:
-            c2 = await CalendarRepository.get_connection_by_webhook_channel(db, x_goog_channel_id)
+            c2 = await CalendarRepository.get_connection_by_webhook_channel(
+                db, x_goog_channel_id
+            )
             if c2:
                 c2.last_error = str(e)[:2000]
                 c2.status = CalendarConnectionStatus.ERROR

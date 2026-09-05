@@ -13,7 +13,9 @@ def test_load_original_transcript_missing_returns_empty(tmp_path: Path) -> None:
 
 def test_load_original_transcript_valid(tmp_path: Path) -> None:
     p = tmp_path / "transcript.json"
-    p.write_text(json.dumps({"entries": [{"t": 1}], "createdAt": "2020-01-01T00:00:00Z"}))
+    p.write_text(
+        json.dumps({"entries": [{"t": 1}], "createdAt": "2020-01-01T00:00:00Z"})
+    )
     data = _load_original_transcript(p)
     assert data["entries"] == [{"t": 1}]
 

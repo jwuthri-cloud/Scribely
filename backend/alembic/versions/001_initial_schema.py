@@ -5,8 +5,9 @@ Revises:
 Create Date: 2026-04-02
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "001"
 down_revision = None
@@ -50,7 +51,13 @@ def upgrade() -> None:
         sa.Column("entry_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(
             "status",
-            sa.Enum("uploaded", "processing", "completed", "failed", name="meetingstatusenum"),
+            sa.Enum(
+                "uploaded",
+                "processing",
+                "completed",
+                "failed",
+                name="meetingstatusenum",
+            ),
             nullable=False,
             server_default="uploaded",
         ),

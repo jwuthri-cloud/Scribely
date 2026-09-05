@@ -51,9 +51,7 @@ class ContactKnowledgeRepository:
         await db.flush()
         for row in rows:
             await db.refresh(row)
-        logger.info(
-            f"Created {len(rows)} knowledge entries for meeting {meeting_id}"
-        )
+        logger.info(f"Created {len(rows)} knowledge entries for meeting {meeting_id}")
         return rows
 
     @staticmethod

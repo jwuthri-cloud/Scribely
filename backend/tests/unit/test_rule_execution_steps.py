@@ -8,10 +8,16 @@ from __future__ import annotations
 
 from app.database.models.rule import Rule, RuleStep
 from app.services.rule_engine import _render_json_leaves, _render_template_str
-from app.services.rule_flow import RULE_TRIGGER_NODE_ID, ancestor_step_ids_sorted, ordered_steps_from_flow
+from app.services.rule_flow import (
+    RULE_TRIGGER_NODE_ID,
+    ancestor_step_ids_sorted,
+    ordered_steps_from_flow,
+)
 
 
-def _step(sid: str, oi: int, name: str = "S", step_type: str = "llm_prompt") -> RuleStep:
+def _step(
+    sid: str, oi: int, name: str = "S", step_type: str = "llm_prompt"
+) -> RuleStep:
     return RuleStep(
         id=sid,
         rule_id="rule-1",
@@ -134,7 +140,12 @@ def test_jinja_empty_steps_branch():
         "participants": [],
         "steps": [],
     }
-    assert _render_template_str("{% if steps %}{{ steps[0].result }}{% else %}none{% endif %}", ctx) == "none"
+    assert (
+        _render_template_str(
+            "{% if steps %}{{ steps[0].result }}{% else %}none{% endif %}", ctx
+        )
+        == "none"
+    )
 
 
 def test_render_json_leaves_resolves_steps_in_nested_config():

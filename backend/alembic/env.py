@@ -6,8 +6,9 @@ import os
 import sys
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+from alembic import context
 
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -40,12 +41,13 @@ target_metadata = Base.metadata
 settings = get_settings()
 database_url = settings.database_url
 
+
 # Convert async URLs to sync for Alembic (Alembic uses sync engines)
 def get_sync_database_url(url: str) -> str:
     """Convert async database URL to sync for Alembic."""
     if not url:
         return "sqlite:///:memory:"
-    
+
     # Convert async URLs to sync
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql://", 1)
@@ -53,6 +55,7 @@ def get_sync_database_url(url: str) -> str:
         return url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     # Already sync or unknown format - return as-is
     return url
+
 
 # Convert to sync URL for Alembic
 sync_database_url = get_sync_database_url(database_url)

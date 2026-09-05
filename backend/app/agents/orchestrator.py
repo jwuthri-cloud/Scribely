@@ -26,12 +26,14 @@ logger = get_logger("agent_orchestrator")
 
 class RoutingDecision(BaseModel):
     """Result of routing a message to an agent."""
+
     agent_name: str = Field(..., description="Name of the agent to route to")
     reasoning: str = Field(..., description="Brief reason for the routing decision")
 
 
 class HandoffContext(BaseModel):
     """Context passed during agent handoff."""
+
     from_agent: str
     to_agent: str
     conversation_summary: str
@@ -41,6 +43,7 @@ class HandoffContext(BaseModel):
 
 class PipelineResult(BaseModel):
     """Result from a pipeline execution."""
+
     stages: List[Dict[str, Any]]
     final_output: Any
     total_duration_ms: int
@@ -95,7 +98,7 @@ User message: {message}"""
         self,
         llm_provider: Optional[OpenRouterProvider] = None,
         router_model: str = DEFAULT_TRAINING,
-        default_agent: Optional[str] = None
+        default_agent: Optional[str] = None,
     ):
         """
         Initialize the orchestrator.
@@ -111,8 +114,7 @@ User message: {message}"""
 
         # Create routing LLM
         self.router_llm = self.llm_provider.get_llm(
-            model_name=router_model,
-            temperature=0.0  # Deterministic routing
+            model_name=router_model, temperature=0.0  # Deterministic routing
         )
 
         logger.info(f"Orchestrator initialized with router model: {router_model}")
@@ -126,7 +128,7 @@ User message: {message}"""
         descriptions = []
         for agent in agents:
             desc = f"- {agent['name']}: {agent.get('description', 'No description')}"
-            if agent.get('tags'):
+            if agent.get("tags"):
                 desc += f" (tags: {', '.join(agent['tags'])})"
             descriptions.append(desc)
 
@@ -136,7 +138,7 @@ User message: {message}"""
         self,
         message: str,
         context: Optional[AgentContext] = None,
-        allowed_agents: Optional[List[str]] = None
+        allowed_agents: Optional[List[str]] = None,
     ) -> RoutingDecision:
         """
         Determine which agent should handle a message.
@@ -155,10 +157,13 @@ User message: {message}"""
         if allowed_agents:
             # Filter to allowed agents
             all_agents = AgentRegistry.list_agents_with_metadata()
-            agent_descriptions = "\n".join([
-                f"- {a['name']}: {a.get('description', 'No description')}"
-                for a in all_agents if a['name'] in allowed_agents
-            ])
+            agent_descriptions = "\n".join(
+                [
+                    f"- {a['name']}: {a.get('description', 'No description')}"
+                    for a in all_agents
+                    if a["name"] in allowed_agents
+                ]
+            )
         else:
             agent_descriptions = self._get_agent_descriptions()
 
@@ -167,14 +172,12 @@ User message: {message}"""
             if self.default_agent:
                 return RoutingDecision(
                     agent_name=self.default_agent,
-                    reasoning="No agents available, using default"
+                    reasoning="No agents available, using default",
                 )
             raise ValueError("No agents registered and no default agent specified")
 
         # Build routing chain with structured output
-        prompt = ChatPromptTemplate.from_messages([
-            ("user", self.ROUTING_PROMPT)
-        ])
+        prompt = ChatPromptTemplate.from_messages([("user", self.ROUTING_PROMPT)])
         structured_llm = self.router_llm.with_structured_output(RoutingDecision)
         chain = prompt | structured_llm
 
@@ -183,7 +186,7 @@ User message: {message}"""
             user_id=context.user_id,
             tags=["routing", "orchestrator"],
             metadata={"message_preview": message[:100]},
-            run_name="agent-routing"
+            run_name="agent-routing",
         )
 
         try:
@@ -191,11 +194,8 @@ User message: {message}"""
 
             async def invoke_routing_llm():
                 return await chain.ainvoke(
-                    {
-                        "agent_descriptions": agent_descriptions,
-                        "message": message
-                    },
-                    config=langfuse_config
+                    {"agent_descriptions": agent_descriptions, "message": message},
+                    config=langfuse_config,
                 )
 
             decision: RoutingDecision = await circuit_breaker.call(invoke_routing_llm)
@@ -208,7 +208,7 @@ User message: {message}"""
             if self.default_agent:
                 return RoutingDecision(
                     agent_name=self.default_agent,
-                    reasoning="Circuit breaker open, using default agent"
+                    reasoning="Circuit breaker open, using default agent",
                 )
             raise
 
@@ -217,7 +217,7 @@ User message: {message}"""
             if self.default_agent:
                 return RoutingDecision(
                     agent_name=self.default_agent,
-                    reasoning=f"Routing failed ({str(e)}), using default"
+                    reasoning=f"Routing failed ({str(e)}), using default",
                 )
             raise
 
@@ -226,7 +226,7 @@ User message: {message}"""
         agent_name: str,
         message: str,
         context: Optional[AgentContext] = None,
-        config: Optional[AgentConfig] = None
+        config: Optional[AgentConfig] = None,
     ) -> Any:
         """
         Invoke a specific agent with a message.
@@ -247,7 +247,7 @@ User message: {message}"""
         self,
         message: str,
         context: Optional[AgentContext] = None,
-        config: Optional[AgentConfig] = None
+        config: Optional[AgentConfig] = None,
     ) -> Tuple[RoutingDecision, Any]:
         """
         Route a message to an agent and invoke it.
@@ -271,7 +271,7 @@ User message: {message}"""
         conversation_summary: str,
         handoff_reason: str,
         context: Optional[AgentContext] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> HandoffContext:
         """
         Transfer conversation from one agent to another.
@@ -301,7 +301,7 @@ User message: {message}"""
             to_agent=to_agent,
             conversation_summary=conversation_summary,
             handoff_reason=handoff_reason,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         logger.info(f"Handoff: {from_agent} -> {to_agent} (reason: {handoff_reason})")
@@ -313,7 +313,7 @@ User message: {message}"""
         agents: List[str],
         input_data: Dict[str, Any],
         context: Optional[AgentContext] = None,
-        stop_on_error: bool = True
+        stop_on_error: bool = True,
     ) -> PipelineResult:
         """
         Run multiple agents in sequence (pipeline).
@@ -353,9 +353,13 @@ User message: {message}"""
                     "agent": agent_name,
                     "stage": i + 1,
                     "input": current_input,
-                    "output": response.model_dump() if hasattr(response, "model_dump") else response,
+                    "output": (
+                        response.model_dump()
+                        if hasattr(response, "model_dump")
+                        else response
+                    ),
                     "duration_ms": int((time.time() - stage_start) * 1000),
-                    "success": True
+                    "success": True,
                 }
                 stages.append(stage_result)
 
@@ -370,7 +374,7 @@ User message: {message}"""
                     "input": current_input,
                     "error": str(e),
                     "duration_ms": int((time.time() - stage_start) * 1000),
-                    "success": False
+                    "success": False,
                 }
                 stages.append(stage_result)
 
@@ -380,24 +384,23 @@ User message: {message}"""
                         final_output=None,
                         total_duration_ms=int((time.time() - start_time) * 1000),
                         success=False,
-                        error=f"Stage {i+1} ({agent_name}) failed: {e}"
+                        error=f"Stage {i+1} ({agent_name}) failed: {e}",
                     )
 
         total_duration = int((time.time() - start_time) * 1000)
 
         return PipelineResult(
             stages=stages,
-            final_output=stages[-1]["output"] if stages and stages[-1]["success"] else None,
+            final_output=(
+                stages[-1]["output"] if stages and stages[-1]["success"] else None
+            ),
             total_duration_ms=total_duration,
             success=all(s["success"] for s in stages),
-            error=None
+            error=None,
         )
 
     async def run_parallel(
-        self,
-        agents: List[str],
-        message: str,
-        context: Optional[AgentContext] = None
+        self, agents: List[str], message: str, context: Optional[AgentContext] = None
     ) -> Dict[str, Any]:
         """
         Run multiple agents in parallel with the same input.

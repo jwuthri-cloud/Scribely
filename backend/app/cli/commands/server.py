@@ -20,37 +20,21 @@ def server():
 
 
 @server.command()
-@click.option(
-    "--host",
-    default="0.0.0.0",
-    help="Host to bind to"
-)
-@click.option(
-    "--port", "-p",
-    default=8000,
-    type=int,
-    help="Port to bind to"
-)
-@click.option(
-    "--reload",
-    is_flag=True,
-    help="Enable auto-reload for development"
-)
-@click.option(
-    "--workers",
-    default=1,
-    type=int,
-    help="Number of worker processes"
-)
+@click.option("--host", default="0.0.0.0", help="Host to bind to")  # nosec B104
+@click.option("--port", "-p", default=8000, type=int, help="Port to bind to")
+@click.option("--reload", is_flag=True, help="Enable auto-reload for development")
+@click.option("--workers", default=1, type=int, help="Number of worker processes")
 def start(host, port, reload, workers):
     """Start the FastAPI server."""
-    console.print(Panel.fit(
-        f"[bold green]Starting Scribely Server[/bold green]\n"
-        f"Host: {host}:{port}\n"
-        f"Reload: {'✓' if reload else '✗'}\n"
-        f"Workers: {workers}",
-        title="Server Configuration"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold green]Starting Scribely Server[/bold green]\n"
+            f"Host: {host}:{port}\n"
+            f"Reload: {'✓' if reload else '✗'}\n"
+            f"Workers: {workers}",
+            title="Server Configuration",
+        )
+    )
 
     try:
         uvicorn.run(
@@ -58,8 +42,10 @@ def start(host, port, reload, workers):
             host=host,
             port=port,
             reload=reload,
-            workers=workers if not reload else 1,  # reload doesn't work with multiple workers
-            log_config=None  # We'll use our rich logging
+            workers=(
+                workers if not reload else 1
+            ),  # reload doesn't work with multiple workers
+            log_config=None,  # We'll use our rich logging
         )
     except KeyboardInterrupt:
         console.print("\n[yellow]Server stopped by user[/yellow]")
@@ -83,18 +69,24 @@ def status():
             table.add_column("Status", style="green")
             table.add_column("Details", style="yellow")
 
-            table.add_row("API", "✓ Online", f"Response time: {response.elapsed.total_seconds():.2f}s")
+            table.add_row(
+                "API",
+                "✓ Online",
+                f"Response time: {response.elapsed.total_seconds():.2f}s",
+            )
 
             for service, status in data.get("services", {}).items():
                 table.add_row(
                     service.title(),
                     "✓ Healthy" if status.get("healthy", False) else "✗ Unhealthy",
-                    status.get("details", "N/A")
+                    status.get("details", "N/A"),
                 )
 
             console.print(table)
         else:
-            console.print(f"[red]Server returned status code: {response.status_code}[/red]")
+            console.print(
+                f"[red]Server returned status code: {response.status_code}[/red]"
+            )
 
     except httpx.ConnectError:
         console.print("[red]✗ Server is not running or not accessible[/red]")
@@ -108,9 +100,7 @@ def stop():
     try:
         # Find and kill uvicorn processes
         result = subprocess.run(
-            ["pkill", "-f", "uvicorn.*app.main:app"],
-            capture_output=True,
-            text=True
+            ["pkill", "-f", "uvicorn.*app.main:app"], capture_output=True, text=True
         )
 
         if result.returncode == 0:

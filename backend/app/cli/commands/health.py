@@ -18,10 +18,7 @@ def health():
 
 
 @health.command()
-@click.option(
-    "--service",
-    help="Check specific service (redis, database, llm, etc.)"
-)
+@click.option("--service", help="Check specific service (redis, database, llm, etc.)")
 def check(service):
     """Run comprehensive health checks."""
 
@@ -71,7 +68,7 @@ def _check_redis() -> dict:
             "healthy": True,
             "response_time": "2ms",
             "version": "7.0.0",
-            "details": "Connection OK"
+            "details": "Connection OK",
         }
     except Exception as e:
         return {"healthy": False, "error": str(e)}
@@ -85,7 +82,7 @@ def _check_database() -> dict:
             "healthy": True,
             "response_time": "15ms",
             "version": "15.4",
-            "details": "Connection OK"
+            "details": "Connection OK",
         }
     except Exception as e:
         return {"healthy": False, "error": str(e)}
@@ -99,7 +96,7 @@ def _check_llm() -> dict:
             "healthy": True,
             "response_time": "150ms",
             "model": "gpt-4",
-            "details": "API responding"
+            "details": "API responding",
         }
     except Exception as e:
         return {"healthy": False, "error": str(e)}
@@ -112,7 +109,7 @@ def _check_cache() -> dict:
             "healthy": True,
             "response_time": "1ms",
             "hit_rate": "85%",
-            "details": "Cache operational"
+            "details": "Cache operational",
         }
     except Exception as e:
         return {"healthy": False, "error": str(e)}
@@ -125,7 +122,7 @@ def _check_message_queue() -> dict:
             "healthy": True,
             "response_time": "5ms",
             "queue_depth": "3",
-            "details": "Queue operational"
+            "details": "Queue operational",
         }
     except Exception as e:
         return {"healthy": False, "error": str(e)}
@@ -150,7 +147,9 @@ def _display_service_result(service: str, result: dict):
 
 def _display_health_table(results: dict):
     """Display health results in a table."""
-    table = Table(title=f"System Health Check - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    table = Table(
+        title=f"System Health Check - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
 
     table.add_column("Service", style="cyan")
     table.add_column("Status", style="bold")
@@ -172,7 +171,11 @@ def _display_health_table(results: dict):
 
     console.print(table)
 
-    overall_status = "[green]✓ All systems operational[/green]" if overall_healthy else "[red]⚠ Some systems need attention[/red]"
+    overall_status = (
+        "[green]✓ All systems operational[/green]"
+        if overall_healthy
+        else "[red]⚠ Some systems need attention[/red]"
+    )
     console.print(f"\nOverall Status: {overall_status}")
 
 
@@ -197,7 +200,9 @@ def monitor():
 
             _display_health_table(results)
 
-            console.print(f"\n[dim]Last updated: {datetime.now().strftime('%H:%M:%S')} | Refreshing in 10s...[/dim]")
+            console.print(
+                f"\n[dim]Last updated: {datetime.now().strftime('%H:%M:%S')} | Refreshing in 10s...[/dim]"
+            )
             time.sleep(10)
 
     except KeyboardInterrupt:

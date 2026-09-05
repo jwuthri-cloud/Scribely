@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, validator
 
 class UserStatusEnum(str, Enum):
     """User status enumeration."""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
@@ -33,8 +34,8 @@ class UserUpdateRequest(BaseModel):
                 "preferences": {
                     "theme": "dark",
                     "language": "en",
-                    "notifications": True
-                }
+                    "notifications": True,
+                },
             }
         }
     )
@@ -63,9 +64,9 @@ class UserProfile(BaseModel):
                 "status": "active",
                 "created_at": "2024-01-01T12:00:00Z",
                 "updated_at": "2024-01-15T10:30:00Z",
-                "last_login_at": "2024-01-15T09:00:00Z"
+                "last_login_at": "2024-01-15T09:00:00Z",
             }
-        }
+        },
     )
 
     id: str = Field(..., description="User ID")
@@ -74,7 +75,9 @@ class UserProfile(BaseModel):
     email: Optional[str] = Field(None, description="Email address")
     full_name: Optional[str] = Field(None, description="Full name")
     bio: Optional[str] = Field(None, description="User biography")
-    is_active: bool = Field(..., description="Whether user is active (computed from status)")
+    is_active: bool = Field(
+        ..., description="Whether user is active (computed from status)"
+    )
     is_superuser: bool = Field(False, description="Whether user has admin privileges")
     status: UserStatusEnum = Field(..., description="User status")
     created_at: datetime = Field(..., description="Account creation timestamp")
@@ -94,9 +97,9 @@ class UserPublicProfile(BaseModel):
                 "username": "johndoe",
                 "full_name": "John Doe",
                 "bio": "Software developer passionate about AI",
-                "created_at": "2024-01-01T12:00:00Z"
+                "created_at": "2024-01-01T12:00:00Z",
             }
-        }
+        },
     )
 
     id: str = Field(..., description="User ID")
@@ -118,16 +121,18 @@ class UserStats(BaseModel):
                 "clerk_id": "user_2abc123xyz",
                 "total_sessions": 12,
                 "total_messages": 89,
-                "last_active_at": "2024-01-15T09:00:00Z"
+                "last_active_at": "2024-01-15T09:00:00Z",
             }
-        }
+        },
     )
 
     user_id: str = Field(..., description="User ID")
     clerk_id: str = Field(..., description="Clerk user ID")
     total_sessions: int = Field(0, description="Total chat sessions created")
     total_messages: int = Field(0, description="Total messages sent")
-    last_active_at: Optional[datetime] = Field(None, description="Last activity timestamp")
+    last_active_at: Optional[datetime] = Field(
+        None, description="Last activity timestamp"
+    )
 
 
 # List models
@@ -163,13 +168,13 @@ class UserListResponse(BaseModel):
                         "is_active": True,
                         "status": "active",
                         "created_at": "2024-01-01T12:00:00Z",
-                        "last_login_at": "2024-01-15T09:00:00Z"
+                        "last_login_at": "2024-01-15T09:00:00Z",
                     }
                 ],
                 "total": 1,
                 "limit": 50,
                 "offset": 0,
-                "has_more": False
+                "has_more": False,
             }
         }
     )

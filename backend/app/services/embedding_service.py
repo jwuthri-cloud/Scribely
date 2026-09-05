@@ -12,13 +12,17 @@ Namespaces:
   contacts             — CRM contacts (future)
   notes                — freeform notes (future)
 """
+
 import json
 from pathlib import Path
 from typing import Optional
 
 import aiofiles
 
-from app.agents.tool.vector_search import NAMESPACE_KNOWLEDGE, NAMESPACE_MEETING_TRANSCRIPTS
+from app.agents.tool.vector_search import (
+    NAMESPACE_KNOWLEDGE,
+    NAMESPACE_MEETING_TRANSCRIPTS,
+)
 from app.config import get_settings
 from app.database.models.meeting import Meeting
 from app.utils.logging import get_logger
@@ -46,6 +50,7 @@ class EmbeddingService:
 
         try:
             from pinecone import Pinecone, ServerlessSpec
+
             from app.infrastructure.llm_provider import OpenRouterEmbeddings
 
             pc = Pinecone(api_key=settings.vector_db_api_key)
@@ -116,21 +121,25 @@ class EmbeddingService:
 
         vectors = []
         for i, (chunk, vector) in enumerate(zip(chunks, embedding_vectors)):
-            vectors.append({
-                "id": f"{meeting.id}-chunk-{i}",
-                "values": vector,
-                "metadata": {
-                    "user_id": meeting.user_id,
-                    "meeting_id": meeting.id,
-                    "timestamp": chunk.get("timestamp", ""),
-                    "speaker": chunk.get("speaker", ""),
-                    "text": chunk["text"],
-                    "entity_type": "meeting_transcript",
-                },
-            })
+            vectors.append(
+                {
+                    "id": f"{meeting.id}-chunk-{i}",
+                    "values": vector,
+                    "metadata": {
+                        "user_id": meeting.user_id,
+                        "meeting_id": meeting.id,
+                        "timestamp": chunk.get("timestamp", ""),
+                        "speaker": chunk.get("speaker", ""),
+                        "text": chunk["text"],
+                        "entity_type": "meeting_transcript",
+                    },
+                }
+            )
 
         self._upsert_batch(vectors, namespace=NAMESPACE_MEETING_TRANSCRIPTS)
-        logger.info(f"Indexed {len(vectors)} transcript chunks for meeting {meeting.id}")
+        logger.info(
+            f"Indexed {len(vectors)} transcript chunks for meeting {meeting.id}"
+        )
         return len(vectors)
 
     async def delete_meeting(self, meeting_id: str, user_id: str) -> None:
@@ -139,7 +148,9 @@ class EmbeddingService:
             return
         try:
             prefix = f"{meeting_id}-chunk-"
-            ids = list(self._index.list(prefix=prefix, namespace=NAMESPACE_MEETING_TRANSCRIPTS))
+            ids = list(
+                self._index.list(prefix=prefix, namespace=NAMESPACE_MEETING_TRANSCRIPTS)
+            )
             if ids:
                 self._index.delete(ids=ids, namespace=NAMESPACE_MEETING_TRANSCRIPTS)
                 logger.info(f"Deleted {len(ids)} vectors for meeting {meeting_id}")
@@ -176,15 +187,17 @@ class EmbeddingService:
         try:
             vector = await self._embeddings.aembed_query(text)
             self._index.upsert(
-                vectors=[{
-                    "id": doc_id,
-                    "values": vector,
-                    "metadata": {
-                        "user_id": user_id,
-                        "text": text[:1000],  # Pinecone metadata string limit
-                        **(metadata or {}),
-                    },
-                }],
+                vectors=[
+                    {
+                        "id": doc_id,
+                        "values": vector,
+                        "metadata": {
+                            "user_id": user_id,
+                            "text": text[:1000],  # Pinecone metadata string limit
+                            **(metadata or {}),
+                        },
+                    }
+                ],
                 namespace=namespace,
             )
             return True
@@ -205,23 +218,27 @@ class EmbeddingService:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _upsert_batch(self, vectors: list, namespace: str, batch_size: int = 100) -> None:
+    def _upsert_batch(
+        self, vectors: list, namespace: str, batch_size: int = 100
+    ) -> None:
         for i in range(0, len(vectors), batch_size):
-            self._index.upsert(vectors=vectors[i:i + batch_size], namespace=namespace)
+            self._index.upsert(vectors=vectors[i : i + batch_size], namespace=namespace)
 
 
 def _chunk_entries(entries: list, chunk_size: int) -> list[dict]:
     """Group transcript entries into merged text chunks."""
     chunks = []
     for i in range(0, len(entries), chunk_size):
-        group = entries[i:i + chunk_size]
+        group = entries[i : i + chunk_size]
         text = " ".join(e.get("text", "") for e in group)
         first = group[0]
-        chunks.append({
-            "text": text,
-            "timestamp": first.get("timestamp", ""),
-            "speaker": first.get("speaker", ""),
-        })
+        chunks.append(
+            {
+                "text": text,
+                "timestamp": first.get("timestamp", ""),
+                "speaker": first.get("speaker", ""),
+            }
+        )
     return chunks
 
 

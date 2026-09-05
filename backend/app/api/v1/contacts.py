@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.database.models.deal import Deal
 from app.database.models.meeting import Meeting
@@ -19,9 +23,6 @@ from app.models.deal import (
     KnowledgeEntryOut,
 )
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("contacts_api")
 router = APIRouter()
@@ -55,12 +56,16 @@ def _contact_to_detail(
             contact_name=contact.full_name,
             deal_id=k.deal_id,
             meeting_id=k.meeting_id,
-            meeting_title=meeting_by_id.get(k.meeting_id).title
-            if meeting_by_id.get(k.meeting_id)
-            else None,
-            meeting_recorded_at=meeting_by_id.get(k.meeting_id).recorded_at
-            if meeting_by_id.get(k.meeting_id)
-            else None,
+            meeting_title=(
+                meeting_by_id.get(k.meeting_id).title
+                if meeting_by_id.get(k.meeting_id)
+                else None
+            ),
+            meeting_recorded_at=(
+                meeting_by_id.get(k.meeting_id).recorded_at
+                if meeting_by_id.get(k.meeting_id)
+                else None
+            ),
             fact=k.fact,
             category=str(k.category),
             confidence=k.confidence,
@@ -103,9 +108,7 @@ async def get_contact(
     meeting_ids = {k.meeting_id for k in knowledge_rows}
     meeting_by_id: dict[str, Meeting] = {}
     if meeting_ids:
-        m_res = await db.execute(
-            select(Meeting).where(Meeting.id.in_(meeting_ids))
-        )
+        m_res = await db.execute(select(Meeting).where(Meeting.id.in_(meeting_ids)))
         meeting_by_id = {m.id: m for m in m_res.scalars().all()}
 
     return _contact_to_detail(

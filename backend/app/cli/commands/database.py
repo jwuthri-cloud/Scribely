@@ -7,13 +7,16 @@ import subprocess
 from pathlib import Path
 
 import click
+from rich.console import Console
+from rich.table import Table
+
 from app.config import get_settings
+from app.database.repositories.user import UserRepository
 from app.database.session import (
     DatabaseManager,
     get_async_session,
     get_database_manager,
 )
-from app.database.repositories.user import UserRepository
 from app.utils.logging import (
     get_logger,
     print_error,
@@ -21,8 +24,6 @@ from app.utils.logging import (
     print_success,
     print_warning,
 )
-from rich.console import Console
-from rich.table import Table
 
 console = Console()
 logger = get_logger("database_cli")
@@ -42,7 +43,9 @@ def init():
     try:
         alembic_path = Path("alembic")
         if alembic_path.exists():
-            print_warning("Alembic migrations found. Consider using 'database migrate' instead.")
+            print_warning(
+                "Alembic migrations found. Consider using 'database migrate' instead."
+            )
             if not click.confirm("Continue with direct schema creation?"):
                 print_info("Cancelled. Use 'database migrate' for production setups.")
                 return
@@ -59,14 +62,18 @@ def init():
 
 
 @database.command()
-@click.option("--revision", "-r", default="head", help="Target revision (default: head)")
+@click.option(
+    "--revision", "-r", default="head", help="Target revision (default: head)"
+)
 def migrate(revision: str):
     """Run database migrations using Alembic."""
     print_info(f"Running database migrations to revision: {revision}")
 
     alembic_ini = Path("alembic.ini")
     if not alembic_ini.exists():
-        print_error("alembic.ini not found. Initialize Alembic first with: alembic init alembic")
+        print_error(
+            "alembic.ini not found. Initialize Alembic first with: alembic init alembic"
+        )
         return
 
     try:
@@ -74,7 +81,7 @@ def migrate(revision: str):
             ["alembic", "upgrade", revision],
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
 
         if result.returncode == 0:
@@ -95,7 +102,12 @@ def migrate(revision: str):
 
 @database.command()
 @click.option("--message", "-m", required=True, help="Migration message")
-@click.option("--autogenerate", "--auto", is_flag=True, help="Auto-generate migration from model changes")
+@click.option(
+    "--autogenerate",
+    "--auto",
+    is_flag=True,
+    help="Auto-generate migration from model changes",
+)
 def revision(message: str, autogenerate: bool):
     """Create a new database migration."""
     print_info(f"Creating new migration: {message}")
@@ -149,7 +161,7 @@ def reset(force: bool):
                     ["alembic", "stamp", "head"],
                     capture_output=True,
                     text=True,
-                    check=False
+                    check=False,
                 )
                 if result.returncode == 0:
                     print_success("Migration history updated")
@@ -178,6 +190,7 @@ def status():
             return
 
         from sqlalchemy import text
+
         async with get_async_session() as session:
             if settings.database_url and "postgresql" in settings.database_url:
                 result = await session.execute(text("""
@@ -205,7 +218,9 @@ def status():
 
                 for table_name in tables:
                     try:
-                        count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                        count_result = await session.execute(
+                            text(f"SELECT COUNT(*) FROM {table_name}")
+                        )
                         count = count_result.scalar()
                         table_display.add_row(table_name, str(count))
                     except Exception:
@@ -213,15 +228,14 @@ def status():
 
                 console.print(table_display)
             else:
-                print_warning("No tables found. Run 'database init' or 'database migrate'.")
+                print_warning(
+                    "No tables found. Run 'database init' or 'database migrate'."
+                )
 
         if Path("alembic.ini").exists():
             try:
                 result = subprocess.run(
-                    ["alembic", "current"],
-                    capture_output=True,
-                    text=True,
-                    check=False
+                    ["alembic", "current"], capture_output=True, text=True, check=False
                 )
                 if result.returncode == 0:
                     current_revision = result.stdout.strip()

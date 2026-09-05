@@ -1,6 +1,8 @@
 """LangChain tools for read-only sandboxed shell operations."""
+
 import asyncio
 import os
+import tempfile
 from pathlib import Path
 
 from langchain_core.tools import StructuredTool
@@ -12,11 +14,22 @@ logger = get_logger("tool.system")
 # Directories the agent is allowed to read from
 _ALLOWED_BASE_DIRS = [
     Path.home() / "Documents" / "Scribely",
-    Path("/tmp/scribely"),
+    Path(tempfile.gettempdir()) / "scribely",
 ]
 
 # Commands that are safe to run (no writes, no network, no destructive ops)
-_ALLOWED_COMMANDS = {"grep", "find", "cat", "tail", "head", "wc", "ls", "echo", "top", "touch"}
+_ALLOWED_COMMANDS = {
+    "grep",
+    "find",
+    "cat",
+    "tail",
+    "head",
+    "wc",
+    "ls",
+    "echo",
+    "top",
+    "touch",
+}
 
 _SHELL_TIMEOUT = 10  # seconds
 
@@ -27,10 +40,7 @@ def _is_allowed_path(path_str: str) -> bool:
         target = Path(path_str).resolve()
     except Exception:
         return False
-    return any(
-        target == base or base in target.parents
-        for base in _ALLOWED_BASE_DIRS
-    )
+    return any(target == base or base in target.parents for base in _ALLOWED_BASE_DIRS)
 
 
 def build_system_tools() -> list:
@@ -48,11 +58,19 @@ def build_system_tools() -> list:
             return f"Access denied: path '{path}' is outside allowed directories."
         try:
             proc = await asyncio.create_subprocess_exec(
-                "grep", "-r", "--include=*.json", "--include=*.txt", "-n", pattern, path,
+                "grep",
+                "-r",
+                "--include=*.json",
+                "--include=*.txt",
+                "-n",
+                pattern,
+                path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=_SHELL_TIMEOUT)
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_SHELL_TIMEOUT
+            )
             output = stdout.decode(errors="replace").strip()
             return output if output else f"No matches found for '{pattern}' in {path}."
         except asyncio.TimeoutError:
@@ -71,11 +89,15 @@ def build_system_tools() -> list:
             return f"Access denied: path '{path}' is outside allowed directories."
         try:
             proc = await asyncio.create_subprocess_exec(
-                "ls", "-lh", path,
+                "ls",
+                "-lh",
+                path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=_SHELL_TIMEOUT)
+            stdout, _ = await asyncio.wait_for(
+                proc.communicate(), timeout=_SHELL_TIMEOUT
+            )
             return stdout.decode(errors="replace").strip() or "Directory is empty."
         except asyncio.TimeoutError:
             return "Command timed out."
@@ -93,11 +115,14 @@ def build_system_tools() -> list:
             return f"Access denied: path '{path}' is outside allowed directories."
         try:
             import aiofiles
+
             async with aiofiles.open(path, "r", errors="replace") as f:
                 content = await f.read()
             # Truncate large files to avoid flooding the context
             if len(content) > 8000:
-                content = content[:8000] + f"\n... [truncated, file is {len(content)} chars]"
+                content = (
+                    content[:8000] + f"\n... [truncated, file is {len(content)} chars]"
+                )
             return content
         except FileNotFoundError:
             return f"File not found: {path}"
@@ -133,7 +158,9 @@ def build_system_tools() -> list:
             if part.startswith("/") or part.startswith("~"):
                 resolved = str(Path(part).expanduser())
                 if not _is_allowed_path(resolved):
-                    return f"Access denied: path '{part}' is outside allowed directories."
+                    return (
+                        f"Access denied: path '{part}' is outside allowed directories."
+                    )
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -141,7 +168,9 @@ def build_system_tools() -> list:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=_SHELL_TIMEOUT)
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=_SHELL_TIMEOUT
+            )
             output = stdout.decode(errors="replace").strip()
             err = stderr.decode(errors="replace").strip()
             if output:
@@ -155,15 +184,27 @@ def build_system_tools() -> list:
             return f"Error running command: {e}"
 
     return [
-        StructuredTool.from_function(coroutine=grep_files, name="grep_files",
-            description="Search for a text pattern in meeting files. Sandboxed to ~/Documents/Scribely/."),
-        StructuredTool.from_function(coroutine=list_files, name="list_files",
-            description="List files in an allowed directory (~/Documents/Scribely/)."),
-        StructuredTool.from_function(coroutine=read_file, name="read_file",
-            description="Read a file's contents. Sandboxed to ~/Documents/Scribely/."),
-        StructuredTool.from_function(coroutine=run_shell_command, name="run_shell_command",
+        StructuredTool.from_function(
+            coroutine=grep_files,
+            name="grep_files",
+            description="Search for a text pattern in meeting files. Sandboxed to ~/Documents/Scribely/.",
+        ),
+        StructuredTool.from_function(
+            coroutine=list_files,
+            name="list_files",
+            description="List files in an allowed directory (~/Documents/Scribely/).",
+        ),
+        StructuredTool.from_function(
+            coroutine=read_file,
+            name="read_file",
+            description="Read a file's contents. Sandboxed to ~/Documents/Scribely/.",
+        ),
+        StructuredTool.from_function(
+            coroutine=run_shell_command,
+            name="run_shell_command",
             description=(
                 "Run a safe read-only shell command (grep, find, cat, tail, head, wc, ls, echo). "
                 "No writes or destructive operations allowed."
-            )),
+            ),
+        ),
     ]

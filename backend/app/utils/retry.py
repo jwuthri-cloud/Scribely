@@ -18,6 +18,7 @@ logger = get_logger("retry")
 
 class RetryStrategy(str, Enum):
     """Retry strategy types."""
+
     FIXED = "fixed"
     EXPONENTIAL = "exponential"
     LINEAR = "linear"
@@ -27,6 +28,7 @@ class RetryStrategy(str, Enum):
 @dataclass
 class RetryConfig:
     """Retry configuration."""
+
     max_attempts: int = 3
     base_delay: float = 1.0
     max_delay: float = 60.0
@@ -47,6 +49,7 @@ class RetryConfig:
 @dataclass
 class CircuitBreakerState:
     """Circuit breaker state."""
+
     failures: int = 0
     last_failure_time: Optional[datetime] = None
     state: str = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
@@ -86,7 +89,9 @@ class RetryHandler:
         elif self.config.strategy == RetryStrategy.LINEAR:
             delay = self.config.base_delay * attempt
         elif self.config.strategy == RetryStrategy.EXPONENTIAL:
-            delay = self.config.base_delay * (self.config.backoff_factor ** (attempt - 1))
+            delay = self.config.base_delay * (
+                self.config.backoff_factor ** (attempt - 1)
+            )
         elif self.config.strategy == RetryStrategy.FIBONACCI:
             delay = self.config.base_delay * self._fibonacci(attempt)
         else:
@@ -128,12 +133,7 @@ class RetryHandler:
 
         return False
 
-    async def execute_with_retry(
-        self,
-        func: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
+    async def execute_with_retry(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with retry logic."""
         last_exception = None
 
@@ -141,7 +141,9 @@ class RetryHandler:
             try:
                 # Log retry attempt
                 if attempt > 1:
-                    logger.info(f"Retry attempt {attempt}/{self.config.max_attempts} for {func.__name__}")
+                    logger.info(
+                        f"Retry attempt {attempt}/{self.config.max_attempts} for {func.__name__}"
+                    )
 
                 # Execute function
                 if asyncio.iscoroutinefunction(func):
@@ -151,7 +153,9 @@ class RetryHandler:
 
                 # Success - reset any tracking
                 if attempt > 1:
-                    logger.info(f"Function {func.__name__} succeeded on attempt {attempt}")
+                    logger.info(
+                        f"Function {func.__name__} succeeded on attempt {attempt}"
+                    )
 
                 return result
 
@@ -160,7 +164,9 @@ class RetryHandler:
 
                 # Check if we should retry
                 if not self.should_retry(e, attempt):
-                    logger.error(f"Not retrying {func.__name__} due to non-retryable exception: {e}")
+                    logger.error(
+                        f"Not retrying {func.__name__} due to non-retryable exception: {e}"
+                    )
                     raise e
 
                 # Check if this was the last attempt
@@ -188,7 +194,7 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        expected_exception: tuple = (Exception,)
+        expected_exception: tuple = (Exception,),
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -198,9 +204,9 @@ class CircuitBreaker:
     def _should_attempt_reset(self) -> bool:
         """Check if circuit breaker should attempt reset."""
         return (
-            self.state.state == "OPEN" and
-            self.state.next_retry_time and
-            datetime.utcnow() >= self.state.next_retry_time
+            self.state.state == "OPEN"
+            and self.state.next_retry_time
+            and datetime.utcnow() >= self.state.next_retry_time
         )
 
     def _on_success(self):
@@ -268,29 +274,40 @@ class CircuitBreaker:
             "state": self.state.state,
             "failures": self.state.failures,
             "failure_threshold": self.failure_threshold,
-            "last_failure_time": self.state.last_failure_time.isoformat() if self.state.last_failure_time else None,
-            "next_retry_time": self.state.next_retry_time.isoformat() if self.state.next_retry_time else None,
-            "recovery_timeout": self.recovery_timeout
+            "last_failure_time": (
+                self.state.last_failure_time.isoformat()
+                if self.state.last_failure_time
+                else None
+            ),
+            "next_retry_time": (
+                self.state.next_retry_time.isoformat()
+                if self.state.next_retry_time
+                else None
+            ),
+            "recovery_timeout": self.recovery_timeout,
         }
 
 
 # Decorator functions
+
 
 def retry(
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL,
-    retryable_exceptions: Optional[tuple] = None
+    retryable_exceptions: Optional[tuple] = None,
 ):
     """Decorator for adding retry logic to functions."""
+
     def decorator(func):
         config = RetryConfig(
             max_attempts=max_attempts,
             base_delay=base_delay,
             max_delay=max_delay,
             strategy=strategy,
-            retryable_exceptions=retryable_exceptions or RetryConfig().retryable_exceptions
+            retryable_exceptions=retryable_exceptions
+            or RetryConfig().retryable_exceptions,
         )
 
         retry_handler = RetryHandler(config)
@@ -314,7 +331,7 @@ def retry(
 def circuit_breaker(
     failure_threshold: int = 5,
     recovery_timeout: int = 60,
-    expected_exception: tuple = (Exception,)
+    expected_exception: tuple = (Exception,),
 ):
     """Decorator for adding circuit breaker protection to functions."""
     breaker = CircuitBreaker(failure_threshold, recovery_timeout, expected_exception)
@@ -341,20 +358,19 @@ def resilient(
     max_attempts: int = 3,
     base_delay: float = 1.0,
     failure_threshold: int = 5,
-    recovery_timeout: int = 60
+    recovery_timeout: int = 60,
 ):
     """Decorator combining retry and circuit breaker patterns."""
+
     def decorator(func):
         # Apply circuit breaker first, then retry
         func_with_breaker = circuit_breaker(
-            failure_threshold=failure_threshold,
-            recovery_timeout=recovery_timeout
+            failure_threshold=failure_threshold, recovery_timeout=recovery_timeout
         )(func)
 
-        func_with_retry = retry(
-            max_attempts=max_attempts,
-            base_delay=base_delay
-        )(func_with_breaker)
+        func_with_retry = retry(max_attempts=max_attempts, base_delay=base_delay)(
+            func_with_breaker
+        )
 
         # Attach circuit breaker reference
         func_with_retry.circuit_breaker = func_with_breaker.circuit_breaker
@@ -381,7 +397,4 @@ def register_circuit_breaker(name: str, breaker: CircuitBreaker):
 
 def get_all_circuit_breakers() -> dict[str, dict]:
     """Get state of all registered circuit breakers."""
-    return {
-        name: breaker.get_state()
-        for name, breaker in _circuit_breakers.items()
-    }
+    return {name: breaker.get_state() for name, breaker in _circuit_breakers.items()}

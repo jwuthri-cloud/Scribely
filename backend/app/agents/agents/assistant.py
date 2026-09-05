@@ -1,4 +1,5 @@
 """Webapp assistant agent using LangChain's create_agent."""
+
 import json
 from typing import AsyncGenerator, Callable, Optional
 
@@ -40,7 +41,7 @@ class AssistantAgent:
             model_name=model_name,
             temperature=temperature,
         )
-        self.agent = None       # set by create()
+        self.agent = None  # set by create()
         self._mcp_client = None  # kept alive for Composio tool calls
 
     @classmethod
@@ -62,7 +63,9 @@ class AssistantAgent:
             model_name: Model name for the agent
             temperature: Model temperature (default: 0.1)
         """
-        instance = cls(llm_provider=llm_provider, model_name=model_name, temperature=temperature)
+        instance = cls(
+            llm_provider=llm_provider, model_name=model_name, temperature=temperature
+        )
 
         tools, mcp_client = await build_tools(user_id=user_id, db=db)
         instance._mcp_client = mcp_client  # must stay open until close() is called
@@ -73,7 +76,9 @@ class AssistantAgent:
             response_format=AssistantResponse,
         )
 
-        logger.info(f"[AssistantAgent] Initialized with model: {model_name}, tools: {len(tools)}")
+        logger.info(
+            f"[AssistantAgent] Initialized with model: {model_name}, tools: {len(tools)}"
+        )
         return instance
 
     async def close(self) -> None:
@@ -93,7 +98,11 @@ class AssistantAgent:
             session_id=session_id,
             user_id=user_id,
             tags=tags or ["assistant"],
-            metadata={"agent_type": "assistant", "model": self.model_name, **(metadata or {})},
+            metadata={
+                "agent_type": "assistant",
+                "model": self.model_name,
+                **(metadata or {}),
+            },
             run_name="assistant-message",
         )
 
@@ -113,7 +122,9 @@ class AssistantAgent:
             raise ValueError("Structured response not found in result")
         except Exception as e:
             logger.warning(f"[AssistantAgent] Error processing response: {e}")
-            return AssistantResponse(response=str(result), sentiment="neutral", confidence=0.5)
+            return AssistantResponse(
+                response=str(result), sentiment="neutral", confidence=0.5
+            )
 
     async def handle_message_stream(
         self,
@@ -128,7 +139,12 @@ class AssistantAgent:
             session_id=session_id,
             user_id=user_id,
             tags=tags or ["assistant", "streaming"],
-            metadata={"agent_type": "assistant", "model": self.model_name, "streaming": True, **(metadata or {})},
+            metadata={
+                "agent_type": "assistant",
+                "model": self.model_name,
+                "streaming": True,
+                **(metadata or {}),
+            },
             run_name="assistant-message-stream",
         )
 
@@ -157,10 +173,15 @@ class AssistantAgent:
 
             final_response = handler.get_last_valid()
             if final_response is not None:
-                if last_yielded is None or final_response.model_dump() != last_yielded.model_dump():
+                if (
+                    last_yielded is None
+                    or final_response.model_dump() != last_yielded.model_dump()
+                ):
                     yield final_response
             elif last_yielded is None:
-                yield AssistantResponse(response="", sentiment="neutral", confidence=0.5)
+                yield AssistantResponse(
+                    response="", sentiment="neutral", confidence=0.5
+                )
         except Exception as e:
             logger.error(f"[AssistantAgent] Error in streaming: {e}", exc_info=True)
             yield AssistantResponse(response="", sentiment="neutral", confidence=0.5)
@@ -177,13 +198,21 @@ class AssistantAgent:
         """Handle a message with streaming and a callback for each incremental update."""
         final_response: Optional[AssistantResponse] = None
         async for partial in self.handle_message_stream(
-            message=message, user_id=user_id, session_id=session_id, tags=tags, metadata=metadata
+            message=message,
+            user_id=user_id,
+            session_id=session_id,
+            tags=tags,
+            metadata=metadata,
         ):
             callback(partial)
             final_response = partial
-        return final_response or AssistantResponse(response="", sentiment="neutral", confidence=0.5)
+        return final_response or AssistantResponse(
+            response="", sentiment="neutral", confidence=0.5
+        )
 
-    def _extract_text_from_message(self, message, target_tool: str = "AssistantResponse") -> Optional[str]:
+    def _extract_text_from_message(
+        self, message, target_tool: str = "AssistantResponse"
+    ) -> Optional[str]:
         """Extract streaming text from a LangChain message chunk (Anthropic or OpenAI style)."""
         if message is None:
             return None
@@ -228,7 +257,11 @@ class AssistantAgent:
             session_id=session_id,
             user_id=user_id,
             tags=tags or ["assistant"],
-            metadata={"agent_type": "assistant", "model": self.model_name, **(metadata or {})},
+            metadata={
+                "agent_type": "assistant",
+                "model": self.model_name,
+                **(metadata or {}),
+            },
             run_name="assistant-message",
         )
         result = self.agent.invoke(
@@ -246,4 +279,6 @@ class AssistantAgent:
             raise ValueError("Structured response not found")
         except Exception as e:
             logger.warning(f"[AssistantAgent] Sync error: {e}")
-            return AssistantResponse(response=str(result), sentiment="neutral", confidence=0.5)
+            return AssistantResponse(
+                response=str(result), sentiment="neutral", confidence=0.5
+            )

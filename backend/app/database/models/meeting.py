@@ -27,10 +27,13 @@ class MeetingStatusEnum(str, enum.Enum):
 
 class Meeting(Base):
     """Meeting record — links a user to their stored transcript/recording on disk."""
+
     __tablename__ = "meetings"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     session_id = Column(String(255), nullable=True)
     # Recall SDK upload id — set for Recall-sourced meetings so the async
     # sdk_upload.complete webhook can attach the downloaded recording.
@@ -58,7 +61,9 @@ class Meeting(Base):
 
     recorded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     user = relationship("User", backref="meetings")
     calendar_event = relationship("CalendarEvent", foreign_keys=[calendar_event_id])
@@ -70,9 +75,7 @@ class Meeting(Base):
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        Index("ix_meetings_user_recorded", "user_id", "recorded_at"),
-    )
+    __table_args__ = (Index("ix_meetings_user_recorded", "user_id", "recorded_at"),)
 
     def __repr__(self):
         return f"<Meeting(id={self.id}, user_id={self.user_id}, status={self.status})>"

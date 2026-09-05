@@ -7,8 +7,9 @@ Revision ID: 011_recall_upload_id
 Revises: 010_recall_entitlement
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "011_recall_upload_id"
 down_revision = "010_recall_entitlement"
@@ -17,7 +18,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("meetings", sa.Column("recall_upload_id", sa.String(length=255), nullable=True))
+    op.add_column(
+        "meetings", sa.Column("recall_upload_id", sa.String(length=255), nullable=True)
+    )
     op.create_index("ix_meetings_recall_upload_id", "meetings", ["recall_upload_id"])
 
 

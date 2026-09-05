@@ -15,9 +15,9 @@ from app.agents.structured_output.speaker_identifier import (
 )
 from app.config import get_settings
 from app.infrastructure.circuit_breaker import get_llm_circuit_breaker
+from app.infrastructure.diarization import DiarizedUtterance
 from app.infrastructure.langfuse_handler import get_langfuse_config
 from app.infrastructure.llm_provider import OpenRouterProvider
-from app.infrastructure.diarization import DiarizedUtterance
 from app.utils.logging import get_logger
 
 logger = get_logger("speaker_identifier_agent")
@@ -49,7 +49,9 @@ class SpeakerIdentifierAgent:
             temperature=self.temperature,
         )
 
-        logger.info(f"[SpeakerIdentifierAgent] Initialized with model: {self.model_name}")
+        logger.info(
+            f"[SpeakerIdentifierAgent] Initialized with model: {self.model_name}"
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -101,11 +103,15 @@ class SpeakerIdentifierAgent:
         circuit_breaker = get_llm_circuit_breaker()
 
         async def invoke_llm() -> SpeakerIdentificationResponse:
-            structured_llm = self.llm.with_structured_output(SpeakerIdentificationResponse)
+            structured_llm = self.llm.with_structured_output(
+                SpeakerIdentificationResponse
+            )
             return await structured_llm.ainvoke(messages, config=langfuse_config)
 
         try:
-            response: SpeakerIdentificationResponse = await circuit_breaker.call(invoke_llm)
+            response: SpeakerIdentificationResponse = await circuit_breaker.call(
+                invoke_llm
+            )
         except Exception as e:
             logger.error(f"[SpeakerIdentifierAgent] LLM call failed: {e}")
             return {s: s for s in speaker_frames}
@@ -138,14 +144,16 @@ class SpeakerIdentifierAgent:
 
         if calendar_participant_names:
             lines = "\n".join(f"- {n}" for n in calendar_participant_names)
-            content_parts.append({
-                "type": "text",
-                "text": (
-                    "Likely participants from the user's calendar — prefer these labels when "
-                    "they match video tiles or utterances; do not invent names outside this "
-                    f"list unless a name is clearly visible in the meeting UI:\n{lines}\n"
-                ),
-            })
+            content_parts.append(
+                {
+                    "type": "text",
+                    "text": (
+                        "Likely participants from the user's calendar — prefer these labels when "
+                        "they match video tiles or utterances; do not invent names outside this "
+                        f"list unless a name is clearly visible in the meeting UI:\n{lines}\n"
+                    ),
+                }
+            )
 
         for speaker, frames in speaker_frames.items():
             samples = self._pick_sample_utterances(utterances, speaker)
@@ -155,23 +163,27 @@ class SpeakerIdentifierAgent:
                 else "  (no clear utterances)"
             )
 
-            content_parts.append({
-                "type": "text",
-                "text": (
-                    f"\n--- {speaker} ---\n"
-                    f"Sample utterances:\n{sample_text}\n"
-                    f"Screenshots ({len(frames)} frames while this speaker was talking):"
-                ),
-            })
+            content_parts.append(
+                {
+                    "type": "text",
+                    "text": (
+                        f"\n--- {speaker} ---\n"
+                        f"Sample utterances:\n{sample_text}\n"
+                        f"Screenshots ({len(frames)} frames while this speaker was talking):"
+                    ),
+                }
+            )
 
             for frame_path in frames:
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": _image_to_data_url(frame_path),
-                        "detail": "low",
-                    },
-                })
+                content_parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": _image_to_data_url(frame_path),
+                            "detail": "low",
+                        },
+                    }
+                )
 
         return [
             SystemMessage(content=SYSTEM_PROMPT),
@@ -184,7 +196,9 @@ class SpeakerIdentifierAgent:
         speaker: str,
         count: int = MAX_SAMPLE_UTTERANCES,
     ) -> list[str]:
-        speaker_utts = [u for u in utterances if u.speaker == speaker and len(u.text) > 10]
+        speaker_utts = [
+            u for u in utterances if u.speaker == speaker and len(u.text) > 10
+        ]
         speaker_utts.sort(key=lambda u: len(u.text), reverse=True)
         return [u.text for u in speaker_utts[:count]]
 
@@ -192,6 +206,7 @@ class SpeakerIdentifierAgent:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
 
 def _image_to_data_url(path: Path) -> str:
     data = path.read_bytes()

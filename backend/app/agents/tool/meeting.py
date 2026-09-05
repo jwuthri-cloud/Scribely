@@ -1,4 +1,5 @@
 """LangChain tools for querying meetings and transcripts from the database."""
+
 import json
 from typing import Optional
 
@@ -42,10 +43,20 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
 
         lines = [f"Found {total} meeting(s), showing {len(meetings)}:\n"]
         for m in meetings:
-            date_str = m.recorded_at.strftime("%Y-%m-%d %H:%M") if m.recorded_at else "unknown date"
-            duration = f"{m.duration_seconds // 60}min" if m.duration_seconds else "unknown duration"
+            date_str = (
+                m.recorded_at.strftime("%Y-%m-%d %H:%M")
+                if m.recorded_at
+                else "unknown date"
+            )
+            duration = (
+                f"{m.duration_seconds // 60}min"
+                if m.duration_seconds
+                else "unknown duration"
+            )
             title = m.title or "Untitled"
-            lines.append(f"- [{m.id}] {title} | {date_str} | {duration} | status: {str(m.status)}")
+            lines.append(
+                f"- [{m.id}] {title} | {date_str} | {duration} | status: {str(m.status)}"
+            )
         return "\n".join(lines)
 
     async def get_meeting_transcript(meeting_id: str) -> str:
@@ -134,8 +145,15 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
                 key_mentions.append(f"  - {text}")
 
         title = meeting.title or "Untitled"
-        date_str = meeting.recorded_at.strftime("%Y-%m-%d") if meeting.recorded_at else "unknown date"
-        lines = [f"## Summary: {title} ({date_str})", f"Total entries: {len(entries)}\n"]
+        date_str = (
+            meeting.recorded_at.strftime("%Y-%m-%d")
+            if meeting.recorded_at
+            else "unknown date"
+        )
+        lines = [
+            f"## Summary: {title} ({date_str})",
+            f"Total entries: {len(entries)}\n",
+        ]
 
         if action_items:
             lines.append("### Action Items")
@@ -151,7 +169,9 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
             lines.extend(key_mentions)
 
         if not any([action_items, decisions, questions, key_mentions]):
-            lines.append("No structured insights extracted. Use get_meeting_transcript for the full text.")
+            lines.append(
+                "No structured insights extracted. Use get_meeting_transcript for the full text."
+            )
 
         return "\n".join(lines)
 
@@ -172,8 +192,14 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
 
         results = []
         for meeting in meetings[:limit]:
-            date_str = meeting.recorded_at.strftime("%Y-%m-%d") if meeting.recorded_at else "unknown"
-            results.append(f"- [{meeting.id}] {meeting.title or 'Untitled'} ({date_str})")
+            date_str = (
+                meeting.recorded_at.strftime("%Y-%m-%d")
+                if meeting.recorded_at
+                else "unknown"
+            )
+            results.append(
+                f"- [{meeting.id}] {meeting.title or 'Untitled'} ({date_str})"
+            )
         return f"Meetings matching '{query}':\n" + "\n".join(results)
 
     async def get_user_info() -> str:
@@ -194,14 +220,29 @@ def build_meeting_tools(db: AsyncSession, user_id: str) -> list:
         )
 
     return [
-        StructuredTool.from_function(coroutine=list_meetings, name="list_meetings",
-            description="List the user's meetings ordered by most recent. Optionally filter by keyword."),
-        StructuredTool.from_function(coroutine=get_meeting_transcript, name="get_meeting_transcript",
-            description="Get the full transcript of a specific meeting by its ID."),
-        StructuredTool.from_function(coroutine=get_meeting_summary, name="get_meeting_summary",
-            description="Get a structured summary of a meeting including action items, decisions, and questions."),
-        StructuredTool.from_function(coroutine=search_transcripts, name="search_transcripts",
-            description="Search across all meetings by keyword to find relevant meetings."),
-        StructuredTool.from_function(coroutine=get_user_info, name="get_user_info",
-            description="Get the current user's account info and meeting statistics."),
+        StructuredTool.from_function(
+            coroutine=list_meetings,
+            name="list_meetings",
+            description="List the user's meetings ordered by most recent. Optionally filter by keyword.",
+        ),
+        StructuredTool.from_function(
+            coroutine=get_meeting_transcript,
+            name="get_meeting_transcript",
+            description="Get the full transcript of a specific meeting by its ID.",
+        ),
+        StructuredTool.from_function(
+            coroutine=get_meeting_summary,
+            name="get_meeting_summary",
+            description="Get a structured summary of a meeting including action items, decisions, and questions.",
+        ),
+        StructuredTool.from_function(
+            coroutine=search_transcripts,
+            name="search_transcripts",
+            description="Search across all meetings by keyword to find relevant meetings.",
+        ),
+        StructuredTool.from_function(
+            coroutine=get_user_info,
+            name="get_user_info",
+            description="Get the current user's account info and meeting statistics.",
+        ),
     ]

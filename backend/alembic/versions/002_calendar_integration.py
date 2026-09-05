@@ -5,8 +5,9 @@ Revises: 001
 Create Date: 2026-04-05
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "002"
 down_revision = "001"
@@ -36,9 +37,13 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id", "provider", name="uq_calendar_connections_user_provider"),
+        sa.UniqueConstraint(
+            "user_id", "provider", name="uq_calendar_connections_user_provider"
+        ),
     )
-    op.create_index("ix_calendar_connections_user_id", "calendar_connections", ["user_id"])
+    op.create_index(
+        "ix_calendar_connections_user_id", "calendar_connections", ["user_id"]
+    )
 
     op.create_table(
         "calendar_events",
@@ -72,14 +77,24 @@ def upgrade() -> None:
         sa.Column("raw_data", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["calendar_connection_id"], ["calendar_connections.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["calendar_connection_id"], ["calendar_connections.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id", "google_event_id", name="uq_calendar_events_user_google_event"),
+        sa.UniqueConstraint(
+            "user_id", "google_event_id", name="uq_calendar_events_user_google_event"
+        ),
     )
     op.create_index("ix_calendar_events_user_id", "calendar_events", ["user_id"])
-    op.create_index("ix_calendar_events_calendar_connection_id", "calendar_events", ["calendar_connection_id"])
-    op.create_index("ix_calendar_events_user_start", "calendar_events", ["user_id", "start_time"])
+    op.create_index(
+        "ix_calendar_events_calendar_connection_id",
+        "calendar_events",
+        ["calendar_connection_id"],
+    )
+    op.create_index(
+        "ix_calendar_events_user_start", "calendar_events", ["user_id", "start_time"]
+    )
 
     op.create_table(
         "calendar_event_participants",
@@ -95,18 +110,29 @@ def upgrade() -> None:
             server_default="needs_action",
         ),
         sa.Column("is_self", sa.Boolean(), nullable=False, server_default="false"),
-        sa.ForeignKeyConstraint(["calendar_event_id"], ["calendar_events.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["calendar_event_id"], ["calendar_events.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_calendar_event_participants_calendar_event_id", "calendar_event_participants", ["calendar_event_id"])
+    op.create_index(
+        "ix_calendar_event_participants_calendar_event_id",
+        "calendar_event_participants",
+        ["calendar_event_id"],
+    )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_calendar_event_participants_calendar_event_id", table_name="calendar_event_participants")
+    op.drop_index(
+        "ix_calendar_event_participants_calendar_event_id",
+        table_name="calendar_event_participants",
+    )
     op.drop_table("calendar_event_participants")
 
     op.drop_index("ix_calendar_events_user_start", table_name="calendar_events")
-    op.drop_index("ix_calendar_events_calendar_connection_id", table_name="calendar_events")
+    op.drop_index(
+        "ix_calendar_events_calendar_connection_id", table_name="calendar_events"
+    )
     op.drop_index("ix_calendar_events_user_id", table_name="calendar_events")
     op.drop_table("calendar_events")
 

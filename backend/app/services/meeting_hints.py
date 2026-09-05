@@ -6,7 +6,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable
 
-from app.database.models.calendar import CalendarEventParticipant, ParticipantResponseStatus
+from app.database.models.calendar import (
+    CalendarEventParticipant,
+    ParticipantResponseStatus,
+)
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.meeting import MeetingRepository
 from app.database.session import get_async_session
@@ -125,7 +128,9 @@ def hints_from_transcript_metadata(meta: dict[str, Any]) -> MeetingProcessingHin
 
     names = tuple(dedup[:MAX_PARTICIPANT_NAMES])
     boost = build_word_boost_tokens(names)
-    return MeetingProcessingHints(speakers_expected=n, participant_names=names, word_boost=boost)
+    return MeetingProcessingHints(
+        speakers_expected=n, participant_names=names, word_boost=boost
+    )
 
 
 async def load_meeting_processing_hints(
@@ -179,5 +184,7 @@ async def load_meeting_processing_hints(
             )
             return db_hints
     except Exception as e:
-        logger.warning("Failed to load calendar hints for meeting %s: %s", meeting_id, e)
+        logger.warning(
+            "Failed to load calendar hints for meeting %s: %s", meeting_id, e
+        )
         return meta_hints

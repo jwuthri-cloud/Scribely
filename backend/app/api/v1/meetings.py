@@ -23,10 +23,27 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiofiles
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_current_user_with_db
 from app.config import get_settings
 from app.database.models.meeting import MeetingStatusEnum
-from app.database.models.meeting_processing import MeetingProcessing, PipelineEligibility
+from app.database.models.meeting_processing import (
+    MeetingProcessing,
+    PipelineEligibility,
+)
 from app.database.models.user import User
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.meeting import MeetingRepository
@@ -43,10 +60,6 @@ from app.infrastructure.object_storage import (
 )
 from app.services.task_runner import TaskStatus, read_status, schedule_processing
 from app.utils.logging import get_logger
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("meetings_api")
 
@@ -56,6 +69,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
+
 
 class MeetingSyncResponse(BaseModel):
     success: bool
@@ -273,7 +287,9 @@ def _processing_out_from_row(row: MeetingProcessing) -> MeetingProcessingOut:
         has_nonempty_diarization=bool(row.has_nonempty_diarization),
         last_error_message=row.last_error_message,
         failed_step=row.failed_step,
-        result_summary=row.result_summary if isinstance(row.result_summary, dict) else None,
+        result_summary=(
+            row.result_summary if isinstance(row.result_summary, dict) else None
+        ),
     )
 
 
@@ -298,10 +314,11 @@ async def _resolve_meeting_dir(
     settings = get_settings()
     meeting_dir = Path(settings.upload_dir) / meeting.storage_path
     if is_object_storage_configured() and (
-        not meeting_dir.is_dir()
-        or not (meeting_dir / "transcript.json").exists()
+        not meeting_dir.is_dir() or not (meeting_dir / "transcript.json").exists()
     ):
-        await mirror_meeting_from_object_storage_async(meeting_dir, meeting.storage_path)
+        await mirror_meeting_from_object_storage_async(
+            meeting_dir, meeting.storage_path
+        )
 
     if not meeting_dir.is_dir() or not (meeting_dir / "transcript.json").exists():
         logger.warning(
@@ -323,6 +340,7 @@ async def _resolve_meeting_dir(
 # ---------------------------------------------------------------------------
 # GET /  — list meetings for current user (paginated)
 # ---------------------------------------------------------------------------
+
 
 @router.get("/", response_model=PaginatedMeetingsResponse)
 async def list_meetings(
@@ -356,7 +374,11 @@ async def list_meetings(
                 title=m.title,
                 duration_seconds=m.duration_seconds,
                 entry_count=m.entry_count,
-                status=m.status.value if isinstance(m.status, MeetingStatusEnum) else str(m.status),
+                status=(
+                    m.status.value
+                    if isinstance(m.status, MeetingStatusEnum)
+                    else str(m.status)
+                ),
                 recorded_at=m.recorded_at.isoformat() if m.recorded_at else None,
                 created_at=m.created_at.isoformat(),
             )
@@ -400,7 +422,11 @@ async def get_dashboard_stats(
                 title=m.title,
                 duration_seconds=m.duration_seconds,
                 entry_count=m.entry_count,
-                status=m.status.value if isinstance(m.status, MeetingStatusEnum) else str(m.status),
+                status=(
+                    m.status.value
+                    if isinstance(m.status, MeetingStatusEnum)
+                    else str(m.status)
+                ),
                 recorded_at=m.recorded_at.isoformat() if m.recorded_at else None,
                 created_at=m.created_at.isoformat(),
             )
@@ -439,7 +465,11 @@ async def get_meeting(
         title=meeting.title,
         duration_seconds=meeting.duration_seconds,
         entry_count=meeting.entry_count,
-        status=meeting.status.value if isinstance(meeting.status, MeetingStatusEnum) else str(meeting.status),
+        status=(
+            meeting.status.value
+            if isinstance(meeting.status, MeetingStatusEnum)
+            else str(meeting.status)
+        ),
         recorded_at=meeting.recorded_at.isoformat() if meeting.recorded_at else None,
         created_at=meeting.created_at.isoformat(),
         processing=processing,
@@ -487,21 +517,29 @@ def _build_recall_enriched(transcript_data: dict) -> dict:
     """Build a v2 enriched transcript from a Recall-sourced transcript whose entries
     already carry real speaker names. Mirrors meeting_processor._build_enriched so the
     web app renders Recall meetings identically to pipeline-diarized ones."""
-    entries = transcript_data.get("entries", []) if isinstance(transcript_data, dict) else []
+    entries = (
+        transcript_data.get("entries", []) if isinstance(transcript_data, dict) else []
+    )
     utterances = []
     for e in entries:
         speaker = e.get("speaker") or "Speaker"
-        utterances.append({
-            "speaker": speaker,
-            "text": e.get("text", ""),
-            "startMs": e.get("startTime", 0),
-            "endMs": e.get("endTime", 0),
-            "confidence": e.get("confidence", 1.0),
-            "originalLabel": speaker,
-        })
+        utterances.append(
+            {
+                "speaker": speaker,
+                "text": e.get("text", ""),
+                "startMs": e.get("startTime", 0),
+                "endMs": e.get("endTime", 0),
+                "confidence": e.get("confidence", 1.0),
+                "originalLabel": speaker,
+            }
+        )
     speakers = sorted({u["speaker"] for u in utterances})
     now_iso = datetime.now(timezone.utc).isoformat()
-    created = transcript_data.get("createdAt", now_iso) if isinstance(transcript_data, dict) else now_iso
+    created = (
+        transcript_data.get("createdAt", now_iso)
+        if isinstance(transcript_data, dict)
+        else now_iso
+    )
     return {
         "version": 2,
         "createdAt": created,
@@ -514,13 +552,18 @@ def _build_recall_enriched(transcript_data: dict) -> dict:
             "utterances": utterances,
         },
         "entries": entries,
-        "summary": transcript_data.get("summary", {}) if isinstance(transcript_data, dict) else {},
+        "summary": (
+            transcript_data.get("summary", {})
+            if isinstance(transcript_data, dict)
+            else {}
+        ),
     }
 
 
 # ---------------------------------------------------------------------------
 # POST /  — upload meeting files
 # ---------------------------------------------------------------------------
+
 
 @router.post("/", response_model=MeetingSyncResponse)
 async def sync_meeting(
@@ -626,7 +669,11 @@ async def sync_meeting(
     transcript_data = {}
     try:
         transcript_data = json.loads(transcript_content)
-        entries = transcript_data if isinstance(transcript_data, list) else transcript_data.get("entries", [])
+        entries = (
+            transcript_data
+            if isinstance(transcript_data, list)
+            else transcript_data.get("entries", [])
+        )
         entry_count = len(entries)
         if isinstance(transcript_data, dict):
             provider_tag = transcript_data.get("provider")
@@ -636,11 +683,17 @@ async def sync_meeting(
             last_ts = entries[-1].get("timestamp", 0)
             if isinstance(last_ts, (int, float)) and isinstance(first_ts, (int, float)):
                 duration_seconds = max(0, int(last_ts - first_ts))
-        meta = transcript_data.get("metadata", {}) if isinstance(transcript_data, dict) else {}
+        meta = (
+            transcript_data.get("metadata", {})
+            if isinstance(transcript_data, dict)
+            else {}
+        )
         title = meta.get("title")
         if meta.get("startTime"):
             try:
-                recorded_at = datetime.fromisoformat(meta["startTime"].replace("Z", "+00:00")).replace(tzinfo=None)
+                recorded_at = datetime.fromisoformat(
+                    meta["startTime"].replace("Z", "+00:00")
+                ).replace(tzinfo=None)
             except (ValueError, AttributeError):
                 pass
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -649,9 +702,15 @@ async def sync_meeting(
     if recorded_at is None:
         recorded_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    cal_id = calendar_event_id.strip() if calendar_event_id and calendar_event_id.strip() else None
+    cal_id = (
+        calendar_event_id.strip()
+        if calendar_event_id and calendar_event_id.strip()
+        else None
+    )
     if cal_id:
-        ev = await CalendarRepository.get_event_by_id(db, cal_id, user.id, with_participants=False)
+        ev = await CalendarRepository.get_event_by_id(
+            db, cal_id, user.id, with_participants=False
+        )
         if not ev:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -697,9 +756,13 @@ async def sync_meeting(
             async with aiofiles.open(enriched_path, "w") as f:
                 await f.write(json.dumps(enriched, indent=2, ensure_ascii=False))
             if is_object_storage_configured():
-                await upload_file_async(enriched_path, storage_rel, TRANSCRIPT_ENRICHED_JSON)
+                await upload_file_async(
+                    enriched_path, storage_rel, TRANSCRIPT_ENRICHED_JSON
+                )
         except OSError as e:
-            logger.error(f"Failed to write recall enriched transcript for {db_meeting.id}: {e}")
+            logger.error(
+                f"Failed to write recall enriched transcript for {db_meeting.id}: {e}"
+            )
         diar = enriched["diarization"]
         await MeetingProcessingRepository.mark_completed(
             db,
@@ -720,9 +783,13 @@ async def sync_meeting(
         from app.database.models.rule import RuleTriggerEnum
         from app.services.rule_engine import execute_rules_for_meeting
 
-        asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.BEFORE_MEETING))
+        asyncio.create_task(
+            execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.BEFORE_MEETING)
+        )
         if recording_path is None or is_recall:
-            asyncio.create_task(execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.AFTER_MEETING))
+            asyncio.create_task(
+                execute_rules_for_meeting(db_meeting.id, RuleTriggerEnum.AFTER_MEETING)
+            )
     except Exception as e:
         logger.warning("Failed to schedule meeting rules for %s: %s", db_meeting.id, e)
 
@@ -766,7 +833,9 @@ async def get_meeting_knowledge(
 
     meeting = await MeetingRepository.get_by_id(db, meeting_id, user_id=user.id)
     if not meeting:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found"
+        )
 
     deal_payload: Optional[dict[str, Any]] = None
     if meeting.deal_id:
@@ -799,8 +868,16 @@ async def get_meeting_knowledge(
         {
             "id": r.id,
             "contact_id": r.contact_id,
-            "contact_email": contact_by_id.get(r.contact_id).email if contact_by_id.get(r.contact_id) else None,
-            "contact_name": contact_by_id.get(r.contact_id).full_name if contact_by_id.get(r.contact_id) else None,
+            "contact_email": (
+                contact_by_id.get(r.contact_id).email
+                if contact_by_id.get(r.contact_id)
+                else None
+            ),
+            "contact_name": (
+                contact_by_id.get(r.contact_id).full_name
+                if contact_by_id.get(r.contact_id)
+                else None
+            ),
             "fact": r.fact,
             "category": str(r.category),
             "confidence": r.confidence,
@@ -815,6 +892,7 @@ async def get_meeting_knowledge(
 # ---------------------------------------------------------------------------
 # GET /{meeting_id}/status  — processing status
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{meeting_id}/status", response_model=ProcessingStatusResponse)
 async def get_processing_status(
@@ -848,6 +926,7 @@ async def get_processing_status(
 # ---------------------------------------------------------------------------
 # GET /{meeting_id}/transcript  — enriched (or original) transcript
 # ---------------------------------------------------------------------------
+
 
 @router.get("/{meeting_id}/transcript", response_model=EnrichedTranscriptResponse)
 async def get_transcript(
@@ -916,7 +995,11 @@ async def patch_transcript(
         await f.write(out)
 
     if is_object_storage_configured():
-        fname = TRANSCRIPT_ENRICHED_JSON if target.name == "transcript_enriched.json" else TRANSCRIPT_JSON
+        fname = (
+            TRANSCRIPT_ENRICHED_JSON
+            if target.name == "transcript_enriched.json"
+            else TRANSCRIPT_JSON
+        )
         await upload_file_async(target, meeting.storage_path, fname)
 
     await MeetingRepository.update_entry_count(db, meeting_id, len(body.entries))
@@ -970,6 +1053,7 @@ async def get_meeting_recording(
 # ---------------------------------------------------------------------------
 # POST /{meeting_id}/reprocess  — manually re-trigger processing
 # ---------------------------------------------------------------------------
+
 
 @router.post("/{meeting_id}/reprocess", response_model=ProcessingStatusResponse)
 async def reprocess_meeting(

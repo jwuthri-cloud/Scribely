@@ -8,8 +8,17 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy import JSON
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
 from ..base import Base
@@ -47,7 +56,9 @@ class Rule(Base):
     __tablename__ = "rules"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     trigger = Column(
@@ -60,7 +71,9 @@ class Rule(Base):
     flow_layout = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     user = relationship("User", backref="rules")
     steps = relationship(
@@ -69,7 +82,9 @@ class Rule(Base):
         order_by="RuleStep.order_index",
         cascade="all, delete-orphan",
     )
-    executions = relationship("RuleExecution", back_populates="rule", cascade="all, delete-orphan")
+    executions = relationship(
+        "RuleExecution", back_populates="rule", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (Index("ix_rules_user_trigger", "user_id", "trigger"),)
 
@@ -83,7 +98,9 @@ class RuleStep(Base):
     __tablename__ = "rule_steps"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    rule_id = Column(String, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(
+        String, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     order_index = Column(Integer, nullable=False, default=0)
     name = Column(String(255), nullable=False)
     step_type = Column(VarcharEnum(32), nullable=False)
@@ -94,7 +111,9 @@ class RuleStep(Base):
     __table_args__ = (Index("ix_rule_steps_rule_order", "rule_id", "order_index"),)
 
     def __repr__(self) -> str:
-        return f"<RuleStep(id={self.id}, order={self.order_index}, type={self.step_type})>"
+        return (
+            f"<RuleStep(id={self.id}, order={self.order_index}, type={self.step_type})>"
+        )
 
 
 class RuleExecution(Base):
@@ -103,13 +122,24 @@ class RuleExecution(Base):
     __tablename__ = "rule_executions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    rule_id = Column(String, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True)
-    meeting_id = Column(String, ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False, index=True)
+    rule_id = Column(
+        String, ForeignKey("rules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    meeting_id = Column(
+        String,
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     trigger = Column(VarcharEnum(32), nullable=False)
-    status = Column(VarcharEnum(32), default=RuleExecutionStatusEnum.PENDING, nullable=False)
+    status = Column(
+        VarcharEnum(32), default=RuleExecutionStatusEnum.PENDING, nullable=False
+    )
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    step_results = Column(JSON, nullable=True)  # list of {step_id, name, ok, result, error}
+    step_results = Column(
+        JSON, nullable=True
+    )  # list of {step_id, name, ok, result, error}
     error = Column(Text, nullable=True)
 
     rule = relationship("Rule", back_populates="executions")

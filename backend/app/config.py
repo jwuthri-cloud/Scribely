@@ -1,4 +1,5 @@
 """Application settings loaded from environment variables."""
+
 import ipaddress
 import os
 from pathlib import Path
@@ -54,9 +55,9 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite+aiosqlite:///./app.db"
-    
+
     # API (Railway sets PORT; local dev may use API_PORT)
-    api_host: str = "0.0.0.0"
+    api_host: str = "0.0.0.0"  # nosec B104 — containers must bind all interfaces
     api_port: int = Field(
         default=8000,
         validation_alias=AliasChoices("PORT", "API_PORT"),
@@ -64,13 +65,13 @@ class Settings(BaseSettings):
 
     # OpenRouter (optional, for future use)
     openrouter_api_key: str = ""
-    
+
     # Langfuse Observability (optional)
     langfuse_enabled: bool = False
     langfuse_secret_key: str = ""
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
-    
+
     # Vector Database — Pinecone (optional)
     vector_db_api_key: str = ""
     vector_db_url: str = ""
@@ -86,10 +87,10 @@ class Settings(BaseSettings):
 
     # LLM
     openai_api_key: str = ""
-    
+
     # Logging
     log_level: str = "INFO"
-    
+
     # Application
     app_name: str = "Scribely"
     app_version: str = "0.1.0"
@@ -171,11 +172,13 @@ class Settings(BaseSettings):
     frames_per_speaker: int = 10
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,https://www.scribely.xyz,https://scribely.xyz,http://frontend.railway.internal,https://frontend-production-4098.up.railway.app"
+    cors_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,https://www.scribely.xyz,https://scribely.xyz,http://frontend.railway.internal,https://frontend-production-4098.up.railway.app"
+    )
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["*"]
     cors_allow_headers: list[str] = ["*"]
-    
+
     @computed_field
     def cors_origins_list(self) -> list[str]:
         """Allowed browser origins for CORS.

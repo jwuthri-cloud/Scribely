@@ -40,14 +40,20 @@ class FfmpegFrameExtractor:
         return [int(i * step) for i in range(count)]
 
     @staticmethod
-    async def _extract_frame(webm_path: Path, timestamp_sec: float, output_path: Path) -> bool:
+    async def _extract_frame(
+        webm_path: Path, timestamp_sec: float, output_path: Path
+    ) -> bool:
         """Extract a single JPEG frame at *timestamp_sec* from *webm_path*."""
         cmd = [
             "ffmpeg",
-            "-ss", f"{timestamp_sec:.3f}",
-            "-i", str(webm_path),
-            "-frames:v", "1",
-            "-q:v", "2",
+            "-ss",
+            f"{timestamp_sec:.3f}",
+            "-i",
+            str(webm_path),
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
             "-y",
             str(output_path),
         ]

@@ -1,4 +1,5 @@
 """LangChain tool for web search via Tavily, with Google Serper as fallback."""
+
 import httpx
 from langchain_core.tools import StructuredTool
 
@@ -67,13 +68,16 @@ def build_web_search_tools() -> list:
     serper_key = settings.serper_api_key
 
     if not tavily_key and not serper_key:
-        logger.info("No web search provider configured (TAVILY_API_KEY or SERPER_API_KEY)")
+        logger.info(
+            "No web search provider configured (TAVILY_API_KEY or SERPER_API_KEY)"
+        )
         return []
 
     tavily_client = None
     if tavily_key:
         try:
             from tavily import AsyncTavilyClient
+
             tavily_client = AsyncTavilyClient(api_key=tavily_key)
         except Exception as e:
             logger.warning(f"Failed to initialize Tavily: {e}")
@@ -113,10 +117,14 @@ def build_web_search_tools() -> list:
 
             except Exception as e:
                 err_str = str(e).lower()
-                is_credit_error = any(keyword in err_str for keyword in _TAVILY_CREDIT_ERRORS)
+                is_credit_error = any(
+                    keyword in err_str for keyword in _TAVILY_CREDIT_ERRORS
+                )
 
                 if is_credit_error and serper_key:
-                    logger.warning(f"Tavily quota/credit error, falling back to Serper: {e}")
+                    logger.warning(
+                        f"Tavily quota/credit error, falling back to Serper: {e}"
+                    )
                     return await _serper_search(query, max_results, serper_key)
 
                 logger.error(f"Tavily search error: {e}")

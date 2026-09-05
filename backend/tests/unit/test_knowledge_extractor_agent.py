@@ -35,7 +35,9 @@ class TestTranscriptNormalization:
 @pytest.mark.asyncio
 @pytest.mark.unit
 class TestKnowledgeExtractorAgent:
-    async def _make_agent(self, response: KnowledgeExtractionResponse) -> KnowledgeExtractorAgent:
+    async def _make_agent(
+        self, response: KnowledgeExtractionResponse
+    ) -> KnowledgeExtractorAgent:
         provider = MagicMock()
         structured = MagicMock()
         structured.ainvoke = AsyncMock(return_value=response)
@@ -47,8 +49,18 @@ class TestKnowledgeExtractorAgent:
     async def test_filters_unknown_emails(self):
         fake = KnowledgeExtractionResponse(
             facts=[
-                ContactFact(email="jade@acme.com", fact="Runs platform", category="role", confidence=0.9),
-                ContactFact(email="ghost@other.com", fact="Invented", category="other", confidence=0.1),
+                ContactFact(
+                    email="jade@acme.com",
+                    fact="Runs platform",
+                    category="role",
+                    confidence=0.9,
+                ),
+                ContactFact(
+                    email="ghost@other.com",
+                    fact="Invented",
+                    category="other",
+                    confidence=0.1,
+                ),
             ]
         )
         agent = await self._make_agent(fake)

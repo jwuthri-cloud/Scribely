@@ -8,7 +8,7 @@ from pathlib import Path
 from app.utils.logging import get_logger
 
 from .base import BaseDiarizer
-from .types import DiarizedUtterance, DiarizationHints
+from .types import DiarizationHints, DiarizedUtterance
 
 logger = get_logger("diarization.assemblyai")
 

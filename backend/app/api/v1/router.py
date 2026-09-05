@@ -2,6 +2,8 @@
 Main API v1 router for Scribely.
 """
 
+from fastapi import APIRouter
+
 from app.api.v1 import (
     auth,
     calendar,
@@ -16,7 +18,6 @@ from app.api.v1 import (
     recall,
     rules,
 )
-from fastapi import APIRouter
 
 api_router = APIRouter(prefix="/v1")
 
@@ -28,8 +29,12 @@ api_router.include_router(contacts.router, prefix="/contacts", tags=["contacts"]
 api_router.include_router(deals.router, prefix="/deals", tags=["deals"])
 api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(meetings.router, prefix="/meetings", tags=["meetings"])
-api_router.include_router(metrics.router, prefix="/metrics", tags=["metrics", "monitoring"])
+api_router.include_router(
+    metrics.router, prefix="/metrics", tags=["metrics", "monitoring"]
+)
 api_router.include_router(push.router, prefix="/push", tags=["push"])
 api_router.include_router(recall.router, prefix="/recall", tags=["recall"])
-api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
+api_router.include_router(
+    integrations.router, prefix="/integrations", tags=["integrations"]
+)
 api_router.include_router(rules.router, prefix="/rules", tags=["rules"])

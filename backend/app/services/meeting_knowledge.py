@@ -179,9 +179,7 @@ async def run_post_meeting_knowledge(meeting_id: str) -> None:
                     entries=entries,
                 )
             else:
-                logger.info(
-                    f"knowledge: no extractable facts for meeting {meeting_id}"
-                )
+                logger.info(f"knowledge: no extractable facts for meeting {meeting_id}")
 
             await db.commit()
             logger.info(

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import httpx
+
 from app.utils.logging import get_logger
 
 logger = get_logger("google_calendar")
@@ -136,7 +137,11 @@ class GoogleCalendarClient:
 
         url = f"{GOOGLE_CALENDAR_BASE}/calendars/{calendar_id}/events/watch"
         async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(url, headers={**self._headers, "Content-Type": "application/json"}, json=body)
+            r = await client.post(
+                url,
+                headers={**self._headers, "Content-Type": "application/json"},
+                json=body,
+            )
         r.raise_for_status()
         data = r.json()
         return WatchResponse(

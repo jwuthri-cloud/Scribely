@@ -5,8 +5,6 @@ Async database session management for Scribely.
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
-from app.config import get_settings
-from app.utils.logging import get_logger
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
@@ -16,6 +14,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.pool import StaticPool
+
+from app.config import get_settings
+from app.utils.logging import get_logger
 
 logger = get_logger("database_session")
 
@@ -31,11 +32,11 @@ def get_async_database_url(database_url: str) -> str:
     """Convert sync database URL to async."""
     if not database_url:
         return "sqlite+aiosqlite:///:memory:"
-    
+
     # If already async, return as-is
     if "+asyncpg" in database_url or "+aiosqlite" in database_url:
         return database_url
-    
+
     # Convert sync URLs to async
     if database_url.startswith("sqlite://"):
         # SQLite: replace sqlite:// with sqlite+aiosqlite://
@@ -45,7 +46,9 @@ def get_async_database_url(database_url: str) -> str:
         return database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     elif database_url.startswith("postgresql+psycopg2://"):
         # PostgreSQL with psycopg2: replace with asyncpg
-        return database_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
+        return database_url.replace(
+            "postgresql+psycopg2://", "postgresql+asyncpg://", 1
+        )
     else:
         # Assume it's already async-compatible or return as-is
         return database_url
@@ -122,7 +125,7 @@ def get_async_session_factory() -> async_sessionmaker[AsyncSession]:
             class_=AsyncSession,
             expire_on_commit=False,
             autoflush=False,
-            autocommit=False
+            autocommit=False,
         )
         logger.info("Async session factory created")
     return _async_session_factory
@@ -230,7 +233,7 @@ async def get_async_db_transaction() -> AsyncGenerator[AsyncSession, None]:
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     """Set SQLite pragmas for better performance."""
-    if 'sqlite' in str(dbapi_connection):
+    if "sqlite" in str(dbapi_connection):
         cursor = dbapi_connection.cursor()
         # Enable foreign key support
         cursor.execute("PRAGMA foreign_keys=ON")

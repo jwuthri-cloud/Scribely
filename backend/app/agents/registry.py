@@ -17,6 +17,7 @@ T = TypeVar("T", bound=BaseAgent)
 
 class AgentNotFoundError(Exception):
     """Raised when an agent is not found in the registry."""
+
     pass
 
 
@@ -56,7 +57,7 @@ class AgentRegistry:
         cls,
         name: str,
         description: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> Callable[[Type[T]], Type[T]]:
         """
         Decorator to register an agent class.
@@ -74,6 +75,7 @@ class AgentRegistry:
             class CustomerSupportAgent(BaseAgent):
                 ...
         """
+
         def decorator(agent_class: Type[T]) -> Type[T]:
             cls._agents[name] = agent_class
             cls._metadata[name] = {
@@ -83,6 +85,7 @@ class AgentRegistry:
             }
             logger.info(f"Registered agent: {name} ({agent_class.__name__})")
             return agent_class
+
         return decorator
 
     @classmethod
@@ -91,7 +94,7 @@ class AgentRegistry:
         name: str,
         agent_class: Type[BaseAgent],
         description: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> None:
         """
         Register an agent class directly.
@@ -143,7 +146,9 @@ class AgentRegistry:
             AgentNotFoundError: If agent is not registered
         """
         if name not in cls._agents:
-            raise AgentNotFoundError(f"Agent '{name}' not found. Available: {list(cls._agents.keys())}")
+            raise AgentNotFoundError(
+                f"Agent '{name}' not found. Available: {list(cls._agents.keys())}"
+            )
         return cls._agents[name]
 
     @classmethod
@@ -151,7 +156,7 @@ class AgentRegistry:
         cls,
         name: str,
         llm_provider: Optional[OpenRouterProvider] = None,
-        config: Optional[AgentConfig] = None
+        config: Optional[AgentConfig] = None,
     ) -> BaseAgent:
         """
         Create an instance of a registered agent.
@@ -184,11 +189,7 @@ class AgentRegistry:
     def list_agents_with_metadata(cls) -> List[Dict[str, Any]]:
         """Get list of all agents with their metadata."""
         return [
-            {
-                "name": name,
-                **cls._metadata.get(name, {})
-            }
-            for name in cls._agents.keys()
+            {"name": name, **cls._metadata.get(name, {})} for name in cls._agents.keys()
         ]
 
     @classmethod
@@ -203,8 +204,7 @@ class AgentRegistry:
             List of agent names with the specified tag
         """
         return [
-            name for name, meta in cls._metadata.items()
-            if tag in meta.get("tags", [])
+            name for name, meta in cls._metadata.items() if tag in meta.get("tags", [])
         ]
 
     @classmethod
@@ -229,7 +229,7 @@ def get_agent(name: str) -> Type[BaseAgent]:
 def create_agent(
     name: str,
     llm_provider: Optional[OpenRouterProvider] = None,
-    config: Optional[AgentConfig] = None
+    config: Optional[AgentConfig] = None,
 ) -> BaseAgent:
     """Create an agent instance by name."""
     return AgentRegistry.create(name, llm_provider, config)

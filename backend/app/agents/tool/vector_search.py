@@ -5,6 +5,7 @@ Architecture:
   - Namespaces separate entity types: "meeting_transcripts", "knowledge", "deals", etc.
   - user_id stored in metadata for per-user filtering within each namespace
 """
+
 from langchain_core.tools import StructuredTool
 
 from app.config import get_settings
@@ -40,6 +41,7 @@ def build_vector_search_tools(user_id: str) -> list:
 
     try:
         from pinecone import Pinecone
+
         from app.infrastructure.llm_provider import OpenRouterEmbeddings
 
         pc = Pinecone(api_key=settings.vector_db_api_key)
@@ -85,7 +87,9 @@ def build_vector_search_tools(user_id: str) -> list:
                 timestamp = meta.get("timestamp", "")
                 speaker = meta.get("speaker", "Unknown")
                 text = meta.get("text", "")
-                lines.append(f"[score={score:.2f}] Meeting {meeting_id} [{timestamp}] {speaker}: {text}")
+                lines.append(
+                    f"[score={score:.2f}] Meeting {meeting_id} [{timestamp}] {speaker}: {text}"
+                )
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"Pinecone transcript search error: {e}")

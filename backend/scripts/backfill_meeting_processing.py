@@ -94,7 +94,9 @@ async def main_async(force: bool, dry_run: bool) -> int:
                     skipped += 1
                     continue
 
-                existing = await MeetingProcessingRepository.get_by_meeting_id(db, meeting_id)
+                existing = await MeetingProcessingRepository.get_by_meeting_id(
+                    db, meeting_id
+                )
                 if (
                     existing
                     and existing.processing_status == MeetingProcessingStatus.COMPLETED
@@ -111,7 +113,9 @@ async def main_async(force: bool, dry_run: bool) -> int:
                 now = _utc_naive()
                 row = existing
                 if row is None:
-                    row = MeetingProcessing(meeting_id=meeting_id, created_at=now, updated_at=now)
+                    row = MeetingProcessing(
+                        meeting_id=meeting_id, created_at=now, updated_at=now
+                    )
                     db.add(row)
 
                 row.pipeline_eligibility = PipelineEligibility.SCHEDULED

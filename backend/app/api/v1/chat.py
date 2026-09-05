@@ -16,10 +16,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.agents.assistant import AssistantAgent
 from app.database.session import get_async_db_session
-from app.infrastructure.circuit_breaker import CircuitBreakerOpenError, get_llm_circuit_breaker
+from app.infrastructure.circuit_breaker import (
+    CircuitBreakerOpenError,
+    get_llm_circuit_breaker,
+)
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.middleware.rate_limit import RateLimits, limiter
-from app.model_name import ALLOWED_OPENROUTER_MODEL_IDS, DEFAULT_TRAINING, OPENROUTER_CHAT_MODEL_CATALOG
+from app.model_name import (
+    ALLOWED_OPENROUTER_MODEL_IDS,
+    DEFAULT_TRAINING,
+    OPENROUTER_CHAT_MODEL_CATALOG,
+)
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
 
@@ -31,6 +38,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Models catalog
 # ---------------------------------------------------------------------------
+
 
 class ChatModelItem(BaseModel):
     id: str
@@ -57,6 +65,7 @@ async def list_chat_models() -> ChatModelsResponse:
 # Shared request/response models
 # ---------------------------------------------------------------------------
 
+
 def _validate_model(v: Optional[str]) -> str:
     m = v if v is not None else DEFAULT_TRAINING
     if m not in ALLOWED_OPENROUTER_MODEL_IDS:
@@ -72,7 +81,8 @@ class ChatRequest(BaseModel):
 
     @field_validator("model")
     @classmethod
-    def validate_model_id(cls, v): return _validate_model(v)
+    def validate_model_id(cls, v):
+        return _validate_model(v)
 
 
 class ChatResponse(BaseModel):
@@ -88,12 +98,14 @@ class StreamingChatRequest(BaseModel):
 
     @field_validator("model")
     @classmethod
-    def validate_model_id(cls, v): return _validate_model(v)
+    def validate_model_id(cls, v):
+        return _validate_model(v)
 
 
 # ---------------------------------------------------------------------------
 # POST /chat — standard response
 # ---------------------------------------------------------------------------
+
 
 @router.post("/", response_model=ChatResponse)
 @limiter.limit(RateLimits.CHAT)
@@ -107,7 +119,9 @@ async def chat(
     circuit_breaker = get_llm_circuit_breaker()
 
     try:
-        logger.info(f"Chat request from user {current_user.id}: {request_body.message[:50]}...")
+        logger.info(
+            f"Chat request from user {current_user.id}: {request_body.message[:50]}..."
+        )
 
         provider = OpenRouterProvider()
         agent = await AssistantAgent.create(
@@ -119,6 +133,7 @@ async def chat(
         )
 
         try:
+
             async def invoke():
                 return await agent.handle_message(
                     message=request_body.message,
@@ -150,6 +165,7 @@ async def chat(
 # POST /chat/stream — SSE streaming
 # ---------------------------------------------------------------------------
 
+
 @router.post("/stream")
 @limiter.limit(RateLimits.STREAMING)
 async def chat_stream(
@@ -170,6 +186,7 @@ async def chat_stream(
 
     if circuit_breaker.state.value == "open":
         import time
+
         elapsed = time.time() - (circuit_breaker.stats.opened_at or 0)
         retry_after = max(0, circuit_breaker.config.timeout - elapsed)
         raise HTTPException(
@@ -180,7 +197,9 @@ async def chat_stream(
 
     async def generate_stream() -> AsyncGenerator[str, None]:
         try:
-            logger.info(f"Streaming chat from user {current_user.id}: {request_body.message[:50]}...")
+            logger.info(
+                f"Streaming chat from user {current_user.id}: {request_body.message[:50]}..."
+            )
 
             provider = OpenRouterProvider()
             agent = await AssistantAgent.create(
@@ -199,7 +218,7 @@ async def chat_stream(
                     session_id=request_body.session_id or str(uuid.uuid4()),
                     tags=["chat", "api", "streaming"],
                 ):
-                    chunk = partial.response[len(full_response):]
+                    chunk = partial.response[len(full_response) :]
                     full_response = partial.response
                     if chunk:
                         yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"

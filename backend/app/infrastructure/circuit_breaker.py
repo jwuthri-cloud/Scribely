@@ -27,6 +27,7 @@ T = TypeVar("T")
 
 class CircuitState(str, Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -120,11 +121,7 @@ class CircuitBreaker:
             return fallback_response()
     """
 
-    def __init__(
-        self,
-        name: str,
-        config: Optional[CircuitBreakerConfig] = None
-    ):
+    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None):
         self.name = name
         self.config = config or CircuitBreakerConfig()
         self._stats = CircuitBreakerStats()
@@ -276,16 +273,20 @@ class CircuitBreaker:
     def __call__(self, func: Callable[..., T]) -> Callable[..., T]:
         """Use circuit breaker as a decorator."""
         if asyncio.iscoroutinefunction(func):
+
             @wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> T:
                 return await self.call(func, *args, **kwargs)
+
             return async_wrapper
         else:
+
             @wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> T:
                 return asyncio.get_event_loop().run_until_complete(
                     self.call(func, *args, **kwargs)
                 )
+
             return sync_wrapper
 
     def reset(self) -> None:
@@ -300,8 +301,7 @@ _circuit_breakers: Dict[str, CircuitBreaker] = {}
 
 
 def get_circuit_breaker(
-    name: str,
-    config: Optional[CircuitBreakerConfig] = None
+    name: str, config: Optional[CircuitBreakerConfig] = None
 ) -> CircuitBreaker:
     """
     Get or create a named circuit breaker.
@@ -320,10 +320,7 @@ def get_all_circuit_breakers() -> Dict[str, CircuitBreaker]:
 
 def get_circuit_breaker_stats() -> Dict[str, Dict[str, Any]]:
     """Get statistics for all circuit breakers."""
-    return {
-        name: cb.stats.to_dict()
-        for name, cb in _circuit_breakers.items()
-    }
+    return {name: cb.stats.to_dict() for name, cb in _circuit_breakers.items()}
 
 
 # Pre-configured circuit breakers for common services

@@ -16,7 +16,7 @@ class DiarizationHints:
 
 @dataclass
 class DiarizedUtterance:
-    speaker: str        # "Speaker 0", "Speaker 1", …
+    speaker: str  # "Speaker 0", "Speaker 1", …
     text: str
     start_ms: int
     end_ms: int

@@ -18,7 +18,7 @@ from typing import Any
 
 from app.config import get_settings
 from app.infrastructure.audio_extractor import extract_audio
-from app.infrastructure.diarization import DiarizedUtterance, DiarizationHints, diarize
+from app.infrastructure.diarization import DiarizationHints, DiarizedUtterance, diarize
 from app.infrastructure.frame_extractor import extract_speaker_frames
 from app.services.meeting_hints import load_meeting_processing_hints
 from app.services.pipeline_errors import PipelineStepError
@@ -166,14 +166,16 @@ def _build_enriched(
     named_utterances = []
     for utt in utterances:
         real_name = speaker_map.get(utt.speaker, utt.speaker)
-        named_utterances.append({
-            "speaker": real_name,
-            "text": utt.text,
-            "startMs": utt.start_ms,
-            "endMs": utt.end_ms,
-            "confidence": utt.confidence,
-            "originalLabel": utt.speaker,
-        })
+        named_utterances.append(
+            {
+                "speaker": real_name,
+                "text": utt.text,
+                "startMs": utt.start_ms,
+                "endMs": utt.end_ms,
+                "confidence": utt.confidence,
+                "originalLabel": utt.speaker,
+            }
+        )
 
     unique_speakers = sorted(set(speaker_map.values())) if speaker_map else []
 

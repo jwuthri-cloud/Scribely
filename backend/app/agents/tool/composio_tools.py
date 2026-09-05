@@ -1,4 +1,5 @@
 """LangChain tools for external integrations via Composio MCP."""
+
 from app.config import get_settings
 from app.utils.logging import get_logger
 
@@ -11,7 +12,9 @@ def _fix_schema(schema: dict) -> dict:
         return schema
     if schema.get("type") == "object" and "properties" in schema:
         schema["required"] = list(schema["properties"].keys())
-        schema["properties"] = {k: _fix_schema(v) for k, v in schema["properties"].items()}
+        schema["properties"] = {
+            k: _fix_schema(v) for k, v in schema["properties"].items()
+        }
     if "items" in schema:
         schema["items"] = _fix_schema(schema["items"])
     return schema
@@ -81,7 +84,9 @@ async def build_composio_tools(user_id: str) -> tuple[list, object | None]:
         return tools, mcp_client
 
     except ImportError:
-        logger.warning("composio or langchain-mcp-adapters not installed — run: pip install composio langchain-mcp-adapters")
+        logger.warning(
+            "composio or langchain-mcp-adapters not installed — run: pip install composio langchain-mcp-adapters"
+        )
         return [], None
     except Exception as e:
         logger.warning(f"Failed to load Composio tools for user {user_id}: {e}")
@@ -139,10 +144,7 @@ def get_connected_apps(user_id: str) -> list[dict]:
         composio = Composio(api_key=settings.composio_api_key)
         entity = composio.get_entity(id=user_id)
         connections = entity.get_connections()
-        return [
-            {"app": c.appUniqueId, "status": c.status}
-            for c in connections
-        ]
+        return [{"app": c.appUniqueId, "status": c.status} for c in connections]
     except Exception as e:
         logger.warning(f"Failed to get connected apps for user {user_id}: {e}")
         return []

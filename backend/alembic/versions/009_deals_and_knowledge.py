@@ -9,8 +9,9 @@ before this revision ran. ``create_all`` does not add new columns to existing ta
 so ``meetings.deal_id`` is applied only when missing.
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "009_deals_and_knowledge"
 down_revision = "008_rule_flow_layout"
@@ -124,7 +125,9 @@ def upgrade() -> None:
         op.add_column("meetings", sa.Column("deal_id", sa.String(), nullable=True))
 
     insp = sa.inspect(bind)
-    fk_names = {fk["name"] for fk in insp.get_foreign_keys("meetings") if fk.get("name")}
+    fk_names = {
+        fk["name"] for fk in insp.get_foreign_keys("meetings") if fk.get("name")
+    }
     if "fk_meetings_deal_id" not in fk_names:
         op.create_foreign_key(
             "fk_meetings_deal_id",

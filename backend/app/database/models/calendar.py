@@ -61,7 +61,9 @@ class CalendarConnection(Base):
     __tablename__ = "calendar_connections"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     provider = Column(String(20), nullable=False)  # "google"
 
     sync_token = Column(Text, nullable=True)
@@ -78,13 +80,19 @@ class CalendarConnection(Base):
     last_error = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     user = relationship("User", backref="calendar_connections")
-    events = relationship("CalendarEvent", back_populates="connection", cascade="all, delete-orphan")
+    events = relationship(
+        "CalendarEvent", back_populates="connection", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
-        UniqueConstraint("user_id", "provider", name="uq_calendar_connections_user_provider"),
+        UniqueConstraint(
+            "user_id", "provider", name="uq_calendar_connections_user_provider"
+        ),
     )
 
 
@@ -94,7 +102,9 @@ class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     calendar_connection_id = Column(
         String,
         ForeignKey("calendar_connections.id", ondelete="CASCADE"),
@@ -131,7 +141,9 @@ class CalendarEvent(Base):
     raw_data = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     connection = relationship("CalendarConnection", back_populates="events")
     user = relationship("User", backref="calendar_events")
@@ -142,7 +154,9 @@ class CalendarEvent(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("user_id", "google_event_id", name="uq_calendar_events_user_google_event"),
+        UniqueConstraint(
+            "user_id", "google_event_id", name="uq_calendar_events_user_google_event"
+        ),
         Index("ix_calendar_events_user_start", "user_id", "start_time"),
     )
 

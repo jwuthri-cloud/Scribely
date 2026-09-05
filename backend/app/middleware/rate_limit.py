@@ -6,12 +6,13 @@ Uses slowapi to provide per-IP and per-user rate limiting.
 
 from typing import Callable
 
-from app.config import get_settings
-from app.utils.logging import get_logger
 from fastapi import Request, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+
+from app.config import get_settings
+from app.utils.logging import get_logger
 
 logger = get_logger("rate_limit")
 
@@ -51,15 +52,15 @@ class RateLimits:
 
     # General API limits
     DEFAULT = "100/minute"  # 100 requests per minute
-    STRICT = "30/minute"    # 30 requests per minute
+    STRICT = "30/minute"  # 30 requests per minute
 
     # LLM endpoints (expensive operations)
-    CHAT = "30/minute"      # 30 chat requests per minute
-    STREAMING = "20/minute" # 20 streaming requests per minute
+    CHAT = "30/minute"  # 30 chat requests per minute
+    STREAMING = "20/minute"  # 20 streaming requests per minute
 
     # Authentication endpoints
-    AUTH = "20/minute"      # 20 auth requests per minute
-    LOGIN = "5/minute"      # 5 login attempts per minute (brute force protection)
+    AUTH = "20/minute"  # 20 auth requests per minute
+    LOGIN = "5/minute"  # 5 login attempts per minute (brute force protection)
 
     # High-frequency endpoints
     HEALTH = "1000/minute"  # Health checks are cheap

@@ -33,7 +33,6 @@ from app.database.models.rule import (
 from app.database.repositories.meeting import MeetingRepository
 from app.database.repositories.push import PushRepository
 from app.database.repositories.rule import RuleRepository
-from app.services.rule_flow import ancestor_step_ids_sorted, ordered_steps_from_flow
 from app.infrastructure.langfuse_handler import get_langfuse_callbacks
 from app.infrastructure.llm_provider import OpenRouterProvider
 from app.infrastructure.object_storage import (
@@ -41,6 +40,7 @@ from app.infrastructure.object_storage import (
     mirror_meeting_from_object_storage_async,
 )
 from app.model_name import DEFAULT_TRAINING
+from app.services.rule_flow import ancestor_step_ids_sorted, ordered_steps_from_flow
 from app.services.webpush_sender import _send_one_sync
 from app.utils.logging import get_logger
 
@@ -71,7 +71,9 @@ async def _ensure_meeting_dir(meeting: Meeting) -> Optional[Path]:
     if is_object_storage_configured() and (
         not meeting_dir.is_dir() or not (meeting_dir / "transcript.json").exists()
     ):
-        await mirror_meeting_from_object_storage_async(meeting_dir, meeting.storage_path)
+        await mirror_meeting_from_object_storage_async(
+            meeting_dir, meeting.storage_path
+        )
     if not meeting_dir.is_dir() or not (meeting_dir / "transcript.json").exists():
         return None
     return meeting_dir
@@ -117,7 +119,9 @@ async def _load_transcript_bundle(meeting_dir: Path) -> tuple[str, Optional[Any]
     return _transcript_json_to_text(data), data
 
 
-async def _load_calendar_participants(db: AsyncSession, meeting: Meeting) -> list[dict[str, Any]]:
+async def _load_calendar_participants(
+    db: AsyncSession, meeting: Meeting
+) -> list[dict[str, Any]]:
     if not meeting.calendar_event_id:
         return []
     stmt = (
@@ -248,14 +252,18 @@ async def _step_llm_prompt(
     return content if isinstance(content, str) else str(content)
 
 
-async def _step_send_email(config: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+async def _step_send_email(
+    config: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
     settings = get_settings()
     if not settings.resend_api_key:
         raise RuntimeError("RESEND_API_KEY is not configured; cannot send email.")
 
     flat = _flatten_context_for_jinja(context)
     to_s = _render_template_str(config.get("to_template") or "", flat)
-    subject = _render_template_str(config.get("subject_template") or "(no subject)", flat)
+    subject = _render_template_str(
+        config.get("subject_template") or "(no subject)", flat
+    )
     body = _render_template_str(config.get("body_template") or "", flat)
 
     to_list = [x.strip() for x in to_s.split(",") if x.strip()]
@@ -311,14 +319,18 @@ async def _step_push_notification(
     return {"sent": sent, "total": len(subs)}
 
 
-async def _step_webhook(config: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+async def _step_webhook(
+    config: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
     url = (config.get("url") or "").strip()
     if not url:
         raise ValueError("webhook step: url is required")
     method = (config.get("method") or "POST").upper()
     flat = _flatten_context_for_jinja(context)
     headers_raw = config.get("headers") or {}
-    headers = _render_json_leaves(headers_raw, flat) if isinstance(headers_raw, dict) else {}
+    headers = (
+        _render_json_leaves(headers_raw, flat) if isinstance(headers_raw, dict) else {}
+    )
     body_tmpl = config.get("body_template")
     if body_tmpl is None:
         data = _render_json_leaves(config.get("body") or {}, flat)
@@ -328,11 +340,15 @@ async def _step_webhook(config: dict[str, Any], context: dict[str, Any]) -> dict
         if isinstance(body_tmpl, str):
             content = _render_template_str(body_tmpl, flat)
         else:
-            content = json.dumps(_render_json_leaves(body_tmpl, flat), ensure_ascii=False)
+            content = json.dumps(
+                _render_json_leaves(body_tmpl, flat), ensure_ascii=False
+            )
         ctype = config.get("content_type") or "application/json"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.request(method, url, headers={**headers, "Content-Type": ctype}, content=content)
+        r = await client.request(
+            method, url, headers={**headers, "Content-Type": ctype}, content=content
+        )
         return {"status": r.status_code, "text": r.text[:8000]}
 
 
@@ -381,7 +397,9 @@ async def _run_step(
     cfg = step.config if isinstance(step.config, dict) else {}
     try:
         if st == RuleStepTypeEnum.LLM_PROMPT.value:
-            out = await _step_llm_prompt(cfg, context, user_id=user_id, meeting_id=meeting_id, rule_id=rule_id)
+            out = await _step_llm_prompt(
+                cfg, context, user_id=user_id, meeting_id=meeting_id, rule_id=rule_id
+            )
         elif st == RuleStepTypeEnum.SEND_EMAIL.value:
             out = await _step_send_email(cfg, context)
         elif st == RuleStepTypeEnum.PUSH_NOTIFICATION.value:
@@ -502,9 +520,13 @@ async def execute_rules_for_meeting(
     async with get_async_session() as db:
         meeting = await MeetingRepository.get_by_id(db, meeting_id)
         if not meeting:
-            logger.warning("execute_rules_for_meeting: meeting %s not found", meeting_id)
+            logger.warning(
+                "execute_rules_for_meeting: meeting %s not found", meeting_id
+            )
             return
-        rules = await RuleRepository.list_enabled_by_trigger(db, meeting.user_id, trigger)
+        rules = await RuleRepository.list_enabled_by_trigger(
+            db, meeting.user_id, trigger
+        )
         if not rules:
             return
         for rule in rules:

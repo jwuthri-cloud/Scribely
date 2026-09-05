@@ -10,12 +10,13 @@ from typing import Any, Dict, Optional
 
 import httpx
 import jwt
-from app.config import Settings, get_settings
-from app.exceptions import UnauthorizedError, ValidationError
-from app.utils.logging import get_logger
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
+
+from app.config import Settings, get_settings
+from app.exceptions import UnauthorizedError, ValidationError
+from app.utils.logging import get_logger
 
 logger = get_logger("clerk_auth")
 
@@ -93,11 +94,13 @@ class ClerkUser:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "metadata": self.metadata,
-            "role": self.role
+            "role": self.role,
         }
 
 
-def _derive_jwks_url_from_publishable_key(publishable_key: Optional[str]) -> Optional[str]:
+def _derive_jwks_url_from_publishable_key(
+    publishable_key: Optional[str],
+) -> Optional[str]:
     """Derive JWKS URL from Clerk publishable key (pk_test_<base64> or pk_live_<base64>)."""
     if not publishable_key or not publishable_key.startswith("pk_"):
         return None
@@ -132,9 +135,7 @@ class ClerkAuthProvider:
         now = datetime.utcnow()
 
         # Return cached JWKS if still valid (cache for 1 hour)
-        if (self.jwks_cache and
-            self.jwks_cache_expiry and
-            now < self.jwks_cache_expiry):
+        if self.jwks_cache and self.jwks_cache_expiry and now < self.jwks_cache_expiry:
             return self.jwks_cache
 
         try:
@@ -184,7 +185,7 @@ class ClerkAuthProvider:
                 token,
                 signing_key,
                 algorithms=["RS256"],
-                options={"verify_aud": False}  # Clerk doesn't use standard aud claim
+                options={"verify_aud": False},  # Clerk doesn't use standard aud claim
             )
 
             # Create and return ClerkUser
@@ -209,14 +210,14 @@ class ClerkAuthProvider:
         try:
             headers = {
                 "Authorization": f"Bearer {self.settings.clerk_secret_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"https://api.clerk.dev/v1/users/{user_id}",
                     headers=headers,
-                    timeout=10.0
+                    timeout=10.0,
                 )
 
                 if response.status_code == 404:
@@ -228,13 +229,25 @@ class ClerkAuthProvider:
                 # Convert Clerk API response to JWT-like format
                 jwt_like_data = {
                     "sub": user_data.get("id"),
-                    "email": user_data.get("email_addresses", [{}])[0].get("email_address", ""),
+                    "email": user_data.get("email_addresses", [{}])[0].get(
+                        "email_address", ""
+                    ),
                     "username": user_data.get("username", ""),
                     "given_name": user_data.get("first_name", ""),
                     "family_name": user_data.get("last_name", ""),
                     "picture": user_data.get("image_url", ""),
                     "public_metadata": user_data.get("public_metadata", {}),
-                    "iat": int(datetime.fromisoformat(user_data.get("created_at", "1970-01-01T00:00:00Z").replace("Z", "+00:00")).timestamp()) if user_data.get("created_at") else None,
+                    "iat": (
+                        int(
+                            datetime.fromisoformat(
+                                user_data.get(
+                                    "created_at", "1970-01-01T00:00:00Z"
+                                ).replace("Z", "+00:00")
+                            ).timestamp()
+                        )
+                        if user_data.get("created_at")
+                        else None
+                    ),
                 }
 
                 return ClerkUser(jwt_like_data)
@@ -247,6 +260,7 @@ class ClerkAuthProvider:
 # Global Clerk auth provider instance
 _clerk_provider: Optional[ClerkAuthProvider] = None
 
+
 def get_clerk_provider(settings: Settings = Depends(get_settings)) -> ClerkAuthProvider:
     """Get Clerk authentication provider instance."""
     global _clerk_provider
@@ -257,7 +271,7 @@ def get_clerk_provider(settings: Settings = Depends(get_settings)) -> ClerkAuthP
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    clerk_provider: ClerkAuthProvider = Depends(get_clerk_provider)
+    clerk_provider: ClerkAuthProvider = Depends(get_clerk_provider),
 ) -> Optional[ClerkUser]:
     """
     Get current authenticated user from JWT token.
@@ -275,7 +289,7 @@ async def get_current_user(
 
 async def require_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    clerk_provider: ClerkAuthProvider = Depends(get_clerk_provider)
+    clerk_provider: ClerkAuthProvider = Depends(get_clerk_provider),
 ) -> ClerkUser:
     """
     Get current authenticated user from JWT token.
@@ -285,7 +299,7 @@ async def require_current_user(
         raise HTTPException(
             status_code=401,
             detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
@@ -293,24 +307,19 @@ async def require_current_user(
         return user
     except UnauthorizedError as e:
         raise HTTPException(
-            status_code=401,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"}
+            status_code=401, detail=str(e), headers={"WWW-Authenticate": "Bearer"}
         )
 
 
 async def require_admin(
-    current_user: ClerkUser = Depends(require_current_user)
+    current_user: ClerkUser = Depends(require_current_user),
 ) -> ClerkUser:
     """
     Require the current user to have admin privileges.
     Raises HTTPException if user is not an admin.
     """
     if not current_user.is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Admin privileges required"
-        )
+        raise HTTPException(status_code=403, detail="Admin privileges required")
     return current_user
 
 
@@ -323,15 +332,16 @@ def require_role(required_role: str):
         async def admin_endpoint(user: ClerkUser = Depends(require_role("admin"))):
             ...
     """
+
     async def role_checker(
-        current_user: ClerkUser = Depends(require_current_user)
+        current_user: ClerkUser = Depends(require_current_user),
     ) -> ClerkUser:
         if not current_user.has_role(required_role):
             raise HTTPException(
-                status_code=403,
-                detail=f"Role '{required_role}' or higher required"
+                status_code=403, detail=f"Role '{required_role}' or higher required"
             )
         return current_user
+
     return role_checker
 
 
@@ -339,9 +349,11 @@ def require_auth(func):
     """
     Decorator to require authentication for a function.
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         return await func(*args, **kwargs)
+
     return wrapper
 
 

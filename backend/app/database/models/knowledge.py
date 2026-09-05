@@ -30,7 +30,9 @@ class ContactKnowledge(Base):
     __tablename__ = "contact_knowledge"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     contact_id = Column(
         String,
         ForeignKey("contacts.id", ondelete="CASCADE"),

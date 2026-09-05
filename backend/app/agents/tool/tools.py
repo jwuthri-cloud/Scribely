@@ -1,4 +1,5 @@
 """Tool factory for the webapp assistant agent."""
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.tool.composio_tools import build_composio_tools

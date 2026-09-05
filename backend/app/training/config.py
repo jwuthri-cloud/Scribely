@@ -20,144 +20,101 @@ class TrainingSettings(BaseSettings):
     )
 
     # APO (Automatic Prompt Optimization) settings
-    apo_enabled: bool = Field(
-        default=True,
-        description="Enable APO training algorithm"
-    )
+    apo_enabled: bool = Field(default=True, description="Enable APO training algorithm")
     apo_gradient_model: str = Field(
         default=DEFAULT_TRAINING,
-        description="Model for computing textual gradients in APO"
+        description="Model for computing textual gradients in APO",
     )
     apo_apply_edit_model: str = Field(
         default=DEFAULT_TRAINING,
-        description="Model for applying edits based on gradients"
+        description="Model for applying edits based on gradients",
     )
     apo_beam_width: int = Field(
-        default=4,
-        ge=1,
-        description="Number of prompts to keep in beam search"
+        default=4, ge=1, description="Number of prompts to keep in beam search"
     )
     apo_beam_rounds: int = Field(
-        default=3,
-        ge=1,
-        description="Number of beam search optimization rounds"
+        default=3, ge=1, description="Number of beam search optimization rounds"
     )
     apo_branch_factor: int = Field(
-        default=4,
-        ge=1,
-        description="Number of new prompts to generate per parent"
+        default=4, ge=1, description="Number of new prompts to generate per parent"
     )
     apo_gradient_batch_size: int = Field(
         default=4,
         ge=1,
-        description="Number of rollouts to sample for gradient computation"
+        description="Number of rollouts to sample for gradient computation",
     )
     apo_val_batch_size: int = Field(
-        default=16,
-        ge=1,
-        description="Number of validation examples per batch"
+        default=16, ge=1, description="Number of validation examples per batch"
     )
     apo_diversity_temperature: float = Field(
         default=1.0,
         ge=0.0,
         le=2.0,
-        description="Temperature for diversity in gradient generation"
+        description="Temperature for diversity in gradient generation",
     )
     apo_rollout_batch_timeout: float = Field(
-        default=3600.0,
-        ge=60.0,
-        description="Timeout in seconds for rollout batches"
+        default=3600.0, ge=60.0, description="Timeout in seconds for rollout batches"
     )
 
     # VERL (Reinforcement Learning) settings
     verl_enabled: bool = Field(
-        default=False,
-        description="Enable VERL training (requires GPU)"
+        default=False, description="Enable VERL training (requires GPU)"
     )
     verl_model_path: str = Field(
-        default="",
-        description="Path to local model for VERL training"
+        default="", description="Path to local model for VERL training"
     )
     verl_use_lora: bool = Field(
-        default=True,
-        description="Use LoRA for efficient fine-tuning"
+        default=True, description="Use LoRA for efficient fine-tuning"
     )
     verl_learning_rate: float = Field(
-        default=1e-5,
-        gt=0.0,
-        description="Learning rate for VERL training"
+        default=1e-5, gt=0.0, description="Learning rate for VERL training"
     )
     verl_batch_size: int = Field(
-        default=4,
-        ge=1,
-        description="Batch size for VERL training"
+        default=4, ge=1, description="Batch size for VERL training"
     )
     verl_epochs: int = Field(
-        default=1,
-        ge=1,
-        description="Number of epochs for VERL training"
+        default=1, ge=1, description="Number of epochs for VERL training"
     )
 
     # SFT (Supervised Fine-Tuning) settings
     sft_enabled: bool = Field(
-        default=False,
-        description="Enable SFT training via Unsloth"
+        default=False, description="Enable SFT training via Unsloth"
     )
-    sft_model_path: str = Field(
-        default="",
-        description="Path to model for SFT"
-    )
+    sft_model_path: str = Field(default="", description="Path to model for SFT")
     sft_learning_rate: float = Field(
-        default=2e-5,
-        gt=0.0,
-        description="Learning rate for SFT"
+        default=2e-5, gt=0.0, description="Learning rate for SFT"
     )
-    sft_batch_size: int = Field(
-        default=4,
-        ge=1,
-        description="Batch size for SFT"
-    )
-    sft_epochs: int = Field(
-        default=3,
-        ge=1,
-        description="Number of epochs for SFT"
-    )
+    sft_batch_size: int = Field(default=4, ge=1, description="Batch size for SFT")
+    sft_epochs: int = Field(default=3, ge=1, description="Number of epochs for SFT")
 
     # Store settings
     store_type: Literal["memory", "sqlite", "mongodb"] = Field(
-        default="memory",
-        description="Type of store for training data"
+        default="memory", description="Type of store for training data"
     )
     store_path: str = Field(
         default="training_store.db",
-        description="Path to SQLite store (if using sqlite)"
+        description="Path to SQLite store (if using sqlite)",
     )
     store_mongodb_uri: str = Field(
-        default="",
-        description="MongoDB connection URI (if using mongodb)"
+        default="", description="MongoDB connection URI (if using mongodb)"
     )
 
     # Runner settings
     n_runners: int = Field(
-        default=1,
-        ge=1,
-        description="Number of parallel runners for training"
+        default=1, ge=1, description="Number of parallel runners for training"
     )
     max_rollouts: Optional[int] = Field(
-        default=None,
-        description="Maximum rollouts per runner (None for unlimited)"
+        default=None, description="Maximum rollouts per runner (None for unlimited)"
     )
 
     # Tracer settings
     tracer_enabled: bool = Field(
-        default=True,
-        description="Enable tracing during training"
+        default=True, description="Enable tracing during training"
     )
 
     # OpenRouter settings (for APO)
     openrouter_base_url: str = Field(
-        default="https://openrouter.ai/api/v1",
-        description="OpenRouter API base URL"
+        default="https://openrouter.ai/api/v1", description="OpenRouter API base URL"
     )
 
 

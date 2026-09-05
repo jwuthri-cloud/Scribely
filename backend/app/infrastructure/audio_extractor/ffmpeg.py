@@ -40,11 +40,15 @@ class FfmpegAudioExtractor:
 
         cmd = [
             "ffmpeg",
-            "-i", str(webm_path),
+            "-i",
+            str(webm_path),
             "-vn",
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",
-            "-ac", "1",
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
             "-y",
             str(output_path),
         ]
@@ -59,7 +63,9 @@ class FfmpegAudioExtractor:
 
         if proc.returncode != 0:
             err_msg = stderr.decode(errors="replace").strip()
-            raise RuntimeError(f"ffmpeg audio extraction failed (rc={proc.returncode}): {err_msg}")
+            raise RuntimeError(
+                f"ffmpeg audio extraction failed (rc={proc.returncode}): {err_msg}"
+            )
 
         size_mb = output_path.stat().st_size / (1024 * 1024)
         logger.info(f"Audio extracted: {size_mb:.1f} MB → {output_path}")

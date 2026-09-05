@@ -5,10 +5,11 @@ API response wrapper utilities for standardized responses.
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.models.base import EnhancedErrorResponse, ErrorDetail, SuccessResponse
-from app.utils.logging import get_logger
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+
+from app.models.base import EnhancedErrorResponse, ErrorDetail, SuccessResponse
+from app.utils.logging import get_logger
 
 logger = get_logger("api_response")
 
@@ -21,7 +22,7 @@ class APIResponseWrapper:
         message: str,
         data: Any = None,
         status_code: int = status.HTTP_200_OK,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> JSONResponse:
         """
         Create a standardized success response.
@@ -42,12 +43,11 @@ class APIResponseWrapper:
             message=message,
             data=data,
             request_id=request_id,
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
         return JSONResponse(
-            status_code=status_code,
-            content=response_data.dict(exclude_none=True)
+            status_code=status_code, content=response_data.dict(exclude_none=True)
         )
 
     @staticmethod
@@ -56,7 +56,7 @@ class APIResponseWrapper:
         details: Optional[List[ErrorDetail]] = None,
         status_code: int = status.HTTP_400_BAD_REQUEST,
         request: Optional[Request] = None,
-        error_type: str = "APIError"
+        error_type: str = "APIError",
     ) -> JSONResponse:
         """
         Create a standardized error response.
@@ -80,19 +80,18 @@ class APIResponseWrapper:
             request_id=request_id,
             timestamp=datetime.utcnow().isoformat(),
             path=request.url.path if request else None,
-            method=request.method if request else None
+            method=request.method if request else None,
         )
 
         return JSONResponse(
-            status_code=status_code,
-            content=response_data.dict(exclude_none=True)
+            status_code=status_code, content=response_data.dict(exclude_none=True)
         )
 
     @staticmethod
     def validation_error(
         message: str = "Validation failed",
         field_errors: Optional[List[Dict[str, Any]]] = None,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> JSONResponse:
         """
         Create a standardized validation error response.
@@ -109,26 +108,28 @@ class APIResponseWrapper:
 
         if field_errors:
             for error in field_errors:
-                details.append(ErrorDetail(
-                    type="validation_error",
-                    message=error.get("msg", "Invalid value"),
-                    field=error.get("loc", [])[-1] if error.get("loc") else None,
-                    code="VALIDATION_FAILED"
-                ))
+                details.append(
+                    ErrorDetail(
+                        type="validation_error",
+                        message=error.get("msg", "Invalid value"),
+                        field=error.get("loc", [])[-1] if error.get("loc") else None,
+                        code="VALIDATION_FAILED",
+                    )
+                )
 
         return APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             request=request,
-            error_type="ValidationError"
+            error_type="ValidationError",
         )
 
     @staticmethod
     def not_found(
         resource: str = "Resource",
         identifier: Optional[str] = None,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> JSONResponse:
         """
         Create a standardized not found error response.
@@ -146,24 +147,21 @@ class APIResponseWrapper:
         else:
             message = f"{resource} not found"
 
-        details = [ErrorDetail(
-            type="not_found",
-            message=message,
-            code="RESOURCE_NOT_FOUND"
-        )]
+        details = [
+            ErrorDetail(type="not_found", message=message, code="RESOURCE_NOT_FOUND")
+        ]
 
         return APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_404_NOT_FOUND,
             request=request,
-            error_type="NotFoundError"
+            error_type="NotFoundError",
         )
 
     @staticmethod
     def unauthorized(
-        message: str = "Authentication required",
-        request: Optional[Request] = None
+        message: str = "Authentication required", request: Optional[Request] = None
     ) -> JSONResponse:
         """
         Create a standardized unauthorized error response.
@@ -175,24 +173,23 @@ class APIResponseWrapper:
         Returns:
             Standardized unauthorized error response
         """
-        details = [ErrorDetail(
-            type="authentication_error",
-            message=message,
-            code="UNAUTHORIZED"
-        )]
+        details = [
+            ErrorDetail(
+                type="authentication_error", message=message, code="UNAUTHORIZED"
+            )
+        ]
 
         return APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_401_UNAUTHORIZED,
             request=request,
-            error_type="UnauthorizedError"
+            error_type="UnauthorizedError",
         )
 
     @staticmethod
     def forbidden(
-        message: str = "Access forbidden",
-        request: Optional[Request] = None
+        message: str = "Access forbidden", request: Optional[Request] = None
     ) -> JSONResponse:
         """
         Create a standardized forbidden error response.
@@ -204,25 +201,23 @@ class APIResponseWrapper:
         Returns:
             Standardized forbidden error response
         """
-        details = [ErrorDetail(
-            type="authorization_error",
-            message=message,
-            code="FORBIDDEN"
-        )]
+        details = [
+            ErrorDetail(type="authorization_error", message=message, code="FORBIDDEN")
+        ]
 
         return APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_403_FORBIDDEN,
             request=request,
-            error_type="ForbiddenError"
+            error_type="ForbiddenError",
         )
 
     @staticmethod
     def rate_limited(
         message: str = "Rate limit exceeded",
         retry_after: Optional[int] = None,
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> JSONResponse:
         """
         Create a standardized rate limit error response.
@@ -235,18 +230,18 @@ class APIResponseWrapper:
         Returns:
             Standardized rate limit error response
         """
-        details = [ErrorDetail(
-            type="rate_limit_error",
-            message=message,
-            code="RATE_LIMIT_EXCEEDED"
-        )]
+        details = [
+            ErrorDetail(
+                type="rate_limit_error", message=message, code="RATE_LIMIT_EXCEEDED"
+            )
+        ]
 
         response = APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             request=request,
-            error_type="RateLimitError"
+            error_type="RateLimitError",
         )
 
         # Add Retry-After header
@@ -259,7 +254,7 @@ class APIResponseWrapper:
     def server_error(
         message: str = "Internal server error",
         request: Optional[Request] = None,
-        error_code: Optional[str] = None
+        error_code: Optional[str] = None,
     ) -> JSONResponse:
         """
         Create a standardized server error response.
@@ -272,18 +267,20 @@ class APIResponseWrapper:
         Returns:
             Standardized server error response
         """
-        details = [ErrorDetail(
-            type="server_error",
-            message=message,
-            code=error_code or "INTERNAL_SERVER_ERROR"
-        )]
+        details = [
+            ErrorDetail(
+                type="server_error",
+                message=message,
+                code=error_code or "INTERNAL_SERVER_ERROR",
+            )
+        ]
 
         return APIResponseWrapper.error(
             message=message,
             details=details,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             request=request,
-            error_type="ServerError"
+            error_type="ServerError",
         )
 
     @staticmethod
@@ -293,7 +290,7 @@ class APIResponseWrapper:
         limit: int,
         offset: int,
         message: str = "Data retrieved successfully",
-        request: Optional[Request] = None
+        request: Optional[Request] = None,
     ) -> JSONResponse:
         """
         Create a standardized paginated response.
@@ -316,26 +313,17 @@ class APIResponseWrapper:
             "has_more": offset + len(items) < total,
             "has_prev": offset > 0,
             "page": (offset // limit) + 1,
-            "pages": ((total - 1) // limit) + 1 if total > 0 else 0
+            "pages": ((total - 1) // limit) + 1 if total > 0 else 0,
         }
 
-        data = {
-            "items": items,
-            "pagination": pagination
-        }
+        data = {"items": items, "pagination": pagination}
 
-        return APIResponseWrapper.success(
-            message=message,
-            data=data,
-            request=request
-        )
+        return APIResponseWrapper.success(message=message, data=data, request=request)
 
 
 # Convenience functions for common responses
 def success_response(
-    message: str,
-    data: Any = None,
-    request: Optional[Request] = None
+    message: str, data: Any = None, request: Optional[Request] = None
 ) -> JSONResponse:
     """Convenience function for success response."""
     return APIResponseWrapper.success(message, data, request=request)
@@ -344,24 +332,21 @@ def success_response(
 def error_response(
     message: str,
     status_code: int = status.HTTP_400_BAD_REQUEST,
-    request: Optional[Request] = None
+    request: Optional[Request] = None,
 ) -> JSONResponse:
     """Convenience function for error response."""
     return APIResponseWrapper.error(message, status_code=status_code, request=request)
 
 
 def validation_error_response(
-    errors: List[Dict[str, Any]],
-    request: Optional[Request] = None
+    errors: List[Dict[str, Any]], request: Optional[Request] = None
 ) -> JSONResponse:
     """Convenience function for validation error response."""
     return APIResponseWrapper.validation_error(field_errors=errors, request=request)
 
 
 def not_found_response(
-    resource: str,
-    identifier: Optional[str] = None,
-    request: Optional[Request] = None
+    resource: str, identifier: Optional[str] = None, request: Optional[Request] = None
 ) -> JSONResponse:
     """Convenience function for not found response."""
     return APIResponseWrapper.not_found(resource, identifier, request)
@@ -381,6 +366,7 @@ def standardize_response(func):
                 raise HTTPException(404, "Item not found")
             return {"message": "Item retrieved", "data": item}
     """
+
     async def wrapper(*args, **kwargs):
         try:
             result = await func(*args, **kwargs)
@@ -395,7 +381,7 @@ def standardize_response(func):
                     return success_response(
                         message=result["message"],
                         data=result.get("data"),
-                        request=kwargs.get("request")
+                        request=kwargs.get("request"),
                     )
 
             # Otherwise, return raw result (for existing working endpoints)
@@ -404,8 +390,7 @@ def standardize_response(func):
         except Exception as e:
             logger.exception(f"Error in endpoint {func.__name__}: {e}")
             return APIResponseWrapper.server_error(
-                message="An unexpected error occurred",
-                request=kwargs.get("request")
+                message="An unexpected error occurred", request=kwargs.get("request")
             )
 
     return wrapper

@@ -7,8 +7,9 @@ Idempotent: ``flow_layout`` may already exist if the ORM ran ``create_all`` befo
 this revision was applied (``alembic_version`` can lag the real schema).
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "008_rule_flow_layout"
 down_revision = "007_meeting_rules"

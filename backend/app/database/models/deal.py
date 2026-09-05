@@ -26,7 +26,9 @@ class Deal(Base):
     __tablename__ = "deals"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(
+        String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     domain = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     status = Column(
@@ -37,7 +39,9 @@ class Deal(Base):
     extra_metadata = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=_utc_naive, nullable=False)
-    updated_at = Column(DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False)
+    updated_at = Column(
+        DateTime, default=_utc_naive, onupdate=_utc_naive, nullable=False
+    )
 
     user = relationship("User", backref="deals")
     contacts = relationship("Contact", back_populates="deal")

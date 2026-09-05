@@ -107,7 +107,9 @@ async def _run_reminder_tick() -> None:
                     if status == 410:
                         async with get_async_session() as db_del:
                             await db_del.execute(
-                                delete(UserPushSubscription).where(UserPushSubscription.id == sub.id)
+                                delete(UserPushSubscription).where(
+                                    UserPushSubscription.id == sub.id
+                                )
                             )
                             await db_del.commit()
                         logger.info("Removed expired push subscription %s", sub.id[:8])

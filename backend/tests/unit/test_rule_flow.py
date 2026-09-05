@@ -162,7 +162,12 @@ def test_ancestor_no_edges_falls_back_to_linear_prefix():
 
 
 def test_ancestor_step_id_not_in_execution_order_returns_empty():
-    assert ancestor_step_ids_sorted("ghost", [{"source": RULE_TRIGGER_NODE_ID, "target": "a"}], ["a"]) == []
+    assert (
+        ancestor_step_ids_sorted(
+            "ghost", [{"source": RULE_TRIGGER_NODE_ID, "target": "a"}], ["a"]
+        )
+        == []
+    )
 
 
 def test_flow_layout_error_message():

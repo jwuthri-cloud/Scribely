@@ -33,7 +33,7 @@ def sanitize_filename(filename: str) -> str:
     import re
 
     # Remove special characters and replace spaces with underscores
-    sanitized = re.sub(r'[^\w\-_\.]', '_', filename)
+    sanitized = re.sub(r"[^\w\-_\.]", "_", filename)
     return sanitized
 
 
@@ -41,7 +41,7 @@ def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
     """Truncate text to a maximum length."""
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -51,6 +51,7 @@ def format_file_size(size_bytes: int) -> str:
 
     size_names = ["B", "KB", "MB", "GB", "TB"]
     import math
+
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
@@ -67,6 +68,7 @@ def mask_sensitive_data(data: str, visible_chars: int = 4) -> str:
 def dict_to_query_string(params: Dict[str, Any]) -> str:
     """Convert dictionary to query string."""
     from urllib.parse import urlencode
+
     return urlencode(params)
 
 

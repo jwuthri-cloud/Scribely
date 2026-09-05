@@ -14,7 +14,7 @@ from app.config import get_settings
 from .assemblyai import AssemblyAIDiarizer
 from .base import BaseDiarizer
 from .deepgram import DeepgramDiarizer
-from .types import DiarizedUtterance, DiarizationHints
+from .types import DiarizationHints, DiarizedUtterance
 
 __all__ = [
     "AssemblyAIDiarizer",

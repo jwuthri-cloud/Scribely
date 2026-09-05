@@ -7,9 +7,12 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Any, Optional
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import Settings, get_settings
 from app.database.models.calendar import (
     CalendarConnection,
@@ -18,20 +21,21 @@ from app.database.models.calendar import (
     MeetingPlatform,
     ParticipantResponseStatus,
 )
+from app.database.models.meeting import Meeting
 from app.database.repositories.calendar import CalendarRepository
 from app.database.repositories.contact import ContactRepository
 from app.database.repositories.deal import DealRepository
+from app.infrastructure.clerk_oauth import (
+    ClerkOAuthTokenError,
+    get_google_oauth_access_token,
+)
+from app.infrastructure.google_calendar import GoogleCalendarClient
 from app.services.deal_detection import (
     detect_deal_domain,
     domain_to_deal_name,
     normalize_email,
 )
-from sqlalchemy import select
-from app.database.models.meeting import Meeting
-from app.infrastructure.clerk_oauth import ClerkOAuthTokenError, get_google_oauth_access_token
-from app.infrastructure.google_calendar import GoogleCalendarClient
 from app.utils.logging import get_logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger("calendar_sync")
 
@@ -43,7 +47,9 @@ _RE_ZOOM = re.compile(r"https://[a-z0-9.\-]*zoom\.us/[a-z0-9/\-?=&]+", re.I)
 _RE_TEAMS = re.compile(r"https://teams\.microsoft\.com/[^\s]+", re.I)
 
 
-def extract_meeting_url_and_platform(event: dict) -> tuple[Optional[str], MeetingPlatform]:
+def extract_meeting_url_and_platform(
+    event: dict,
+) -> tuple[Optional[str], MeetingPlatform]:
     """Resolve meeting URL and platform from a Google Calendar event resource."""
     hang = event.get("hangoutLink")
     if isinstance(hang, str) and hang.startswith("http"):
@@ -118,7 +124,9 @@ def _parse_event_times(event: dict) -> tuple[datetime, datetime, str]:
         d1 = date.fromisoformat(d1_str)
         last_day = d1 - timedelta(days=1) if d1 > d0 else d0
         start_dt = datetime.combine(d0, datetime.min.time(), tzinfo=timezone.utc)
-        end_dt = datetime.combine(last_day, datetime.max.time().replace(microsecond=0), tzinfo=timezone.utc)
+        end_dt = datetime.combine(
+            last_day, datetime.max.time().replace(microsecond=0), tzinfo=timezone.utc
+        )
         return _to_naive_utc(start_dt), _to_naive_utc(end_dt), "UTC"
 
     now = datetime.now(timezone.utc)
@@ -137,7 +145,9 @@ def _to_naive_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-def _participants_from_event(event: dict, self_email_lower: Optional[str]) -> list[dict]:
+def _participants_from_event(
+    event: dict, self_email_lower: Optional[str]
+) -> list[dict]:
     out: list[dict[str, Any]] = []
     org = event.get("organizer") or {}
     org_email = (org.get("email") or "").lower()
@@ -166,7 +176,8 @@ def _participants_from_event(event: dict, self_email_lower: Optional[str]) -> li
                 "display_name": org.get("displayName"),
                 "is_organizer": True,
                 "response_status": ParticipantResponseStatus.ACCEPTED,
-                "is_self": self_email_lower is not None and org_email == self_email_lower,
+                "is_self": self_email_lower is not None
+                and org_email == self_email_lower,
             }
         )
     return out
@@ -314,14 +325,18 @@ class CalendarSyncService:
         user_id: str,
         clerk_user_id: str,
     ) -> None:
-        conn = await CalendarRepository.get_connection_by_user_provider(db, user_id, PROVIDER_GOOGLE)
+        conn = await CalendarRepository.get_connection_by_user_provider(
+            db, user_id, PROVIDER_GOOGLE
+        )
         if not conn:
             return
 
         if conn.webhook_channel_id and conn.webhook_resource_id:
             try:
                 client = await self.get_client_for_user(clerk_user_id)
-                await client.stop_channel(conn.webhook_channel_id, conn.webhook_resource_id)
+                await client.stop_channel(
+                    conn.webhook_channel_id, conn.webhook_resource_id
+                )
             except Exception as e:
                 logger.warning("stop channel failed: %s", e)
 
@@ -354,7 +369,10 @@ class CalendarSyncService:
             )
         except httpx.HTTPStatusError as e:
             if e.response is not None and e.response.status_code == 410:
-                logger.info("Sync token invalid (410), running full sync for user %s", connection.user_id)
+                logger.info(
+                    "Sync token invalid (410), running full sync for user %s",
+                    connection.user_id,
+                )
                 await self._full_sync(db, connection, clerk_user_id, self_email)
                 return
             raise
@@ -472,7 +490,9 @@ class CalendarSyncService:
         clerk_user_id: str,
     ) -> bool:
         """Re-register watch if expiring within 24h. Returns True if renewed."""
-        conn = await CalendarRepository.get_connection_by_user_provider(db, user_id, PROVIDER_GOOGLE)
+        conn = await CalendarRepository.get_connection_by_user_provider(
+            db, user_id, PROVIDER_GOOGLE
+        )
         if not conn or conn.status != CalendarConnectionStatus.ACTIVE:
             return False
         if not conn.webhook_expiration:

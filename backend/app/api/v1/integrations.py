@@ -1,6 +1,7 @@
 """
 Endpoints for managing user's external app integrations via Composio.
 """
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +13,10 @@ from app.agents.tool.composio_tools import (
     get_connected_apps,
 )
 from app.config import get_settings
-from app.infrastructure.clerk_oauth import ClerkOAuthTokenError, get_google_oauth_access_token
+from app.infrastructure.clerk_oauth import (
+    ClerkOAuthTokenError,
+    get_google_oauth_access_token,
+)
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
 

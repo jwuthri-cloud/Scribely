@@ -118,7 +118,13 @@ class MeetingRepository:
         total = total_result.scalar() or 0
 
         offset = (page - 1) * limit
-        stmt = base.order_by(Meeting.recorded_at.desc().nullslast(), Meeting.created_at.desc()).offset(offset).limit(limit)
+        stmt = (
+            base.order_by(
+                Meeting.recorded_at.desc().nullslast(), Meeting.created_at.desc()
+            )
+            .offset(offset)
+            .limit(limit)
+        )
         result = await db.execute(stmt)
         meetings = list(result.scalars().all())
 
@@ -176,19 +182,25 @@ class MeetingRepository:
     @staticmethod
     async def total_duration_for_user(db: AsyncSession, user_id: str) -> int:
         result = await db.execute(
-            select(func.coalesce(func.sum(Meeting.duration_seconds), 0)).where(Meeting.user_id == user_id)
+            select(func.coalesce(func.sum(Meeting.duration_seconds), 0)).where(
+                Meeting.user_id == user_id
+            )
         )
         return result.scalar() or 0
 
     @staticmethod
     async def total_entry_count_for_user(db: AsyncSession, user_id: str) -> int:
         result = await db.execute(
-            select(func.coalesce(func.sum(Meeting.entry_count), 0)).where(Meeting.user_id == user_id)
+            select(func.coalesce(func.sum(Meeting.entry_count), 0)).where(
+                Meeting.user_id == user_id
+            )
         )
         return result.scalar() or 0
 
     @staticmethod
-    async def count_by_status_for_user(db: AsyncSession, user_id: str) -> dict[str, int]:
+    async def count_by_status_for_user(
+        db: AsyncSession, user_id: str
+    ) -> dict[str, int]:
         """Return {status_value: count} for a user's meetings."""
         stmt = (
             select(Meeting.status, func.count(Meeting.id))
@@ -197,7 +209,9 @@ class MeetingRepository:
         )
         result = await db.execute(stmt)
         return {
-            (row[0].value if isinstance(row[0], MeetingStatusEnum) else str(row[0])): row[1]
+            (
+                row[0].value if isinstance(row[0], MeetingStatusEnum) else str(row[0])
+            ): row[1]
             for row in result.all()
         }
 

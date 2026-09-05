@@ -5,6 +5,7 @@ Fetch OAuth access tokens for social providers from Clerk Backend API.
 from typing import Any, Optional
 
 import httpx
+
 from app.config import Settings
 from app.utils.logging import get_logger
 

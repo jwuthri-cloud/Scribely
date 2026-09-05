@@ -30,6 +30,7 @@ sys.path.insert(0, str(backend_dir))
 
 # Load .env before importing app modules
 from dotenv import load_dotenv
+
 load_dotenv(backend_dir / ".env")
 
 
@@ -49,8 +50,10 @@ async def run_diarization_only(file_path: Path, provider: str) -> None:
     utterances = await diarize(audio_path, provider)
 
     print(f"\n{'='*70}")
-    print(f"  {len(utterances)} utterances, "
-          f"{len(set(u.speaker for u in utterances))} speakers detected")
+    print(
+        f"  {len(utterances)} utterances, "
+        f"{len(set(u.speaker for u in utterances))} speakers detected"
+    )
     print(f"{'='*70}\n")
 
     for utt in utterances:
@@ -60,18 +63,18 @@ async def run_diarization_only(file_path: Path, provider: str) -> None:
 
     # Save raw results alongside the file
     out_path = file_path.parent / f"diarization_{provider}.json"
-    out_path.write_text(json.dumps(
-        [u.to_dict() for u in utterances], indent=2, ensure_ascii=False
-    ))
+    out_path.write_text(
+        json.dumps([u.to_dict() for u in utterances], indent=2, ensure_ascii=False)
+    )
     print(f"\n  Raw results saved to: {out_path}")
 
 
 async def run_full_pipeline(file_path: Path, provider: str) -> None:
+    from app.config import get_settings
     from app.infrastructure.audio_extractor import extract_audio
     from app.infrastructure.diarization import diarize
     from app.infrastructure.frame_extractor import extract_speaker_frames
     from app.services.speaker_identifier import identify_speakers
-    from app.config import get_settings
 
     settings = get_settings()
 
@@ -116,10 +119,16 @@ async def run_full_pipeline(file_path: Path, provider: str) -> None:
         print(f"  [{start} → {end}]  {real_name}:  {utt.text}")
 
     out_path = file_path.parent / f"diarization_full_{provider}.json"
-    out_path.write_text(json.dumps({
-        "speakerMap": speaker_map,
-        "utterances": [u.to_dict() for u in utterances],
-    }, indent=2, ensure_ascii=False))
+    out_path.write_text(
+        json.dumps(
+            {
+                "speakerMap": speaker_map,
+                "utterances": [u.to_dict() for u in utterances],
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     print(f"\n  Full results saved to: {out_path}")
 
 
@@ -136,11 +145,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Test diarization on a media file")
     parser.add_argument("file", type=Path, help="Path to MP4, WebM, or WAV file")
     parser.add_argument(
-        "--provider", choices=["deepgram", "assemblyai"], default="deepgram",
+        "--provider",
+        choices=["deepgram", "assemblyai"],
+        default="deepgram",
         help="Diarization provider (default: deepgram)",
     )
     parser.add_argument(
-        "--full", action="store_true",
+        "--full",
+        action="store_true",
         help="Run full pipeline including frame extraction + LLM speaker ID",
     )
     args = parser.parse_args()

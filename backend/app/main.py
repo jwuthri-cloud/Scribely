@@ -4,9 +4,12 @@ A FastAPI + Next.js AI agent application with OpenRouter
 """
 
 import asyncio
+import threading
 from contextlib import asynccontextmanager
 
 import uvicorn
+from fastapi import FastAPI
+
 from app.api.v1.router import api_router
 from app.config import get_settings
 from app.database.session import cleanup_database, initialize_database
@@ -17,7 +20,6 @@ from app.models.base import APIInfo
 from app.services.calendar_reminder_loop import calendar_reminder_loop
 from app.services.calendar_webhook_renewal import calendar_webhook_renewal_loop
 from app.services.task_runner import recover_interrupted_processing_tasks
-from fastapi import FastAPI
 from app.utils.logging import get_logger
 
 logger = get_logger("main")
@@ -30,10 +32,14 @@ def _log_web_push_startup() -> None:
     """Warn once at startup if meeting reminders cannot run (missing VAPID keys)."""
     s = get_settings()
     if not s.calendar_reminder_enabled:
-        logger.debug("Calendar Web Push: reminders disabled (CALENDAR_REMINDER_ENABLED=false).")
+        logger.debug(
+            "Calendar Web Push: reminders disabled (CALENDAR_REMINDER_ENABLED=false)."
+        )
         return
     if s.vapid_public_key and s.vapid_private_key:
-        logger.info("Calendar Web Push: VAPID keys configured; pre-meeting reminders enabled.")
+        logger.info(
+            "Calendar Web Push: VAPID keys configured; pre-meeting reminders enabled."
+        )
         return
     logger.warning(
         "Calendar Web Push: CALENDAR_REMINDER_ENABLED is true but VAPID_PUBLIC_KEY and/or "
@@ -44,6 +50,23 @@ def _log_web_push_startup() -> None:
 
 
 @asynccontextmanager
+def _shutdown_langfuse_with_timeout(timeout: float = 5.0) -> None:
+    """Flush + shut down Langfuse without letting a stuck network call wedge shutdown.
+
+    Runs in a daemon thread so a hung exporter can't block the event loop or
+    interpreter exit (seen in tests and on Railway stop).
+    """
+    t = threading.Thread(
+        target=lambda: (flush_langfuse(), shutdown_langfuse()), daemon=True
+    )
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        logger.warning(
+            "Langfuse flush timed out after %ss; continuing shutdown", timeout
+        )
+
+
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     stop_renewal = asyncio.Event()
@@ -55,7 +78,10 @@ async def lifespan(app: FastAPI):
         _log_web_push_startup()
         n_recovered = await recover_interrupted_processing_tasks()
         if n_recovered:
-            logger.info("Re-queued %s meeting processing job(s) from persisted state", n_recovered)
+            logger.info(
+                "Re-queued %s meeting processing job(s) from persisted state",
+                n_recovered,
+            )
         renewal_task = asyncio.create_task(calendar_webhook_renewal_loop(stop_renewal))
         reminder_task = asyncio.create_task(calendar_reminder_loop(stop_renewal))
         yield
@@ -73,8 +99,7 @@ async def lifespan(app: FastAPI):
                     except asyncio.CancelledError:
                         pass
         try:
-            flush_langfuse()
-            shutdown_langfuse()
+            _shutdown_langfuse_with_timeout()
             await cleanup_database()
             logger.info("Database cleaned up successfully")
         except Exception as e:
@@ -89,7 +114,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Setup middleware
@@ -101,6 +126,7 @@ setup_exception_handlers(app)
 # Include API routes
 app.include_router(api_router, prefix="/api")
 
+
 # Root endpoint
 @app.get("/", response_model=APIInfo)
 async def root() -> APIInfo:
@@ -110,7 +136,7 @@ async def root() -> APIInfo:
         version=settings.app_version,
         description="A FastAPI + Next.js AI agent application with OpenRouter",
         docs_url="/docs",
-        health_url="/api/v1/health"
+        health_url="/api/v1/health",
     )
 
 
@@ -119,6 +145,7 @@ async def root() -> APIInfo:
 async def health_redirect():
     """Legacy health endpoint - redirects to v1."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/api/v1/health")
 
 
