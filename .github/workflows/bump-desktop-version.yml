@@ -2,7 +2,7 @@ name: Bump Desktop Version
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'desktop/**'
 
