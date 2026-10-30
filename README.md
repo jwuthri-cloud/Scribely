@@ -451,3 +451,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 [🔀 OpenRouter](https://openrouter.ai) • [🔐 Clerk](https://clerk.com) • [⚡ FastAPI](https://fastapi.tiangolo.com) • [⚛️ Next.js](https://nextjs.org)
 
 </div>
+
+**Optional ModelGo web chat:** The backend web chat supports ModelGo's international
+endpoint while retaining OpenRouter as the default. See the
+[configuration and scope](backend/README.md#optional-modelgo-provider-for-web-chat).
+Meeting processing, rules, embeddings, CLI and desktop providers are unchanged.

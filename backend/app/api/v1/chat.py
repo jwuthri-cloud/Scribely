@@ -20,13 +20,9 @@ from app.infrastructure.circuit_breaker import (
     CircuitBreakerOpenError,
     get_llm_circuit_breaker,
 )
-from app.infrastructure.llm_provider import OpenRouterProvider
+from app.infrastructure.llm_provider import get_chat_provider
 from app.middleware.rate_limit import RateLimits, limiter
-from app.model_name import (
-    ALLOWED_OPENROUTER_MODEL_IDS,
-    DEFAULT_TRAINING,
-    OPENROUTER_CHAT_MODEL_CATALOG,
-)
+from app.model_name import get_chat_model_catalog
 from app.security.clerk_auth import ClerkUser, require_current_user
 from app.utils.logging import get_logger
 
@@ -55,9 +51,10 @@ class ChatModelsResponse(BaseModel):
 @router.get("/models", response_model=ChatModelsResponse)
 async def list_chat_models() -> ChatModelsResponse:
     """Return allowed chat models. No auth — IDs are public."""
+    catalog, default_model = get_chat_model_catalog()
     return ChatModelsResponse(
-        models=[ChatModelItem(**entry) for entry in OPENROUTER_CHAT_MODEL_CATALOG],
-        default_model=DEFAULT_TRAINING,
+        models=[ChatModelItem(**entry) for entry in catalog],
+        default_model=default_model,
     )
 
 
@@ -67,15 +64,16 @@ async def list_chat_models() -> ChatModelsResponse:
 
 
 def _validate_model(v: Optional[str]) -> str:
-    m = v if v is not None else DEFAULT_TRAINING
-    if m not in ALLOWED_OPENROUTER_MODEL_IDS:
+    catalog, default_model = get_chat_model_catalog()
+    m = v if v is not None else default_model
+    if m not in {entry["id"] for entry in catalog}:
         raise ValueError(f"Unsupported model {m!r}.")
     return m
 
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
-    model: Optional[str] = Field(DEFAULT_TRAINING)
+    model: Optional[str] = Field(None, validate_default=True)
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
     session_id: Optional[str] = Field(None)
 
@@ -92,7 +90,7 @@ class ChatResponse(BaseModel):
 
 class StreamingChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
-    model: Optional[str] = Field(DEFAULT_TRAINING)
+    model: Optional[str] = Field(None, validate_default=True)
     temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
     session_id: Optional[str] = Field(None)
 
@@ -123,7 +121,7 @@ async def chat(
             f"Chat request from user {current_user.id}: {request_body.message[:50]}..."
         )
 
-        provider = OpenRouterProvider()
+        provider = get_chat_provider()
         agent = await AssistantAgent.create(
             llm_provider=provider,
             db=db,
@@ -201,7 +199,7 @@ async def chat_stream(
                 f"Streaming chat from user {current_user.id}: {request_body.message[:50]}..."
             )
 
-            provider = OpenRouterProvider()
+            provider = get_chat_provider()
             agent = await AssistantAgent.create(
                 llm_provider=provider,
                 db=db,

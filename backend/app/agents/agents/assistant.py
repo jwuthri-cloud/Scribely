@@ -11,7 +11,7 @@ from app.agents.prompt.assistant import SYSTEM_PROMPT
 from app.agents.structured_output.assistant import AssistantResponse
 from app.agents.tool.tools import build_tools
 from app.infrastructure.langfuse_handler import get_langfuse_config
-from app.infrastructure.llm_provider import OpenRouterProvider
+from app.infrastructure.llm_provider import ChatProvider
 from app.model_name import DEFAULT_TRAINING
 from app.utils.logging import get_logger
 from app.utils.structured_streaming import (
@@ -30,7 +30,7 @@ class AssistantAgent:
 
     def __init__(
         self,
-        llm_provider: OpenRouterProvider,
+        llm_provider: ChatProvider,
         model_name: str = DEFAULT_TRAINING,
         temperature: float = 0.1,
     ):
@@ -47,7 +47,7 @@ class AssistantAgent:
     @classmethod
     async def create(
         cls,
-        llm_provider: OpenRouterProvider,
+        llm_provider: ChatProvider,
         db: AsyncSession,
         user_id: str,
         model_name: str = DEFAULT_TRAINING,
@@ -57,7 +57,7 @@ class AssistantAgent:
         Async factory — use instead of direct instantiation.
 
         Args:
-            llm_provider: OpenRouter provider instance
+            llm_provider: Web chat provider instance
             db: Async database session (scopes DB tools to this session)
             user_id: Authenticated user ID (scopes all tools to this user)
             model_name: Model name for the agent

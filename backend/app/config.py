@@ -3,7 +3,7 @@
 import ipaddress
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import AliasChoices, Field, computed_field
@@ -63,8 +63,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PORT", "API_PORT"),
     )
 
-    # OpenRouter (optional, for future use)
+    # Web chat only; meeting processing, rules, embeddings and training retain OpenRouter.
+    chat_llm_provider: Literal["openrouter", "modelgo"] = "openrouter"
     openrouter_api_key: str = ""
+    modelgo_api_key: str = ""
+    modelgo_model: str = ""
+    # Some models reject temperature; opt in only for models that support it.
+    modelgo_send_temperature: bool = False
+    # Optional additional exact model IDs exposed in the web chat picker (JSON array).
+    modelgo_models: list[str] = Field(default_factory=list)
 
     # Langfuse Observability (optional)
     langfuse_enabled: bool = False

@@ -249,7 +249,7 @@ export interface RuleUpdateBody {
   flow_layout?: Record<string, unknown> | null
 }
 
-/** OpenRouter chat model row — matches GET /api/v1/chat/models */
+/** Configured chat model row — matches GET /api/v1/chat/models */
 export interface ChatModelOption {
   id: string
   label: string

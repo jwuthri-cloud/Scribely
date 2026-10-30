@@ -145,3 +145,29 @@ OPENROUTER_CHAT_MODEL_CATALOG: list[dict[str, str]] = [
 ALLOWED_OPENROUTER_MODEL_IDS: frozenset[str] = frozenset(
     entry["id"] for entry in OPENROUTER_CHAT_MODEL_CATALOG
 )
+
+
+def get_chat_model_catalog() -> tuple[list[dict[str, str]], str]:
+    """Return the configured web chat allowlist and default, without network calls."""
+    # Local import avoids the settings module's DEFAULT_VISION import cycle.
+    from app.config import get_settings
+
+    settings = get_settings()
+    if settings.chat_llm_provider == "openrouter":
+        return OPENROUTER_CHAT_MODEL_CATALOG, DEFAULT_TRAINING
+    model_ids = [settings.modelgo_model, *settings.modelgo_models]
+    if not settings.modelgo_model or any(
+        not model_id or model_id != model_id.strip() for model_id in model_ids
+    ):
+        raise ValueError(
+            "Set MODELGO_MODEL and MODELGO_MODELS to exact ModelGo model IDs."
+        )
+    return [
+        {
+            "id": model_id,
+            "label": model_id,
+            "description": "Via ModelGo",
+            "provider": "modelgo",
+        }
+        for model_id in dict.fromkeys(model_ids)
+    ], settings.modelgo_model

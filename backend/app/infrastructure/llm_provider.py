@@ -1,7 +1,7 @@
 """LLM provider integrations using LangChain."""
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
 import httpx
 import requests
@@ -17,6 +17,56 @@ from app.model_name import (
 from app.utils.logging import get_logger
 
 logger = get_logger("llm_provider")
+
+
+class ChatProvider(Protocol):
+    """Minimal provider interface consumed by the web assistant."""
+
+    def get_llm(
+        self,
+        model_name: str,
+        temperature: float = 0,
+        callbacks: Optional[List] = None,
+        enable_langfuse: bool = True,
+    ) -> ChatOpenAI: ...
+
+
+class ModelGoProvider:
+    """ModelGo international chat completions; no OpenRouter routing extensions."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or get_settings().modelgo_api_key
+        if not self.api_key:
+            raise ValueError("MODELGO_API_KEY not set.")
+
+    def get_llm(
+        self,
+        model_name: str,
+        temperature: float = 0,
+        callbacks: Optional[List] = None,
+        enable_langfuse: bool = True,
+    ) -> ChatOpenAI:
+        if not model_name or model_name != model_name.strip():
+            raise ValueError("An exact ModelGo model ID is required.")
+        return ChatOpenAI(
+            model=model_name,
+            api_key=self.api_key,
+            base_url="https://api.modelgo.ai/v1",
+            temperature=(
+                temperature if get_settings().modelgo_send_temperature else None
+            ),
+            max_tokens=4096,
+            callbacks=(
+                get_langfuse_callbacks(callbacks) if enable_langfuse else callbacks
+            ),
+        )
+
+
+def get_chat_provider() -> ChatProvider:
+    """Select the web chat provider without changing other backend LLM workflows."""
+    if get_settings().chat_llm_provider == "modelgo":
+        return ModelGoProvider()
+    return OpenRouterProvider()
 
 
 class OpenRouterProvider:

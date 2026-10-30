@@ -88,7 +88,7 @@ export function ModelSelector({
           <div className="absolute bottom-full left-0 z-50 mb-2 max-h-[min(70vh,420px)] min-w-[min(100vw-2rem,280px)] overflow-y-auto rounded-xl border border-white/10 bg-[#1a1a1e]/95 shadow-2xl shadow-black/50 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
             <div className="p-1.5">
               <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
-                Model (OpenRouter)
+                Model
               </div>
               {models.map((m) => (
                 <button
